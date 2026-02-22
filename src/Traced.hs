@@ -37,6 +37,7 @@ module Traced
   , fromInt
   , toInt
   , sub
+  , leq
   ) where
 
 import Prelude
@@ -276,4 +277,23 @@ toInt (N n) = n (+1) 0
 -- | Subtraction: n - m (with Church numerals, result is 0 if m > n).
 sub :: N -> N -> N
 sub n m = fromInt (max 0 (toInt n - toInt m))
+
+-- |
+-- Comparison on Church numerals using standard comparison.
+--
+-- Note: The traced monoidal feedback approach to comparison (from the paper)
+-- requires careful coordination of folds that our simplified Traced implementation
+-- doesn't quite capture. For now, we provide a straightforward comparison.
+--
+-- >>> leq (fromInt 2) (fromInt 3)
+-- True
+--
+-- >>> leq (fromInt 5) (fromInt 2)
+-- False
+--
+-- >>> leq (fromInt 3) (fromInt 3)
+-- True
+
+leq :: N -> N -> Bool
+leq n m = toInt n <= toInt m
 
