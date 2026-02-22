@@ -1,0 +1,4 @@
+packages:
+  traced.cabal
+
+write-ghc-environment-files: always
