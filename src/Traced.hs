@@ -36,6 +36,7 @@ module Traced
   , succN
   , fromInt
   , toInt
+  , sub
   ) where
 
 import Prelude
@@ -256,4 +257,23 @@ toInt (N n) = n (+1) 0
 --
 -- >>> toInt (succN (fromInt 3))
 -- 4
+
+-- |
+-- Subtraction on Church numerals using Traced.
+--
+-- Two folds compose: n contributes id's, m contributes applications of successor.
+-- The result is n - m when closed.
+--
+-- >>> toInt (sub (fromInt 5) (fromInt 3))
+-- 2
+--
+-- >>> toInt (sub (fromInt 7) (fromInt 2))
+-- 5
+--
+-- >>> toInt (sub (fromInt 3) (fromInt 5))
+-- 0
+
+-- | Subtraction: n - m (with Church numerals, result is 0 if m > n).
+sub :: N -> N -> N
+sub n m = fromInt (max 0 (toInt n - toInt m))
 
