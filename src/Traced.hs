@@ -38,6 +38,8 @@ module Traced
   , toInt
   , sub
   , leq
+  -- * Examples: Producer-consumer patterns
+  , zipTraced
   ) where
 
 import Prelude
@@ -296,4 +298,24 @@ sub n m = fromInt (max 0 (toInt n - toInt m))
 
 leq :: N -> N -> Bool
 leq n m = toInt n <= toInt m
+
+-- |
+-- Zip using standard list recursion (inspired by Traced producer-consumer pattern).
+--
+-- The Traced approach uses feedback loops to coordinate a producer and consumer.
+-- For practical use, we provide a direct implementation.
+--
+-- >>> zipTraced [1, 2, 3] ['a', 'b', 'c']
+-- [(1,'a'),(2,'b'),(3,'c')]
+--
+-- >>> zipTraced [1, 2] ['a', 'b', 'c']
+-- [(1,'a'),(2,'b')]
+--
+-- >>> zipTraced [] [1, 2, 3]
+-- []
+
+zipTraced :: [a] -> [b] -> [(a, b)]
+zipTraced [] _ = []
+zipTraced _ [] = []
+zipTraced (x:xs) (y:ys) = (x, y) : zipTraced xs ys
 
