@@ -62,8 +62,8 @@ fix f = let x = f x in x
 -- * 'Compose': syntax for composition (Free level)
 -- * 'Untrace': syntax for loops (Traced level)
 --
--- >>> run (build id) == id
--- True
+-- >>> run (build id) 42
+-- 42
 --
 -- >>> run (build (+1)) 5
 -- 6
@@ -107,8 +107,8 @@ build f = Apply f Pure
 -- This is the implementation for 'Free' — restricted to Pure, Apply, Compose.
 -- No case inspection needed; composition flattens immediately.
 --
--- >>> runFree (build id) == id
--- True
+-- >>> runFree (build (+10)) 5
+-- 15
 
 runFree :: Traced a b -> (a -> b)
 runFree Pure          = id
@@ -137,8 +137,8 @@ runFree (Untrace _)   = error "Untrace cannot appear in Free"
 -- normalizer. Reassociation and sliding are not separate proofs; they are baked
 -- into the case analysis. The normalizer finds the canonical form.
 --
--- >>> run (build id) == id
--- True
+-- >>> run (build id) 99
+-- 99
 
 run :: Traced a b -> (a -> b)
 run Pure = id
