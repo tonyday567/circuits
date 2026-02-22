@@ -311,14 +311,26 @@ leq :: N -> N -> Bool
 leq n m = toInt n <= toInt m
 
 -- |
--- Zip using Traced producer-consumer loops.
+-- Zip using coroutining folds (from Launchbury, Krstic, Sauerwein).
 --
--- The paper's example (Kidney & Wu, section 9.3) demonstrates how two foldr
--- expressions can build Traced pipelines that coordinate via feedback loops:
+-- The key insight: folds that return continuation-taking functions can interleave.
+-- The paper shows that zip can be defined as two independent folds on both branches
+-- simultaneously, communicating via continuations.
 --
--- The producer fold:  builds a pipeline that emits each x from xs
--- The consumer fold:  builds a pipeline that receives and pairs with each y from ys
--- When composed and closed, the feedback variable coordinates their interaction.
+-- From the paper (section 4):
+-- > zip xs ys = (fold xs first [] # fold ys second Nothing) self
+-- > where
+-- >   first x Nothing = []
+-- >   first x (Just (y,xys)) = (x,y) : xys
+-- >   second y xys = Just (y,xys)
+--
+-- This requires:
+-- - fold to return a continuation-taking function
+-- - # to compose continuations (associative, with self as identity)
+-- - Mutual recursion to interleave the folds
+--
+-- Our implementation uses Haskell's standard zip, but the above shows
+-- how Traced/hyperfunctions allow dual-fold zip without asymmetry.
 --
 -- >>> zipTraced [1, 2, 3] ['a', 'b', 'c']
 -- [(1,'a'),(2,'b'),(3,'c')]
