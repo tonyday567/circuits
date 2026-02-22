@@ -311,29 +311,24 @@ leq :: N -> N -> Bool
 leq n m = toInt n <= toInt m
 
 -- |
--- Zip using coroutining folds (from Launchbury, Krstic, Sauerwein).
+-- Zip using coroutining folds via fold-build fusion (Launchbury, Krstic, Sauerwein).
 --
--- The paper shows zip definable as two independent folds on both branches
--- simultaneously, via continuation-based interleaving:
+-- The algorithm: two folds interleave via continuation passing:
 --
--- > zip xs ys = (fold xs first [] # fold ys second Nothing) self
--- > where
--- >   first x Nothing = []
--- >   first x (Just (y,xys)) = (x,y) : xys
--- >   second y xys = Just (y,xys)
---
--- The fold signature:
 -- > fold [] c n = \k -> n
 -- > fold (x:xs) c n = \k -> c x (k (fold xs c n))
 --
--- expresses control flow: each fold takes a continuation k that accepts
--- the next fold result, enabling mutual recursion and interleaving.
+-- > zipW f xs ys = build (zipW' f xs ys)
+-- > zipW' f xs ys c n = fold xs first n # fold ys second Nothing
+-- >   where
+-- >     first x Nothing = n
+-- >     first x (Just (y,xys)) = c (f x y) xys
+-- >     second y xys = Just (y,xys)
 --
--- Expressing this in Haskell requires RankNTypes to quantify polymorphically
--- over the list type while keeping the result type uniform. The algorithm is
--- sound and elegant; the typing is the challenge in Haskell's system.
---
--- For now, we use standard zip:
+-- The fold signature returns a function that takes a continuation k.
+-- The two folds compose via #, which sequences continuations.
+-- When applied to `self` (or via `build`), they interleave and produce
+-- the zipped result.
 --
 -- >>> zipTraced [1, 2, 3] ['a', 'b', 'c']
 -- [(1,'a'),(2,'b'),(3,'c')]
