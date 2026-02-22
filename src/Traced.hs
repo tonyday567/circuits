@@ -25,14 +25,17 @@ module Traced
     Traced (..)
   , build
   , run
-  , yank
+  , close
   -- * Type aliases for restricted views
   , Coyoneda
   , Free
   ) where
 
 import Prelude
-import Control.Monad.Fix (fix)
+
+-- | Fixed point combinator.
+fix :: (a -> a) -> a
+fix f = let x = f x in x
 
 -- |
 -- Traced: the unified GADT for all three syntaxes.
@@ -102,18 +105,18 @@ run (Compose g h) = run g . run h
 run (Untrace p)   = \a -> fst $ fix $ \(_b, c) -> run p (a, c)
 
 -- |
--- Run a closed loop by taking the fixed point.
+-- Close a feedback loop by taking the fixed point.
 --
--- When the input and output types match, 'yank' closes the loop by taking the
+-- When the input and output types match, 'close' evaluates the loop by taking the
 -- fixed point of the underlying function. This is the yanking axiom:
 --
--- > yank (build id) = fix . run . build $ id = fix id = id
+-- > close (build id) = fix . run . build $ id = fix id = id
 --
 -- Not needed at Coyoneda/Free level. Essential at Traced level for evaluating
 -- closed feedback loops.
 
-yank :: Traced a a -> a
-yank = fix . run
+close :: Traced a a -> a
+close = fix . run
 
 -- |
 -- Traced is a functor in its output type.

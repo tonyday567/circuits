@@ -287,14 +287,14 @@ so it cannot leak. Here, the feedback variable `c` is existential, so it cannot 
 
 ### The Yanking Axiom
 
-A closed loop is run by taking its fixed point:
+A closed loop is evaluated by taking its fixed point:
 
 ```haskell
-yank :: Traced a a -> a
-yank = fix . run
+close :: Traced a a -> a
+close = fix . run
 ```
 
-When the pipeline is closed (input and output types match), `yank` takes the fixed point, 
+When the pipeline is closed (input and output types match), `close` takes the fixed point, 
 collapsing the entire computation to a value.
 
 ### What We've Built
@@ -309,7 +309,7 @@ The laws are proven: fusion, identity, associativity, dinaturality, sliding, yan
 The structure is sound.
 
 The feedback variable, sealed by existential quantification, is what makes loops possible 
-without closing them prematurely. Keep sliding until yanked.
+without closing them prematurely. Keep sliding until closed.
 
 ## Unified Representation
 
