@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
+{-# LANGUAGE GADTs, RankNTypes, ExistentialQuantification #-}
 
 -- |
 -- Module      : Traced
@@ -311,10 +311,14 @@ leq :: N -> N -> Bool
 leq n m = toInt n <= toInt m
 
 -- |
--- Zip using standard list recursion (inspired by Traced producer-consumer pattern).
+-- Zip using Traced producer-consumer loops.
 --
--- The Traced approach uses feedback loops to coordinate a producer and consumer.
--- For practical use, we provide a direct implementation.
+-- The paper's example (Kidney & Wu, section 9.3) demonstrates how two foldr
+-- expressions can build Traced pipelines that coordinate via feedback loops:
+--
+-- The producer fold:  builds a pipeline that emits each x from xs
+-- The consumer fold:  builds a pipeline that receives and pairs with each y from ys
+-- When composed and closed, the feedback variable coordinates their interaction.
 --
 -- >>> zipTraced [1, 2, 3] ['a', 'b', 'c']
 -- [(1,'a'),(2,'b'),(3,'c')]
