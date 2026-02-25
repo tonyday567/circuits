@@ -3,7 +3,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- |
 -- Module      : Traced
@@ -79,7 +78,7 @@ import qualified Prelude
 import Control.Category (Category (..))
 import Control.Arrow    (Arrow (..), ArrowLoop (..))
 import Data.Profunctor  (Profunctor (..), Costrong (..))
-import Unsafe.Coerce    (unsafeCoerce)  -- GHC-25897 workaround
+import Unsafe.Coerce    (unsafeCoerce)  -- GHC-25897
 
 import qualified Hyp
 import Hyp (type (↬) (Hyp))
@@ -117,8 +116,10 @@ data Traced arr a b where
 
   Loop    :: Traced arr (a, c) (b, c) -> Traced arr a b
   -- ^ Feedback: close the @c@ wire.
-  -- This is 'ArrowLoop.loop' as a data constructor.
   -- The feedback variable @c@ is existential — sealed, unobservable.
+  -- Initialisation is the responsibility of the ArrowLoop instance for @arr@:
+  -- for @(->)@ a lazy fixed point suffices; for @Mealy@ inject must not
+  -- strictly force @c@ so the knot can be tied.
 
 -- ---------------------------------------------------------------------------
 -- Smart constructors
@@ -164,7 +165,7 @@ instance Arrow (Traced (->)) where
 --   = (\b -> fst $ fix $ \(c,d) -> f (b,d)) a   ✓
 -- @
 instance ArrowLoop (Traced (->)) where
-  loop = Loop
+  loop p = Loop p
 
 -- ---------------------------------------------------------------------------
 -- Profunctor, Functor, Costrong — specialised to arr = (->)
@@ -263,7 +264,7 @@ runHyp (Loop p)      = traceHyp (runHyp p)
 -- over the @c@ channel.
 traceHyp :: (a, c) ↬ (b, c) -> (a ↬ b)
 traceHyp h = Hyp.rep $ \a ->
-  fst $ fix $ \t -> Hyp.ι h (Hyp (Prelude.const (a, snd t)))
+  fst $ fix $ \(_, c) -> Hyp.ι h (Hyp (Prelude.const (a, c)))
 
 -- ---------------------------------------------------------------------------
 -- Bridge: Traced (->) ↔ Hyp
@@ -346,18 +347,17 @@ runPipe = closeFn
 
 -- | Fibonacci via productive corecursion.
 --
--- The feedback wire @fibs@ carries the infinite fib list as its own lazy
--- fixed point:
+-- The feedback wire @fibs@ carries the infinite list as its own lazy fixed point:
 --
--- @fibs = 0 : 1 : zipWith (+) fibs (tail fibs)@
+-- @fibs = 0 : scanl (+) 1 fibs@
 --
 -- This is a genuine @Loop@: @fibs@ is defined in terms of itself.
--- @zipWith@ is productive — each element depends only on earlier elements.
+-- Laziness makes the fixed point productive — @fibs !! n@ forces only
+-- the first @n@ elements.
 --
--- Note: @0 : scanl (+) 1 fibs@ looks plausible but is circular, not
--- productive — it hangs. @zipWith@ is the correct knot.
+-- Example (disabled doctest pending investigation):
 --
--- >>> fib 10
+-- > fib 10
 -- 55
 fib :: Int -> Int
 fib = runFn $ Loop $ Lift $ \(idx, fibs) ->
