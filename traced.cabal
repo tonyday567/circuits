@@ -14,6 +14,7 @@ library
     Mealy
     MealyM
     RunMealy
+    RunMealyFresh
     Lexer
   build-depends:
     base       >= 4.18,
