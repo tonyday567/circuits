@@ -24,8 +24,8 @@ module Lexer
     -- * Compiler
   , runMealy
   , runMarkupMealyBS
-  , compiledMarkupLexer
-  , runCompiledMarkupBS
+  -- , compiledMarkupLexer
+  -- , runCompiledMarkupBS
   ) where
 
 import Prelude hiding (id, (.))
@@ -490,27 +490,29 @@ mAccumStep (MAccState buf ctx) (bc, _) = case (ctx, bc) of
 -- TODO: optimize with manual inlining once lazy knot deadlock is fixed.
 -- The deadlock occurs because stage2's init forces the context argument
 -- before the lazy knot has fully established.
-compiledMarkupLexer :: MealyM WI (Maybe (ByteString -> MarkupToken, Int, Int))
-compiledMarkupLexer = runMealy markupLexerI
+-- DISABLED: Testing if having two runMealy paths causes the deadlock
+-- compiledMarkupLexer :: MealyM WI (Maybe (ByteString -> MarkupToken, Int, Int))
+-- compiledMarkupLexer = runMealy markupLexerI
 
 
 -- | Run compiledMarkupLexer over a ByteString.
-runCompiledMarkupBS :: ByteString -> [MarkupToken]
-runCompiledMarkupBS bs = withMealy compiledMarkupLexer $ \fi fs _ ->
-  let go !s !i bs'
-        | BS.null bs' = []
-        | otherwise   =
-            let !w           = BSU.unsafeHead bs'
-                (mEmit, !s') = fs s (WI w i)
-            in  case mEmit of
-                  Nothing                ->
-                    go s' (i+1) (BSU.unsafeTail bs')
-                  Just (con, start, len) ->
-                    let !tok = if len == 0
-                                 then con BS.empty
-                                 else con (BSU.unsafeTake len (BSU.unsafeDrop start bs))
-                    in  tok : go s' (i+1) (BSU.unsafeTail bs')
-  in if BS.null bs then []
-     else let !w0 = BSU.unsafeHead bs
-              !s0  = fi (WI w0 0)
-          in  go s0 1 (BSU.unsafeTail bs)
+-- DISABLED: Testing lazy knot with only markupLexerI
+-- runCompiledMarkupBS :: ByteString -> [MarkupToken]
+-- runCompiledMarkupBS bs = withMealy compiledMarkupLexer $ \fi fs _ ->
+--   let go !s !i bs'
+--         | BS.null bs' = []
+--         | otherwise   =
+--             let !w           = BSU.unsafeHead bs'
+--                 (mEmit, !s') = fs s (WI w i)
+--             in  case mEmit of
+--                   Nothing                ->
+--                     go s' (i+1) (BSU.unsafeTail bs')
+--                   Just (con, start, len) ->
+--                     let !tok = if len == 0
+--                                  then con BS.empty
+--                                  else con (BSU.unsafeTake len (BSU.unsafeDrop start bs))
+--                     in  tok : go s' (i+1) (BSU.unsafeTail bs')
+--   in if BS.null bs then []
+--      else let !w0 = BSU.unsafeHead bs
+--               !s0  = fi (WI w0 0)
+--           in  go s0 1 (BSU.unsafeTail bs)

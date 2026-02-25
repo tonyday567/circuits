@@ -69,6 +69,7 @@ main = do
       bs <- B.readFile f
       reportMainWith rep (show r) $ do
         _ <- ffap "hand-written tokenize" (length . runMarkupLexerBS)    bs
+        _ <- ffap "mealy tokenize"        (length . runMarkupMealyBS)    bs
         pure ()
 
     RunDefault -> do
