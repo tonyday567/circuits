@@ -328,7 +328,7 @@ runMarkupMealyBS bs = driveIndexed (runMealy markupLexerI) bs
 data OAccState = OAccState
   { oStart :: {-# UNPACK #-} !Int
   , oLen   :: {-# UNPACK #-} !Int
-  , oCtx   :: !MarkupCtx
+  , oCtx   :: MarkupCtx  -- removed ! to allow lazy storage
   }
 
 -- | Step the offset accumulator.
