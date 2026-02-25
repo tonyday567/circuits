@@ -76,7 +76,7 @@ second' m = withMealy m $ \fi fs fe ->
 -- Compile Traced MealyM -> MealyM
 -- ---------------------------------------------------------------------------
 
--- {-# INLINE runMealy #-}  -- Disabled to prevent GHC from seeing through lazy knot
+{-# INLINE runMealy #-}
 runMealy :: Traced MealyM a b -> MealyM a b
 runMealy Pure          = mkMealy Prelude.id (\_ a -> (a, a)) Prelude.id
 runMealy (Lift m)      = m
