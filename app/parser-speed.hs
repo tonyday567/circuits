@@ -18,7 +18,7 @@ import Text.HTML.Parser qualified as HP
 import Text.HTML.Tree qualified as HP
 import Prelude
 import Lexer
-import LexerTraced
+import LexerK
 
 data RunType = RunDefault | RunReduced | RunMarkup | RunWhitespace | RunWrappedQ | RunIsa | RunByteStringOf | RunMealy deriving (Eq, Show)
 
@@ -70,8 +70,7 @@ main = do
       bs <- B.readFile f
       reportMainWith rep (show r) $ do
         _ <- ffap "hand-written tokenize"  (length . runMarkupLexerBS)       bs
-        _ <- ffap "mealy tokenize"         (length . runMarkupMealyBS)       bs
-        _ <- ffap "traced mealy tokenize"  (length . runMarkupLexerTracedBS) bs
+        _ <- ffap "Traced (->) a (State s b) tokenize"  (length . runMarkupStateBS)       bs
         pure ()
 
     RunDefault -> do
@@ -80,9 +79,9 @@ main = do
       reportMainWith rep (show r) $ do
         _ <- ffap "html-parse tokens" HP.parseTokens t
         _ <- ffap "hand-written tokenize" (length . runMarkupLexerBS)    bs
-      --   _ <- ffap "mealy tokenize"        (length . runMarkupMealyBS)    bs
-      --   _ <- ffap "compiled tokenize"     (length . runCompiledMarkupBS) bs
-        _ <- warnError <$> ffap "tokenize" (tokenize Xml) bs
+        _ <- ffap "Traced (->) a (State s b) tokenize"        (length . runMarkupStateBS)    bs
+        _ <- ffap "Kleisli tokenize" (length . runMarkupKleisliBS) bs
+        _ <- warnError <$> ffap "flatparse tokenize" (tokenize Xml) bs
         pure ()
     RunMarkup -> do
       bs <- B.readFile f

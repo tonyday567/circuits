@@ -49,14 +49,17 @@ module Traced
   , lift
   , build
   , untrace
-    -- * Running (generic and specific interpreters)
+    -- * Running
   , run
   , runFn
+  , close
   , closeFn
   , runHyp
     -- * Bridge
   , toHyp
   , fromHyp
+  , toHypH
+  , closeHypH
     -- * Producers and Consumers
   , Producer
   , Consumer
@@ -75,12 +78,13 @@ import Prelude hiding (id, (.))
 import qualified Prelude
 
 import Control.Category (Category (..))
-import Control.Arrow    (Arrow (..))
-import Data.Profunctor  (Profunctor (..), Strong (..), Costrong (..))
+import Control.Arrow    (Arrow (..), ArrowLoop (..))
+import Data.Profunctor  (Profunctor (..), Costrong (..))
 import Unsafe.Coerce    (unsafeCoerce)  -- GHC-25897
 
 import qualified Hyp
 import Hyp (type (↬) (Hyp))
+import qualified HypH
 
 -- ---------------------------------------------------------------------------
 -- Fixed point
@@ -154,6 +158,17 @@ instance Arrow (Traced (->)) where
   -- so we evaluate eagerly. Correct semantics; Arrow's first is derived.
   first p = Lift (\(a, c) -> (runFn p a, c))
 
+-- | The key instance: @loop = Loop@.
+--
+-- ArrowLoop extension law proof:
+--
+-- @
+-- run (Loop (Lift f)) a
+--   = fst $ fix $ \(_,c) -> f (a,c)        [by runFn]
+--   = (\b -> fst $ fix $ \(c,d) -> f (b,d)) a   ✓
+-- @
+instance ArrowLoop (Traced (->)) where
+  loop p = Loop p
 
 -- ---------------------------------------------------------------------------
 -- Profunctor, Functor, Costrong — specialised to arr = (->)
@@ -164,9 +179,6 @@ instance Functor (Traced (->) a) where
 
 instance Profunctor (Traced (->)) where
   dimap f g p = Lift g `Compose` p `Compose` Lift f
-
-instance Strong (Traced (->)) where
-  first' p = Lift (\(a, c) -> (runFn p a, c))
 
 instance Costrong (Traced (->)) where
   unfirst = Loop
@@ -186,44 +198,42 @@ instance Costrong (Traced (->)) where
 -- 1. Associativity — left-nested @Compose@ is reassociated right.
 -- 2. Sliding      — @Loop@ on the left of @Compose@ absorbs the right.
 runFn :: Traced (->) a b -> (a -> b)
-runFn Pure         = Prelude.id
-runFn (Lift f)     = f
-runFn (Compose g h)= case g of
+runFn Pure                = Prelude.id
+runFn (Lift f)            = f
+runFn (Compose g h)       = case g of
   Pure            -> runFn h
   Lift f          -> f Prelude.. runFn h
   Compose g1 g2   -> runFn (Compose g1 (Compose g2 h))
-  Loop p          -> loop (\(a, c) -> runFn p (runFn h a, c))
-runFn (Loop p)     = loop (runFn p)
-
-loop :: (->) (b,d) (c,d) -> (->) b c 
-loop f b = let (c,d) = f (b,d) in c
+  Loop p          -> \a -> fst $ fix $ \t -> runFn p (runFn h a, snd t)
+runFn (Loop p)            = \a -> fst $ fix $ \t -> runFn p (a, snd t)
 
 -- | Take the fixed point of a closed @Traced (->)@ loop.
 closeFn :: Traced (->) a a -> a
 closeFn = fix Prelude.. runFn
 
 -- ---------------------------------------------------------------------------
--- ---------------------------------------------------------------------------
--- Running: generic interpreter for any Category with Strong and Costrong
+-- Running: general Category + ArrowLoop
 -- ---------------------------------------------------------------------------
 
 -- | Interpret @Traced arr@ into @arr@.
 --
--- Works for any base category @arr@ that implements @Strong@ and @Costrong@.
--- The key insight: @first@ threads the feedback through compositions,
--- @unfirst@ ties the feedback loop.
+-- Each constructor dispatches to the corresponding @arr@ operation:
 --
--- This is the universal interpreter: the same code works for @(->)@, @Mealy@,
--- @Hyp@, or any other category with profunctor structure.
-run :: (Category arr, Strong arr, Costrong arr) => Traced arr a b -> arr a b
-run Pure = id
-run (Lift f) = f
-run (Compose g h) = case g of
-  Pure            -> run h
-  Lift f          -> f . run h
-  Compose g1 g2   -> run (Compose g1 (Compose g2 h))
-  Loop p          -> unfirst (run p . first' (run h))
-run (Loop p) = unfirst (run p)
+-- @
+-- Pure     →  id
+-- Lift f   →  f
+-- Compose  →  (.)
+-- Loop p   →  loop (run p)
+-- @
+run :: (Category arr, ArrowLoop arr) => Traced arr a b -> arr a b
+run Pure          = id
+run (Lift f)      = f
+run (Compose g h) = run g . run h
+run (Loop p)      = loop (run p)
+
+-- | Synonym for @run@ at @a = b@. The loop closes in @arr@.
+close :: (Category arr, ArrowLoop arr) => Traced arr a a -> arr a a
+close = run
 
 -- ---------------------------------------------------------------------------
 -- Running: arr = (↬)
@@ -367,3 +377,42 @@ untilT :: (a -> Bool) -> (a -> a) -> a -> a
 untilT cond body a
   | cond a    = a
   | otherwise = untilT cond body (body a)
+
+-- ---------------------------------------------------------------------------
+-- Bridge: Traced (->) ↔ HypH (->)
+-- ---------------------------------------------------------------------------
+
+-- | Catamorphism: fold @Traced (->)@ into @HypH (->)@.
+--
+-- This is the fugal extension (Boccali et al., "Bicategories of Automata").
+-- Every @Traced (->)@ description has a canonical corecursive unfolding into
+-- @HypH (->)@. Feedback is handled by @zipper@ rather than a lazy fixed point
+-- — the recursion lives in the types, not in a @fix@ call.
+--
+-- @
+-- Pure     →  rep id          — stateless identity, repeated
+-- Lift f   →  rep f           — stateless f, repeated
+-- Compose  →  zipper          — productive sequential composition
+-- Loop p   →  closeHypH       — close feedback wire corecursively
+-- @
+--
+-- Contrast with @toHyp@: that collapses @Loop@ via @runFn@ (a lazy fixed
+-- point). @toHypH@ preserves the loop structure corecursively in the tower.
+toHypH :: Traced (->) a b -> HypH.HypH (->) a b
+toHypH Pure          = HypH.rep Prelude.id
+toHypH (Lift f)      = HypH.rep f
+toHypH (Compose g h) = toHypH g `HypH.zipper` toHypH h
+toHypH (Loop p)      = closeHypH (toHypH p)
+
+-- | Close a @HypH (->)@ feedback loop.
+--
+-- @HypH (->) (a, c) (b, c)  →  HypH (->) a b@
+--
+-- The @c@ output wire feeds back as @c@ input corecursively.
+-- The lazy fixed point ties @c@ inside the hyperfunction tower.
+-- For productive @c@ (lazy structures), no @fix@ is needed in the caller.
+closeHypH :: HypH.HypH (->) (a, c) (b, c) -> HypH.HypH (->) a b
+closeHypH p = HypH.HypH $ \k ->
+  let (b, _) = HypH.ι p dual
+      dual    = HypH.HypH $ \_ -> (HypH.ι k (closeHypH p), snd (HypH.ι p dual))
+  in  b

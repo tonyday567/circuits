@@ -5,7 +5,7 @@
 
 -- |
 -- Module      : Lexer
--- Description : State-machine lexers via Mealy machines
+-- Description : State-machine lexers via Traced MealyM
 --
 -- Performance principle: machines never allocate ByteStrings.
 -- Runners drive directly over ByteString via unsafeIndex.
@@ -20,19 +20,20 @@ module Lexer
   , MarkupCtx (..)
   , MarkupToken (..)
   , runMarkupLexerBS
-  , runMarkupMealyBS
-    -- * Internal machinery (for LexerTraced)
+    -- * Traced (->) State pipeline
+  , runMarkupStateBS
+
   , WI (..)
   , AccState (..)
-  , ByteClass (..)
   , classifyByte
   , accumStep
+  , ByteClass (..)
+  , initOAccState
   ) where
 
 import Prelude hiding (id, (.))
 import qualified Prelude
 
-import Data.Function (fix)
 import Data.Word (Word8)
 import Data.Char (ord)
 import Data.ByteString (ByteString)
@@ -44,7 +45,8 @@ import Data.Maybe (mapMaybe)
 import GHC.Generics (Generic)
 import Control.DeepSeq (NFData)
 
-import qualified Data.Mealy as DM
+import GHC.Exts (lazy)
+import Traced (Traced (..), run)
 import Control.Category ((.),  id)
 
 -- ---------------------------------------------------------------------------
@@ -224,48 +226,168 @@ runMarkupLexerBS bs = go 0 (AccState 0 0 InContent)
                   in  tok : go (i+1) acc'
 
 -- ---------------------------------------------------------------------------
--- Markup lexer as Mealy machine
+-- Markup lexer as Traced MealyM
+-- (for composition; uses [Word8] accumulator internally)
 -- ---------------------------------------------------------------------------
 
--- | Markup lexer as a Mealy machine.
--- State carries (AccState, Maybe emit) where emit is the slice coordinates.
--- Input is WI (Word8, Int) — byte paired with its index.
--- Zero-copy token emission via unsafeTake/unsafeDrop.
-markupLexerMealy :: DM.Mealy WI (Maybe (ByteString -> MarkupToken, Int, Int))
-markupLexerMealy = DM.M
-  -- inject: initialize with empty accumulator, no emit
-  (\(WI _ i) -> (AccState i 0 InContent, Nothing))
-  
-  -- step: classify byte, apply accumStep to compute new state and emit
-  (\(acc, _) (WI w i) ->
-    let bc = classifyByte (accCtx acc) w
-        (emit, acc') = accumStep acc bc i
-    in (acc', emit))
-  
-  -- extract: return the emit that step just computed
-  (\(_, emit) -> emit)
+-- ---------------------------------------------------------------------------
+-- Offset-tracking accumulator for Traced MealyM pipeline
+-- ---------------------------------------------------------------------------
+--
+-- Input to the pipeline: (Word8, Int) — byte paired with its index.
+-- Index flows through all stages so accumulator can track (start, len).
+-- No [Word8] allocation. Token emission is unsafeTake/unsafeDrop slice.
+--
+-- Pipeline shape:
+--   Loop InContent $
+--     stage2 . stage1
+--
+-- where:
+--   stage1 :: (Word8, Int, Ctx) -> (ByteClass, Int, Ctx)   classify + pass index
+--   stage2 :: (ByteClass, Int, Ctx) -> (Maybe (con,s,l), Ctx)  accumulate offsets
+--
+-- The Ctx wire is the Loop feedback.
+-- The Int (index) flows through as part of the value, not the feedback.
 
--- | Run markup lexer via Mealy with index threading.
--- Takes WI (Word8, Int) as input.
--- State carries (AccState, emit) where emit is the result of the last step.
-runMarkupMealyBS :: ByteString -> [MarkupToken]
-runMarkupMealyBS bs = 
-  case markupLexerMealy of
-    DM.M inject step extract ->
-      let go !s !i bs'
-            | BS.null bs' = []
-            | otherwise =
-                let !w = BSU.unsafeHead bs'
-                    !s' = step s (WI w i)
-                    !mEmit = extract s'
-                in case mEmit of
-                     Nothing ->
-                       go s' (i+1) (BSU.unsafeTail bs')
-                     Just (con, start, len) ->
-                       let !tok = if len == 0
-                                   then con BS.empty
-                                   else con (BSU.unsafeTake len (BSU.unsafeDrop start bs))
-                       in tok : go s' (i+1) (BSU.unsafeTail bs')
-      in if BS.null bs then []
-         else let !w0 = BSU.unsafeHead bs
-              in go (inject (WI w0 0)) 1 (BSU.unsafeTail bs)
+-- | Offset-tracking accumulator state for the Traced pipeline.
+data OAccState = OAccState
+  { oStart :: {-# UNPACK #-} !Int
+  , oLen   :: {-# UNPACK #-} !Int
+  , oCtx   :: !MarkupCtx
+  }
+
+-- | Step the offset accumulator.
+-- Input: (ByteClass, Int, MarkupCtx)  — class, current index, feedback ctx
+-- Output: (Maybe emit, new ctx) where emit = (constructor, start, len)
+oAccumStep :: OAccState -> (ByteClass, Int, MarkupCtx)
+           -> (Maybe (ByteString -> MarkupToken, Int, Int), OAccState)
+oAccumStep (OAccState !s !l !ctx) (bc, !i, _) = case (ctx, bc) of
+  (InContent, BLt)    ->
+    ( if l == 0 then Nothing else Just (TContent, s, l)
+    , OAccState i 0 InTagName)
+  (InContent, _)      ->
+    (Nothing, OAccState (if l==0 then i else s) (l+1) InContent)
+  (InTagName, BSpace) ->
+    ( if l == 0 then Nothing else Just (TOpenTag, s, l)
+    , OAccState i 0 InAttr)
+  (InTagName, BGt)    ->
+    ( if l == 0 then Nothing else Just (TOpenTag, s, l)
+    , OAccState i 0 InContent)
+  (InTagName, BSlash) ->
+    if l == 0 then (Nothing, OAccState i 0 InClose)
+    else            (Nothing, OAccState s (l+1) InTagName)
+  (InTagName, _)      ->
+    (Nothing, OAccState (if l==0 then i else s) (l+1) InTagName)
+  (InAttr, BGt)       ->
+    (Just (Prelude.const TTagEnd,    0, 0), OAccState i 0 InContent)
+  (InAttr, BSlash)    ->
+    (Just (Prelude.const TSelfClose, 0, 0), OAccState i 0 InContent)
+  (InAttr, BSpace)    ->
+    (Nothing, OAccState i 0 InAttr)
+  (InAttr, _)         ->
+    (Nothing, OAccState (if l==0 then i else s) (l+1) InAttr)
+  (InClose, BGt)      ->
+    ( if l == 0 then Nothing else Just (TCloseTag, s, l)
+    , OAccState i 0 InContent)
+  (InClose, BSpace)   -> (Nothing, OAccState s l InClose)
+  (InClose, _)        ->
+    (Nothing, OAccState (if l==0 then i else s) (l+1) InClose)
+  _                   ->
+    (Nothing, OAccState (if l==0 then i else s) (l+1) ctx)
+
+data MAccState = MAccState ![Word8] !MarkupCtx
+
+classW :: ByteClass -> Word8
+classW (BAlpha w) = w
+classW (BQuote c) = fromIntegral (ord c)
+classW BSpace = 32; classW BDash = 45; classW BEquals = 61; classW _ = 63
+
+mAccumStep :: MAccState -> (ByteClass, MarkupCtx) -> (Maybe MarkupToken, MAccState)
+mAccumStep (MAccState buf ctx) (bc, _) = case (ctx, bc) of
+  (InContent, BLt)    ->
+    ( if Prelude.null buf then Nothing
+      else Just (TContent (BS.pack (Prelude.reverse buf)))
+    , MAccState [] InTagName)
+  (InContent, _)      -> (Nothing, MAccState (classW bc : buf) InContent)
+  (InTagName, BSpace) ->
+    ( if Prelude.null buf then Nothing
+      else Just (TOpenTag (BS.pack (Prelude.reverse buf)))
+    , MAccState [] InAttr)
+  (InTagName, BGt)    ->
+    ( if Prelude.null buf then Nothing
+      else Just (TOpenTag (BS.pack (Prelude.reverse buf)))
+    , MAccState [] InContent)
+  (InTagName, BSlash) ->
+    if Prelude.null buf then (Nothing, MAccState [] InClose)
+    else                     (Nothing, MAccState (47 : buf) InTagName)
+  (InTagName, _)      -> (Nothing, MAccState (classW bc : buf) InTagName)
+  (InAttr, BGt)       -> (Just TTagEnd,    MAccState [] InContent)
+  (InAttr, BSlash)    -> (Just TSelfClose, MAccState [] InContent)
+  (InAttr, BSpace)    -> (Nothing,         MAccState [] InAttr)
+  (InAttr, _)         -> (Nothing,         MAccState (classW bc : buf) InAttr)
+  (InClose, BGt)      ->
+    ( if Prelude.null buf then Nothing
+      else Just (TCloseTag (BS.pack (Prelude.reverse buf)))
+    , MAccState [] InContent)
+  (InClose, BSpace)   -> (Nothing, MAccState buf InClose)
+  (InClose, _)        -> (Nothing, MAccState (classW bc : buf) InClose)
+  _                   -> (Nothing, MAccState (classW bc : buf) ctx)
+
+
+-- ---------------------------------------------------------------------------
+-- Traced (->) a (OAccState -> (Maybe token, OAccState))
+-- ---------------------------------------------------------------------------
+--
+-- Output type is State OAccState (Maybe token).
+-- OAccState carries MarkupCtx — no feedback wire, no Loop, no knot.
+-- runFn gives WI -> OAccState -> (Maybe token, OAccState).
+-- Driver seeds with OAccState 0 0 InContent and threads state explicitly.
+
+-- | Stage 1 as a plain function over (WI, OAccState).
+-- Classifies the byte using ctx from OAccState, returns updated OAccState.
+stage1S :: (WI, OAccState) -> ((ByteClass, Int), OAccState)
+stage1S (WI w i, acc) = ((classifyByte (oCtx acc) w, i), acc)
+
+-- | Stage 2 as a plain function over ((ByteClass, Int), OAccState).
+stage2S :: ((ByteClass, Int), OAccState) -> (Maybe (ByteString -> MarkupToken, Int, Int), OAccState)
+stage2S ((bc, i), acc) = oAccumStep acc (bc, i, oCtx acc)
+
+-- | Markup lexer as Traced (->) with OAccState threaded as output.
+-- No Loop — OAccState carries MarkupCtx, threaded by the driver.
+-- Compose stage2S stage1S lifts to Traced (->).
+markupLexerS :: Traced (->) WI (OAccState -> (Maybe (ByteString -> MarkupToken, Int, Int), OAccState))
+markupLexerS = Lift $ \wi acc -> stage2S (stage1S (wi, acc))
+
+-- | Compiled step function.
+stepMarkupS :: WI -> OAccState -> (Maybe (ByteString -> MarkupToken, Int, Int), OAccState)
+stepMarkupS = run markupLexerS
+
+-- | Initial accumulator state.
+initOAccState :: OAccState
+initOAccState = OAccState 0 0 InContent
+
+-- | Run via Traced (->) State pipeline.
+runMarkupStateBS :: ByteString -> [MarkupToken]
+runMarkupStateBS bs
+  | BS.null bs = []
+  | otherwise  =
+      let !w0         = BSU.unsafeHead bs
+          (mEmit, !s0) = stepMarkupS (WI w0 0) initOAccState
+          toks0        = case mEmit of
+                           Nothing -> []
+                           Just (con, start, len) -> [mkTok con start len]
+      in toks0 ++ go s0 1 (BSU.unsafeTail bs)
+  where
+    go !acc !i bs'
+      | BS.null bs' = []
+      | otherwise   =
+          let !w               = BSU.unsafeHead bs'
+              (mEmit, !acc')   = stepMarkupS (WI w i) acc
+          in  case mEmit of
+                Nothing                ->
+                  go acc' (i+1) (BSU.unsafeTail bs')
+                Just (con, start, len) ->
+                  mkTok con start len : go acc' (i+1) (BSU.unsafeTail bs')
+    mkTok con start len
+      | len == 0  = con BS.empty
+      | otherwise = con (BSU.unsafeTake len (BSU.unsafeDrop start bs))

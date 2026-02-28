@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name:          traced
+name:          tcat
 version:       0.1.0.0
 synopsis:      Free traced monoidal category over any base category
 license:       BSD-3-Clause
@@ -12,7 +12,11 @@ library
     HypH
     Traced
     Lexer
-    LexerTraced
+    LexerK
+    ToHypH
+    Para
+    LensS
+    Net
   build-depends:
     base       >= 4.18,
     mtl        >= 2.2,
@@ -21,7 +25,10 @@ library
     deepseq,
     bytestring,
     profunctors >= 5.6,
-    transformers >= 0.6
+    transformers >= 0.6,
+    harpie,
+    numhask,
+    harpie-numhask
   default-language:   GHC2024
   default-extensions:
     UnicodeSyntax
@@ -40,5 +47,6 @@ executable parser-speed
         , optparse-applicative >=0.17 && <0.19
         , perf                 >=0.13 && <0.14
         , text                 >=1.2 && <2.2
-        , traced
+        , bifunctors
+        , tcat
     ghc-options: -O2
