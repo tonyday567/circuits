@@ -38,8 +38,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Unsafe qualified as BSU
 import Data.Char (ord)
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
+
 import Data.Maybe (mapMaybe)
 import Data.Word (Word8)
 import GHC.Exts (lazy)
@@ -89,30 +88,32 @@ runWordLexerBS bs = go 0 False 0
                     else go (i + 1) False 0
     lowerSlice s l = BS.map toLowerW (BSU.unsafeTake l (BSU.unsafeDrop s bs))
 
--- | Word frequency map — single pass, no intermediate list.
-wordFreqBS :: ByteString -> Map ByteString Int
-wordFreqBS bs = go 0 False 0 Map.empty
+-- | Word frequency list — single pass, accumulate (word, count) pairs.
+-- Returns list of (ByteString, Int) pairs in order of first appearance.
+-- To find a word's count: use lookup or searchassociative list operations.
+wordFreqBS :: ByteString -> [(ByteString, Int)]
+wordFreqBS bs = go 0 False 0 []
   where
     !len = BS.length bs
-    go !i !inWord !start !m
+    go !i !inWord !start !acc
       | i >= len =
           if inWord
-            then Map.insertWith (+) (lowerSlice start (i - start)) 1 m
-            else m
+            then insertFreq (lowerSlice start (i - start)) acc
+            else acc
       | otherwise =
           let !w = BSU.unsafeIndex bs i
            in if isAlphaW w
-                then go (i + 1) True (if inWord then start else i) m
+                then go (i + 1) True (if inWord then start else i) acc
                 else
                   if inWord
-                    then
-                      go
-                        (i + 1)
-                        False
-                        0
-                        (Map.insertWith (+) (lowerSlice start (i - start)) 1 m)
-                    else go (i + 1) False 0 m
+                    then go (i + 1) False 0 (insertFreq (lowerSlice start (i - start)) acc)
+                    else go (i + 1) False 0 acc
     lowerSlice s l = BS.map toLowerW (BSU.unsafeTake l (BSU.unsafeDrop s bs))
+    -- Increment frequency if word exists in accumulator, else prepend with count 1
+    insertFreq word [] = [(word, 1)]
+    insertFreq word ((w, c) : rest)
+      | word == w = (w, c + 1) : rest
+      | otherwise = (w, c) : insertFreq word rest
 
 -- ---------------------------------------------------------------------------
 -- Markup types

@@ -21,7 +21,6 @@ library
     aeson >=2.0,
     base >=4.18,
     bytestring,
-    containers,
     deepseq,
     harpie,
     mealy,
