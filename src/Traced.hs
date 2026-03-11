@@ -293,6 +293,13 @@ finish = Lift Prelude.const
 -- | Prepend one receipt step to a consumer.
 --
 -- @runFn (receive f c) r = \i -> runFn c (f i r)@
+--
+-- The @unsafeCoerce@ here is justified: we construct a curried function
+-- @\r -> \i -> runFn c (f i r) :: r -> (i -> r)@ which is definitely
+-- type-safe, but GHC's bidirectional type inference gets confused by the
+-- scoped type variable @i@ in the lambda vs the type parameter @i@ in
+-- the signature. The unsafeCoerce is a bridge across this inference gap,
+-- not a fundamental type coercion.
 receive :: (i -> r -> r) -> Consumer i r -> Consumer i r
 receive f c = Lift (unsafeCoerce (\r i -> runFn c (f i r)))
 
