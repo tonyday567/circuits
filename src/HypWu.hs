@@ -97,11 +97,11 @@ invoke f g = run (f ⊙ g)
 -- ---------------------------------------------------------------------------
 
 -- | Interpret @Traced (↬)@ into @Hyp@.
-runHyp :: Traced.Traced (↬) a b -> (a ↬ b)
-runHyp Traced.Pure = rep id
-runHyp (Traced.Lift h) = h
-runHyp (Traced.Compose g h) = runHyp g ⊙ runHyp h
-runHyp (Traced.Loop p) = traceHyp (runHyp p)
+runHypWu :: Traced.Traced (↬) a b -> (a ↬ b)
+runHypWu Traced.Pure = rep id
+runHypWu (Traced.Lift h) = h
+runHypWu (Traced.Compose g h) = runHypWu g ⊙ runHypWu h
+runHypWu (Traced.Loop p) = traceHypWu (runHypWu p)
 
 -- | Close a hyperfunction feedback loop.
 --
@@ -109,8 +109,8 @@ runHyp (Traced.Loop p) = traceHyp (runHyp p)
 --
 -- Evaluate with the terminal continuation, take the Haskell fixed point
 -- over the @c@ channel.
-traceHyp :: (a, c) ↬ (b, c) -> (a ↬ b)
-traceHyp h = rep $ \a ->
+traceHypWu :: (a, c) ↬ (b, c) -> (a ↬ b)
+traceHypWu h = rep $ \a ->
   fst $ fix $ \(_, c) -> ι h (Hyp (const (a, c)))
   where
     fix f = let x = f x in x
@@ -119,14 +119,14 @@ traceHyp h = rep $ \a ->
 --
 -- Initial algebra → final coalgebra.
 -- Same object, different notation, different side of the erasure line.
-toHyp :: Traced.Traced (->) a b -> (a ↬ b)
-toHyp Traced.Pure = rep id
-toHyp (Traced.Lift f) = rep f
-toHyp (Traced.Compose g h) = toHyp g ⊙ toHyp h
-toHyp u@(Traced.Loop _) = rep (Traced.runFn u)
+toHypWu :: Traced.Traced (->) a b -> (a ↬ b)
+toHypWu Traced.Pure = rep id
+toHypWu (Traced.Lift f) = rep f
+toHypWu (Traced.Compose g h) = toHypWu g ⊙ toHypWu h
+toHypWu u@(Traced.Loop _) = rep (Traced.runFn u)
 
 -- | Depth-1 unfolding: @Hyp@ → @Traced (->)@.
 --
 -- Supply the terminal continuation @Hyp (const a)@ to collapse the tower.
-fromHyp :: (a ↬ b) -> Traced.Traced (->) a b
-fromHyp h = Traced.Lift $ \a -> ι h (Hyp (const a))
+fromHypWu :: (a ↬ b) -> Traced.Traced (->) a b
+fromHypWu h = Traced.Lift $ \a -> ι h (Hyp (const a))

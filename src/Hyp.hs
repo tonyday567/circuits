@@ -72,8 +72,8 @@ module Hyp
     send',
 
     -- * Bridge from Traced
-    toHypH,
-    closeHypH,
+    toHyp,
+    closeHyp,
 
     -- * Examples
     zip,
@@ -225,16 +225,16 @@ invoke f g = runFn (zipper f g)
 -- Pure     →  rep id          — stateless identity, repeated
 -- Lift f   →  rep f           — stateless f, repeated
 -- Compose  →  zipper          — productive sequential composition
--- Loop p   →  closeHypH       — close feedback wire corecursively
+-- Loop p   →  closeHyp        — close feedback wire corecursively
 -- @
 --
--- Contrast with @toHyp@: that collapses @Loop@ via @runFn@ (a lazy fixed
--- point). @toHypH@ preserves the loop structure corecursively in the tower.
-toHypH :: Traced.Traced (->) a b -> HypH (->) a b
-toHypH Traced.Pure = rep id
-toHypH (Traced.Lift f) = rep f
-toHypH (Traced.Compose g h) = toHypH g `zipper` toHypH h
-toHypH (Traced.Loop p) = closeHypH (toHypH p)
+-- Contrast with @toHypWu@: that collapses @Loop@ via @runFn@ (a lazy fixed
+-- point). @toHyp@ preserves the loop structure corecursively in the tower.
+toHyp :: Traced.Traced (->) a b -> HypH (->) a b
+toHyp Traced.Pure = rep id
+toHyp (Traced.Lift f) = rep f
+toHyp (Traced.Compose g h) = toHyp g `zipper` toHyp h
+toHyp (Traced.Loop p) = closeHyp (toHyp p)
 
 -- | Close a @HypH (->)@ feedback loop.
 --
@@ -243,8 +243,8 @@ toHypH (Traced.Loop p) = closeHypH (toHypH p)
 -- The @c@ output wire feeds back as @c@ input corecursively.
 -- The lazy fixed point ties @c@ inside the hyperfunction tower.
 -- For productive @c@ (lazy structures), no @fix@ is needed in the caller.
-closeHypH :: HypH (->) (a, c) (b, c) -> HypH (->) a b
-closeHypH p = HypH $ \k ->
+closeHyp :: HypH (->) (a, c) (b, c) -> HypH (->) a b
+closeHyp p = HypH $ \k ->
   let (b, _) = ι p dual
-      dual = HypH $ \_ -> (ι k (closeHypH p), snd (ι p dual))
+      dual = HypH $ \_ -> (ι k (closeHyp p), snd (ι p dual))
    in b
