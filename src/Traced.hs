@@ -228,18 +228,29 @@ closeFn = fix Prelude.. runFn
 
 -- | Interpret @Traced arr@ into @arr@.
 --
+-- Implements the sliding law: when Loop appears on the left of Compose,
+-- it slides through and absorbs the right side. This requires pattern
+-- matching on the left argument to detect Loop and reassociate Compose.
+--
+-- The naive @run g . run h@ is incorrect because it does not implement
+-- the sliding transformation: loops must be able to absorb compositions.
+--
 -- Each constructor dispatches to the corresponding @arr@ operation:
 --
 -- @
 -- Pure     →  id
 -- Lift f   →  f
--- Compose  →  (.)
+-- Compose  →  pattern match on left to handle sliding
 -- Loop p   →  loop (run p)
 -- @
 run :: (Category arr, ArrowLoop arr) => Traced arr a b -> arr a b
 run Pure = id
 run (Lift f) = f
-run (Compose g h) = run g . run h
+run (Compose g h) = case g of
+  Pure -> run h
+  Lift f -> f . run h
+  Compose g1 g2 -> run (Compose g1 (Compose g2 h))     -- reassociate left-nested
+  Loop p -> loop (run p . first (run h))                -- sliding: Loop absorbs h via first
 run (Loop p) = loop (run p)
 
 -- | Synonym for @run@ at @a = b@. The loop closes in @arr@.
