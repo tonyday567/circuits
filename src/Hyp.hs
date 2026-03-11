@@ -76,6 +76,8 @@ module Hyp
 
     -- * Bridge from Traced
     toHyp,
+    fromHyp,
+    toHypF,
     closeHyp,
 
     -- * Examples
@@ -275,3 +277,21 @@ closeHyp p = Hyp $ \k ->
   let (b, _) = ι p dual
       dual = Hyp $ \_ -> (ι k (closeHyp p), snd (ι p dual))
    in b
+
+-- | Inverse of @toHyp@: unfold @Hyp (->)@ back to @Traced@ syntax.
+--
+-- Supplies the terminal continuation to collapse one tower layer,
+-- returning a @Traced@ that lifts the result.
+fromHyp :: Hyp (->) a b -> Traced.Traced (->) a b
+fromHyp h = Traced.Lift $ \a -> ι h (Hyp (const a))
+
+-- | Alternative bridge: @Traced@ to @Hyp (->)@ via eager fixed point.
+--
+-- Unlike @toHyp@ which preserves @Loop@ in the hyperfunction tower,
+-- @toHypF@ collapses @Loop@ immediately using @runFn@, computing
+-- the fixed point eagerly and lifting the result into hyperfunction.
+toHypF :: Traced.Traced (->) a b -> Hyp (->) a b
+toHypF Traced.Pure = rep id
+toHypF (Traced.Lift f) = rep f
+toHypF (Traced.Compose g h) = toHypF g `zipper` toHypF h
+toHypF u@(Traced.Loop _) = rep (Traced.runFn u)

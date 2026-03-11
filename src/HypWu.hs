@@ -20,7 +20,7 @@ import Control.Monad.Cont
 import Prelude hiding (zip)
 import Traced qualified
 import Hyp qualified
-import Hyp ((⊲), (⊙))
+import Hyp ((⊲), (⊙), fromHyp, toHypF)
 
 -- Core hyperfunction type: use Hyp's implementation
 type a ↬ b = Hyp.Hyp (->) a b
@@ -114,18 +114,12 @@ traceHypWu h = rep $ \a ->
   where
     fix f = let x = f x in x
 
--- | Catamorphism: fold @Traced (->)@ into @Hyp@.
---
--- Initial algebra → final coalgebra.
--- Same object, different notation, different side of the erasure line.
+-- | Alias: @toHypWu = toHypF@
+-- Fold @Traced (->)@ into @Hyp@ via eager fixed point (collapse Loop immediately).
 toHypWu :: Traced.Traced (->) a b -> (a ↬ b)
-toHypWu Traced.Pure = rep id
-toHypWu (Traced.Lift f) = rep f
-toHypWu (Traced.Compose g h) = toHypWu g ⊙ toHypWu h
-toHypWu u@(Traced.Loop _) = rep (Traced.runFn u)
+toHypWu = toHypF
 
--- | Depth-1 unfolding: @Hyp@ → @Traced (->)@.
---
--- Supply the terminal continuation @Hyp (const a)@ to collapse the tower.
+-- | Alias: @fromHypWu = fromHyp@
+-- Unfold @Hyp@ back to @Traced@ syntax.
 fromHypWu :: (a ↬ b) -> Traced.Traced (->) a b
-fromHypWu h = Traced.Lift $ \a -> Hyp.ι h (Hyp (const a))
+fromHypWu = fromHyp
