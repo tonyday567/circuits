@@ -197,6 +197,19 @@ instance Costrong (Traced (->)) where
 --
 -- 1. Associativity — left-nested @Compose@ is reassociated right.
 -- 2. Sliding      — @Loop@ on the left of @Compose@ absorbs the right.
+--
+-- Example: Simple composition
+--
+-- >>> let f = Compose (Lift (+ 1)) (Lift (* 2))
+-- >>> runFn f 5
+-- 11
+--
+-- Example: Loop and fixed point (feedback loop)
+--
+-- See @test-traced-fn-simple.hs@ for integration tests of Loop behavior
+-- with identity and fixed-point functions. The core pattern:
+-- Loop absorbs the feedback wire via Mendler normalisation.
+--
 runFn :: Traced (->) a b -> (a -> b)
 runFn Pure                = Prelude.id
 runFn (Lift f)            = f
