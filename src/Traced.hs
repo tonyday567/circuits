@@ -71,8 +71,8 @@ module Traced
   )
 where
 
-import Control.Arrow (Arrow (..), ArrowLoop (..))
 import Control.Category (Category (..))
+import Control.Arrow (Arrow (..), ArrowLoop (..))
 import Data.Profunctor (Costrong (..), Profunctor (..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (id, (.))
@@ -235,6 +235,11 @@ closeFn = fix Prelude.. runFn
 -- The naive @run g . run h@ is incorrect because it does not implement
 -- the sliding transformation: loops must be able to absorb compositions.
 --
+-- The sliding law: feedback variables slide left through Compose chains,
+-- absorbing the right side via the Costrong structure. The Loop constructor
+-- is the profunctor operation Costrong.unfirst, and the sliding works by
+-- lifting the right morphism to work on the feedback pair via @first@.
+--
 -- Each constructor dispatches to the corresponding @arr@ operation:
 --
 -- @
@@ -243,14 +248,14 @@ closeFn = fix Prelude.. runFn
 -- Compose  →  pattern match on left to handle sliding
 -- Loop p   →  loop (run p)
 -- @
-run :: (Category arr, ArrowLoop arr) => Traced arr a b -> arr a b
+run :: (Category arr, Arrow arr, ArrowLoop arr) => Traced arr a b -> arr a b
 run Pure = id
 run (Lift f) = f
 run (Compose g h) = case g of
   Pure -> run h
   Lift f -> f . run h
   Compose g1 g2 -> run (Compose g1 (Compose g2 h))     -- reassociate left-nested
-  Loop p -> loop (run p . first (run h))                -- sliding: Loop absorbs h via first
+  Loop p -> loop (run p . first (run h))                -- sliding: Loop absorbs h via Costrong
 run (Loop p) = loop (run p)
 
 -- | Synonym for @run@ at @a = b@. The loop closes in @arr@.
