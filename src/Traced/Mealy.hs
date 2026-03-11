@@ -11,7 +11,7 @@
 -- = What this solves
 --
 -- Traced Mealy with a recursive interpreter has Rec{} in Core.
--- toHypH maps to HypH Mealy where Compose → zipper.
+-- fromMealy maps to HypH Mealy where Compose → zipper.
 -- zipper is productive corecursion — no recursive interpreter.
 --
 -- = What this does NOT solve
@@ -23,8 +23,8 @@
 --
 -- Fugal extension s♭(e, a::as) = s(e,a) :: s♭(d(e,a), as)
 -- is exactly zipper unfolding. Compose → zipper is correct.
-module ToHypH
-  ( toHypH,
+module Traced.Mealy
+  ( fromMealy,
     liftH,
     loopH,
   )
@@ -144,12 +144,12 @@ loopH p =
           id
 
 -- ---------------------------------------------------------------------------
--- toHypH: the catamorphism
+-- fromMealy: the catamorphism
 -- ---------------------------------------------------------------------------
 
 -- | Convert a Traced Mealy machine to its corecursive HypH form.
 --
--- @toHypH :: Traced Mealy a b -> HypH Mealy a b@
+-- @fromMealy :: Traced Mealy a b -> HypH Mealy a b@
 --
 -- This transforms finite syntax (@Traced@) into the coinfinite tower (@HypH@).
 -- The benefit: @Compose@ unfolds to @zipper@ (productive corecursion)
@@ -169,17 +169,17 @@ loopH p =
 -- >>> import Hyp (HypH)
 -- >>> let idMealy = Mealy.M id (\s a -> a) id :: Mealy.Mealy Int Int
 -- >>> let traced = Lift idMealy :: Traced Mealy.Mealy Int Int
--- >>> let result = toHypH traced :: HypH Mealy.Mealy Int Int
+-- >>> let result = fromMealy traced :: HypH Mealy.Mealy Int Int
 -- >>> -- result is now the corecursive form, ready for ι invocation
 -- >>> True
 -- True
 --
 -- To use the result, invoke it with a dual continuation:
 -- @ι result :: Mealy (HypH Mealy b a) a@
-toHypH :: Traced Mealy a b -> HypH Mealy a b
-toHypH Pure = idH
-toHypH (Lift m) = liftH m
-toHypH (Compose g h) = toHypH g `zipper` toHypH h
-toHypH (Loop p) = loopH (toHypH p)
+fromMealy :: Traced Mealy a b -> HypH Mealy a b
+fromMealy Pure = idH
+fromMealy (Lift m) = liftH m
+fromMealy (Compose g h) = fromMealy g `zipper` fromMealy h
+fromMealy (Loop p) = loopH (fromMealy p)
 
 runHypH h = ι h (HypH runHypH)

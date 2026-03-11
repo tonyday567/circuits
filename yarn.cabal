@@ -15,8 +15,8 @@ library
     Log
     Net
     Para
-    ToHypH
     Traced
+    Traced.Mealy
 
   build-depends:
     aeson >=2.0,
