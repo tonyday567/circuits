@@ -22,11 +22,11 @@ import Traced qualified
 import Hyp qualified
 
 -- Core hyperfunction type: use Hyp's implementation
-type a ↬ b = Hyp.HypH (->) a b
+type a ↬ b = Hyp.Hyp (->) a b
 
--- Constructor pattern: accept either HypH or bare lambda
-pattern Hyp :: (Hyp.HypH (->) b a -> b) -> (a ↬ b)
-pattern Hyp f = Hyp.HypH f
+-- Constructor pattern: accept either Hyp or bare lambda
+pattern Hyp :: (Hyp.Hyp (->) b a -> b) -> (a ↬ b)
+pattern Hyp f = Hyp.Hyp f
 
 -- Stream constructor
 (⊲) :: (a -> b) -> (a ↬ b) -> (a ↬ b)
@@ -103,7 +103,7 @@ invoke f g = run (f ⊙ g)
 -- ---------------------------------------------------------------------------
 
 -- | Interpret @Traced (↬)@ into @Hyp@.
-runHypWu :: Traced.Traced (Hyp.HypH (->)) a b -> (a ↬ b)
+runHypWu :: Traced.Traced (Hyp.Hyp (->)) a b -> (a ↬ b)
 runHypWu Traced.Pure = rep id
 runHypWu (Traced.Lift h) = h
 runHypWu (Traced.Compose g h) = runHypWu g ⊙ runHypWu h

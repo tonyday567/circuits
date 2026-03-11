@@ -3,7 +3,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 -- |
--- Module      : HypH
+-- Module      : Hyp
 -- Description : Hyperfunctions parameterised over a base arrow
 --
 -- @Hyp@ from Kidney & Wu is:
@@ -12,11 +12,11 @@
 -- newtype a ↬ b = Hyp { ι :: (b ↬ a) → b }
 -- @
 --
--- which is @HypH (->) a b@. @HypH arr a b@ generalises the continuation
+-- which is @Hyp (->) a b@. @Hyp arr a b@ generalises the continuation
 -- to any @Arrow arr@:
 --
 -- @
--- newtype HypH arr a b = HypH { ι :: arr (HypH arr b a) b }
+-- newtype Hyp arr a b = Hyp { ι :: arr (Hyp arr b a) b }
 -- @
 --
 -- = Why Arrow?
@@ -25,8 +25,8 @@
 --
 -- @f ⊙ g = Hyp $ \h -> ι f (g ⊙ h)@
 --
--- The @\h ->@ is free because @arr = (->)@. For @HypH arr@, the corecursion
--- @(g `zipper`) :: HypH arr c a -> HypH arr b a@ is a Haskell function that
+-- The @\h ->@ is free because @arr = (->)@. For @Hyp arr@, the corecursion
+-- @(g `zipper`) :: Hyp arr c a -> Hyp arr b a@ is a Haskell function that
 -- needs lifting into @arr@. That requires @arr (g `zipper`)@, i.e. @Arrow arr@.
 -- For @arr = MealyM@: @arr f = stateless f@ — a zero-state Mealy machine.
 --
@@ -34,24 +34,24 @@
 --
 -- In @Hyp@: @run h = ι h (Hyp run)@ — @ι h@ is a function, applied directly.
 --
--- For @HypH arr@, @ι h :: arr (HypH arr a a) a@ is an @arr@ morphism, not a
+-- For @Hyp arr@, @ι h :: arr (Hyp arr a a) a@ is an @arr@ morphism, not a
 -- plain function. Applying it requires a driver, not a call. So @run@ does
 -- not generalise uniformly:
 --
--- * For @arr = (->)@: @runFn h = ι h (HypH runFn)@ recovers @Hyp.run@ exactly.
+-- * For @arr = (->)@: @runFn h = ι h (Hyp runFn)@ recovers @Hyp.run@ exactly.
 -- * For @arr = MealyM@: the ByteString driver IS @run@. There is no pure
---   @run :: HypH MealyM a a -> a@ — @MealyM@ needs inputs.
+--   @run :: Hyp MealyM a a -> a@ — @MealyM@ needs inputs.
 --
 -- = The Rec {} problem
 --
 -- @Traced MealyM@ compiles via a recursive interpreter in @Rec {}@.
 -- Inlining is blocked; composed state is a heap tuple per byte.
 --
--- @HypH MealyM@ encodes the same structure corecursively. @zipper@ is
+-- @Hyp MealyM@ encodes the same structure corecursively. @zipper@ is
 -- productive — each call unfolds one @ι f@ layer before recurring.
 -- GHC sees plain @MealyM@ compositions with no recursive interpreter.
 module Hyp
-  ( HypH (..),
+  ( Hyp (..),
 
     -- * Core operations
     zipper,
@@ -65,7 +65,7 @@ module Hyp
     prod,
     cons,
 
-    -- * Co: coroutine over HypH
+    -- * Co: coroutine over Hyp
     Co (..),
     yield,
     send,
@@ -97,63 +97,63 @@ import Traced qualified
 
 -- | Hyperfunction over a base arrow @arr@.
 --
--- @ι :: arr (HypH arr b a) b@
+-- @ι :: arr (Hyp arr b a) b@
 --
 -- When @arr = (->)@: recovers @Hyp@ exactly.
 -- When @arr = MealyM@: a Mealy machine whose input is the dual hyperfunction.
-newtype HypH arr a b = HypH {ι :: arr (HypH arr b a) b}
+newtype Hyp arr a b = Hyp {ι :: arr (Hyp arr b a) b}
 
 -- ---------------------------------------------------------------------------
 -- Core operations
 -- ---------------------------------------------------------------------------
 
--- | Compose two @HypH arr@ morphisms. Recovers @Hyp@'s @(⊙)@.
+-- | Compose two @Hyp arr@ morphisms. Recovers @Hyp@'s @(⊙)@.
 --
--- @zipper f g = HypH $ ι f . arr (g `zipper`)@
+-- @zipper f g = Hyp $ ι f . arr (g `zipper`)@
 --
 -- Productive: unfolds @ι f@ before each recursive @zipper g h@.
 -- Requires @Arrow arr@ to lift the Haskell corecursion into @arr@.
-zipper :: (Arrow arr) => HypH arr b c -> HypH arr a b -> HypH arr a c
-zipper f g = HypH $ ι f . arr (g `zipper`)
+zipper :: (Arrow arr) => Hyp arr b c -> Hyp arr a b -> Hyp arr a c
+zipper f g = Hyp $ ι f . arr (g `zipper`)
 
--- | Run a closed @HypH (->) a a@. Recovers @Hyp.run@.
-runFn :: HypH (->) a a -> a
-runFn h = ι h (HypH runFn)
+-- | Run a closed @Hyp (->) a a@. Recovers @Hyp.run@.
+runFn :: Hyp (->) a a -> a
+runFn h = ι h (Hyp runFn)
 
 -- | Stream cons. Recovers @Hyp@'s @(⊲)@.
-stream :: (a -> b) -> HypH (->) a b -> HypH (->) a b
-stream f h = HypH $ \k -> f (ι k h)
+stream :: (a -> b) -> Hyp (->) a b -> Hyp (->) a b
+stream f h = Hyp $ \k -> f (ι k h)
 
 -- ---------------------------------------------------------------------------
 -- Producer / Consumer / Channel
 -- ---------------------------------------------------------------------------
 
-type Producer arr o a = HypH arr (o -> a) a
+type Producer arr o a = Hyp arr (o -> a) a
 
-type Consumer arr i a = HypH arr a (i -> a)
+type Consumer arr i a = Hyp arr a (i -> a)
 
-type Channel arr i o a = HypH arr (o -> a) (i -> a)
+type Channel arr i o a = Hyp arr (o -> a) (i -> a)
 
 -- | Send a value through a producer. Recovers @Hyp.prod@.
 prod :: o -> Producer (->) o a -> Producer (->) o a
-prod o p = HypH $ \q -> ι q p o
+prod o p = Hyp $ \q -> ι q p o
 
 -- | Prepend a receipt step to a consumer. Recovers @Hyp.cons@.
 cons :: (i -> a -> a) -> Consumer (->) i a -> Consumer (->) i a
-cons f p = HypH $ \q -> \i -> f i (ι q p)
+cons f p = Hyp $ \q -> \i -> f i (ι q p)
 
 -- ---------------------------------------------------------------------------
--- Co: coroutine over HypH (->) — recovers Hyp's Co
+-- Co: coroutine over Hyp (->) — recovers Hyp's Co
 -- ---------------------------------------------------------------------------
 
 -- | Coroutine: a function from a continuation to a channel.
--- Identical structure to @Hyp.Co@ with @(↬)@ replaced by @HypH (->)@.
+-- Identical structure to @Hyp.Co@ with @(↬)@ replaced by @Hyp (->)@.
 newtype Co r i o m a = Co
   {route :: (a -> Channel (->) i o (m r)) -> Channel (->) i o (m r)}
 
 -- | Yield a value, await a response. Recovers @Hyp.yield@.
 yield :: o -> Co r i o m i
-yield x = Co $ \k -> HypH $ \h i -> invoke h (k i) x
+yield x = Co $ \k -> Hyp $ \h i -> invoke h (k i) x
 
 -- | Send a value into a coroutine. Recovers @Hyp.send@.
 send ::
@@ -164,8 +164,8 @@ send ::
 send c v = callCC $ \k ->
   Left
     <$> invoke
-      (route c (\x -> HypH (\_ _ -> return x)))
-      (HypH (\r o -> k (Right (o, Co (const r)))))
+      (route c (\x -> Hyp (\_ _ -> return x)))
+      (Hyp (\r o -> k (Right (o, Co (const r)))))
       v
 
 -- | Send, assuming no termination. Recovers @Hyp.send'@.
@@ -186,39 +186,39 @@ zip xs ys = ι (foldr xf xb xs) (foldr yf yb ys)
     xf x xk = prod x xk
 
     xb :: Producer (->) a [(a, b)]
-    xb = HypH $ \_ -> []
+    xb = Hyp $ \_ -> []
 
     yf :: b -> Consumer (->) a [(a, b)] -> Consumer (->) a [(a, b)]
     yf y yk = cons (\x xys -> (x, y) : xys) yk
 
     yb :: Consumer (->) a [(a, b)]
-    yb = HypH $ \_ _ -> []
+    yb = Hyp $ \_ _ -> []
 
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
 
 -- | Terminal: ignore continuation, return @a@. Recovers @Hyp.base@.
-base :: a -> HypH (->) a a
-base a = HypH (const a)
+base :: a -> Hyp (->) a a
+base a = Hyp (const a)
 
 -- | Repeat a function forever. Recovers @Hyp.rep@.
-rep :: (a -> b) -> HypH (->) a b
+rep :: (a -> b) -> Hyp (->) a b
 rep f = stream f (rep f)
 
 -- | Invoke @f@ against @g@. Recovers @Hyp.invoke@.
-invoke :: HypH (->) a b -> HypH (->) b a -> b
+invoke :: Hyp (->) a b -> Hyp (->) b a -> b
 invoke f g = runFn (zipper f g)
 
 -- ---------------------------------------------------------------------------
 -- Bridges from Traced
 -- ---------------------------------------------------------------------------
 
--- | Catamorphism: fold @Traced (->)@ into @HypH (->)@.
+-- | Catamorphism: fold @Traced (->)@ into @Hyp (->)@.
 --
 -- This is the fugal extension (Boccali et al., "Bicategories of Automata").
 -- Every @Traced (->)@ description has a canonical corecursive unfolding into
--- @HypH (->)@. Feedback is handled by @zipper@ rather than a lazy fixed point
+-- @Hyp (->)@. Feedback is handled by @zipper@ rather than a lazy fixed point
 -- — the recursion lives in the types, not in a @fix@ call.
 --
 -- @
@@ -230,21 +230,21 @@ invoke f g = runFn (zipper f g)
 --
 -- Contrast with @toHypWu@: that collapses @Loop@ via @runFn@ (a lazy fixed
 -- point). @toHyp@ preserves the loop structure corecursively in the tower.
-toHyp :: Traced.Traced (->) a b -> HypH (->) a b
+toHyp :: Traced.Traced (->) a b -> Hyp (->) a b
 toHyp Traced.Pure = rep id
 toHyp (Traced.Lift f) = rep f
 toHyp (Traced.Compose g h) = toHyp g `zipper` toHyp h
 toHyp (Traced.Loop p) = closeHyp (toHyp p)
 
--- | Close a @HypH (->)@ feedback loop.
+-- | Close a @Hyp (->)@ feedback loop.
 --
--- @HypH (->) (a, c) (b, c)  →  HypH (->) a b@
+-- @Hyp (->) (a, c) (b, c)  →  Hyp (->) a b@
 --
 -- The @c@ output wire feeds back as @c@ input corecursively.
 -- The lazy fixed point ties @c@ inside the hyperfunction tower.
 -- For productive @c@ (lazy structures), no @fix@ is needed in the caller.
-closeHyp :: HypH (->) (a, c) (b, c) -> HypH (->) a b
-closeHyp p = HypH $ \k ->
+closeHyp :: Hyp (->) (a, c) (b, c) -> Hyp (->) a b
+closeHyp p = Hyp $ \k ->
   let (b, _) = ι p dual
-      dual = HypH $ \_ -> (ι k (closeHyp p), snd (ι p dual))
+      dual = Hyp $ \_ -> (ι k (closeHyp p), snd (ι p dual))
    in b
