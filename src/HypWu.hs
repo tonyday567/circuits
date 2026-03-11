@@ -1,4 +1,5 @@
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -18,21 +19,26 @@ module HypWu where
 import Control.Monad.Cont
 import Prelude hiding (zip)
 import Traced qualified
+import Hyp qualified
 
--- Core hyperfunction type
-newtype a ↬ b = Hyp {ι :: (b ↬ a) -> b}
+-- Core hyperfunction type: use Hyp's implementation
+type a ↬ b = Hyp.HypH (->) a b
+
+-- Constructor pattern: accept either HypH or bare lambda
+pattern Hyp :: (Hyp.HypH (->) b a -> b) -> (a ↬ b)
+pattern Hyp f = Hyp.HypH f
 
 -- Stream constructor
 (⊲) :: (a -> b) -> (a ↬ b) -> (a ↬ b)
-f ⊲ h = Hyp (\k -> f (ι k h))
+f ⊲ h = Hyp (\k -> f (Hyp.ι k h))
 
 -- Zipper
 (⊙) :: (b ↬ c) -> (a ↬ b) -> (a ↬ c)
-f ⊙ g = Hyp $ \h -> ι f (g ⊙ h)
+f ⊙ g = Hyp $ \h -> Hyp.ι f (g ⊙ h)
 
 -- Runner
 run :: a ↬ a -> a
-run h = ι h (Hyp run)
+run h = Hyp.ι h (Hyp run)
 
 -- Producer/Consumer
 type Producer o a = (o -> a) ↬ a
@@ -43,14 +49,14 @@ type Channel a i o = (o -> a) ↬ (i -> a)
 
 -- Producer and Consumer helpers
 -- prod sends a value through a producer
--- ι (prod o p) q = ι q p o
+-- Hyp.ι (prod o p) q = Hyp.ι q p o
 prod :: o -> Producer o a -> Producer o a
-prod o p = Hyp $ \q -> ι q p o
+prod o p = Hyp $ \q -> Hyp.ι q p o
 
 -- cons sends a consumer function through a consumer
--- ι (cons f p) q i = f i (ι q p)
+-- Hyp.ι (cons f p) q i = f i (Hyp.ι q p)
 cons :: (i -> a -> a) -> Consumer i a -> Consumer i a
-cons f p = Hyp $ \q -> \i -> f i (ι q p)
+cons f p = Hyp $ \q -> \i -> f i (Hyp.ι q p)
 
 newtype Co r i o m a = Co {route :: (a -> Channel (m r) i o) -> Channel (m r) i o}
 
@@ -65,7 +71,7 @@ send' c v = either undefined id <$> send c v
 
 -- Zip using hyperfunctions and foldr
 zip :: [a] -> [b] -> [(a, b)]
-zip xs ys = ι (foldr xf xb xs) (foldr yf yb ys)
+zip xs ys = Hyp.ι (foldr xf xb xs) (foldr yf yb ys)
   where
     xf :: a -> Producer a [(a, b)] -> Producer a [(a, b)]
     xf x xk = prod x xk
@@ -97,7 +103,7 @@ invoke f g = run (f ⊙ g)
 -- ---------------------------------------------------------------------------
 
 -- | Interpret @Traced (↬)@ into @Hyp@.
-runHypWu :: Traced.Traced (↬) a b -> (a ↬ b)
+runHypWu :: Traced.Traced (Hyp.HypH (->)) a b -> (a ↬ b)
 runHypWu Traced.Pure = rep id
 runHypWu (Traced.Lift h) = h
 runHypWu (Traced.Compose g h) = runHypWu g ⊙ runHypWu h
@@ -111,7 +117,7 @@ runHypWu (Traced.Loop p) = traceHypWu (runHypWu p)
 -- over the @c@ channel.
 traceHypWu :: (a, c) ↬ (b, c) -> (a ↬ b)
 traceHypWu h = rep $ \a ->
-  fst $ fix $ \(_, c) -> ι h (Hyp (const (a, c)))
+  fst $ fix $ \(_, c) -> Hyp.ι h (Hyp (const (a, c)))
   where
     fix f = let x = f x in x
 
@@ -129,4 +135,4 @@ toHypWu u@(Traced.Loop _) = rep (Traced.runFn u)
 --
 -- Supply the terminal continuation @Hyp (const a)@ to collapse the tower.
 fromHypWu :: (a ↬ b) -> Traced.Traced (->) a b
-fromHypWu h = Traced.Lift $ \a -> ι h (Hyp (const a))
+fromHypWu h = Traced.Lift $ \a -> Hyp.ι h (Hyp (const a))
