@@ -1,5 +1,5 @@
 packages:
-  tcat.cabal
+  yarn.cabal
 
 write-ghc-environment-files: always
 allow-newer:

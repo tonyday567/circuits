@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name:          tcat
+name:          yarn
 version:       0.1.0.0
 synopsis:      Free traced monoidal category over any base category
 license:       BSD-3-Clause
@@ -51,5 +51,5 @@ executable parser-speed
         , perf                 >=0.13 && <0.14
         , text                 >=1.2 && <2.2
         , bifunctors
-        , tcat
+        , yarn
     ghc-options: -O2
