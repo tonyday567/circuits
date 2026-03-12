@@ -98,6 +98,9 @@ cloop p h = loop (p . first h)
 -- >>> let f = Compose (Lift (+ 1)) (Lift (* 2))
 -- >>> run f 5
 -- 11
+--
+-- >>> (run $ Knot $ Lift $ \(i, fibs) -> (fibs !! i, 0 : 1 : zipWith (+) fibs (drop 1 fibs))) 10
+-- 55
 run :: Traced (->) a b -> (a -> b)
 run Pure = Prelude.id
 run (Lift f) = f

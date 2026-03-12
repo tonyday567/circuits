@@ -236,5 +236,18 @@ fork log leafId =
         else Right (Log branch)
 
 -- | Agent ⟜ reads a Log window, returns response Log + next Agent state
+--
+-- >>> -- Load a session
+-- >>> -- result <- loadJSONL "session-0.jsonl"
+-- >>> -- case result of
+-- >>> --   Left err -> putStrLn $ "Parse error: " ++ err
+-- >>> --   Right log -> do
+-- >>> --     -- Fork to a specific entry (checkpoint)
+-- >>> --     case fork log (Just "entry-id") of
+-- >>> --       Left err -> putStrLn $ "Fork error: " ++ err
+-- >>> --       Right sublog -> do
+-- >>> --         -- Step the agent on the sub-log
+-- >>> --         let (nextAgent, response) = step someAgent sublog
+-- >>> --         putStrLn $ "Agent responded with " ++ show (length (case response of Log es -> es)) ++ " entries"
 newtype Agent = Agent {step :: Log -> (Agent, Log)}
   deriving (Generic)
