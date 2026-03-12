@@ -47,7 +47,7 @@ module Traced
     Traced (..),
     lift,
     build,
-    untrace,
+    yank,
 
     -- * Running
     interpret,
@@ -94,9 +94,9 @@ data Traced arr a b where
     Traced arr a b ->
     -- | Sequential composition (right runs first).
     Traced arr a c
-  Loop ::
+  Knot ::
     Traced arr (a, c) (b, c) ->
-    -- | Feedback: close the @c@ wire.
+    -- | Feedback: tie the knot by sealing the @c@ wire.
     -- The feedback variable @c@ is existential — sealed, unobservable.
     -- Initialisation is the responsibility of the ArrowLoop instance for @arr@:
     -- for @(->)@ a lazy fixed point suffices; for @Mealy@ inject must not
@@ -113,9 +113,9 @@ lift = Lift
 build :: (a -> b) -> Traced (->) a b
 build = Lift
 
--- | Lift a function-with-feedback. Specialised to @arr = (->)@.
-untrace :: ((a, c) -> (b, c)) -> Traced (->) a b
-untrace f = Loop (Lift f)
+-- | Tie a knot: yank feedback from a function. Specialised to @arr = (->)@.
+yank :: ((a, c) -> (b, c)) -> Traced (->) a b
+yank f = Knot (Lift f)
 
 -- Category — works for any arr
 
@@ -141,11 +141,11 @@ instance Profunctor (Traced (->)) where
   dimap f g p = Lift g `Compose` p `Compose` Lift f
 
 instance Costrong (Traced (->)) where
-  unfirst = Loop
+  unfirst = Knot
 
   -- unsecond :: p (d,a) (d,b) -> p a b
   -- Swap input, run p, swap output, close the d wire with Loop.
-  unsecond p = Loop (Lift sw `Compose` p `Compose` Lift sw)
+  unsecond p = Knot (Lift sw `Compose` p `Compose` Lift sw)
     where
       sw (a, b) = (b, a)
 
@@ -153,15 +153,15 @@ instance Costrong (Traced (->)) where
 
 -- | Interpret @Traced arr@ into @arr@.
 --
--- Implements the sliding law: when Loop appears on the left of Compose,
+-- Implements the sliding law: when Knot appears on the left of Compose,
 -- it slides through and absorbs the right side. This requires pattern
--- matching on the left argument to detect Loop and reassociate Compose.
+-- matching on the left argument to detect Knot and reassociate Compose.
 --
 -- The naive @interpret g . interpret h@ is incorrect because it does not implement
--- the sliding transformation: loops must be able to absorb compositions.
+-- the sliding transformation: knots must be able to absorb compositions.
 --
 -- The sliding law: feedback variables slide left through Compose chains,
--- absorbing the right side via the Costrong structure. The Loop constructor
+-- absorbing the right side via the Costrong structure. The Knot constructor
 -- is the profunctor operation Costrong.unfirst, and the sliding works by
 -- lifting the right morphism to work on the feedback pair via @first@.
 --
@@ -171,7 +171,7 @@ instance Costrong (Traced (->)) where
 -- Pure     →  id
 -- Lift f   →  f
 -- Compose  →  pattern match on left to handle sliding
--- Loop p   →  loop (interpret p)
+-- Knot p   →  loop (interpret p)
 -- @
 interpret :: (Arrow arr, ArrowLoop arr) => Traced arr a b -> arr a b
 interpret Pure = id
@@ -180,8 +180,8 @@ interpret (Compose g h) = case g of
   Pure -> interpret h
   Lift f -> f . interpret h
   Compose g1 g2 -> interpret (Compose g1 (Compose g2 h))     -- reassociate left-nested
-  Loop p -> cloop (interpret p) (interpret h)
-interpret (Loop p) = loop (interpret p)
+  Knot p -> cloop (interpret p) (interpret h)
+interpret (Knot p) = loop (interpret p)
 
 loop' :: ((a, k) -> (b, k)) -> (a -> b)
 loop' f b = let (k,d) = f (b,d) in k
@@ -210,11 +210,11 @@ cloop p h = loop (p . first h)
 -- >>> run f 5
 -- 11
 --
--- Example: Loop and fixed point (feedback loop)
+-- Example: Knot and fixed point (feedback loop)
 --
--- See @test-traced-fn-simple.hs@ for integration tests of Loop behavior
+-- See @test-traced-fn-simple.hs@ for integration tests of Knot behavior
 -- with identity and fixed-point functions. The core pattern:
--- Loop absorbs the feedback wire via Mendler normalisation.
+-- Knot absorbs the feedback wire via Mendler normalisation.
 run :: Traced (->) a b -> (a -> b)
 run Pure = Prelude.id
 run (Lift f) = f
@@ -222,8 +222,8 @@ run (Compose g h) = case g of
   Pure -> run h
   Lift f -> f Prelude.. run h
   Compose g1 g2 -> run (Compose g1 (Compose g2 h))
-  Loop p -> cloop' (run p) (run h)
-run (Loop p) = loop' (run p)
+  Knot p -> cloop' (run p) (run h)
+run (Knot p) = loop' (run p)
 
 -- | Take the fixed point of a closed @Traced (->)@ loop.
 closeFn :: Traced (->) a a -> a
@@ -240,7 +240,7 @@ closeFn = fix Prelude.. run
 -- Example: Fibonacci sequence via corecursion.
 --
 -- @
--- fib idx = runFn $ Loop $ Lift $ \\(i, fibs) -> 
+-- fib idx = run $ Knot $ Lift $ \\(i, fibs) -> 
 --           (fibs !! i, 0 : 1 : zipWith (+) fibs (drop 1 fibs))
 -- @
 --
@@ -250,7 +250,7 @@ closeFn = fix Prelude.. run
 --
 -- Computing Fibonacci values:
 --
--- >>> (run $ Loop $ Lift $ \(i, fibs) -> (fibs !! i, 0 : 1 : zipWith (+) fibs (drop 1 fibs))) 10
+-- >>> (run $ Knot $ Lift $ \(i, fibs) -> (fibs !! i, 0 : 1 : zipWith (+) fibs (drop 1 fibs))) 10
 -- 55
 --
 

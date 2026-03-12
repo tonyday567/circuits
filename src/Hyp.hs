@@ -277,16 +277,16 @@ invoke f g = runFn (zipper f g)
 -- Pure     →  rep id          — stateless identity, repeated
 -- Lift f   →  rep f           — stateless f, repeated
 -- Compose  →  zipper          — productive sequential composition
--- Loop p   →  closeHyp        — close feedback wire corecursively
+-- Knot p   →  closeHyp        — close feedback wire corecursively
 -- @
 --
--- Contrast with @toHypWu@: that collapses @Loop@ via @runFn@ (a lazy fixed
--- point). @toHyp@ preserves the loop structure corecursively in the tower.
+-- Contrast with @toHypWu@: that collapses @Knot@ via @runFn@ (a lazy fixed
+-- point). @toHyp@ preserves the knot structure corecursively in the tower.
 toHyp :: (Arrow arr) => Traced.Traced arr a b -> Hyp arr a b
 toHyp Traced.Pure = undefined -- rep id
 toHyp (Traced.Lift f) = undefined -- rep id 
 toHyp (Traced.Compose g h) = toHyp g `zipper` toHyp h
-toHyp (Traced.Loop p) = closeHyp (toHyp p)
+toHyp (Traced.Knot p) = closeHyp (toHyp p)
 
 -- | Close a @Hyp (->)@ feedback loop.
 --
@@ -340,7 +340,7 @@ runHypWu :: Traced.Traced (Hyp (->)) a b -> Hyp (->) a b
 runHypWu Traced.Pure = rep id
 runHypWu (Traced.Lift h) = h
 runHypWu (Traced.Compose g h) = runHypWu g ⊙ runHypWu h
-runHypWu (Traced.Loop p) = traceHypWu (runHypWu p)
+runHypWu (Traced.Knot p) = traceHypWu (runHypWu p)
 
 -- | Tie feedback knot in a hyperfunction via lazy fixed point.
 --
@@ -350,7 +350,7 @@ runHypWu (Traced.Loop p) = traceHypWu (runHypWu p)
 -- @(a, c) ↬ (b, c)  →  a ↬ b@
 --
 -- The fixed point is computed eagerly using Haskell's lazy evaluation;
--- used by @runHypWu@ to discharge @Loop@.
+-- used by @runHypWu@ to discharge @Knot@.
 traceHypWu :: (a, c) ↬ (b, c) -> Hyp (->) a b
 traceHypWu h = rep $ \a ->
   fst $ fix $ \(_, c) -> ι h (Hyp (const (a, c)))
@@ -359,11 +359,11 @@ traceHypWu h = rep $ \a ->
 
 -- | Alternative bridge: @Traced@ to @Hyp (->)@ via eager fixed point.
 --
--- Unlike @toHyp@ which preserves @Loop@ in the hyperfunction tower,
--- @toHypF@ collapses @Loop@ immediately using @run@, computing
+-- Unlike @toHyp@ which preserves @Knot@ in the hyperfunction tower,
+-- @toHypF@ collapses @Knot@ immediately using @run@, computing
 -- the fixed point eagerly and lifting the result into hyperfunction.
 toHypF :: Traced.Traced (->) a b -> Hyp (->) a b
 toHypF Traced.Pure = rep id
 toHypF (Traced.Lift f) = rep f
 toHypF (Traced.Compose g h) = toHypF g `zipper` toHypF h
-toHypF u@(Traced.Loop _) = rep (Traced.run u)
+toHypF u@(Traced.Knot _) = rep (Traced.run u)

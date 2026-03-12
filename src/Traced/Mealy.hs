@@ -16,7 +16,7 @@
 --
 -- = What this does NOT solve
 --
--- Loop with strict c. The loopH lazy knot has the same structure
+-- Knot with strict c. The loopH lazy knot has the same structure
 -- as Costrong.unfirst. Needs delay on the feedback wire for strict c.
 --
 -- = Theory
@@ -142,7 +142,7 @@ loopH p =
 --
 -- The input @Traced Mealy a b@ describes a composition of Mealy machines:
 -- @Pure@ (identity), @Lift@ (single machine), @Compose@ (sequence),
--- or @Loop@ (feedback).
+-- or @Knot@ (feedback).
 --
 -- The output @Hyp Mealy a b@ is the same computation, but structured
 -- as a corecursive tower where each layer (@ι@) unfolds one step.
@@ -166,5 +166,5 @@ fromMealy :: Traced Mealy a b -> Hyp Mealy a b
 fromMealy Pure = idH
 fromMealy (Lift m) = liftH m
 fromMealy (Compose g h) = fromMealy g `zipper` fromMealy h
-fromMealy (Loop p) = loopH (fromMealy p)
+fromMealy (Knot p) = loopH (fromMealy p)
 
