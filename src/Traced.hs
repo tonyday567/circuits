@@ -46,7 +46,6 @@ module Traced
   ( -- * The GADT
     Traced (..),
     lift,
-    build,
     yank,
 
     -- * Running
@@ -108,10 +107,6 @@ data Traced arr a b where
 -- | Lift a base morphism. General form.
 lift :: arr a b -> Traced arr a b
 lift = Lift
-
--- | Lift a Haskell function. Specialised to @arr = (->)@.
-build :: (a -> b) -> Traced (->) a b
-build = Lift
 
 -- | Tie a knot: yank feedback from a function. Specialised to @arr = (->)@.
 yank :: ((a, c) -> (b, c)) -> Traced (->) a b
