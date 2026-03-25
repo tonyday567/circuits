@@ -10,6 +10,8 @@ module Traced
     interpret,
     run,
     close,
+    loop',
+    loop'',
   )
 where
 

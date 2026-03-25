@@ -33,7 +33,6 @@ parseRun :: OA.Parser RunType
 parseRun =
   flag' RunDefault (long "default" <> help "run default performance test")
     <|> flag' RunMarkup (long "markup" <> short 'm' <> help "run markup performance test")
-    <|> flag' RunMealy (long "mealy" <> short 'e' <> help "run mealy performance test")
     <|> flag' RunWhitespace (long "whitespace" <> help "run whitespace parsing test")
     <|> flag' RunWrappedQ (long "wrappedQ" <> help "run wrappedQ parsing test")
     <|> flag' RunReduced (long "reduced" <> help "run with reduced result sizes")
@@ -64,12 +63,6 @@ main = do
   let snip = speedSnippet o
 
   case r of
-    RunMealy -> do
-      bs <- B.readFile f
-      reportMainWith rep (show r) $ do
-        _ <- ffap "hand-written tokenize" (length . runMarkupLexerBS) bs
-        _ <- ffap "Traced (->) a (State s b) tokenize" (length . runMarkupStateBS) bs
-        pure ()
     RunDefault -> do
       bs <- B.readFile f
       t <- Text.readFile f
