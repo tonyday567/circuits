@@ -43,11 +43,8 @@ yank f = Knot (Lift f)
 runA :: (Arrow arr, ArrowLoop arr) => TracedA arr a b -> arr a b
 runA Pure = id
 runA (Lift f) = f
-runA (Compose g h) = case g of
-  Pure -> runA h
-  Lift f -> f . runA h
-  Compose g1 g2 -> runA (Compose g1 (Compose g2 h))
-  Knot k -> Arrow.loop (runA k . first (runA h))
+runA (Compose (Knot k) h) = Arrow.loop (runA k . first (runA h))
+runA (Compose f h) = runA f . runA h
 runA (Knot k) = Arrow.loop (runA k)
 
 -- | Evaluate @Traced@ to a function.
