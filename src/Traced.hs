@@ -24,15 +24,14 @@ import Prelude hiding (id, (.))
 
 -- | The free traced monoidal category over base category @arr@.
 data TracedA arr a b where
-  Pure :: TracedA arr a a
   Lift :: arr a b -> TracedA arr a b
   Compose :: TracedA arr b c -> TracedA arr a b -> TracedA arr a c
   Knot :: TracedA arr (a, c) (b, c) -> TracedA arr a b
 
 type Traced = TracedA (->)
 
-instance Category (TracedA arr) where
-  id = Pure
+instance (Category arr) => Category (TracedA arr) where
+  id = Lift id
   (.) = Compose
 
 -- | Tie a knot: yank feedback from a function.
@@ -41,7 +40,6 @@ yank f = Knot (Lift f)
 
 -- | lower a TracedA arr to an arr
 runA :: (Arrow arr, ArrowLoop arr) => TracedA arr a b -> arr a b
-runA Pure = id
 runA (Lift f) = f
 runA (Compose (Knot k) h) = Arrow.loop (runA k . first (runA h))
 runA (Compose f h) = runA f . runA h
@@ -56,7 +54,6 @@ runA (Knot k) = Arrow.loop (runA k)
 -- >>> (run $ yank $ \(i, fibs) -> (fibs !! i, 0 : 1 : zipWith (+) fibs (drop 1 fibs))) 10
 -- 55
 run :: Traced a b -> (a -> b)
-run Pure = id
 run (Lift f) = f
 run (Compose (Knot f) g) = knot (run f) . run g
 run (Compose f g) = run f . run g
