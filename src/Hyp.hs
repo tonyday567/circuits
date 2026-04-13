@@ -16,7 +16,8 @@ module Hyp
 
     -- * Bridge from Traced
     fromHyp,
-
+    toHyp,
+    
     -- * Helpers
     base,
     rep,
@@ -29,8 +30,8 @@ import Control.Arrow (Arrow, arr)
 import Control.Category (Category (..))
 import Data.Function (fix)
 import Prelude hiding (id, (.))
-import Traced qualified as Traced
-import Traced (Trace (..))
+import Traced qualified
+import Traced (Trace (..), Traced, TracedA (..))
 
 -- | Hyperfunction over a base arrow @arr@.
 newtype HypA arr a b = HypA {ι :: arr (HypA arr b a) b}
@@ -45,6 +46,7 @@ instance Category Hyp where
 instance {-# OVERLAPPING #-} Trace Hyp (,) where
   trace h = rep $ \b ->
     snd $ fix $ \(a, _) -> ι h (HypA (const (a, b)))
+  untrace h = undefined
 
 -- | Type alias: @a ↬ b@ = @Hyp a b@
 type a ↬ b = Hyp a b
@@ -86,6 +88,10 @@ lower :: Hyp a b -> (a -> b)
 lower h = \a -> ι h (HypA (const a))
 
 -- | Unfold @Hyp@ back to @Traced@ syntax.
-fromHyp :: Hyp a b -> Traced.Traced a b
-fromHyp h = Traced.Lift (lower h)
+fromHyp :: Hyp a b -> Traced a b
+fromHyp h = Lift (lower h)
 
+toHyp :: Traced a b -> Hyp a b
+toHyp (Lift f)      = rep f
+toHyp (Compose f g) = toHyp f ⊙ toHyp g
+toHyp (Knot k)      = trace (rep k)
