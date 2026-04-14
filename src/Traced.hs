@@ -33,7 +33,7 @@ class Trace arr t where
   untrace :: arr b c -> arr (t a b) (t a c)
 
 -- | unsecond
-instance {-# OVERLAPPING #-} Trace (->) (,) where
+instance {-# OVERLAPPABLE #-} Trace (->) (,) where
   trace f b = let (a, c) = f (a, b) in c
   untrace = fmap
 
@@ -48,7 +48,7 @@ instance {-# OVERLAPPING #-} Trace (->) Either where
   untrace = fmap
 
 -- | Costrong profunctor instance: trace via unsecond
-instance (Costrong p, Strong p) => Trace p (,) where
+instance {-# OVERLAPPABLE #-} (Costrong p, Strong p) => Trace p (,) where
   trace = unsecond
   untrace = second'
 

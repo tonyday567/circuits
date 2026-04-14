@@ -7,7 +7,6 @@ module Hyp
     -- * Core operations
     zipper,
     run,
-    stream,
     push,
     compose,
 
@@ -25,8 +24,6 @@ where
 
 import Control.Arrow (Arrow, arr)
 import Control.Category (Category (..))
-import Data.Bifunctor (second)
-import Data.Function (fix)
 import Traced (Circuit (..), Trace (..))
 import Prelude hiding (id, (.))
 
@@ -56,10 +53,6 @@ zipper f g = HypA (invoke f . arr (g `zipper`))
 run :: Hyp a a -> a
 run h = invoke h (HypA run)
 
--- | Stream constructor: prepend a function to a hyperfunction.
-stream :: (a -> b) -> Hyp a b -> Hyp a b
-stream = push
-
 -- | Terminal: ignore continuation, return @a@.
 base :: a -> Hyp a a
 base a = HypA (const a)
@@ -76,12 +69,11 @@ invoke' f g = run (zipper f g)
 lower :: Hyp a b -> (a -> b)
 lower h a = invoke h (HypA (const a))
 
--- | Hyp is an instance of the Trace typeclass for the product tensor.
-instance Trace Hyp (,) where
-  trace h = rep $ \b -> snd $ fix $ \(a, _) -> lower h (a, b)
-  untrace = rep . second . lower
+instance {-# INCOHERENT #-} (Trace (->) a) => Trace Hyp a where
+  trace = rep . trace . lower
+  untrace = rep . untrace . lower
 
--- | Degenerate: lower a hyperfunction to a circuit.
+-- | Convert a Hyp to a Circuit via (->).
 degen :: Hyp a b -> Circuit (->) (,) a b
 degen h = Lift (lower h)
 
@@ -89,4 +81,4 @@ degen h = Lift (lower h)
 unfold :: Circuit (->) (,) a b -> Hyp a b
 unfold (Lift f) = rep f
 unfold (Compose f g) = unfold f . unfold g
-unfold (Loop k) = rep $ \b -> snd $ fix $ \(a, _) -> lower (rep k) (a, b)
+unfold (Loop f) = rep (trace (lower (rep f)))
