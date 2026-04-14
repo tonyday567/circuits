@@ -1,27 +1,25 @@
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UnicodeSyntax #-}
 
 module Hyp
   ( HypA (..),
     Hyp,
-    type (↬),
 
     -- * Core operations
     zipper,
     run,
     stream,
-    (⊲),
-    (⊙),
+    push,
+    compose,
+    traceHyp,
 
-    -- * Bridge from Traced
+    -- * Conversion
     fromHyp,
     toHyp,
-    
+
     -- * Helpers
     base,
     rep,
-    invoke,
+    invoke',
     lower,
   )
 where
@@ -29,47 +27,38 @@ where
 import Control.Arrow (Arrow, arr)
 import Control.Category (Category (..))
 import Data.Function (fix)
+import Traced (Traced, TracedA (..))
 import Prelude hiding (id, (.))
-import Traced qualified
-import Traced (Trace (..), Traced, TracedA (..))
 
 -- | Hyperfunction over a base arrow @arr@.
-newtype HypA arr a b = HypA {ι :: arr (HypA arr b a) b}
+newtype HypA arr a b = HypA {invoke :: arr (HypA arr b a) b}
 
 -- | Classical hyperfunction: @HypA (->)@
 type Hyp = HypA (->)
 
 instance Category Hyp where
   id = rep id
-  (.) = (⊙)
-
-instance {-# OVERLAPPING #-} Trace Hyp (,) where
-  trace h = rep $ \b ->
-    snd $ fix $ \(a, _) -> ι h (HypA (const (a, b)))
-  untrace h = undefined
-
--- | Type alias: @a ↬ b@ = @Hyp a b@
-type a ↬ b = Hyp a b
+  (.) = compose
 
 -- | Stream constructor: prepend a function to a hyperfunction.
-(⊲) :: (a -> b) -> (a ↬ b) -> (a ↬ b)
-f ⊲ h = HypA (\k -> f (ι k h))
+push :: (a -> b) -> Hyp a b -> Hyp a b
+push f h = HypA (\k -> f (invoke k h))
 
 -- | Composition: sequential combination of hyperfunctions.
-(⊙) :: (b ↬ c) -> (a ↬ b) -> (a ↬ c)
-f ⊙ g = HypA $ \h -> ι f (g ⊙ h)
+compose :: Hyp b c -> Hyp a b -> Hyp a c
+compose f g = HypA $ \h -> invoke f (compose g h)
 
 -- | Compose two @HypA arr@ morphisms.
 zipper :: (Arrow arr) => HypA arr b c -> HypA arr a b -> HypA arr a c
-zipper f g =  HypA (ι f . arr (g `zipper`))
+zipper f g = HypA (invoke f . arr (g `zipper`))
 
 -- | Run a closed hyperfunction to a value.
 run :: Hyp a a -> a
-run h = ι h (HypA run)
+run h = invoke h (HypA run)
 
--- | Stream cons.
+-- | Stream constructor: prepend a function to a hyperfunction.
 stream :: (a -> b) -> Hyp a b -> Hyp a b
-stream f h = HypA $ \k -> f (ι k h)
+stream = push
 
 -- | Terminal: ignore continuation, return @a@.
 base :: a -> Hyp a a
@@ -77,21 +66,28 @@ base a = HypA (const a)
 
 -- | Repeat a function forever.
 rep :: (a -> b) -> Hyp a b
-rep f = stream f (rep f)
+rep f = push f (rep f)
 
 -- | Invoke @f@ against @g@.
-invoke :: Hyp a b -> Hyp b a -> b
-invoke f g = run (zipper f g)
+invoke' :: Hyp a b -> Hyp b a -> b
+invoke' f g = run (zipper f g)
 
 -- | Lower a hyperfunction to a plain function.
 lower :: Hyp a b -> (a -> b)
-lower h = \a -> ι h (HypA (const a))
+lower h a = invoke h (HypA (const a))
+
+-- | Trace a hyperfunction: implement feedback loop via fixed point over paired state.
+-- Converts a hyperfunction that threads state through computation into one that closes the feedback loop.
+traceHyp :: Hyp (a, b) (a, c) -> Hyp b c
+traceHyp h = rep $ \b ->
+  snd $ fix $ \(a, _) -> invoke h (HypA (const (a, b)))
 
 -- | Unfold @Hyp@ back to @Traced@ syntax.
 fromHyp :: Hyp a b -> Traced a b
 fromHyp h = Lift (lower h)
 
+-- | Lift @Traced@ to @Hyp@ syntax.
 toHyp :: Traced a b -> Hyp a b
-toHyp (Lift f)      = rep f
-toHyp (Compose f g) = toHyp f ⊙ toHyp g
-toHyp (Knot k)      = trace (rep k)
+toHyp (Lift f) = rep f
+toHyp (Compose f g) = toHyp f . toHyp g
+toHyp (Knot k) = traceHyp (rep k)

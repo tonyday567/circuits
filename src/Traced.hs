@@ -5,38 +5,30 @@
 -- | The free traced monoidal category over any base category
 module Traced
   ( -- * Traced
-    TracedA (..)
-  , Traced
-  , Trace(..)
-    -- * operators
-  , (⊙)
-  , (⊲)
-  , (↬)
+    TracedA (..),
+    Traced,
+    Trace (..),
+    run,
+  )
+where
 
-  -- * runner
-  , run
-  , (⊢)
-  ) where
-
-import Prelude hiding (id, (.))
-import Control.Category (Category(..), id, (.))
-import Data.Profunctor.Strong (Costrong (..), Strong(..))
+import Control.Category (Category (..), id, (.))
+import Data.Bifunctor ()
+import Data.Functor ()
 import Data.Profunctor
-import Data.Functor (Functor(..))
-import Data.Bifunctor
-import Data.Tuple (swap)
+import Data.Profunctor.Strong ()
+import Prelude hiding (id, (.))
 
 -- | the Trace action being eliminated goes on the left of the (co)product:
 -- A Trace is an adjunction:
 -- untrace | trace
--- where trace eliminates the action channel and untrace injects into the underlying type.  
+-- where trace eliminates the action channel and untrace injects into the underlying type.
 --
 -- - (a,)  for pairs
 -- - Either a for Either
 -- - These a for These
 --
 -- This is opposite to the profunctors convention.
---
 class Trace arr t where
   trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
@@ -52,36 +44,25 @@ instance {-# OVERLAPPING #-} Trace (->) Either where
   trace f b = go (Right b)
     where
       go x = case f x of
-        Right c -> c    
+        Right c -> c
         Left a -> go (Left a)
   untrace = fmap
 
 -- | Costrong profunctor instance: trace via unsecond
-instance (Category p, Costrong p, Strong p) => Trace p (,) where
-  trace k = unsecond k
-  untrace k = second' k
+instance (Costrong p, Strong p) => Trace p (,) where
+  trace = unsecond
+  untrace = second'
 
 -- | Cochoice profunctor instance: trace via unright
-instance (Category p, Cochoice p, Choice p) => Trace p Either where
-  trace k = unright k
-  untrace k = right' k
+instance (Cochoice p, Choice p) => Trace p Either where
+  trace = unright
+  untrace = right'
 
 -- | The Free Traced Monoidal Category
 data TracedA arr t a b where
   Lift :: arr a b -> TracedA arr t a b
   Compose :: TracedA arr t b c -> TracedA arr t a b -> TracedA arr t a c
   Knot :: arr (t a b) (t a c) -> TracedA arr t b c
-
-type a ↝ b = TracedA (->) (,) a b 
-
-(⊙) :: (b ↝ c) -> (a ↝ b)-> (a ↝ c)
-(⊙) = Compose
-
-(⊲) :: (a -> b) -> (a ↝ b) 
-(⊲) = Lift
-
-(↬) :: ((c,a) -> (c,b)) -> (a ↝ b)
-(↬) = Knot
 
 instance (Category arr) => Category (TracedA arr t) where
   id = Lift id
@@ -95,7 +76,7 @@ instance (Category arr) => Category (TracedA arr t) where
 -- >>> run fmapped 5
 -- 12
 instance Functor (TracedA (->) t a) where
-  fmap f g = Compose (Lift f) g
+  fmap f = Compose (Lift f)
 
 -- | Profunctor: contravariant in input, covariant in output.
 -- Prepend a transformation on input, append a transformation on output.
@@ -108,7 +89,7 @@ instance Functor (TracedA (->) t a) where
 instance Profunctor (TracedA (->) t) where
   dimap f g a = Compose (Lift g) (Compose a (Lift f))
   lmap f a = Compose a (Lift f)
-  rmap g a = Compose (Lift g) a
+  rmap g = Compose (Lift g)
 
 -- | Applicative: combine two traced computations from the same context.
 -- Like Reader, both traced values depend on the same starting point.
@@ -117,7 +98,7 @@ instance Profunctor (TracedA (->) t) where
 -- >>> let v = Lift (\x -> x * 2) :: Traced Int Int
 -- >>> run (f <*> v) 5
 -- 15
-instance Trace (->) t => Applicative (TracedA (->) t x) where
+instance (Trace (->) t) => Applicative (TracedA (->) t x) where
   pure a = Lift (const a)
   f <*> v = Lift $ \x -> run f x (run v x)
 
@@ -127,7 +108,7 @@ instance Trace (->) t => Applicative (TracedA (->) t x) where
 -- >>> let k a = Lift (const (a + 1))
 -- >>> run (m >>= k) 5
 -- 11
-instance Trace (->) t => Monad (TracedA (->) t x) where
+instance (Trace (->) t) => Monad (TracedA (->) t x) where
   m >>= k = Lift $ \x -> run (k (run m x)) x
 
 -- | The classical product traced of ArrowLoop
@@ -147,6 +128,3 @@ run (Lift f) = f
 run (Compose (Knot f) g) = trace (f . untrace (run g))
 run (Compose f g) = run f . run g
 run (Knot k) = trace k
-
-(⊢) :: x ↝ y -> x -> y
-(⊢) = run
