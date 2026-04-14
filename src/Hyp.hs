@@ -69,7 +69,7 @@ invoke' f g = run (zipper f g)
 lower :: Hyp a b -> (a -> b)
 lower h a = invoke h (HypA (const a))
 
-instance {-# INCOHERENT #-} (Trace (->) a) => Trace Hyp a where
+instance {-# OVERLAPPING #-} (Trace (->) a) => Trace Hyp a where
   trace = rep . trace . lower
   untrace = rep . untrace . lower
 
