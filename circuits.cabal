@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name: yarn
+name: circuits
 version: 0.1.0.0
 license: BSD-3-Clause
 license-file: LICENSE
@@ -7,11 +7,11 @@ copyright: Tony Day (c) 2025
 category: control
 author: Tony Day
 maintainer: tonyday567@gmail.com
-homepage: https://github.com/tonyday567/yarn#readme
-bug-reports: https://github.com/tonyday567/yarn/issues
+homepage: https://github.com/tonyday567/circuits#readme
+bug-reports: https://github.com/tonyday567/circuits/issues
 synopsis: Free traced monoidal category over any base category
 description:
-  @yarn@ provides a free traced monoidal category construction over any base category.
+  @circuits@ provides a free traced monoidal category construction over any base category.
 
 build-type: Simple
 tested-with:
@@ -21,7 +21,7 @@ tested-with:
 
 source-repository head
   type: git
-  location: https://github.com/tonyday567/yarn
+  location: https://github.com/tonyday567/circuits
 
 common ghc-options-stanza
   ghc-options:

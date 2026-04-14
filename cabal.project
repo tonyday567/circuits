@@ -1,5 +1,5 @@
 packages:
-  yarn.cabal
+  circuits.cabal
 
 write-ghc-environment-files: always
 allow-newer:
