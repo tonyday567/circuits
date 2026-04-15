@@ -47,7 +47,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Hyp
-    Traced
+    Circuit
 
   build-depends:
     base >=4.18 && <5,
