@@ -1,8 +1,5 @@
-# circuits-delimited-continuations
 
-Lexi-lambda's gist on delimited continuations and reduction semantics makes the connection to Circuit precise.
-
----
+https://ghc-proposals.readthedocs.io/en/latest/proposals/0313-delimited-continuation-primops.html
 
 ## evaluation contexts and reduction rules
 

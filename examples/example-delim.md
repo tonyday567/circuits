@@ -1,13 +1,16 @@
+Example of delimited continuations traced instance.
+
+``` haskell
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Circuit.GoI.Example where
+module Circuit.Delim.Example where
 
 import Control.Arrow (Kleisli (..), runKleisli)
 import Circuit
-import Circuit.GoI ()
+import Circuit.Traced ()
 import Prelude hiding (id, (.))
 
 -- | A simple feedback loop using the delimited-continuation Trace instance.
@@ -45,3 +48,5 @@ main = do
   putStrLn "=== Delimited-continuation Circuit countdown ==="
   countdown 10
   putStrLn "=== Done (no stack overflow even for huge n) ==="
+
+```

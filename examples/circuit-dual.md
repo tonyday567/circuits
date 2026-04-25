@@ -1,6 +1,8 @@
-# Circuit.Back — Bidirectional Traced Categories
+⟝ compact closed 
 
-The third row of the GADT hierarchy, after Circuit (free traced monoidal) and Hyp (compact reflection).
+Dual | Back
+
+The third row of the GADT hierarchy, after Circuit (free traced monoidal) and Hyper (compact reflection).
 
 Back makes **duality first-class** in the syntax. The `Dual` constructor is not a no-op — it is a true symmetry operator with real semantics.
 
@@ -125,7 +127,3 @@ runFwd (Compose f g) = runFwd f . runFwd g  -- composition respects direction
 
 Back is the natural completion: where Circuit gives you the syntax and Hyp gives you the semantics, Back gives you **explicit duality as a structural property**, enabling residual threading, polarized computation, and reversible effects.
 
-## Status
-
-✓ Design solid, semantics clear, laws documented.
-⟝ Next: test on concrete examples (parser with residuals, search with rollback, resource management with undo).

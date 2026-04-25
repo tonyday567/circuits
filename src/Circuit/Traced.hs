@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE RankNTypes #-}
@@ -6,28 +7,55 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 
--- | Delimited continuations for Circuit feedback loops.
+-- | Trace typeclass, Circuit GADT, and instances for feedback in circuits.
 --
--- Uses GHC 9.6+ primitives (prompt#, control0#) to implement Trace
--- for Kleisli IO with Either tensor, avoiding deep recursion.
+-- Supports any base arrow with different tensor types (,) and Either.
+-- Includes delimited-continuation implementation for Kleisli IO.
 
-module Circuit.GoI
-  ( PromptTag,
+module Circuit.Traced
+  ( Trace (..),
+    PromptTag,
     newPromptTag,
     prompt,
     control0,
-    loopIO,
   )
 where
 
+import Control.Arrow (Kleisli (..))
 import GHC.Exts (PromptTag#, newPromptTag#, prompt#, control0#)
 import GHC.IO (IO (..))
-import Control.Arrow (Kleisli (..))
-import Circuit (Circuit (..), Trace (..))
 
--- ---------------------------------------------------------------------------
--- Primop wrappers
--- ---------------------------------------------------------------------------
+-- | A traced profunctor over tensor @t@.
+--
+-- This class packages strength and co-strength operations equivalent to
+-- those in the @profunctors@ package, with the tensor parameterised:
+--
+-- @
+--   Trace p (,)     ≅  Strong p + Costrong p
+--     where untrace = first'    and  trace = unfirst
+--
+--   Trace p Either  ≅  Choice p + Cochoice p
+--     where untrace = left'     and  trace = unleft
+-- @
+--
+-- Users who want to plug @profunctors@-shaped types into Circuit can
+-- write the bridge instance themselves; we don't depend on @profunctors@
+-- here to keep the library at @base@ only.
+class Trace arr t where
+  trace :: arr (t a b) (t a c) -> arr b c
+  untrace :: arr b c -> arr (t a b) (t a c)
+
+instance {-# OVERLAPPABLE #-} Trace (->) (,) where
+  trace f b = let (a, c) = f (a, b) in c
+  untrace = fmap
+
+instance {-# OVERLAPPING #-} Trace (->) Either where
+  trace f b = go (Right b)
+    where
+      go x = case f x of
+        Right c -> c
+        Left a -> go (Left a)
+  untrace = fmap
 
 data PromptTag a = PromptTag (PromptTag# a)
 
@@ -48,10 +76,6 @@ control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- ---------------------------------------------------------------------------
--- Trace instance
--- ---------------------------------------------------------------------------
-
 -- | Trace for Kleisli IO with Either tensor using delimited continuations.
 --
 --   The key: prompt is inside the loop, so every iteration re-establishes
@@ -69,16 +93,3 @@ instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
   untrace (Kleisli f) = Kleisli \case
     Left a  -> pure (Left a)
     Right b -> Right <$> f b
-
--- ---------------------------------------------------------------------------
--- Helper
--- ---------------------------------------------------------------------------
-
--- | Convenient wrapper for simple IO feedback loops.
---
---   @loopIO step@ creates a Circuit that runs @step@ for each iteration,
---   treating both entry and loop states uniformly.
-loopIO :: (a -> IO (Either a b)) -> Circuit (Kleisli IO) Either a b
-loopIO step = Loop (Kleisli \case
-  Right x -> step x
-  Left  x -> step x)
