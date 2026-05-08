@@ -1,3 +1,4 @@
+{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -22,15 +23,32 @@ module Circuit.Circuit
     lower,
 
     -- * Utilities
+    push,
     toHyper,
     hyperfy,
     flatten,
+
+    -- * Symbolic operators
+    (⊙),
+    (⊲),
+    (↬),
+    (↑),
+    (↓),
+    (⥀),
+    (↯),
   )
 where
 
 import Control.Category (Category (..), id, (.))
 import Circuit.Traced
-import Circuit.Hyper (Hyper (..))
+  ( Trace (..),
+    (⥀),
+    (↯),
+  )
+import Circuit.Hyper
+  ( Hyper (..),
+    (⊙),
+  )
 import qualified Circuit.Hyper as Hyper
 import Prelude hiding (id, (.))
 
@@ -59,6 +77,10 @@ instance (Trace (->) t) => Applicative (Circuit (->) t x) where
 instance (Trace (->) t) => Monad (Circuit (->) t x) where
   m >>= k = Lift $ \x -> reify (k (reify m x)) x
 
+-- | Push / prepend a plain function to a Circuit.
+push :: arr b c -> Circuit arr t a b -> Circuit arr t a c
+push f c = Compose (Lift f) c
+
 -- | Interpret a Circuit to a plain function via the Trace instance.
 --
 -- This is the unique traced functor from the initial object (Circuit)
@@ -75,6 +97,37 @@ lower (Loop k) = trace k
 -- with Hyper's elimination function.
 reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
 reify = lower
+
+-- ---------------------------------------------------------------------------
+-- Symbolic operators
+-- ---------------------------------------------------------------------------
+
+-- | Postfix synonym for 'Lift'.
+infixr 9 ↑
+(↑) :: arr a b -> Circuit arr t a b
+(↑) = Lift
+
+-- | Postfix synonym for 'lower'.
+--
+-- Because 'lower' returns a plain function, the postfix form
+-- chains naturally via function application.
+infixl 9 ↓
+(↓) :: (Category arr, Trace arr t) => Circuit arr t a b -> arr a b
+(↓) = lower
+
+-- | Postfix synonym for 'Loop'.
+--
+-- The same symbol '↬' is used at the type level for 'Hyper'
+-- and at the value level for 'Loop'. The metaphor: the recursion
+-- that Loop introduces has been encoded into the type.
+infixr 9 ↬
+(↬) :: arr (t a b) (t a c) -> Circuit arr t b c
+(↬) = Loop
+
+-- | Push / prepend a plain function to a Circuit.
+infixr 8 ⊲
+(⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
+(⊲) = push
 
 -- | Flatten a Hyper to a Circuit by observing it.
 --
