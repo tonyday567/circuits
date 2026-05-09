@@ -1,0 +1,18 @@
+-- Specification: this pipeline MUST exist and produce [1,2]
+--
+--   [1,2,3] -> emitSingles -> circuitTake 2 -> collectSingles -> [1,2]
+--
+-- emitSingles    :: [a] -> Circuit (->) t () (Maybe a)
+-- circuitTake n  ::        Circuit (->) t (Maybe a) (Maybe a)
+-- collectSingles ::        Circuit (->) t (Maybe a) [a]
+--
+-- Composed:
+--   pipe :: Circuit (->) t () [a]
+--   pipe = collectSingles . circuitTake 2 . emitSingles [1,2,3]
+--
+-- Required:
+--   reify pipe () == [1,2]
+--
+-- The tensor t is NOT specified — find one that works.
+-- The composition operator '.' is NOT specified — find one that works.
+-- reify is NOT required to be the lowering — stepwise interpretation is acceptable.

@@ -57,6 +57,18 @@ module Circuit
     prompt,
     control0,
     whileK,
+
+    -- * Channel (coroutines)
+    Producer,
+    Consumer,
+    Channel,
+    unit,
+    counit,
+    withQ,
+    prod,
+    cons,
+    doneP,
+    doneC,
   )
 where
 
@@ -100,4 +112,16 @@ import Circuit.Traced
     prompt,
     control0,
     whileK,
+  )
+import Circuit.Channel
+  ( Producer,
+    Consumer,
+    Channel,
+    unit,
+    counit,
+    withQ,
+    prod,
+    cons,
+    doneP,
+    doneC,
   )

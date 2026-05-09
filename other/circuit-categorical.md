@@ -203,6 +203,74 @@ Full dictionary: `~/haskell/circuits/other/symbols.md`
 
 ---
 
+## The Loop→Hyper Section-Retraction
+
+The `toHyper` conversion for `Loop` flattens feedback structure:
+
+```haskell
+toHyper (Loop f) = lift (trace f)  -- runs trace, wraps result
+```
+
+This is a **retraction** — structure-forgetting, but semantically correct.
+`lift . trace . f` gives a plain `Hyper b c` with no visible feedback type.
+
+The dual says: we can also encode `Loop` as a **section** — structure-preserving,
+embedding the full feedback protocol into a stateful Hyper:
+
+```haskell
+-- For Either: iterate until Right
+loopEither :: (Either a b -> Either a c)
+           -> Hyper (Either a b -> c) (Either a b -> c)
+loopEither f = h where
+  h = Hyper $ \k s ->
+    case f s of Right c -> c; Left a -> invoke k h (Left a)
+
+-- For These: iterate with optional output
+loopThese :: (These a b -> These a c)
+         -> Hyper (These a b -> c) (These a b -> c)
+loopThese f = h where
+  h = Hyper $ \k s ->
+    case f s of That c -> c; This a -> invoke k h (This a)
+                 These a _ -> invoke k h (This a)
+
+-- For (,): lazy knot — toHyper already works
+--   trace f b = let (a,c) = f(a,b) in c
+--   'run' ties the same knot at the type level
+```
+
+The pair forms a section-retraction:
+
+```
+                    loopEither
+Loop f ──────────────────────────────► Hyper (Either a b → c) (Either a b → c)
+  │                                                         │
+  │ toHyper = lift ∘ trace                                  │ lift ∘ run ∘ Right
+  │ (retraction: forgets a)                                 │ (collapses state)
+  ▼                                                         ▼
+                  Hyper b c ◄───────────────────────────
+                          equal results:
+                   trace f = run (loopEither f) ∘ Right
+```
+
+`loopEither` is the **section** — injective, preserves the feedback type `a`
+in the function domain. `lift . trace` is the **retraction** — surjective,
+collapses the stateful encoding to a plain `Hyper b c`.
+
+The (,) tensor is different: `trace` for (,) ties a lazy knot that eliminates
+`a` by self-reference. `toHyper` and `lift . trace` don't lose information
+because there's no iteration protocol to preserve — just a knot.
+
+| Tensor | loop→Hyper section | toHyper retraction | State visible? |
+|--------|-------------------|-------------------|----------------|
+| `Either` | `Hyper (Either a b → c) (Either a b → c)` + `run` | `lift (trace f)` | `a` in function domain |
+| `These` | `Hyper (These a b → c) (These a b → c)` + `run` | `lift (trace f)` | `a` in function domain |
+| `(,)` | `run` on `Hyper (b → c) (b → c)` (knot) | `lift (trace f)` | `a` eliminated by knot |
+
+See `~/haskell/circuits/examples/coroutine-hyper.hs` §4–5 for implementations
+and the `LoopToHyper` dispatch class.
+
+---
+
 ## The Core Slogan
 
 > **Two adjunctions plus one strength.**

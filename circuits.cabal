@@ -47,6 +47,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Channel
     Circuit.Circuit
     Circuit.Hyper
     Circuit.Traced

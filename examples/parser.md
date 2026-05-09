@@ -217,4 +217,4 @@ not the degenerate `either step step` pattern from I/O loops.
 
 - `Trace arr These` instance — native three-way control flow
 - `choice :: [Parser s a] -> Parser s a` — generalised `<|>`
-- huihua port — the next parsing library to absorb
+- huihua port — absorbed (Huihua.Parse.Parser replaced with circuits-parser)
