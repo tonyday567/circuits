@@ -1,6 +1,5 @@
-{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PostfixOperators #-}
 
 -- | Compact closed structure on 'Hyper'.
 --
@@ -43,7 +42,6 @@
 -- \"Hyperfunctions: Communicating Continuations\" (POPL 2026).
 -- See @examples/channel.md@ and @examples/spec-hyper.hs@ for
 -- pipeline construction and the coinductive Consumer pattern.
-
 module Circuit.Channel
   ( -- * Types
     Producer,
@@ -109,7 +107,7 @@ cons f p = Hyper $ \q i -> f i (invoke q p)
 -- >>> glue (accept 42) (yield 42)
 -- 42
 yield :: a -> Producer o a
-yield a = Hyper $ \_ -> a
+yield a = Hyper $ const a
 
 -- | A consumer that ignores all messages and returns the accumulator.
 --
@@ -130,7 +128,7 @@ accept a = Hyper $ \_ _ -> a
 -- >>> glue c p
 -- 42
 unit :: a -> (Producer m a, Consumer m a)
-unit a = (Hyper (\_ -> a), Hyper (\_ _ -> a))
+unit a = (Hyper (const a), Hyper (\_ _ -> a))
 
 -- | Connect a consumer and producer — run them in lockstep until
 --   both terminate. The dual pair annihilates, leaving the accumulator.

@@ -1,12 +1,12 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE PostfixOperators #-}
-{-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE PostfixOperators #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- | The trace: feedback in a monoidal category.
 --
@@ -40,7 +40,6 @@
 --
 -- And @examples/resource-io.md@ for practical resource-handling loops
 -- built on the same mechanism.
-
 module Circuit.Traced
   ( Trace (..),
     (↪),
@@ -49,7 +48,7 @@ module Circuit.Traced
 where
 
 import Control.Arrow (Kleisli (..))
-import GHC.Exts (PromptTag#, newPromptTag#, prompt#, control0#)
+import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
 
 -- $setup
@@ -63,17 +62,19 @@ import GHC.IO (IO (..))
 -- @trace@ closes a feedback loop: @arr (t a b) (t a c) -> arr b c@.
 -- @untrace@ opens one: @arr b c -> arr (t a b) (t a c)@.
 class Trace arr t where
-  trace   :: arr (t a b) (t a c) -> arr b c
+  trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
 
 -- | Symbolic alias for 'trace'.
 infixr 9 ↪
-(↪) :: Trace arr t => arr (t a b) (t a c) -> arr b c
+
+(↪) :: (Trace arr t) => arr (t a b) (t a c) -> arr b c
 (↪) = trace
 
 -- | Symbolic alias for 'untrace'.
 infixr 9 ↩
-(↩) :: Trace arr t => arr b c -> arr (t a b) (t a c)
+
+(↩) :: (Trace arr t) => arr b c -> arr (t a b) (t a c)
 (↩) = untrace
 
 -- ---------------------------------------------------------------------------
@@ -148,13 +149,13 @@ control0 (PromptTag t) f = IO (control0# t arg)
 instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
   trace (Kleisli body) = Kleisli \initial -> do
     tag <- newPromptTag
-    let
-      loop x = prompt tag $
-        body x >>= \case
-          Right c -> pure c
-          Left a  -> control0 tag \k -> k (loop (Left a))
+    let loop x =
+          prompt tag $
+            body x >>= \case
+              Right c -> pure c
+              Left a -> control0 tag \k -> k (loop (Left a))
     loop (Right initial)
 
   untrace (Kleisli f) = Kleisli \case
-    Left a  -> pure (Left a)
+    Left a -> pure (Left a)
     Right b -> Right <$> f b

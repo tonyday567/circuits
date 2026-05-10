@@ -15,7 +15,6 @@
 --   * Invoke: @h ⇸ k@ applies hyperfunction @h@ to continuation @k@.
 --   * Push: @f ⊲ h@ pushes a plain function @f@ onto hyperfunction @h@.
 --   * Run: @(⥁) h@ closes the self-referential loop.
-
 module Circuit.Hyper
   ( -- * Type
     Hyper (..),
@@ -154,6 +153,7 @@ instance Monad (Hyper a) where
 -- >>> ((+1) ↑) ⇸ (0 ○)
 -- 1
 infixr 0 ⇸
+
 (⇸) :: Hyper a b -> Hyper b a -> b
 (⇸) = invoke
 
@@ -162,6 +162,7 @@ infixr 0 ⇸
 -- >>> ((*2) ⊲ ((+1) ↑)) ↓ 5
 -- 10
 infixr 8 ⊲
+
 (⊲) :: (a -> b) -> Hyper a b -> Hyper a b
 (⊲) = push
 
@@ -174,6 +175,7 @@ infixr 8 ⊲
 -- >>> (42 ○) ↓ 0
 -- 42
 infixl 9 ○
+
 (○) :: a -> Hyper b a
 (○) = base
 
@@ -182,6 +184,7 @@ infixl 9 ○
 -- >>> ((+1) ↑) ↓ 5
 -- 6
 infixr 9 ↑
+
 (↑) :: (a -> b) -> Hyper a b
 (↑) = lift
 
@@ -196,5 +199,6 @@ infixr 9 ↑
 -- >>> ((*2) ↑) ↓ 5 + 10
 -- 20
 infixl 9 ↓
+
 (↓) :: Hyper a b -> (a -> b)
 (↓) = lower

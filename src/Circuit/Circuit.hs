@@ -29,7 +29,6 @@
 --
 -- The `lower` function interprets any `Circuit` to a plain function via
 -- the `Trace` instance on `t`.
-
 module Circuit.Circuit
   ( -- * Circuit GADT
     Circuit (..),
@@ -55,15 +54,15 @@ module Circuit.Circuit
   )
 where
 
-import Control.Category (Category (..), id, (.))
-import Circuit.Traced
-  ( Trace (..),
-  )
 import Circuit.Hyper
   ( Hyper (..),
     run,
   )
-import qualified Circuit.Hyper as Hyper
+import Circuit.Hyper qualified as Hyper
+import Circuit.Traced
+  ( Trace (..),
+  )
+import Control.Category (Category (..), id, (.))
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -74,10 +73,8 @@ import Prelude hiding (id, (.))
 data Circuit arr t a b where
   -- | Lift embeds a base arrow (strict monoidal functor).
   Lift :: arr a b -> Circuit arr t a b
-
   -- | Compose performs sequential composition (category structure).
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-
   -- | Knot ties a feedback loop. The tensor t carries the channel type.
   Knot :: arr (t a b) (t a c) -> Circuit arr t b c
 
@@ -100,7 +97,7 @@ instance (Trace (->) t) => Monad (Circuit (->) t x) where
 -- >>> reify (push (+1) (Lift (*2) :: Circuit (->) (,) Int Int)) 5
 -- 11
 push :: arr b c -> Circuit arr t a b -> Circuit arr t a c
-push f c = Compose (Lift f) c
+push f = Compose (Lift f)
 
 -- | Interpret a Circuit to a plain function via the Trace instance.
 --
@@ -128,6 +125,7 @@ reify = lower
 
 -- | Postfix synonym for 'Lift'.
 infixr 9 ↑
+
 (↑) :: arr a b -> Circuit arr t a b
 (↑) = Lift
 
@@ -136,16 +134,19 @@ infixr 9 ↑
 -- Because 'lower' returns a plain function, the postfix form
 -- chains naturally via function application.
 infixl 9 ↓
+
 (↓) :: (Category arr, Trace arr t) => Circuit arr t a b -> arr a b
 (↓) = lower
 
 -- | Postfix synonym for 'Knot'.
 infixr 9 ↮
+
 (↮) :: arr (t a b) (t a c) -> Circuit arr t b c
 (↮) = Knot
 
 -- | Push / prepend a plain function to a Circuit.
 infixr 8 ⊲
+
 (⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 (⊲) = push
 
@@ -190,7 +191,7 @@ toHyperE f = h
     h = Hyper \k s ->
       case f s of
         Right c -> c
-        Left a  -> invoke k h (Left a)
+        Left a -> invoke k h (Left a)
 
 -- | Run a toHyperE-encoded circuit from initial input @b@.
 runEither :: (Either a b -> Either a c) -> b -> c

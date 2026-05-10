@@ -10,7 +10,6 @@
 --
 -- For detailed design and theory, see @other/@.
 -- For examples, see @examples/@.
-
 module Circuit
   ( -- * Circuit (initial encoding)
     Circuit (..),
@@ -57,42 +56,42 @@ module Circuit
   )
 where
 
+import Circuit.Channel
+  ( Channel,
+    Consumer,
+    Producer,
+    accept,
+    cons,
+    glue,
+    prod,
+    unit,
+    yield,
+  )
 import Circuit.Circuit
   ( Circuit (..),
-    reify,
     lower,
     push,
+    reify,
+    runEither,
     toHyper,
-    (⊲),
-    (↮),
+    toHyperE,
     (↑),
     (↓),
-    toHyperE,
-    runEither,
+    (↮),
+    (⊲),
   )
 import Circuit.Hyper
   ( Hyper (..),
-    type (↬),
-    run,
     base,
     lift,
+    run,
     (⇸),
-    (⥁),
     (○),
+    (⥁),
+    type (↬),
   )
 import Circuit.Traced
   ( Trace (..),
-    (↪),
     (↩),
-  )
-import Circuit.Channel
-  ( Producer,
-    Consumer,
-    Channel,
-    unit,
-    glue,
-    prod,
-    cons,
-    yield,
-    accept,
+    (↪),
   )
