@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -9,7 +10,22 @@
 --
 --   - `Lift`: embedding of a base arrow (strict monoidal functor)
 --   - `Compose`: sequential composition (category structure)
---   - `Loop`: feedback channel (trace structure)
+--   - `Knot`: feedback channel (trace structure)
+--
+-- = Encoding to Hyper
+--
+-- Two paths from Circuit to Hyper:
+--
+-- 1. 'toHyper' (flattening): @toHyper (Knot f) = lift (trace f)@.
+--    Applies the 'Trace' instance to eliminate the knot, then lifts
+--    the resulting plain function. Loop structure is lost.
+--
+-- 2. 'toHyperE' (structure-preserving for Either): encode the
+--    Either-loop body as a self-referential Hyper using the
+--    function-space trick. Unlike 'toHyper' (which flattens via
+--    'trace'), 'toHyperE' preserves the loop structure — the Hyper
+--    carries the feedback channel internally; 'run' ties the
+--    recursive knot. Use 'runEither' to run from an initial input.
 --
 -- The `lower` function interprets any `Circuit` to a plain function via
 -- the `Trace` instance on `t`.
@@ -25,32 +41,34 @@ module Circuit.Circuit
     -- * Utilities
     push,
     toHyper,
-    hyperfy,
     flatten,
 
+    -- * Structure-preserving encodings
+    toHyperE,
+    runEither,
+
     -- * Symbolic operators
-    (⊙),
     (⊲),
-    (↬),
+    (↮),
     (↑),
     (↓),
-    (⥀),
-    (↯),
   )
 where
 
 import Control.Category (Category (..), id, (.))
 import Circuit.Traced
   ( Trace (..),
-    (⥀),
-    (↯),
   )
 import Circuit.Hyper
   ( Hyper (..),
-    (⊙),
+    run,
   )
 import qualified Circuit.Hyper as Hyper
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> :set -XBlockArguments -XLambdaCase
+-- >>> import qualified Circuit.Hyper as Hyper
 
 -- | Circuit arr t a b is the free traced monoidal category.
 data Circuit arr t a b where
@@ -60,8 +78,8 @@ data Circuit arr t a b where
   -- | Compose performs sequential composition (category structure).
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
 
-  -- | Loop opens a feedback channel. The tensor t carries the channel type.
-  Loop :: arr (t a b) (t a c) -> Circuit arr t b c
+  -- | Knot ties a feedback loop. The tensor t carries the channel type.
+  Knot :: arr (t a b) (t a c) -> Circuit arr t b c
 
 instance (Category arr) => Category (Circuit arr t) where
   id = Lift id
@@ -77,7 +95,10 @@ instance (Trace (->) t) => Applicative (Circuit (->) t x) where
 instance (Trace (->) t) => Monad (Circuit (->) t x) where
   m >>= k = Lift $ \x -> reify (k (reify m x)) x
 
--- | Push / prepend a plain function to a Circuit.
+-- | Push a plain function onto a Circuit.
+--
+-- >>> reify (push (+1) (Lift (*2) :: Circuit (->) (,) Int Int)) 5
+-- 11
 push :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 push f c = Compose (Lift f) c
 
@@ -86,11 +107,14 @@ push f c = Compose (Lift f) c
 -- This is the unique traced functor from the initial object (Circuit)
 -- to the target category. The Mendler case (when a Loop appears on the
 -- left of Compose) enforces the sliding axiom of traced monoidal categories.
+--
+-- >>> lower (Lift (+1) :: Circuit (->) (,) Int Int) 5
+-- 6
 lower :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
 lower (Lift f) = f
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 lower (Compose f g) = lower f . lower g
-lower (Loop k) = trace k
+lower (Knot k) = trace k
 
 -- | Alias for 'lower': interpret a Circuit as a plain function.
 -- Used as the primary name for Circuit elimination to avoid conflict
@@ -115,14 +139,10 @@ infixl 9 ↓
 (↓) :: (Category arr, Trace arr t) => Circuit arr t a b -> arr a b
 (↓) = lower
 
--- | Postfix synonym for 'Loop'.
---
--- The same symbol '↬' is used at the type level for 'Hyper'
--- and at the value level for 'Loop'. The metaphor: the recursion
--- that Loop introduces has been encoded into the type.
-infixr 9 ↬
-(↬) :: arr (t a b) (t a c) -> Circuit arr t b c
-(↬) = Loop
+-- | Postfix synonym for 'Knot'.
+infixr 9 ↮
+(↮) :: arr (t a b) (t a c) -> Circuit arr t b c
+(↮) = Knot
 
 -- | Push / prepend a plain function to a Circuit.
 infixr 8 ⊲
@@ -141,11 +161,37 @@ flatten h = Lift (Hyper.lower h)
 -- This is the unique traced functor from the initial object (Circuit)
 -- to the final object (Hyper). The triangle `Hyper.lower . toHyper = reify` holds,
 -- making this the map that respects the adjunction.
+--
+-- Note: @toHyper (Knot f) = lift (trace f)@ — the knot is flattened.
+-- For a structure-preserving Either encoding, see 'toHyperE'.
+--
+-- >>> Hyper.lower (toHyper (Lift (+1) :: Circuit (->) (,) Int Int)) 5
+-- 6
 toHyper :: Circuit (->) (,) a b -> Hyper a b
 toHyper (Lift f) = Hyper.lift f
 toHyper (Compose f g) = toHyper f . toHyper g
-toHyper (Loop f) = Hyper.lift (trace f)
+toHyper (Knot f) = Hyper.lift (trace f)
 
--- | Alias for 'toHyper'.
-hyperfy :: Circuit (->) (,) a b -> Hyper a b
-hyperfy = toHyper
+-- ---------------------------------------------------------------------------
+-- Structure-preserving Either → Hyper encoding
+-- ---------------------------------------------------------------------------
+
+-- | Encode an Either-loop as a self-referential Hyper.
+--
+-- Unlike 'toHyper' (which flattens the knot via 'trace'), this preserves
+-- the loop structure inside the Hyper. @Left a@ feeds back;
+-- @Right c@ terminates with output.
+--
+-- >>> runEither (\case Right n | n < 3 -> Left (n+1); Right n -> Right n; Left n | n < 3 -> Left (n+1); Left n -> Right n) (0 :: Int)
+-- 3
+toHyperE :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
+toHyperE f = h
+  where
+    h = Hyper \k s ->
+      case f s of
+        Right c -> c
+        Left a  -> invoke k h (Left a)
+
+-- | Run a toHyperE-encoded circuit from initial input @b@.
+runEither :: (Either a b -> Either a c) -> b -> c
+runEither f b = run (toHyperE f) (Right b)

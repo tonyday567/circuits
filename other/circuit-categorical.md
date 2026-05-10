@@ -44,7 +44,7 @@ Circuit arr t a b
 │     ⊢ implicit in the Trace instances
 │
 ├── Traced Monoidal (the main feature)
-│     Loop :: arr (t a b) (t a c) -> Circuit arr t b c
+│     Knot :: arr (t a b) (t a c) -> Circuit arr t b c
 │     lower's Mendler case         ← sliding axiom
 │     ⊢ free traced monoidal category over arr with tensor t
 │
@@ -72,7 +72,7 @@ Hyper a b
 │     ⊢ invoke threads the continuation bidirectionally
 │
 ├── Traced Monoidal (structurally)
-│     no explicit Loop constructor
+│     no explicit Knot constructor
 │     sliding holds by construction in (.)
 │     ⊢ traced monoidal category
 │
@@ -126,7 +126,7 @@ A **Galois connection**, not a strict adjunction. The asymmetry is real:
 The **sliding axiom** is the only genuine content beyond the two adjunctions:
 
 ```haskell
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
 This is the **Mendler case** in `lower`. It is a strength/costrength operation on the profunctor — not derivable from free or initial-final properties. Without it, the traced structure collapses to the degenerate model. Everything else is bookkeeping.
@@ -151,7 +151,7 @@ This is the **Mendler case** in `lower`. It is a strength/costrength operation o
 | **Cartesian** | Inherited from `(->)` when `arr = (->)` | Not modelled in GADT |
 | **Closed Monoidal** | Not present | Would require `Curry` constructor |
 | **Compact Closed** | Not at morphism level; ambient `Prof` is | Objects have duals; not in Circuit itself |
-| **Traced Monoidal** | `Loop` + `Trace` typeclass + Mendler case | The main feature |
+| **Traced Monoidal** | `Knot` + `Trace` typeclass + Mendler case | The main feature |
 | **Free Construction** | Circuit is initial | Every traced functor factors through Circuit |
 | **Final Construction** | Hyper is final | Every traced functor into Hyper is unique |
 
@@ -163,7 +163,7 @@ This is the **Mendler case** in `lower`. It is a strength/costrength operation o
 η   ⟜  Lift      ⟜  unit of free / counit of forgetful
 ε   ⟜  lower     ⟜  forgetful interpretation / reify
 ⊙   ⟜  Compose   ⟜  composition in the free category
-↬   ⟜  Loop      ⟜  open the feedback channel
+↬   ⟜  Knot      ⟜  open the feedback channel
 ⥀   ⟜  trace     ⟜  close the feedback channel
 ↯   ⟜  untrace   ⟜  inject into the channel without closing
 ⥁   ⟜  run       ⟜  fix . ε  (compound, derived)
@@ -182,7 +182,7 @@ Full dictionary: `~/haskell/circuits/other/symbols.md`
 |---|---|
 | `Lift f` | Unit η of the free/forgetful adjunction |
 | `Compose f g` | Sequential composition; free category |
-| `Loop k` | Trace constructor; opens feedback channel |
+| `Knot k` | Trace constructor; opens feedback channel |
 | `lower` | Forgetful functor ε; unique traced functor out |
 | Mendler case in `lower` | Sliding axiom; genuine traced content |
 | `Hyper` | Final encoding; coinductive; self-dual |
@@ -195,26 +195,26 @@ Full dictionary: `~/haskell/circuits/other/symbols.md`
 |---|---|
 | Category structure | `Lift` (embedding), `Compose` (composition), `id = Lift id` |
 | Monoidal product | Tensor parameter `t` |
-| Trace | `Trace` typeclass; `Loop` constructor; `trace`/`untrace` |
+| Trace | `Trace` typeclass; `Knot` constructor; `trace`/`untrace` |
 | Freeness | `Lift` as left adjoint; `lower` as forgetful |
-| Sliding axiom | Mendler case: `lower (Compose (Loop f) g) = …` |
+| Sliding axiom | Mendler case: `lower (Compose (Knot f) g) = …` |
 | Final object | `Hyper`; coinductive Church encoding |
 | Universal property | `toHyper`, `flatten`; triangle `lower . toHyper = lower` |
 
 ---
 
-## The Loop→Hyper Section-Retraction
+## The Knot→Hyper Section-Retraction
 
-The `toHyper` conversion for `Loop` flattens feedback structure:
+The `toHyper` conversion for `Knot` flattens feedback structure:
 
 ```haskell
-toHyper (Loop f) = lift (trace f)  -- runs trace, wraps result
+toHyper (Knot f) = lift (trace f)  -- runs trace, wraps result
 ```
 
 This is a **retraction** — structure-forgetting, but semantically correct.
 `lift . trace . f` gives a plain `Hyper b c` with no visible feedback type.
 
-The dual says: we can also encode `Loop` as a **section** — structure-preserving,
+The dual says: we can also encode `Knot` as a **section** — structure-preserving,
 embedding the full feedback protocol into a stateful Hyper:
 
 ```haskell
@@ -242,7 +242,7 @@ The pair forms a section-retraction:
 
 ```
                     loopEither
-Loop f ──────────────────────────────► Hyper (Either a b → c) (Either a b → c)
+Knot f ──────────────────────────────► Hyper (Either a b → c) (Either a b → c)
   │                                                         │
   │ toHyper = lift ∘ trace                                  │ lift ∘ run ∘ Right
   │ (retraction: forgets a)                                 │ (collapses state)
@@ -267,7 +267,7 @@ because there's no iteration protocol to preserve — just a knot.
 | `(,)` | `run` on `Hyper (b → c) (b → c)` (knot) | `lift (trace f)` | `a` eliminated by knot |
 
 See `~/haskell/circuits/examples/coroutine-hyper.hs` §4–5 for implementations
-and the `LoopToHyper` dispatch class.
+and the `KnotToHyper` dispatch class.
 
 ---
 
@@ -285,7 +285,7 @@ and the `LoopToHyper` dispatch class.
 - Amortised O(1) composition in Hyper vs O(n) in Circuit
 
 **The Sliding Axiom** (the one genuine traced content)
-- `lower (Compose (Loop f) g) = trace (f . untrace (lower g))`
+- `lower (Compose (Knot f) g) = trace (f . untrace (lower g))`
 - Not derivable from adjunctions
 - Makes the trace honest; prevents degenerate model
 - Operational form of Hasegawa's naturality in X

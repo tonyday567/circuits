@@ -97,17 +97,17 @@ perf f = Lift (measure f)
 This is the cleanest single-shot measurement. The pipeline runs inside
 the bracket, and the Circuit is just the lifted function.
 
-## repeated measurement via Loop
+## repeated measurement via Knot
 
 For n runs, we need feedback — accumulated `[Nanos]` threaded through
-iterations. The `Either` tensor's Loop (via `whileK` pattern) is the
+iterations. The `Either` tensor's Knot (via `whileK` pattern) is the
 natural fit because measurement is IO:
 
 ```haskell
 -- step :: (Int, [Nanos], a) -> IO (Either ([Nanos], a) (Int, [Nanos], a))
 -- Right = continue, Left = done
 times :: Int -> Circuit (Kleisli IO) Either a ([Nanos], a)
-times n = Loop (Kleisli body)
+times n = Knot (Kleisli body)
   where
     body (Right a) =
       let s = (0, [], a)  -- initial state: count=0, no nanos, input=a
@@ -130,13 +130,13 @@ The `Either` tensor's two phases (`Right` = init, `Left` = feedback)
 map to the measurement cycle. Each iteration reads the clock, runs
 the pipeline (via composition), reads again, accumulates.
 
-## why Loop holds its weight here
+## why Knot holds its weight here
 
 Something has to stop a pipeline to measure it. A pipeline is a
 continuous composition — values flow through, tensors thread state.
 Measurement means pausing that flow, observing, and resuming.
 
-Loop provides exactly this boundary. The feedback channel IS the
+Knot provides exactly this boundary. The feedback channel IS the
 pause: values enter, the loop body observes (reads clock, checks
 convergence, counts iterations), then either feeds back (continue)
 or exits (done). The tensor that carries the feedback determines
@@ -147,7 +147,7 @@ what "observation" means:
 - `Either` tensor — two-phase continue/exit, natural for fixed-count
   or convergence-based stopping
 
-This is Loop pulling its weight: not as a replacement for recursion
+This is Knot pulling its weight: not as a replacement for recursion
 (as recursion.md explored), but as the *architectural boundary*
 between computation and observation. The measurement isn't inside
 the pipeline — it's a separate layer that the pipeline flows through.
@@ -176,9 +176,9 @@ arrow; the tensor just threads the pair.
 With this instance, the natural measurement encoding works:
 
 ```haskell
--- Loop over (,) tensor: feedback carries ([Nanos], Int)
+-- Knot over (,) tensor: feedback carries ([Nanos], Int)
 times :: Int -> Circuit (Kleisli IO) (,) a ([Nanos], a)
-times n = Loop (Kleisli body)
+times n = Knot (Kleisli body)
   where
     body ((ns, k), a)
       | k >= n    = pure ((ns, k), (reverse ns, a))
@@ -228,7 +228,7 @@ algorithm where you want to stop when values stabilise.
 ```haskell
 -- Accumulate the last k values, signal when delta < epsilon
 converge :: Int -> Double -> Circuit (Kleisli IO) Either Double [Double]
-converge k eps = Loop (Kleisli body)
+converge k eps = Knot (Kleisli body)
   where
     body (Right x) = step (0, [x])
     body (Left (i, xs)) = step (i, xs)

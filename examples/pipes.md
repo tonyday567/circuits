@@ -61,7 +61,7 @@ type ProxyCircuit a' a b' b r =
 Where:
 - `Either` tensor chooses Request vs Respond (direction)
 - `(,)` in each branch carries payload + continuation slot
-- `Loop` ties the fixed point (the recursion over the continuation)
+- `Knot` ties the fixed point (the recursion over the continuation)
 
 With monadic effects:
 
@@ -119,7 +119,7 @@ The `Dual` constructor from the Back GADT makes this explicit:
 data Back arr t a b where
   Lift    :: arr a b -> Back arr t a b
   Compose :: Back arr t b c -> Back arr t a b -> Back arr t a c
-  Loop    :: arr (t a b) (t a c) -> Back arr t b c
+  Knot    :: arr (t a b) (t a c) -> Back arr t b c
   Dual    :: Back arr t a b -> Back arr t b a          -- flip direction
 
 -- Request and Respond are duals under the appropriate swap
@@ -143,16 +143,16 @@ What works now:
 - Single-channel coroutines via `Hyper (i → s) (o → s)` — `invoke` with the
   dual channel gives the handoff
 - The Proxy decomposition into `Either` (direction) × `(,)` (payload) +
-  `Loop` (recursion) — structural match
+  `Knot` (recursion) — structural match
 - The Mendler fold as `cata` — the repeated pattern IS the hyperfunction
   eliminator
 
 What awaits the muses:
 - `runBwd (Lift f)` is `error` — base arrows aren't reversible unless
   they form a groupoid. The Dual constructor works at the Circuit level
-  (it reverses `Compose` order, preserves `Loop` for symmetric tensors)
+  (it reverses `Compose` order, preserves `Knot` for symmetric tensors)
   but not at the base arrow level
-- Full compact closure: the `Dual` + `Loop` + `Lift` GADT should form a
+- Full compact closure: the `Dual` + `Knot` + `Lift` GADT should form a
   compact closed category when the base arrow is a *-autonomous category,
   but we don't have a working instance
 - Bidirectional composition `(>->)` as Circuit's `Compose` with Dual

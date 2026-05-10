@@ -17,21 +17,21 @@ trivial = Lift $ \case
   "quit" -> "bye!"
   s      -> "echo: " <> s
 
--- Loop with one internal iteration (feedback a = String).
+-- Knot with one internal iteration (feedback a = String).
 --   Right cmd = external input
 --   Left resp = fed-back internal state
 oneShot :: Repl
-oneShot = Loop $ \case
+oneShot = Knot $ \case
   Right cmd ->
     if cmd == "quit"
     then Right "bye!"
     else Left ("echo: " <> cmd)
   Left resp -> Right resp
 
--- Loop with accumulated history (feedback a = [String]).
+-- Knot with accumulated history (feedback a = [String]).
 -- The internal state type [String] isn't visible in the Repl signature.
 historyRepl :: Repl
-historyRepl = Loop (body :: Either [String] String -> Either [String] String)
+historyRepl = Knot (body :: Either [String] String -> Either [String] String)
   where
     body = \case
       Right cmd

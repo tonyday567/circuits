@@ -1,6 +1,6 @@
 ⟝ circuit-basic 
 
-# While Loop — Hyper vs Circuit
+# While Knot — Hyper vs Circuit
 
 The simplest recursive pattern: a step function `s -> Either r s`, iterate
 until `Left r`, return `r`.  This card shows the same loop in both encodings.
@@ -67,13 +67,13 @@ evaluates `step s0`. If `Left r`, returns `r`. If `Right s1`, calls
 
 The recursion lives in `trace` — the `Trace (->) Either` instance iterates
 the feedback channel until it produces `Right`. The step function must be
-adapted: `Either` in `Loop` uses `Left` as the feedback channel and `Right`
+adapted: `Either` in `Knot` uses `Left` as the feedback channel and `Right`
 as output. Our `Step` uses `Left` as output and `Right` as continue — so we
 swap.
 
 ```haskell
 whileC :: Step s r -> s -> r
-whileC step = lower (Loop (Lift step'))
+whileC step = lower (Knot (Lift step'))
   where
     step' :: Either s s -> Either s r
     step' = either swapRL swapRL
@@ -166,18 +166,18 @@ sumStep (n, acc)
 
 ## The Mendler Case in Action
 
-For `Circuit`, the `Loop` constructor is eliminated by `lower`. The
-Mendler case is what makes this work when `Loop` appears on the left
+For `Circuit`, the `Knot` constructor is eliminated by `lower`. The
+Mendler case is what makes this work when `Knot` appears on the left
 of a `Compose`:
 
 ```haskell
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
-For our simple `whileC`, there is no `Compose` — just a bare `Loop`:
+For our simple `whileC`, there is no `Compose` — just a bare `Knot`:
 
 ```haskell
-lower (Loop (Lift step'))
+lower (Knot (Lift step'))
   = trace step'                    -- base case, no Mendler needed
 ```
 
@@ -186,10 +186,10 @@ The Mendler case comes into play when you compose loops:
 ```haskell
 -- Two loops in sequence: run whileC step1, feed result to whileC step2
 pipeline :: Circuit (->) Either s s
-pipeline = Loop (Lift step2') `Compose` Loop (Lift step1')
+pipeline = Knot (Lift step2') `Compose` Knot (Lift step1')
 
 lower pipeline
-  = trace (step2' . untrace (lower (Loop (Lift step1'))))   -- Mendler
+  = trace (step2' . untrace (lower (Knot (Lift step1'))))   -- Mendler
   = trace (step2' . untrace (trace step1'))
 ```
 

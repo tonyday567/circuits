@@ -28,7 +28,7 @@ constructs.
 | **Constant**      | `base`                                  | `pure`                                |
 | **Embedding**     | `lift` (recursive)                      | `arr = fix . push`                    |
 | **Observation**   | `lower`                                 | `project`                             |
-| **Instances**     | Category, Semigroup, Monoid             | + Profunctor, Arrow, ArrowLoop        |
+| **Instances**     | Category, Semigroup, Monoid             | + Profunctor, Arrow, ArrowKnot        |
 |                   | + Profunctor, Functor, Applicative (new)| + Functor, Applicative, Monad, Zip    |
 | **Helpers**       | hyperAp, hyperBind, valueFix, hyperFix  | ana, cata, unroll, roll, fold, build  |
 | **Dep chain**     | base + profunctors                      | base + profunctors + adjunctions + …  |

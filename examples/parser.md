@@ -28,7 +28,7 @@ cases:
 `That s` is the key innovation over `Maybe (a, s)` — it explicitly
 signals "touched nothing, safe to backtrack" vs "consumed and failed"
 (which `Maybe` can't express). The mtok refactor confirmed this:
-`tokenizeLoop` uses all three arms naturally.
+`tokenizeKnot` uses all three arms naturally.
 
 `These(..)` is re-exported from the module so consumers don't need
 a direct `these` dependency.
@@ -86,7 +86,7 @@ Every successful parse reduces to some number of `uncons` calls.
 ## Repetition: many / some
 
 The mtok refactor established: `many` is `Lift` + plain recursion,
-not `Loop`. Three pattern matches on `These` are sufficient:
+not `Knot`. Three pattern matches on `These` are sufficient:
 
 ```haskell
 many :: Parser s a -> Parser s [a]
@@ -101,18 +101,18 @@ some :: Parser s a -> Parser s [a]
 some p = (:) <$> p <*> many p
 ```
 
-`Loop` is for choice (below), not repetition. The `These` pattern
+`Knot` is for choice (below), not repetition. The `These` pattern
 match carries all the control flow `many` needs — accumulate on
 `These`, finalise on `This`, stop on `That`.
 
-## Choice via Either tensor + Loop
+## Choice via Either tensor + Knot
 
-`<|>` is where `Loop` pulls its weight. The `Either` tensor's two
+`<|>` is where `Knot` pulls its weight. The `Either` tensor's two
 phases map to the two branches of alternation:
 
 ```haskell
 (<|>) :: Parser s a -> Parser s a -> Parser s a
-Parser p1 <|> Parser p2 = Parser $ Loop body
+Parser p1 <|> Parser p2 = Parser $ Knot body
   where
     body (Right s) = case reify p1 s of
       This a     -> Right (This a)      -- p1 consumed all, done
@@ -122,7 +122,7 @@ Parser p1 <|> Parser p2 = Parser $ Loop body
       result -> Right result            -- p2 result, win or lose
 ```
 
-The `Loop` defunctionalises the two-phase alternation: `Right`
+The `Knot` defunctionalises the two-phase alternation: `Right`
 = try p1, `Left` = try p2. The `Either` tensor provides the
 feedback channel that switches phases.
 
@@ -144,10 +144,10 @@ The tokenizer loop changed from `Maybe (tok, rest)` to a three-arm
 `These` match:
 
 ```haskell
-tokenizeLoop s acc = case runParser token s of
-  These tok rest -> tokenizeLoop rest (tok : acc)  -- got one, continue
+tokenizeKnot s acc = case runParser token s of
+  These tok rest -> tokenizeKnot rest (tok : acc)  -- got one, continue
   This tok       -> reverse (tok : acc)             -- final token
-  That _         -> case s of (_:rest) -> tokenizeLoop rest acc  -- skip char
+  That _         -> case s of (_:rest) -> tokenizeKnot rest acc  -- skip char
 ```
 
 The `This` arm was new — the original `findFirstPrefix` never
@@ -206,7 +206,7 @@ returns `These ss a` (remainder + result).
 
 | tensor   | use in parsers            | semantic                      |
 |---------|--------------------------|-------------------------------|
-| `Either`| `<|>`, backtracking     | two-phase alternation via Loop|
+| `Either`| `<|>`, backtracking     | two-phase alternation via Knot|
 | `These` | output, uncons           | progress-aware result/input   |
 
 The `(,)` tensor from earlier sketches was replaced by `Either` —

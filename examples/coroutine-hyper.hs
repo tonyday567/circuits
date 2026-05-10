@@ -24,7 +24,6 @@ import Circuit.Hyper
     ana,
     valueFix,
     (⇸),
-    (⊙),
     (⊲),
     (↓),
     (⥁),
@@ -35,7 +34,6 @@ import Circuit.Traced
     newPromptTag,
     prompt,
     control0,
-    whileK,
   )
 import Prelude hiding (id, (.))
 import Control.Category ((.), id)
@@ -239,7 +237,7 @@ yieldIO tag o ref = control0 tag $ \k -> do
 --   domain by using @Hyper (s -> r) (s -> r)@ where @s@ carries both
 --   feedback and input. 'run' ties the recursive knot.
 --
---   Unlike 'toHyper (Loop f) = lift (trace f)', which flattens the loop,
+--   Unlike 'toHyper (Knot f) = lift (trace f)', which flattens the loop,
 --   these encodings preserve the loop structure inside the Hyper.
 
 -- ---------------------------------------------------------------------------
@@ -310,22 +308,22 @@ runThese f b = run (loopThese f) (That b)
 -- 5. loopToHyper: dispatch on tensor
 -- ==========================================================================
 
--- | Convert a Loop body directly to a Hyper, preserving the loop structure.
+-- | Convert a Knot body directly to a Hyper, preserving the loop structure.
 --   Dispatches on the tensor type.
-class LoopToHyper t where
-  type LoopState t a b :: *
+class KnotToHyper t where
+  type KnotState t a b :: *
   loopToHyper :: ((t a b) -> (t a c)) -> Hyper (LoopState t a b -> c) (LoopState t a b -> c)
-  runLoop :: ((t a b) -> (t a c)) -> b -> c
+  runKnot :: ((t a b) -> (t a c)) -> b -> c
 
-instance LoopToHyper Either where
-  type LoopState Either a b = Either a b
+instance KnotToHyper Either where
+  type KnotState Either a b = Either a b
   loopToHyper = loopEither
-  runLoop = runEither
+  runKnot = runEither
 
-instance LoopToHyper These where
-  type LoopState These a b = These a b
+instance KnotToHyper These where
+  type KnotState These a b = These a b
   loopToHyper = loopThese
-  runLoop = runThese
+  runKnot = runThese
 
 -- For (,) the encoding is different — 'valueFix' not 'run'.
 -- Included for completeness but the pattern differs from Either/These.

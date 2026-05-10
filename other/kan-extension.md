@@ -59,7 +59,7 @@ Just as `Hyper` is the final encoding for hyperfunctions, `Circuit` is the **ini
 data Circuit arr t a b where
   Lift    :: arr a b → Circuit arr t a b
   Compose :: Circuit arr t b c → Circuit arr t a b → Circuit arr t a c
-  Loop    :: arr (t a b) (t a c) → Circuit arr t b c
+  Knot    :: arr (t a b) (t a c) → Circuit arr t b c
 ```
 
 The unique traced functor from initial to final is:
@@ -90,7 +90,7 @@ Before the fixpoint, `Circuit a b` is related to the Ran of the free category:
 Circuit a b ~ Ran (Const a) (Const b)  (before Fix)
 ```
 
-Adding the trace (Loop) requires tying the knot with a fixpoint:
+Adding the trace (Knot) requires tying the knot with a fixpoint:
 
 ```
 Hyper a b = Fix (Ran (Const a) (Const b))
@@ -113,7 +113,7 @@ The key insight: **composition in the final encoding is O(1) amortised** because
 
 2. **Sliding is free:** The axiom that traces slide across compositions holds automatically in Hyper because the continuation threads through every layer.
 
-3. **The Mendler case enforces naturality:** Without the pattern match `lower (Compose (Loop f) g) = trace (f . untrace (lower g))`, the universal property is violated and Loop collapses into the degenerate model.
+3. **The Mendler case enforces naturality:** Without the pattern match `lower (Compose (Knot f) g) = trace (f . untrace (lower g))`, the universal property is violated and Knot collapses into the degenerate model.
 
 4. **Coinductive semantics:** The recursive Hyper definition is coinductively sound. We don't need strict proof that Fix (Ran ...) is isomorphic to Hyper — only that they observe the same.
 

@@ -17,7 +17,7 @@ In any free structure built from sequential composition, left-nesting is a perfo
 ((a . b) . c) . d . e . ...
 ```
 
-Each `(.)` must traverse the left spine to find the base case. For a list this is O(n²). For a free monad it is the same. For `Circuit` it is the same — and worse: `Loop` gets buried under the left-nesting and collapses to the degenerate model if the Mendler case isn't in place.
+Each `(.)` must traverse the left spine to find the base case. For a list this is O(n²). For a free monad it is the same. For `Circuit` it is the same — and worse: `Knot` gets buried under the left-nesting and collapses to the degenerate model if the Mendler case isn't in place.
 
 Van der Ploeg & Kiselyov establish a hierarchy for solving this:
 
@@ -39,10 +39,10 @@ The paper's solution requires `viewl` on the type-aligned queue — inspecting t
 In `lower`, the Mendler case does exactly this:
 
 ```haskell
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
-When a `Loop` appears at the head of a composition, **inspect it before recursing into `g`**. Without this case, `lower` falls through to the general `Compose` rule, buries the `Loop`, and produces the degenerate model.
+When a `Knot` appears at the head of a composition, **inspect it before recursing into `g`**. Without this case, `lower` falls through to the general `Compose` rule, buries the `Knot`, and produces the degenerate model.
 
 The analogy:
 
@@ -55,10 +55,10 @@ Circuit  +  Mendler  =  Hyper             -- RwR for traced categories
 
 ## The Hidden Sequence
 
-The paper's title refers to the implicit sequence of monadic binds, made explicit by a type-aligned queue. In `Circuit`, the hidden structure is the **feedback channel inside `Loop`**. Both are made explicit by their respective constructions:
+The paper's title refers to the implicit sequence of monadic binds, made explicit by a type-aligned queue. In `Circuit`, the hidden structure is the **feedback channel inside `Knot`**. Both are made explicit by their respective constructions:
 
 - The **type-aligned queue** in RwR makes the bind sequence inspectable
-- The **`Loop` constructor** in `Circuit` makes the feedback channel inspectable
+- The **`Knot` constructor** in `Circuit` makes the feedback channel inspectable
 
 Both solve the same problem: making implicit structure explicit so the interpreter can inspect it without traversing the entire left spine first.
 
@@ -85,7 +85,7 @@ class Trace arr t where
 | RwR concept | Circuits equivalent |
 |-------------|---------------------|
 | `PMonad` | `Trace` typeclass |
-| Type-aligned queue | Explicit tensor `t` in `Loop` |
+| Type-aligned queue | Explicit tensor `t` in `Knot` |
 | `viewl` (head inspection) | Mendler case in `lower` |
 | `tsingleton` (single element) | `untrace` (inject one morphism) |
 | `val` (observe head) | `trace` (eliminate the channel) |
@@ -97,9 +97,9 @@ class Trace arr t where
 
 The RwR analogy also explains the performance story:
 
-**`Circuit` (naive):** Left-nested `Compose` produces O(n²) traversal. Worse: if `Loop` gets buried under left-nesting without the Mendler case, the traced structure collapses.
+**`Circuit` (naive):** Left-nested `Compose` produces O(n²) traversal. Worse: if `Knot` gets buried under left-nesting without the Mendler case, the traced structure collapses.
 
-**`Circuit` (with Mendler):** The Mendler case prevents collapse, but left-nested `Compose` still requires O(n) traversal to find each `Loop`.
+**`Circuit` (with Mendler):** The Mendler case prevents collapse, but left-nested `Compose` still requires O(n) traversal to find each `Knot`.
 
 **`Hyper`:** Composition threads the continuation on every step — O(1) amortised. The feedback channel is always at the head of the structure. There is no left-spine to traverse.
 
@@ -116,11 +116,11 @@ Hasegawa (1997) separates two notions that are extensionally equal but operation
 
 In `Circuit`:
 - `Lift (trace k)` is the fixed-point combinator — it closes the channel immediately
-- `Loop k` is cyclic sharing — the channel is held open through `Compose`
+- `Knot k` is cyclic sharing — the channel is held open through `Compose`
 
-The Mendler case preserves the distinction. Without it, `Loop` becomes `Lift (trace k)` — cyclic sharing collapses to the fixed-point combinator.
+The Mendler case preserves the distinction. Without it, `Knot` becomes `Lift (trace k)` — cyclic sharing collapses to the fixed-point combinator.
 
-**This is the remorse:** Without the Mendler case, `Loop` forgets that it is cyclic sharing. The structural information is lost. The remorse is that the interpreter produced a result — just the wrong one.
+**This is the remorse:** Without the Mendler case, `Knot` forgets that it is cyclic sharing. The structural information is lost. The remorse is that the interpreter produced a result — just the wrong one.
 
 ---
 

@@ -16,7 +16,6 @@ import Circuit.Hyper
     lower,
     ana,
     (⇸),
-    (⊙),
     (⊲),
     (↓),
     (⥁),
@@ -42,15 +41,15 @@ cons :: (i -> a -> a) -> Consumer i a -> Consumer i a
 cons f p = Hyper $ \q i -> f i (invoke q p)
 
 -- Base cases: producer/consumer that just return the accumulator
-doneP :: a -> Producer o a
-doneP a = Hyper $ \_ -> a
+yield :: a -> Producer o a
+yield a = Hyper $ \_ -> a
 
-doneC :: a -> Consumer i a
-doneC a = Hyper $ \_ _ -> a
+accept :: a -> Consumer i a
+accept a = Hyper $ \_ _ -> a
 
 -- Run a producer and consumer together
-(⧅) :: Producer m a -> Consumer m a -> a
-(⧅) = invoke
+(glue) :: Producer m a -> Consumer m a -> a
+(glue) = invoke
 
 -- ---------------------------------------------------------------------------
 -- emitSingles — builds a Producer from a list
@@ -58,7 +57,7 @@ doneC a = Hyper $ \_ _ -> a
 
 -- | Produce each element as Just, then Nothing to signal end.
 emitSingles :: [a] -> Producer (Maybe a) [a]
-emitSingles = foldr (\x p -> prod (Just x) p) (prod Nothing (doneP []))
+emitSingles = foldr (\x p -> prod (Just x) p) (prod Nothing (yield []))
 
 -- ---------------------------------------------------------------------------
 -- collectSingles — builds a Consumer (coinductive, infinite)
@@ -79,7 +78,7 @@ collectSingles = h
 -- ---------------------------------------------------------------------------
 
 pipeline2 :: [a] -> [a]
-pipeline2 xs = emitSingles xs ⧅ collectSingles
+pipeline2 xs = emitSingles xs glue collectSingles
 
 -- >>> pipeline2 [1,2,3]
 -- [1,2,3]
@@ -98,8 +97,8 @@ pipeline2 xs = emitSingles xs ⧅ collectSingles
 takeP :: Int -> [a] -> Producer (Maybe a) [a]
 takeP n xs = go n xs
   where
-    go 0 _      = prod Nothing (doneP [])
-    go _ []     = prod Nothing (doneP [])
+    go 0 _      = prod Nothing (yield [])
+    go _ []     = prod Nothing (yield [])
     go k (x:rest) = prod (Just x) (go (k-1) rest)
 
 -- ---------------------------------------------------------------------------
@@ -107,7 +106,7 @@ takeP n xs = go n xs
 -- ---------------------------------------------------------------------------
 
 pipeline3 :: Int -> [a] -> [a]
-pipeline3 n xs = takeP n xs ⧅ collectSingles
+pipeline3 n xs = takeP n xs glue collectSingles
 
 -- >>> pipeline3 2 [1,2,3]
 -- [1,2]
@@ -141,10 +140,10 @@ takeChannel n = go n
 --   collectSingles :: Hyper r (o→r)    = Hyper a b where a = r, b = o→r
 --   takeChannel . collectSingles :: Hyper r (i→r) = Consumer i r  ✓
 --
--- Then: emitSingles xs ⧅ (takeChannel n . collectSingles) :: [a]
+-- Then: emitSingles xs glue (takeChannel n . collectSingles) :: [a]
 
 pipelineChannel :: Int -> [a] -> [a]
-pipelineChannel n xs = emitSingles xs ⧅ (takeChannel n . collectSingles)
+pipelineChannel n xs = emitSingles xs glue (takeChannel n . collectSingles)
 
 -- ---------------------------------------------------------------------------
 -- Tests

@@ -8,20 +8,43 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 
--- | Trace typeclass, Circuit GADT, and instances for feedback in circuits.
+-- | The trace: feedback in a monoidal category.
 --
--- Supports any base arrow with different tensor types (,) and Either.
--- Includes delimited-continuation implementation for Kleisli IO.
+-- 'Trace' generalises the ability to close a feedback loop. For each
+-- tensor @t@, a 'Trace' instance specifies what \"feedback\" means:
+--
+--   * @(,)@ — lazy knot: output and feedback are produced simultaneously.
+--     @trace f b = let (a, c) = f (a, b) in c@.
+--
+--   * @Either@ — iteration: @Left a@ feeds back (continue), @Right c@
+--     terminates (exit). The loop runs until a 'Right' is produced.
+--
+-- Together these instances supply the 'Trace' constraints that
+-- "Circuit.Circuit"'s @lower@ function dispatches on, making 'Circuit'
+-- the free traced monoidal category over any base arrow with a tensor.
+--
+-- = Delimited continuations
+--
+-- The @Trace (Kleisli IO) Either@ instance uses GHC's delimited
+-- continuation primops (@prompt#@ / @control0#@) to run IO loops in
+-- constant stack space. Each iteration re-enters at the prompt boundary
+-- rather than building up a call stack. See @examples/theory-delim.md@
+-- for the correspondence:
+--
+-- @
+--   Trace (Kleisli IO) Either   ≅   delimited continuations
+--   Loop                        ≅   reset / prompt
+--   feedback Left               ≅   shift / control0
+--   exit Right                  ≅   return from reset
+-- @
+--
+-- And @examples/resource-io.md@ for practical resource-handling loops
+-- built on the same mechanism.
 
 module Circuit.Traced
   ( Trace (..),
-    (⥀),
-    (↯),
-    PromptTag,
-    newPromptTag,
-    prompt,
-    control0,
-    whileK,
+    (↪),
+    (↩),
   )
 where
 
@@ -37,38 +60,28 @@ import GHC.IO (IO (..))
 
 -- | A traced profunctor over tensor @t@.
 --
--- This class packages strength and co-strength operations equivalent to
--- those in the @profunctors@ package, with the tensor parameterised:
---
--- @
---   Trace p (,)     ≅  Strong p + Costrong p
---     where untrace = first'    and  trace = unfirst
---
---   Trace p Either  ≅  Choice p + Cochoice p
---     where untrace = left'     and  trace = unleft
--- @
---
--- Users who want to plug @profunctors@-shaped types into Circuit can
--- write the bridge instance themselves; we don't depend on @profunctors@
--- here to keep the library at @base@ only.
+-- @trace@ closes a feedback loop: @arr (t a b) (t a c) -> arr b c@.
+-- @untrace@ opens one: @arr b c -> arr (t a b) (t a c)@.
 class Trace arr t where
-  trace :: arr (t a b) (t a c) -> arr b c
+  trace   :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
 
 -- | Symbolic alias for 'trace'.
-infixr 9 ⥀
-(⥀) :: Trace arr t => arr (t a b) (t a c) -> arr b c
-(⥀) = trace
+infixr 9 ↪
+(↪) :: Trace arr t => arr (t a b) (t a c) -> arr b c
+(↪) = trace
 
 -- | Symbolic alias for 'untrace'.
-infixr 9 ↯
-(↯) :: Trace arr t => arr b c -> arr (t a b) (t a c)
-(↯) = untrace
+infixr 9 ↩
+(↩) :: Trace arr t => arr b c -> arr (t a b) (t a c)
+(↩) = untrace
 
--- | The cartesian trace ties a lazy knot: the feedback value @a@ and output @c@
--- are produced simultaneously.
---
--- === Fibonacci stream
+-- ---------------------------------------------------------------------------
+-- (,) tensor — lazy knot
+-- ---------------------------------------------------------------------------
+
+-- | The cartesian trace ties a lazy knot: the feedback value @a@ and
+-- output @c@ are produced simultaneously.
 --
 -- >>> take 5 $ trace (\(fibs, ()) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs)) ()
 -- [0,1,1,2,3]
@@ -76,9 +89,12 @@ instance {-# OVERLAPPABLE #-} Trace (->) (,) where
   trace f b = let (a, c) = f (a, b) in c
   untrace = fmap
 
--- | The cochoice trace iterates: @Left@ feeds back, @Right@ terminates.
---
--- === Counting loop
+-- ---------------------------------------------------------------------------
+-- Either tensor — iteration
+-- ---------------------------------------------------------------------------
+
+-- | The Either trace iterates: 'Left' feeds back (continue), 'Right'
+-- terminates (exit).
 --
 -- >>> trace (\x -> case x of Right n | n < 3 -> Left (n + 1); _ -> Right ()) (0 :: Int)
 -- ()
@@ -93,6 +109,12 @@ instance {-# OVERLAPPING #-} Trace (->) Either where
         Left a -> go (Left a)
   untrace = fmap
 
+-- ---------------------------------------------------------------------------
+-- Kleisli IO Either — delimited continuations
+-- ---------------------------------------------------------------------------
+
+-- Internal: GHC delimited-continuation primops.
+
 data PromptTag a = PromptTag (PromptTag# a)
 
 newPromptTag :: IO (PromptTag a)
@@ -104,20 +126,16 @@ prompt :: PromptTag a -> IO a -> IO a
 prompt (PromptTag t) (IO m) = IO (prompt# t m)
 
 -- | Captures the continuation up to the nearest prompt with the matching tag.
---
---   The continuation k, when called with a value, returns to the prompt
---   and resumes from there (−F− semantics).
 control0 :: forall a b. PromptTag a -> ((IO b -> IO a) -> IO a) -> IO b
 control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- | Trace for Kleisli IO with Either tensor using delimited continuations.
+-- | Trace for 'Kleisli' 'IO' with 'Either' tensor.
 --
--- The key: prompt is inside the loop, so every iteration re-establishes
--- the boundary. When control0 fires, it jumps back to the nearest prompt.
---
--- === Counting with IO effects
+-- Each iteration re-establishes the prompt boundary. When 'control0'
+-- fires on @Left a@, it captures the continuation, wraps it around
+-- the next loop step, and jumps back to the prompt — constant stack.
 --
 -- >>> :{
 -- let stepK :: Either Int () -> IO (Either Int Int)
@@ -140,24 +158,3 @@ instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
   untrace (Kleisli f) = Kleisli \case
     Left a  -> pure (Left a)
     Right b -> Right <$> f b
-
--- | While loop in Kleisli IO using the Either trace.
---
--- @whileK step@ runs @step@ repeatedly until it returns @Left r@,
--- threading the state through the feedback channel.
---
--- === Sum [1..n]
---
--- >>> :{
--- let sumStep (n, acc) | n <= 0    = pure (Left acc)
---                      | otherwise = pure (Right (n - 1, acc + n))
--- in whileK sumStep (5, 0)
--- :}
--- 15
-whileK :: (s -> IO (Either r s)) -> s -> IO r
-whileK step = runKleisli (trace (Kleisli body))
-  where
-    body (Right s) = swapRL <$> step s
-    body (Left s)  = swapRL <$> step s
-    swapRL (Right s) = Left s   -- continue -> feedback
-    swapRL (Left r)  = Right r  -- done -> output

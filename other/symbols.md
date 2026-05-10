@@ -13,7 +13,7 @@ Everything (narrative, proofs, code, haddocks) must align with this table.
 | ⊙      | compose   | `Compose`                      | `(.)` or `(#)` | Sequential composition |
 | ⊲      | push      | derived as `Compose (Lift f) p`| `push`         | Prepend a function (feedback-aware) |
 | ⥁      | run       | —                              | `run`          | Tie the knot on the diagonal (`a ↬ a -> a`) |
-| ↬      | loop      | `Loop`                         | —              | Open a feedback channel (the trace constructor) |
+| ↬      | loop      | `Knot`                         | —              | Open a feedback channel (the trace constructor) |
 | ⥀      | trace     | `trace`                        | —              | Close the feedback channel |
 | ↯      | untrace   | `untrace`                      | —              | Inject into the feedback channel (sliding) |
 
@@ -26,7 +26,7 @@ Everything (narrative, proofs, code, haddocks) must align with this table.
 
 ## Usage Rules
 
-1. **Code**: Use function names (`Lift`, `Compose`, `Loop`, `lift`, `lower`, `run`, `push`, `trace`, `untrace`, `toHyper`)
+1. **Code**: Use function names (`Lift`, `Compose`, `Knot`, `lift`, `lower`, `run`, `push`, `trace`, `untrace`, `toHyper`)
 2. **Prose**: Use word names (lift, lower, compose, push, run, loop, trace, untrace)
 3. **Equations / Axioms**: Use symbols (η, ε, ⊙, ⊲, ⥁, ↬, ⥀, ↯)
 4. **Mixed contexts**: Introduce symbol with name on first use, e.g. "lift (η f)" or "trace (⥀ f)"

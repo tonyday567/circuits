@@ -7,9 +7,9 @@ that strips the Either feedback wrapper so step functions return
 `IO (Either a b)` directly (`Left = continue`, `Right = done`).
 
 ```haskell
--- | Convenience wrapper: turns a step function directly into a Loop.
+-- | Convenience wrapper: turns a step function directly into a Knot.
 loopIO :: (a -> IO (Either a b)) -> Circuit (Kleisli IO) Either a b
-loopIO step = Loop (Kleisli \case
+loopIO step = Knot (Kleisli \case
   Right x -> step x
   Left  x -> step x)
 ```
@@ -169,7 +169,7 @@ style. `loopIO` uses the Trace-native convention (`Left = feedback`,
 
 ## Mechanism
 
-Under the hood, `loopIO` creates a `Loop (Kleisli body)` which is executed
+Under the hood, `loopIO` creates a `Knot (Kleisli body)` which is executed
 by the `Trace (Kleisli IO) Either` instance using GHC's delimited
 continuation primops (`prompt` / `control0`). This gives constant stack
 usage — the loop body is re-entered at the `prompt` boundary every iteration,
@@ -178,7 +178,7 @@ never building up a call stack.
 See `examples/circuits-delim.md` for the theory correspondence:
 ```
 Trace (Kleisli IO) Either   ≅   delimited continuations
-Loop                        ≅   reset / prompt
+Knot                        ≅   reset / prompt
 feedback Left               ≅   shift / control0
 exit Right                  ≅   return from reset
 ```

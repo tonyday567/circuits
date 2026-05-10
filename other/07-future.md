@@ -18,7 +18,7 @@ The `(,)` tensor with `Kleisli IO` gives bidirectional pipes: processes that pro
 ```haskell
 -- A pipe that echoes input and counts steps
 counter :: Circuit (Kleisli IO) (,) Int Int
-counter = Loop $ \(n, x) -> do
+counter = Knot $ \(n, x) -> do
   putStrLn $ "step " ++ show n ++ ": " ++ show x
   pure (n + 1, x)
 ```
@@ -32,7 +32,7 @@ The `Either` tensor gives state machines: processes that iterate until a termina
 ```haskell
 -- A machine that counts to n then stops
 countdown :: Int -> Circuit (->) Either () ()
-countdown n = Loop $ \case
+countdown n = Knot $ \case
   Left  k | k > 0 -> Left  (k - 1)
   _               -> Right ()
 ```
@@ -45,7 +45,7 @@ The `Either` feedback carries the counter. The machine iterates `n` times then t
 
 ### Parsers
 
-The `Either` tensor with backtracking gives parsers: a `Left` result means "failed, try the next alternative"; a `Right` result means "succeeded, return the parse tree". The `Loop` constructor builds recursive grammars. The `Mendler case` ensures that left-recursive grammars are handled correctly.
+The `Either` tensor with backtracking gives parsers: a `Left` result means "failed, try the next alternative"; a `Right` result means "succeeded, return the parse tree". The `Knot` constructor builds recursive grammars. The `Mendler case` ensures that left-recursive grammars are handled correctly.
 
 ### Agents
 
@@ -55,7 +55,7 @@ The `Either` tensor with backtracking gives parsers: a `Left` result means "fail
 type Agent state obs action = Circuit (Kleisli IO) (,) obs action
 ```
 
-The `(,)` feedback carries the state. The agent loop runs indefinitely. The `Loop` constructor is where the state update lives.
+The `(,)` feedback carries the state. The agent loop runs indefinitely. The `Knot` constructor is where the state update lives.
 
 ---
 
@@ -67,7 +67,7 @@ Several questions from the development are unresolved:
 
 The observation `Circuit a b ~ Ran (Const a) (Const b)` (before `Fix`) is a diagram observation, not a theorem. The precise isomorphism needs to be established.
 
-**2. Uniqueness of `Loop`**
+**2. Uniqueness of `Knot`**
 
 `toHyper` is a traced functor from `Circuit` to `Hyper`. Is it the *unique* traced functor? The freeness of `Circuit` as a traced monoidal category depends on this. The argument exists informally; it needs to be formalised.
 
@@ -89,7 +89,7 @@ The `Int(C)` completion, `callCC`, `shift/reset` — the connection to the Geome
 
 ### Graded Circuits
 
-A graded version would count `Loop` depth as a grade. This would give finer control over the feedback structure and map onto Okasaki's amortised queue analysis — the grading tracks how many levels of `viewl` are needed.
+A graded version would count `Knot` depth as a grade. This would give finer control over the feedback structure and map onto Okasaki's amortised queue analysis — the grading tracks how many levels of `viewl` are needed.
 
 ### More Effects
 

@@ -1,6 +1,6 @@
 I'm glad the abacus-to-Circuit translation clicked for you! That's one of the nicest things about the design — you can read the Circuit backwards and recover the imperative counter-machine intuition almost directly.
 
-Here's a cleaned-up, more idiomatic version that fits your library style (using Either tensor, proper use of Loop + Mendler, and ready to drop into your codebase).
+Here's a cleaned-up, more idiomatic version that fits your library style (using Either tensor, proper use of Knot + Mendler, and ready to drop into your codebase).
 
 ## Polished Abacus → Circuit Compiler
 
@@ -32,7 +32,7 @@ abacus (Inc next) =
     Right x -> Right x)           -- pass through if already terminated
   . abacus next
 
-abacus (Dec next1 next0) = Loop $ \case
+abacus (Dec next1 next0) = Knot $ \case
   -- Still running: look at register
   Left 0  -> Left (reify (abacus next0) 0)   -- zero case → next0
   Left n  -> Left (reify (abacus next1) (n-1)) -- positive → decrement + next1
@@ -63,7 +63,7 @@ testMultiply = do
 ## Why This Feels So Natural
 
 - **Inc** is just a Lift that bumps the register in the Left channel.
-- **Dec** is a Loop that branches on the register value — exactly the "taking turns" semantics of the Either tensor.
+- **Dec** is a Knot that branches on the register value — exactly the "taking turns" semantics of the Either tensor.
 - The Mendler case in your lower ensures that when you compose larger programs (left-nested Compose), the feedback channel stays correctly wired through every iteration. No degenerate behaviour.
 
 This is almost a direct syntactic embedding of the initial Elgot category from Nester's paper. Every abacus program becomes a Circuit (->) Either, and reify gives you the partial recursive function it computes.
@@ -81,7 +81,7 @@ A symbol-heavy presentation using the little-language operators (η, ε, ⊙, �
 |--------|---------|
 | η      | lift (embed plain arrow) |
 | ⊙      | sequential composition |
-| ↬      | Loop (feedback / trace) |
+| ↬      | Knot (feedback / trace) |
 | ε      | lower / reify (observe to plain function) |
 | ⥁      | run (tie the knot on diagonal, when applicable) |
 | ⊲      | push (prepend a plain function) |
@@ -180,7 +180,7 @@ This scales nicely: add more registers by enlarging the product in the feedback 
 
 ### Why This Is Nice
 
-- The **↬** (Loop) directly corresponds to the conditional jump in the abacus model.
+- The **↬** (Knot) directly corresponds to the conditional jump in the abacus model.
 - **η** lifts the tiny imperative steps (inc/dec/test).
 - Composition **⊙** builds the program sequence.
 - The whole thing is the free traced cocartesian syntax — exactly the spirit of the initial Elgot category.

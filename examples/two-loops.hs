@@ -5,7 +5,7 @@ import Circuit.Circuit (Circuit(..), reify)
 
 -- qList: walk list, emit one element at a time
 qList :: [Int] -> Circuit (->) Either () (Maybe Int)
-qList xs = Loop $ \case
+qList xs = Knot $ \case
   Right () -> case xs of
     []     -> Right Nothing
     (x:xs') -> Left (xs', Just x)
@@ -15,13 +15,13 @@ qList xs = Loop $ \case
 
 -- takeE: count down, pass through, stop at 0
 takeE :: Int -> Circuit (->) Either (Maybe Int) (Maybe Int)
-takeE n = Loop $ \case
+takeE n = Knot $ \case
   Right mx -> if n <= 0 then Right Nothing else Left (n, mx)
   Left (k, _) -> if k <= 0 then Right Nothing else Left (k-1, Nothing)
 
 -- Fused: both in one loop
 fused :: Int -> [Int] -> Circuit (->) Either () (Maybe [Int])
-fused n xs = Loop $ \case
+fused n xs = Knot $ \case
   Right () -> collect xs n []
   Left (xs', k, acc) -> collect xs' k acc
   where

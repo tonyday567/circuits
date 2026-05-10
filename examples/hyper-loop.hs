@@ -1,19 +1,19 @@
 {-# LANGUAGE LambdaCase #-}
-module HyperLoop where
+module HyperKnot where
 
 import Circuit.Hyper (Hyper(..))
 
 -- Stepwise loop: each invoke = one iteration. State in closures.
-stepLoop :: (Either a b -> Either a c) -> a -> Hyper b c
-stepLoop f a = Hyper $ \k ->
-  let b = invoke k (stepLoop f a)
+stepKnot :: (Either a b -> Either a c) -> a -> Hyper b c
+stepKnot f a = Hyper $ \k ->
+  let b = invoke k (stepKnot f a)
   in case f (Right b) of
        Right c -> c
-       Left a' -> invoke (stepLoop f a') k
+       Left a' -> invoke (stepKnot f a') k
 
 -- Countdown: emit decrementing count, stop at 0
 countdown :: Int -> Hyper () (Maybe Int)
-countdown n = stepLoop body n
+countdown n = stepKnot body n
   where
     body (Right ()) = if n <= 0 then Right Nothing else Left (n-1)
     body (Left k)   = if k <= 0 then Right (Just k) else Left (k-1)

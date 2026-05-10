@@ -26,7 +26,7 @@ For `arr = (->)`:
 | `(,)`      | `unsecond` | `second`   | Simultaneous    |
 | `Either`   | `unright`  | `fmap`     | Sequential      |
 
-The `Loop` constructor is the same in both cases. What changes is how the feedback channel behaves when `trace` closes it.
+The `Knot` constructor is the same in both cases. What changes is how the feedback channel behaves when `trace` closes it.
 
 ---
 
@@ -52,7 +52,7 @@ The feedback value `a` and the output `c` are produced simultaneously. Both side
 The Fibonacci example uses `(,)`:
 
 ```haskell
-fibs = Loop (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
+fibs = Knot (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
 ```
 
 The feedback channel carries the stream. The stream feeds back into itself via lazy `zipWith`. This works because list cons is lazy — `0 :` forces nothing before it is needed.
@@ -92,7 +92,7 @@ This is why the hyperfunction type `Hyper a b` — which threads both directions
 
 Every effects library that tries to do simultaneity on top of `Either` (merge, zipWith, concurrent pipelines, self-referential processes) is approximating `Costrong` with `Cochoice`. Each requires special combinators and breaks composition slightly.
 
-`Circuit` with `(,)` has one combinator: `Loop`. Everything else is derived.
+`Circuit` with `(,)` has one combinator: `Knot`. Everything else is derived.
 
 ---
 
@@ -125,7 +125,7 @@ instance Trace (Kleisli IO) Either  where ...
 
 The `(,)` instance uses `prompt` and `control0` to implement a lazy knot in IO. The `Either` instance iterates with `prompt` until a `Right` is produced.
 
-This gives `Circuit (Kleisli IO) t a b` — effectful circuits. The `Loop` constructor runs IO actions in a feedback loop, with the tensor choice controlling how the IO actions are interleaved.
+This gives `Circuit (Kleisli IO) t a b` — effectful circuits. The `Knot` constructor runs IO actions in a feedback loop, with the tensor choice controlling how the IO actions are interleaved.
 
 ---
 
@@ -149,7 +149,7 @@ The choice of tensor is a design decision:
 
 ## The Circuit is Generic; the Choice is Yours
 
-The `Circuit` GADT is identical for both tensors. The `Loop` constructor is the same. The `lower` interpreter is the same (modulo the `Trace` instance). The difference is entirely in the `Trace` instance — in what `trace` and `untrace` mean.
+The `Circuit` GADT is identical for both tensors. The `Knot` constructor is the same. The `lower` interpreter is the same (modulo the `Trace` instance). The difference is entirely in the `Trace` instance — in what `trace` and `untrace` mean.
 
 This is the point of parametrising over `t`. The categorical structure — the free traced monoidal category — is the same. The operational character — simultaneous or sequential — is a choice made at the instance level.
 

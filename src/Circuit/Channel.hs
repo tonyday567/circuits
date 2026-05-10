@@ -2,24 +2,47 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 
--- | Channel: bidirectional coroutines via hyperfunctions.
+-- | Compact closed structure on 'Hyper'.
 --
--- From Kidney & Wu, \"Hyperfunctions: Communicating Continuations\" (POPL 2026).
+-- 'Hyper' is a profunctor: @Hyper a b@ is contravariant in @a@,
+-- covariant in @b@. Profunctors form a compact closed category —
+-- every object has a dual. This module names the dual pairs and
+-- provides the unit/counit morphisms.
 --
---   Producer o a = (o → a) ↬ a     — produces messages of type o, result a
---   Consumer i a = a ↬ (i → a)     — consumes messages of type i, result a
+-- @
+--   Producer m a = (m → a) ↬ a     — dual of Consumer
+--   Consumer m a = a ↬ (m → a)     — dual of Producer
 --   Channel r i o = (o → r) ↬ (i → r) — bidirectional pipe
+-- @
 --
--- Compact closed structure:
---   unit   :: a → (Producer m a, Consumer m a)
---   counit :: Consumer m a → Producer m a → a
+-- = Unit and counit
 --
--- Message-level adjunction:
+-- @
+--   unit :: a → (Producer m a, Consumer m a)
+--   glue :: Consumer m a → Producer m a → a
+-- @
+--
+-- 'unit' creates a matched producer/consumer pair from a value.
+-- The value @a@ is the shared accumulator — both sides carry it
+-- and return it when the connection closes.
+--
+-- 'glue' annihilates the pair: connect them and run in lockstep
+-- until both terminate. The result is the accumulator @a@.
+--
+-- = Message-level adjunction
+--
+-- @
 --   prod :: o → Producer o a → Producer o a
 --   cons :: (i → a → a) → Consumer i a → Consumer i a
+-- @
 --
--- Pure lockstep interpreter:
---   withQ :: Producer m a → Consumer m a → a
+-- 'prod' sends a message; 'cons' receives and processes one.
+-- These build the linked chain of Hypers that communicate stepwise.
+--
+-- The concrete encoding follows Kidney & Wu,
+-- \"Hyperfunctions: Communicating Continuations\" (POPL 2026).
+-- See @examples/channel.md@ and @examples/spec-hyper.hs@ for
+-- pipeline construction and the coinductive Consumer pattern.
 
 module Circuit.Channel
   ( -- * Types
@@ -27,79 +50,94 @@ module Circuit.Channel
     Consumer,
     Channel,
 
-    -- * Compact closed
-    unit,
-    counit,
-    withQ,
-
-    -- * Constructors
+    -- * Construction
     prod,
     cons,
+    yield,
+    accept,
 
-    -- * Base cases
-    doneP,
-    doneC,
+    -- * Compact closed
+    unit,
+    glue,
   )
 where
 
 import Circuit.Hyper (Hyper (..), invoke)
 
+-- $setup
+-- >>> import Circuit.Hyper (run)
+
 -- ---------------------------------------------------------------------------
 -- Types
 -- ---------------------------------------------------------------------------
 
--- | A Producer sends messages of type @o@, yielding a result @a@.
---   The continuation @o → a@ maps what the consumer sends back to the result.
-type Producer o a = Hyper (o -> a) a
+-- | A Producer sends messages of type @m@, yielding a result @a@.
+--   The continuation @m → a@ maps what the consumer sends back to the result.
+type Producer m a = Hyper (m -> a) a
 
--- | A Consumer receives messages of type @i@, yielding a result @a@.
---   The continuation @i → a@ is provided by the producer.
-type Consumer i a = Hyper a (i -> a)
+-- | A Consumer receives messages of type @m@, yielding a result @a@.
+--   The continuation @m → a@ is provided by the producer.
+type Consumer m a = Hyper a (m -> a)
 
 -- | A Channel consumes @i@ and produces @o@, with result @r@.
 --   Bidirectional: can both send (via @o → r@) and receive (via @i → r@).
 type Channel r i o = Hyper (o -> r) (i -> r)
 
 -- ---------------------------------------------------------------------------
--- Compact closed structure
--- ---------------------------------------------------------------------------
-
--- | Create a matched producer/consumer pair from a value.
---   The producer emits the value; the consumer accepts it.
-unit :: a -> (Producer o a, Consumer i a)
-unit a = (Hyper (\_ -> a), Hyper (\_ _ -> a))
-
--- | Annihilate a consumer and producer — run them together.
---   The counit of the compact closed structure.
-counit :: Consumer m a -> Producer m a -> a
-counit c p = invoke p c
-
--- | Run a producer and consumer in lockstep (turn-based, pure).
-withQ :: Producer m a -> Consumer m a -> a
-withQ = invoke
-
--- ---------------------------------------------------------------------------
--- Constructors
+-- Construction
 -- ---------------------------------------------------------------------------
 
 -- | Send a message of type @o@ and continue with the rest of the producer.
---   𝜄 (prod o p) q = 𝜄 q p o
+--
+-- >>> glue (cons (\x _ -> x) (accept 0)) (prod 42 (yield 0))
+-- 42
 prod :: o -> Producer o a -> Producer o a
 prod o p = Hyper $ \q -> invoke q p o
 
 -- | Receive a message of type @i@, process it with @f@, and continue.
---   𝜄 (cons f p) q i = f i (𝜄 q p)
+--
+-- The step function @f :: i -> a -> a@ receives the message and the
+-- accumulator, returning the new accumulator.
+--
+-- >>> glue (cons (\x acc -> x + acc) (accept 0)) (yield 0)
+-- 0
 cons :: (i -> a -> a) -> Consumer i a -> Consumer i a
 cons f p = Hyper $ \q i -> f i (invoke q p)
 
--- ---------------------------------------------------------------------------
--- Base cases
--- ---------------------------------------------------------------------------
-
--- | A producer that immediately returns the accumulator.
-doneP :: a -> Producer o a
-doneP a = Hyper $ \_ -> a
+-- | A producer that emits a single value (the accumulator) and stops.
+--
+-- >>> glue (accept 42) (yield 42)
+-- 42
+yield :: a -> Producer o a
+yield a = Hyper $ \_ -> a
 
 -- | A consumer that ignores all messages and returns the accumulator.
-doneC :: a -> Consumer i a
-doneC a = Hyper $ \_ _ -> a
+--
+-- >>> glue (accept 42) (yield 42)
+-- 42
+accept :: a -> Consumer i a
+accept a = Hyper $ \_ _ -> a
+
+-- ---------------------------------------------------------------------------
+-- Compact closed
+-- ---------------------------------------------------------------------------
+
+-- | Create a matched producer/consumer pair from a value.
+--   Both carry the same accumulator @a@. The producer emits it;
+--   the consumer accepts it.
+--
+-- >>> let (p, c) = unit 42 :: (Producer Int Int, Consumer Int Int)
+-- >>> glue c p
+-- 42
+unit :: a -> (Producer m a, Consumer m a)
+unit a = (Hyper (\_ -> a), Hyper (\_ _ -> a))
+
+-- | Connect a consumer and producer — run them in lockstep until
+--   both terminate. The dual pair annihilates, leaving the accumulator.
+--
+--   The counit of the compact closed structure on 'Hyper'.
+--
+-- >>> glue (accept "done") (yield "done")
+-- "done"
+glue :: Consumer m a -> Producer m a -> a
+glue c p = invoke p c

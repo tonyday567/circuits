@@ -8,9 +8,8 @@
 -- > import Circuit.Hyper (Hyper (..), run, lower)
 -- > import Circuit.Traced (Trace (..))
 --
--- For detailed design and theory, see @other\/narrative-arc.md@ and @other\/axioms-hyp.md@.
---
--- For proofs by example (Agent, Dual, Parser patterns, and more), see @examples/@.
+-- For detailed design and theory, see @other/@.
+-- For examples, see @examples/@.
 
 module Circuit
   ( -- * Circuit (initial encoding)
@@ -19,7 +18,6 @@ module Circuit
     lower,
     push,
     toHyper,
-    hyperfy,
 
     -- * Hyper (final encoding)
     Hyper (..),
@@ -27,24 +25,11 @@ module Circuit
     run,
     base,
     lift,
-    hyperAp,
-    hyperBind,
-    valueFix,
-    hyperFix,
-
-    -- * Coinductive helpers
-    unroll,
-    roll,
-    ana,
-    cata,
 
     -- * Symbolic operators
     (⇸),
-    (⊙),
     (⊲),
-    (↬),
-    (⥀),
-    (↯),
+    (↮),
     (⥁),
     (○),
     (↑),
@@ -52,23 +37,23 @@ module Circuit
 
     -- * Trace typeclass
     Trace (..),
-    PromptTag,
-    newPromptTag,
-    prompt,
-    control0,
-    whileK,
+    (↪),
+    (↩),
 
     -- * Channel (coroutines)
     Producer,
     Consumer,
     Channel,
     unit,
-    counit,
-    withQ,
+    glue,
     prod,
     cons,
-    doneP,
-    doneC,
+    yield,
+    accept,
+
+    -- * Structure-preserving encoding
+    toHyperE,
+    runEither,
   )
 where
 
@@ -78,14 +63,12 @@ import Circuit.Circuit
     lower,
     push,
     toHyper,
-    hyperfy,
-    (⊙),
     (⊲),
-    (↬),
+    (↮),
     (↑),
     (↓),
-    (⥀),
-    (↯),
+    toHyperE,
+    runEither,
   )
 import Circuit.Hyper
   ( Hyper (..),
@@ -93,35 +76,23 @@ import Circuit.Hyper
     run,
     base,
     lift,
-    hyperAp,
-    hyperBind,
-    valueFix,
-    hyperFix,
-    unroll,
-    roll,
-    ana,
-    cata,
     (⇸),
     (⥁),
     (○),
   )
 import Circuit.Traced
   ( Trace (..),
-    PromptTag,
-    newPromptTag,
-    prompt,
-    control0,
-    whileK,
+    (↪),
+    (↩),
   )
 import Circuit.Channel
   ( Producer,
     Consumer,
     Channel,
     unit,
-    counit,
-    withQ,
+    glue,
     prod,
     cons,
-    doneP,
-    doneC,
+    yield,
+    accept,
   )

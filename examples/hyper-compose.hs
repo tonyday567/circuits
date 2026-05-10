@@ -8,7 +8,7 @@ import Prelude hiding ((.), id)
 
 -- qList via Either — walk list one element at a time
 qList :: [Int] -> Circuit (->) Either () (Maybe Int)
-qList xs = Loop $ \case
+qList xs = Knot $ \case
   Right () -> case xs of
     []     -> Right Nothing
     (x:xs') -> Left (xs', Just x)
@@ -18,7 +18,7 @@ qList xs = Loop $ \case
 
 -- takeE via Either
 takeE :: Int -> Circuit (->) Either (Maybe Int) (Maybe Int)  
-takeE n = Loop $ \case
+takeE n = Knot $ \case
   Right mx -> Left (n, mx)
   Left (k, mx) -> if k <= 0 then Right Nothing else Left (k-1, mx)
 

@@ -71,7 +71,7 @@ Substituting these into axioms 4, 5, 6 reduces the axiom set to three structural
 | 1, 2, 3 | Free category | `Lift`, `Compose` |
 | 4 | Faithful embedding: `ε . η = id` | Interpretation only |
 | 5 | Centrality: lifted arrows slide past anything | Free from tensor symmetry |
-| 6 | Feedback / sliding | `Loop` constructor |
+| 6 | Feedback / sliding | `Knot` constructor |
 
 Axioms 4 and 5 introduce no new constructors. Only axiom 6 does.
 
@@ -83,7 +83,7 @@ The language is already powerful enough to express the classic Fibonacci stream:
 
 ```haskell
 fibs :: Circuit (->) (,) Int Int
-fibs = Loop (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
+fibs = Knot (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
 ```
 
 The feedback channel `(,)` carries the stream alongside the index. The loop ties the knot: the output stream feeds back into itself to compute successive elements.

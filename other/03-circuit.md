@@ -15,7 +15,7 @@
 data Circuit arr t a b where
   Lift    :: arr a b -> Circuit arr t a b
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-  Loop    :: arr (t a b) (t a c) -> Circuit arr t b c
+  Knot    :: arr (t a b) (t a c) -> Circuit arr t b c
 ```
 
 Three constructors. Each encodes a specific categorical structure:
@@ -24,7 +24,7 @@ Three constructors. Each encodes a specific categorical structure:
 |-------------|-----------|------|
 | `Lift` | Strict monoidal functor | Embed base arrows; η of the free/forgetful adjunction |
 | `Compose` | Category laws | Sequential composition; associativity and identity |
-| `Loop` | Trace | Open a feedback channel; the trace constructor |
+| `Knot` | Trace | Open a feedback channel; the trace constructor |
 
 The `Category` instance is immediate:
 
@@ -43,9 +43,9 @@ instance (Category arr) => Category (Circuit arr t) where
 ```haskell
 lower :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
 lower (Lift f)             = f
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))   -- Mendler case
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))   -- Mendler case
 lower (Compose f g)        = lower f . lower g
-lower (Loop k)             = trace k
+lower (Knot k)             = trace k
 ```
 
 Each case corresponds to one axiom:
@@ -54,10 +54,10 @@ Each case corresponds to one axiom:
 |------|-------|--------------|
 | `Lift f` | `ε . η = id` | Faithful embedding; returns the base arrow unchanged |
 | `Compose f g` | Associativity | Composes the two interpretations |
-| `Loop k` | `ε (↬ k) = ⥀ k` | Closes the feedback channel via `trace` |
-| `Compose (Loop f) g` | **Sliding** | Threads `lower g` into the channel via `untrace` before tracing |
+| `Knot k` | `ε (↬ k) = ⥀ k` | Closes the feedback channel via `trace` |
+| `Compose (Knot f) g` | **Sliding** | Threads `lower g` into the channel via `untrace` before tracing |
 
-The Mendler case is the only non-trivial one. It is the operational form of the sliding axiom — the one axiom that required `Loop`. Without it, `lower` produces the degenerate model. See [02-gadt.md](02-gadt.md).
+The Mendler case is the only non-trivial one. It is the operational form of the sliding axiom — the one axiom that required `Knot`. Without it, `lower` produces the degenerate model. See [02-gadt.md](02-gadt.md).
 
 ---
 
@@ -71,9 +71,9 @@ The Mendler case is the only non-trivial one. It is the operational form of the 
 trace (f . untrace g) = trace f . g
 ```
 
-This is the sliding axiom: a morphism composed on the output of a trace can be moved inside. The Mendler case reifies this as a pattern match — when a `Loop` appears at the head of a `Compose`, the right morphism is injected into the channel via `untrace` before `trace` closes it.
+This is the sliding axiom: a morphism composed on the output of a trace can be moved inside. The Mendler case reifies this as a pattern match — when a `Knot` appears at the head of a `Compose`, the right morphism is injected into the channel via `untrace` before `trace` closes it.
 
-**Vanishing I.** `Loop (id ⊗ id) = id`. The identity feedback channel is trivial.
+**Vanishing I.** `Knot (id ⊗ id) = id`. The identity feedback channel is trivial.
 
 **Superposing.** Tensor distributes over trace as expected.
 
@@ -137,7 +137,7 @@ This is a Galois connection, not a strict adjunction. The asymmetry is real: Cir
 The Mendler case is the one ingredient that is **not** a consequence of adjunctions:
 
 ```haskell
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
 This is a genuine strength/costrength operation on the profunctor, not derivable from free or initial-final properties. It is what makes the trace honest. Without it, both adjunctions are in place but the traced structure collapses.
@@ -172,9 +172,9 @@ The full categorical shopping list — Strong, Costrong, Monoidal, Symmetric, Tr
 
 ## Ruling Out the Degenerate Model
 
-Without the Mendler case, `Circuit` is the **free category with a fixed-point operator** — a weaker structure. The degenerate model is `H a b = a -> b`, with `Compose` as function composition and `Lift = id`. In this model, `Loop k = trace k` immediately — the feedback channel never iterates.
+Without the Mendler case, `Circuit` is the **free category with a fixed-point operator** — a weaker structure. The degenerate model is `H a b = a -> b`, with `Compose` as function composition and `Lift = id`. In this model, `Knot k = trace k` immediately — the feedback channel never iterates.
 
-The Mendler case rules this out by ensuring that when a `Loop` appears on the left of a `Compose`, the right morphism participates in every iteration of the feedback. The loop structure is preserved through composition.
+The Mendler case rules this out by ensuring that when a `Knot` appears on the left of a `Compose`, the right morphism participates in every iteration of the feedback. The loop structure is preserved through composition.
 
 **One pattern match separates the free traced monoidal category from the degenerate model.**
 

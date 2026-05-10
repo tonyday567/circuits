@@ -33,7 +33,7 @@ instance Category Hyper where
   f . g = Hyper $ \h -> invoke f (g . h)
 ```
 
-The backwards channel `h :: Hyper b a` is where the feedback lives. In `Circuit`, a `Loop` explicitly opens a feedback channel. In `Hyper`, every morphism already has one — the continuation argument `Hyper b a` is structurally present in every value. **`Loop` does not go anywhere; it dissolves into the type.**
+The backwards channel `h :: Hyper b a` is where the feedback lives. In `Circuit`, a `Knot` explicitly opens a feedback channel. In `Hyper`, every morphism already has one — the continuation argument `Hyper b a` is structurally present in every value. **`Knot` does not go anywhere; it dissolves into the type.**
 
 ---
 
@@ -61,32 +61,32 @@ The map from initial to final:
 toHyper :: Circuit (->) (,) a b -> Hyper a b
 toHyper (Lift f)      = lift f
 toHyper (Compose f g) = toHyper f . toHyper g
-toHyper (Loop f)      = lift (trace f)
+toHyper (Knot f)      = lift (trace f)
 ```
 
-`toHyper` does not need a Mendler case. The `Compose (Loop f) g` pattern reduces through the general `Compose` case:
+`toHyper` does not need a Mendler case. The `Compose (Knot f) g` pattern reduces through the general `Compose` case:
 
 ```
-toHyper (Compose (Loop f) g)
-  = toHyper (Loop f) . toHyper g      -- general Compose
-  = lift (trace f) . toHyper g        -- Loop case
+toHyper (Compose (Knot f) g)
+  = toHyper (Knot f) . toHyper g      -- general Compose
+  = lift (trace f) . toHyper g        -- Knot case
 ```
 
 No explicit `untrace`. Compare to `lower` on `Circuit`, which does apply `untrace`:
 
 ```
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
 The two agree through the sliding axiom. Expanding `lower . toHyper` on the same term:
 
 ```
-lower (toHyper (Compose (Loop f) g))
+lower (toHyper (Compose (Knot f) g))
   = lower (lift (trace f) . toHyper g)
   = lower (lift (trace f)) . lower (toHyper g)    -- lower is a functor
   = trace f . lower g                             -- axiom 4 + induction
   = trace (f . untrace (lower g))                 -- sliding axiom
-  = lower (Compose (Loop f) g)
+  = lower (Compose (Knot f) g)
 ```
 
 **Triangle:** `lower . toHyper = lower` (on `Circuit`).
@@ -133,7 +133,7 @@ Before the fixpoint, `Circuit a b` is related to the Ran of the free category:
 Circuit a b  ~  Ran (Const a) (Const b)    (before Fix)
 ```
 
-Adding the trace (`Loop`) requires tying the knot with `Fix`:
+Adding the trace (`Knot`) requires tying the knot with `Fix`:
 
 ```
 Hyper a b  =  Fix (Ran (Const a) (Const b))
@@ -149,7 +149,7 @@ Hyper a b  =  Fix (Ran (Const a) (Const b))
 |----------------|-----------------------------------|-------------------------------|
 | Encoding       | Initial (syntax)                  | Final (semantics)             |
 | Sliding        | Enforced by Mendler case          | Inherent in `(.)`             |
-| Feedback       | Explicit `Loop` constructor       | Structural in `Hyper` type    |
+| Feedback       | Explicit `Knot` constructor       | Structural in `Hyper` type    |
 | Degenerate model | Possible without Mendler case   | Not possible                  |
 | Elimination    | `lower` / `reify`                 | `lower`                       |
 | Map to other   | `toHyper` (Circuit → Hyper)       | `flatten` (Hyper → Circuit)   |
@@ -193,7 +193,7 @@ The typical pattern: **build in Circuit, run via Hyper**.
 
 ## Summary
 
-`Hyper` is `Circuit` with the syntax erased. The feedback channel that `Loop` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `lower . toHyper = lower` connects them.
+`Hyper` is `Circuit` with the syntax erased. The feedback channel that `Knot` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `lower . toHyper = lower` connects them.
 
 **Next:** [05-tensor.md](05-tensor.md) — the tensor parameter `t`; `(,)` vs `Either`; holding hands vs taking turns.
 

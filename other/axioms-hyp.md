@@ -28,7 +28,7 @@ After substitution and simplification the essential content reduces to:
 
 1. **Free category** (associativity, identity, functoriality of lift)
 2. **Adjunction unit**: `lower . lift = id`
-3. **Sliding / feedback** (the crucial axiom that forces `Loop`):
+3. **Sliding / feedback** (the crucial axiom that forces `Knot`):
 
    Restated cleanly in terms of `lower`:
 
@@ -52,22 +52,22 @@ The axioms determine the following GADT:
 data Circuit arr t a b where
   Lift    :: arr a b -> Circuit arr t a b
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-  Loop    :: arr (t a b) (t a c) -> Circuit arr t b c
+  Knot    :: arr (t a b) (t a c) -> Circuit arr t b c
 ```
 
 `lower` (the interpretation) is defined by structural recursion with one Mendler case:
 
 ```haskell
 lower (Lift f)                  = f
-lower (Compose (Loop f) g)      = trace (f . untrace (lower g))
+lower (Compose (Knot f) g)      = trace (f . untrace (lower g))
 lower (Compose f g)             = lower f . lower g
-lower (Loop k)                  = trace k
+lower (Knot k)                  = trace k
 ```
 
 ### Why the three constructors?
 
 - **Lift + Compose** give the free category on the base arrow.
-- **Loop** is required to satisfy the sliding axiom. Without the Mendler case the structure collapses to the free category (degenerate model).
+- **Knot** is required to satisfy the sliding axiom. Without the Mendler case the structure collapses to the free category (degenerate model).
 - The **Trace class** supplies `trace` / `untrace` for a chosen tensor `t` (`(,)` or `Either`).
 
 ## Hyper as the Final Encoding

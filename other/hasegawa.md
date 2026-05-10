@@ -31,7 +31,7 @@ Sliding (naturality in X):
 In circuits, this becomes:
 
 ```haskell
-lower (Compose (Loop f) g) = trace (f . untrace (lower g))
+lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
 **Why this pattern match isn't obvious:** The nlab axiom is stated in terms of tensor and composition in the category. The circuits Mendler case rewires this operationally: when a loop appears on the left of composition, you must reinjure the arrow through `untrace`, allowing the trace to slide across the boundary. This is the sliding axiom *reified as a GADT pattern match*. See `axioms-traced.md` (Section: Axiom 6) for the detailed proof mapping the categorical statement to the operational form.
@@ -44,7 +44,7 @@ Hasegawa's entire framework assumes traced monoidal categories exist and have ni
 
 - **Lift** = strict monoidal functor (embedding base arrows)
 - **Compose** = category laws (associativity, identity)
-- **Loop** = the trace constructor (feedback channel)
+- **Knot** = the trace constructor (feedback channel)
 - **Mendler case in lower** = naturality in X (sliding)
 
 This is not just an instance of Hasegawa's framework. This is the free object that his framework presupposes.
@@ -55,7 +55,7 @@ This is not just an instance of Hasegawa's framework. This is the free object th
 
 **Hasegawa:** Uses `letrec x = M in N` syntax. Defines semantic models (domain-theoretic, non-deterministic, etc.) and proves soundness/completeness.
 
-**Circuits:** Uses a GADT constructor `Loop`. Provides two interpretations (Circuit and Hyper) connected by an adjunction.
+**Circuits:** Uses a GADT constructor `Knot`. Provides two interpretations (Circuit and Hyper) connected by an adjunction.
 
 **Hasegawa:** Distinguishes `letrec`-calculus (unrestricted) from `vletrec`-calculus (value-restricted), modeling different sharing semantics.
 

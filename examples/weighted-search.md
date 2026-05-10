@@ -7,7 +7,7 @@ Inspired by Donnacha Kidney's "Algebras for Weighted Search" (ICFP 2021): differ
 ## Design
 
 A search space is a Circuit with:
-- **Loop** for recursive branching
+- **Knot** for recursive branching
 - **Either tensor** carrying weights (cost/priority)
 - **Right** branch for success, **Left** for failure + weight
 
@@ -42,7 +42,7 @@ failure = Lift (const (Left undefined))  -- weight undefined; ignored on dead br
 -- | Non-deterministic choice: try alternatives in sequence.
 choose :: [a] -> Search w a
 choose [] = failure
-choose xs = Loop $ \case
+choose xs = Knot $ \case
   Right () -> Right (head xs)
   Left ()  -> choose (tail xs)
 
