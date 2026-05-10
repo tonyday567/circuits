@@ -131,6 +131,49 @@ Forgetting this gives confusing type errors about `Hyper` not being a
 `Circuit.Traced`. They're GHC primops used internally by the
 `Trace (Kleisli IO) Either` instance. The user-facing API is `trace`/`↪`.
 
+### .md cards cannot be loaded directly in cabal repl
+
+GHCi only recognizes `.hs` and `.lhs` files. `.md` cards are narrative
+documents with fenced code blocks — not literate Haskell.
+
+**To verify code blocks in an .md card:**
+
+Extract the fenced blocks, wrap in a module, compile:
+
+```python
+import re
+blocks = re.findall(r'```haskell\n(.*?)```', content, re.DOTALL)
+code = "module Test where\nimport Circuit.Hyper ...\n\n"
+for b in blocks:
+    # strip imports/LANGUAGE (already at top)
+    code += '\n'.join([l for l in b.split('\n')
+              if not l.startswith('import ') and not l.startswith('{-#')])
+    code += '\n\n'
+# write to /tmp/test.hs, then: cabal repl
+```
+
+**For the user:** open `cabal repl`, paste each fenced block in order.
+Multiline blocks work when pasted directly into an interactive GHCi
+session. Use `:{` / `:}` if pasting over a pipe/heredoc.
+
+**Doctests in markdown:** the technology isn't mature. `cabal-docspec`
+only targets `.hs` library modules. `doctest` + `markdown-unlit` can
+extract but fails because prose text leaks into the compiler. For now,
+doctests in .md cards serve as paste-and-verify assertions for repl
+sessions — not automated tests.
+
+### extra dependencies for example cards
+
+Some cards require packages not in circuits' dependency tree. The
+card declares this at the top. Start repl with `-b`:
+
+```bash
+cabal repl -b these    # for coroutine-hyper.md
+cabal repl -b yaya     # for yaya.md
+```
+
+The dependency lives in the command, not in circuits.cabal.
+
 ## example authoring
 
 New example cards go in `~/haskell/circuits/examples/`. Pattern:
@@ -156,10 +199,13 @@ More code. Use `$setup` blocks for shared state if needed.
 Reference cards to steal from:
 - `channel-basics.md` — the pattern: prose, fenced blocks, doctest-style outputs
 - `stable-marriage.md` — longer form with multiple code sections
-- Existing `.hs` files — technical demos, minimal prose, `main` for execution
+- `repl-pure.md` — Lift, Knot, Compose all in one card
+- `two-loops.md` — includes a "composition trap" section showing what NOT to do
 
-Cards compile via `cabal repl -b circuits` then `:load examples/card.md`.
-Doctests in `$setup` blocks use `cabal-docspec` conventions.
+Cards are NOT compiled by `cabal build` — they're validated by pasting
+code blocks into `cabal repl` (see gotcha above). Doctests in comments
+serve as paste-and-verify assertions. For cards needing extra deps, use
+`cabal repl -b <dep>` as declared at the top of the card.
 
 ## downstream
 
