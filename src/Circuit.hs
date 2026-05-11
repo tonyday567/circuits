@@ -39,16 +39,12 @@ module Circuit
     (↪),
     (↩),
 
-    -- * Channel (coroutines)
-    Producer,
-    Consumer,
+    -- * Channel (atomic communication)
+    Emit,
+    Commit,
     Channel,
-    unit,
-    glue,
-    prod,
-    cons,
-    yield,
-    accept,
+    emit,
+    commit,
 
     -- * Structure-preserving encoding
     toHyperE,
@@ -58,14 +54,10 @@ where
 
 import Circuit.Channel
   ( Channel,
-    Consumer,
-    Producer,
-    accept,
-    cons,
-    glue,
-    prod,
-    unit,
-    yield,
+    Commit,
+    Emit,
+    commit,
+    emit,
   )
 import Circuit.Circuit
   ( Circuit (..),

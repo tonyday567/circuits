@@ -5,7 +5,7 @@ at a time, compose them into pipelines, and interpose channels that
 transform the stream.
 
 All of this lives in `Circuit.Channel`, the compact closed structure
-on Hyper. Every producer has a dual consumer, and `glue` annihilates
+on Hyper. Every producer has a dual consumer, and `⇸` annihilates
 the pair. See `other/03-circuit.md` for the traced monoidal narrative
 that leads here.
 
@@ -19,17 +19,16 @@ A producer sends messages; a consumer receives them.
 {-# LANGUAGE PostfixOperators #-}
 
 import Circuit.Channel
-import Circuit.Hyper (invoke)
 import Prelude hiding (id, (.))
 
 -- emitSingles: produce each list element as a Just, then Nothing to stop.
-emitSingles :: [a] -> Producer (Maybe a) [a]
+emitSingles :: [a] -> Producer [a] (Maybe a)
 emitSingles = foldr (\x p -> prod (Just x) p) (prod Nothing (yield []))
 
 -- collectSingles: consume Just values, stop on Nothing.
 -- Coinductive: h = cons step h — an infinite chain.
 -- Processes as many messages as the producer sends.
-collectSingles :: Consumer (Maybe a) [a]
+collectSingles :: Consumer [a] (Maybe a)
 collectSingles = h
   where
     h = cons step h
@@ -39,10 +38,10 @@ collectSingles = h
 
 -- Run them together.
 pipeline2 :: [a] -> [a]
-pipeline2 xs = glue collectSingles (emitSingles xs)
+pipeline2 xs = emitSingles xs ⇸ collectSingles
 
 -- >>> pipeline2 [1,2,3]
--- [3,2,1]
+-- [1,2,3]
 -- >>> pipeline2 []
 -- []
 ```
@@ -63,7 +62,7 @@ produces `o`, result `r`. Category composition attaches it to the
 consumer side:
 
 ```
-Consumer o r . Channel r i o = Consumer i r
+Consumer r o . Channel r i o = Consumer r i
 ```
 
 ```haskell
@@ -81,12 +80,12 @@ takeChannel n = go n
 
 -- Compose: channel . consumer
 pipelineChannel :: Int -> [a] -> [a]
-pipelineChannel n xs = glue (takeChannel n . collectSingles) (emitSingles xs)
+pipelineChannel n xs = emitSingles xs ⇸ (takeChannel n . collectSingles)
 
 -- >>> pipelineChannel 2 [1,2,3]
--- [2,1]
+-- [1,2]
 -- >>> pipelineChannel 5 [1,2,3]
--- [3,2,1]
+-- [1,2,3]
 ```
 
 The composition `takeChannel n . collectSingles` is a new Consumer
@@ -94,20 +93,14 @@ that delegates to `collectSingles` but with the channel's counting
 logic interposed. Each message passes through the channel before
 reaching the consumer.
 
-## unit: the compact closed pair
+## open and close
 
-`unit a` creates a matched producer/consumer pair. Both carry `a` as
-their accumulator. Neither sends or receives — they hold the value.
+'⇸' has two directions:
 
-```haskell
--- >>> let (p, c) = unit 42 :: (Producer Int Int, Consumer Int Int)
--- >>> glue c p
--- 42
 ```
-
-This is the η of the compact closed structure: `I → A* ⊗ A`. The
-value `a` instantiates `I`. The pair can be extended with `prod`/`cons`
-to build communicating pipelines.
+c ⇸ p :: a → r   — open: Consumer-first, one-step unwind to an arrow
+p ⇸ c :: r       — close: Producer-first, drive to completion
+```
 
 ## the coinductive Consumer
 
@@ -130,15 +123,28 @@ then producer, etc. In the paper's stable marriage example
 to jilt wakes the jilted man's coroutine. Control jumps between
 coroutines, not A→B→C.
 
-See `examples/stable-marriage.hs` for the pure state-machine version
+See `examples/stable-marriage.md` for the pure state-machine version
 and `examples/spec.md` for the paper's full Co monad with delimited
 continuations.
+
+## Kleisli (monadic) variants
+
+For IO-bound or effectful pipelines, use the monadic suffixes:
+
+```haskell
+import Circuit.Channel
+import Data.Functor.Identity (Identity(..), runIdentity)
+
+-- >>> runIdentity $ (prodK 42 (yieldK 0)) ⇸ (consK (\a acc -> fmap (+ a) acc) (acceptK 0))
+-- 42
+```
+
+The `K` suffix convention (e.g. `prodK`) distinguishes
+the Kleisli/monadic versions from the pure ones. `⇸` works on both.
 
 ## reference
 
 - `Circuit.Channel` — the module (compact closed on Hyper)
-- `examples/spec-hyper.hs` — full Producer/Consumer/Channel test suite
-- `examples/stable-marriage.hs` — concurrent coroutine pattern
-- `examples/coroutine-hyper.hs` — Coro→Channel, Trace→Hyper, delimited continuity
+- `examples/coroutine-hyper.md` — Coro→Channel, Trace→Hyper, delimited continuity
 - `other/03-circuit.md` — the traced monoidal narrative
 - Kidney & Wu, POPL 2026 — §2.4 (Producer/Consumer), §5.1 (Channel), §5.3 (stable marriage)
