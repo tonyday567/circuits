@@ -1,9 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PostfixOperators #-}
 
--- | Atomic communication primitives on 'Hyper'.
+-- | Atomic communication primitives on 'Hyper', plus the
+--   @prod@/@cons@ constructors with sane lettering.
 --
 -- Kidney & Wu (POPL 2026) start with two atomic types:
 --
@@ -20,10 +19,23 @@
 --   lift (const readLn)  :: Hyper () (IO String)  — IO source
 -- @
 --
--- = Channel
+-- = prod and cons
 --
--- 'Channel r i o' is the bidirectional pipe — consumes @i@,
--- produces @o@, with result @r@.
+-- The original K\&W constructors, with consistent lettering:
+--
+-- @
+--                         anchor↙            inner↙    element↙
+--   prod a p = Hyper $    \\c          ->   (c  ⇸  p)  a
+--   cons f c = Hyper $    \\p     a    ->   f (p ⇸  c) a
+--                         producer anchor   element       accumulator
+-- @
+--
+-- Both thread the inner Hyper through the continuation (anchor) and
+-- place the element on the right. In 'prod' the element is captured at
+-- construction time; in 'cons' it arrives at invocation time.
+--
+-- Without @f@, @cons (\\r a -> r a)@ has the same body as 'prod' but
+-- operates on self-dual 'Channel' types (see 'layer').
 module Circuit.Channel
   ( -- * Atomic types
     Emit,
@@ -32,9 +44,16 @@ module Circuit.Channel
     -- * Channel
     Channel,
 
+    -- * Producer / Consumer
+    Producer,
+    Consumer,
+
     -- * Construction
     emit,
     commit,
+    prod,
+    cons,
+    layer,
   )
 where
 
@@ -42,6 +61,7 @@ import Circuit.Hyper
 
 -- $setup
 -- >>> :set -XBlockArguments
+-- >>> import Circuit.Hyper (run, lift, (⇸), invoke, Hyper(..))
 
 -- ---------------------------------------------------------------------------
 -- Atomic types
@@ -49,7 +69,7 @@ import Circuit.Hyper
 
 -- | An atomic value producer. @() ↬ a@ — produces @a@ when invoked.
 --
--- >>> emit 42 ⇸ commit
+-- >>> invoke (emit 42) commit
 -- 42
 type Emit a = Hyper () a
 
@@ -69,7 +89,21 @@ type Commit a = Hyper a ()
 type Channel r i o = Hyper (o -> r) (i -> r)
 
 -- ---------------------------------------------------------------------------
--- Construction
+-- Producer / Consumer
+-- ---------------------------------------------------------------------------
+
+-- | A Producer sends elements of type @a@, yielding a result @r@.
+--
+--   @Producer a r = (a → r) ↬ r@
+type Producer a r = Hyper (a -> r) r
+
+-- | A Consumer receives elements of type @a@, yielding a result @r@.
+--
+--   @Consumer a r = r ↬ (a → r)@
+type Consumer a r = Hyper r (a -> r)
+
+-- ---------------------------------------------------------------------------
+-- Construction — atomic
 -- ---------------------------------------------------------------------------
 
 -- | Wrap a value into an 'Emit'.
@@ -85,3 +119,66 @@ emit a = Hyper $ \_ -> a
 -- 42
 commit :: Commit a
 commit = Hyper $ \_ -> ()
+
+-- ---------------------------------------------------------------------------
+-- Construction — prod / cons (Kidney & Wu)
+-- ---------------------------------------------------------------------------
+
+-- | Add an element to a Producer.
+--
+--   @a@ is captured at construction time.  The continuation @c@ receives
+--   the inner Producer @p@ and the element, threaded through 'invoke'.
+--
+-- >>> prod 42 (Hyper $ \_ -> 0) ⇸ cons (\_ x -> x) (Hyper $ \_ _ -> 0)
+-- 42
+--
+-- Equivalent forms:
+--
+-- @
+--   prod a p = Hyper $ \\c -> (c ⇸ p) a
+--   prod a p = layer (Lift (\\c _ -> c a)) . p   -- @a@ supplied now
+-- @
+prod :: a -> Producer a r -> Producer a r
+prod a p = Hyper $ \c -> (c ⇸ p) a
+
+-- | Add a step to a Consumer.
+--
+--   @a@ arrives at invocation time. The step @f@ receives the accumulator
+--   (from the inner Consumer) and the element.
+--
+-- >>> prod 42 (Hyper $ \_ -> 0) ⇸ cons (\_ x -> x) (Hyper $ \_ _ -> 0)
+-- 42
+--
+-- Equivalent forms:
+--
+-- @
+--   cons f c = Hyper $ \\p a -> f (p ⇸ c) a
+--   cons f c = layer @r . f  -- @f@ wraps the result
+-- @
+cons :: (r -> a -> r) -> Consumer a r -> Consumer a r
+cons f c = Hyper $ \p a -> f (p ⇸ c) a
+
+-- ---------------------------------------------------------------------------
+-- Construction — layer (self-dual core)
+-- ---------------------------------------------------------------------------
+
+-- | The core combinator on the Channel diagonal.
+--
+-- @
+--   layer :: Channel r a a -> Channel r a a
+--   layer x = Hyper $ \\anchor a -> (anchor ⇸ x) a
+-- @
+--
+-- Takes a self-dual Hyper and wraps it one layer deeper.  The element @a@
+-- arrives at invocation time.  This is the uniform operation that 'prod'
+-- and 'cons' specialize:
+--
+-- @
+--   prod a p = layer (Channel r a a)  ...   -- not type-identical, but
+--   cons f c = layer (Channel r a a)  ...   -- structurally the same body
+-- @
+--
+-- >>> run (layer (lift (\f x -> (x :: Int)))) (42 :: Int)
+-- 42
+layer :: Channel r a a -> Channel r a a
+layer x = Hyper $ \anchor a -> (anchor ⇸ x) a

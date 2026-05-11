@@ -45,6 +45,11 @@ module Circuit
     Channel,
     emit,
     commit,
+    Producer,
+    Consumer,
+    prod,
+    cons,
+    layer,
 
     -- * Structure-preserving encoding
     toHyperE,
@@ -55,9 +60,14 @@ where
 import Circuit.Channel
   ( Channel,
     Commit,
+    Consumer,
     Emit,
+    Producer,
     commit,
+    cons,
     emit,
+    layer,
+    prod,
   )
 import Circuit.Circuit
   ( Circuit (..),
