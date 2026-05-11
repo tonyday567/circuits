@@ -62,7 +62,7 @@ import Circuit.Hyper qualified as Hyper
 import Circuit.Traced
   ( Trace (..),
   )
-import Control.Category (Category (..), id, (.))
+import Control.Category
 import Prelude hiding (id, (.))
 
 -- $setup

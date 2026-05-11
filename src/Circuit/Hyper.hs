@@ -37,8 +37,8 @@ module Circuit.Hyper
   )
 where
 
-import Control.Category (Category (..), id)
-import Data.Profunctor (Profunctor (..))
+import Control.Category
+import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup

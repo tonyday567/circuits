@@ -47,9 +47,9 @@ module Circuit.Traced
   )
 where
 
-import Control.Arrow (Kleisli (..))
-import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
-import GHC.IO (IO (..))
+import Control.Arrow
+import GHC.Exts
+import GHC.IO
 
 -- $setup
 -- >>> :set -XNoRequiredTypeArguments

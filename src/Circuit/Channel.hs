@@ -66,7 +66,7 @@ module Circuit.Channel
   )
 where
 
-import Circuit.Hyper (Hyper (..), invoke)
+import Circuit.Hyper
 
 -- $setup
 -- >>> :set -XBlockArguments
@@ -106,7 +106,7 @@ type Channel m r i o = Hyper (o -> m r) (i -> m r)
 -- >>> runIdentity $ glue (cons (\x _ -> pure x) (accept (0 :: Int))) (prod 42 (yield 0 :: Producer Identity Int Int))
 -- 42
 prod :: a -> Producer m r a -> Producer m r a
-prod x p = Hyper $ \q -> invoke q p x
+prod x p = Hyper $ \q -> (q ⇸ p) x
 
 -- | Receive an element, process it with step function @f@, continue.
 --
@@ -116,7 +116,7 @@ prod x p = Hyper $ \q -> invoke q p x
 -- >>> runIdentity $ glue (cons (\x acc -> fmap (+ x) acc) (accept (0 :: Int))) (yield 0 :: Producer Identity Int Int)
 -- 0
 cons :: (a -> m r -> m r) -> Consumer m r a -> Consumer m r a
-cons f c = Hyper $ \p x -> f x (invoke p c)
+cons f c = Hyper $ \p x -> f x (p ⇸ c)
 
 -- | A producer that emits nothing — just returns the carrier @r@
 --   in the ambient monad.
@@ -154,4 +154,4 @@ unit r = (Hyper $ \_ -> pure r, Hyper $ \_ _ -> pure r)
 -- >>> runIdentity $ glue (accept "done") (yield "done")
 -- "done"
 glue :: Consumer m r a -> Producer m r a -> m r
-glue c p = invoke p c
+glue c p = p ⇸ c
