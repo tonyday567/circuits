@@ -51,6 +51,7 @@ module Circuit.Channel
     -- * Construction
     emit,
     commit,
+    forget,
     prod,
     cons,
     layer,
@@ -113,12 +114,19 @@ type Consumer a r = Hyper r (a -> r)
 emit :: a -> Emit a
 emit a = Hyper $ \_ -> a
 
--- | A 'Commit' that ignores its input.
+-- | A 'Commit' that ignores its input. Alias for 'forget'.
 --
 -- >>> emit 42 ⇸ commit
 -- 42
 commit :: Commit a
-commit = Hyper $ \_ -> ()
+commit = forget
+
+-- | A 'Commit' that ignores its input.
+--
+-- >>> emit 42 ⇸ forget
+-- 42
+forget :: Commit a
+forget = Hyper $ \_ -> ()
 
 -- ---------------------------------------------------------------------------
 -- Construction — prod / cons (Kidney & Wu)

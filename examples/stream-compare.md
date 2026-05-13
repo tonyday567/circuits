@@ -8,51 +8,49 @@ This is the basic building block for circuits-io resources.
 
 ---
 
-## 1. Hyper prod/cons chain ⟜ full stream, pure, works
+## 1. Hyper lift chain ⟜ full stream, pure, works
 
-The invoke mechanism walks the chain layer by layer. Each `prod` is
-one element; `doneP` is the terminator. The consumer accumulates.
+Category composition on Hyper threads values through layers. Each
+element is a `lift`, composed with `(.)`. The chain builds once;
+`lower` walks it.
 
 ```haskell
-import Circuit.Channel
-import Circuit.Circuit
 import Circuit.Hyper
 import Control.Category
 import Prelude hiding (id, (.))
 
-type Producer o a = Hyper (o -> a) a
-type Consumer i a = Hyper a (i -> a)
+-- Build the chain via foldr: each element wraps the accumulator
+streamChain :: [a] -> Hyper () [a]
+streamChain = foldr (\x acc -> lift (x:) . acc) (lift (const []))
 
-prod :: o -> Producer o a -> Producer o a
-prod o p = Hyper $ \q -> invoke q p o
+runLift :: [a] -> [a]
+runLift xs = lower (streamChain xs) ()
 
-cons :: (i -> a -> a) -> Consumer i a -> Consumer i a
-cons f p = Hyper $ \q i -> f i (invoke q p)
-
-doneP :: a -> Producer o a
-doneP  a = Hyper $ \_ -> a
-doneC  a = Hyper $ \_ _ -> a
-
-withQ :: Producer o a -> Consumer o a -> a
-withQ p c = invoke p c
-
-emitChain :: [a] -> Producer (Maybe a) [a]
-emitChain = foldr (\x p -> prod (Just x) p) (prod Nothing (doneP []))
-
-accumChain :: Consumer (Maybe a) [a]
-accumChain = h where h = cons (\mx acc -> case mx of Nothing -> acc; Just x -> x:acc) h
-
-runProd :: [a] -> [a]
-runProd xs = withQ (emitChain xs) accumChain
-
--- >>> runProd [1,2,3]
+-- >>> runLift [1,2,3]
 -- [1,2,3]
 ```
 
-**Why it works:** Each `prod` constructs `Hyper $ \q -> invoke q p o`.
-When invoked, the continuation `q` (the Consumer) receives the inner
-producer `p` and the element `o`. The Consumer's `cons` layer receives
-the element and invokes the next layer. The chain walks itself.
+**Why it works:** `lift (x:) :: Hyper [a] [a]` prepends `x` to a list.
+Composing `lift (x:) . lift (y:) . lift (const [])` builds a single
+Hyper that, when lowered, walks each layer — `x : (y : (z : []))`.
+No dual pairs, no invoke threading. Just `(.)` and `lower`.
+
+**prod/cons lineage.** This lift-based approach decomposes the
+Kidney & Wu `prod`/`cons` primitives from `Circuit.Channel`:
+
+```
+prod x p  =  Hyper $ \c -> (c ⇸ p) x     -- K&W producer prepend
+         ≅  lift (x:) . p                 -- same effect, via Category
+
+emit   a  =  Hyper $ \_ -> a             -- Emit: atomic producer (Hyper () a)
+forget    =  Hyper $ \_ -> ()            -- Commit: atomic consumer (Hyper a ())
+```
+
+`prod` and `cons` are the named primitives of `Circuit.Channel`.
+They're the K&W canon. The decomposition into `Emit`/`Commit` +
+`Category` is a refinement, not a deletion — the module keeps its
+identity while the Category instances carry the structural weight.
+See `examples/channel-refactor.md` for the full derivation.
 
 ---
 
@@ -144,24 +142,29 @@ emitChainC (x:xs) = Compose (Lift $ const (Just x)) (emitChainC xs)
 Only the outermost `Lift` fires. `reifyE` composes the functions:
 `(\() -> Just 1) . (\() -> Just 2) . (\() -> Nothing) = \() -> Just 1`.
 
-Circuit `Compose` is just `(.)`. Unlike Hyper's `invoke`, it doesn't
+Circuit `Compose` is just `(.)`. Unlike Hyper's Category composition, it doesn't
 thread a continuation — it returns a composed function. There's no
 chain-walking mechanism.
 
 ---
 
-## Conclusion: invoke is the difference
+## Conclusion: Hyper walks, Circuit collapses
 
 | Pattern | Streams? | Pure? | Mechanism |
 |---------|----------|-------|-----------|
-| Hyper prod-chain | Yes | Yes | `invoke` threads continuations |
+| Hyper lift chain | Yes | Yes | Category `(.)` + `lower` |
 | IORef + recursion | Yes | No | External state, explicit loop |
 | Circuit tensor | One element | Yes | Trace terminates at first `Right` |
 | Circuit Compose | First only | Yes | Function composition, no threading |
 
-For circuits-io: the prod-chain via Hyper's `invoke` is the right model.
+For circuits-io: the lift chain via Hyper Category is the right model.
 Each resource operation (open, read, write, close) becomes a layer in
-the chain. The chain IS the program — build once, run via `withQ`.
+the chain. The chain IS the program — build once, run via `lower`.
+
+The prod/cons primitives in `Circuit.Channel` are the K&W canon that
+decompose into `Emit`/`Commit` + Category (see `channel-refactor.md`).
+The lift chain uses the Category instances directly; prod/cons supply
+the named API when dual-pair construction is clearer.
 
 The Circuit tensors and Compose are useful for bracketed resource
 lifecycles (acquire/use/release) and lazy coinductive streams,

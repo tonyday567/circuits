@@ -39,7 +39,7 @@ Base cases:
 
 ```haskell
 emit   a = Hyper $ \_ -> a          -- doneP / atomic producer
-commit   = Hyper $ \_ -> ()         -- doneC / atomic consumer
+forget   = Hyper $ \_ -> ()         -- doneC / atomic consumer
 ```
 
 ---
@@ -145,8 +145,8 @@ Hyper a (i -> a)  → normalize: Hyper a ()   — a Commit
 emit :: a -> Emit a
 emit a = Hyper $ \_ -> a
 
-commit :: Commit a
-commit = Hyper $ \_ -> ()
+forget :: Commit a
+forget = Hyper $ \_ -> ()
 ```
 
 These carry no internal state. They're pure value sources and sinks.
@@ -165,14 +165,14 @@ feeder    :: Hyper r a     -- feed a value back
 -- Producer chain (emit → process):
 feeder . emit :: Hyper () r
 
--- Consumer chain (process → commit):
-commit . processor :: Hyper a ()
+-- Consumer chain (process → forget):
+forget . processor :: Hyper a ()
 
 -- Full pipeline:
-commit . processor . emit :: Hyper () ()
+forget . processor . emit :: Hyper () ()
 ```
 
-The whole pipeline is `commit . processor . emit :: Hyper () ()`.
+The whole pipeline is `forget . processor . emit :: Hyper () ()`.
 
 No prod. No cons. No `foldr`. No coinductive `h = cons step h`.
 Just Category composition on Hyper.
@@ -181,14 +181,14 @@ Just Category composition on Hyper.
 
 ## 8. Counit and unit
 
-`commit . processor . emit :: Hyper () ()` is a **counit** — it annihilates
+`forget . processor . emit :: Hyper () ()` is a **counit** — it annihilates
 the dual pair (Emit/Commit) through the middle processor. Running it:
 
 ```haskell
-run (commit . processor . emit) :: ()
+run (forget . processor . emit) :: ()
 ```
 
-The channel closes. Value flows emit → processor → commit, then disappears
+The channel closes. Value flows emit → processor → forget, then disappears
 into `()`.
 
 The **unit** is constructing an open channel — any `Hyper a b` is a unit
@@ -197,7 +197,7 @@ that creates a dual pair:
 ```haskell
 -- Open a channel from a to b:
 open :: Hyper a b -> Hyper () ()
-open h = commit . h . emit   -- close it into a loop
+open h = forget . h . emit   -- close it into a loop
 ```
 
 But the open channel is the interesting part — it's `Hyper a b` itself.
@@ -209,10 +209,10 @@ But the open channel is the interesting part — it's `Hyper a b` itself.
 ```
 emit  :: Hyper () a       — View  (outputs a value)
 h     :: Hyper a b        — Model (transforms)
-commit :: Hyper b ()      — Controller (receives a value)
+forget :: Hyper b ()      — Controller (receives a value)
 ```
 
-`commit . h . emit :: Hyper () ()` is a closed-loop FRP system.
+`forget . h . emit :: Hyper () ()` is a closed-loop FRP system.
 The Model doesn't know about View or Controller — it's just `Hyper a b`.
 The endpoints wire it into the world.
 
