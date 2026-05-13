@@ -39,38 +39,12 @@ module Circuit
     (↪),
     (↩),
 
-    -- * Channel (atomic communication)
-    Emit,
-    Commit,
-    Channel,
-    emit,
-    commit,
-    forget,
-    Producer,
-    Consumer,
-    prod,
-    cons,
-    layer,
-
     -- * Structure-preserving encoding
     toHyperE,
     runEither,
   )
 where
 
-import Circuit.Channel
-  ( Channel,
-    Commit,
-    Consumer,
-    Emit,
-    Producer,
-    commit,
-    forget,
-    cons,
-    emit,
-    layer,
-    prod,
-  )
 import Circuit.Circuit
   ( Circuit (..),
     lower,
