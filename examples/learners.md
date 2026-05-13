@@ -39,5 +39,5 @@ Comparison with Existing Work
 
 
 
-FeatureLearners / AtempCOur Circuit + HyperFree traced monoidalYes (underlying)Yes (Circuit)Final / coinductive modelQuotientedYes (Hyper with traceH)Explicit duals / cups / capsYes (by construction)Natural via creator/annihilator pairsSnake / yanking identitiesForced by quotientHold by coinductive fixed point + slidingTrace from dualsYesRecoverable via cap . (f ⊗ id) . cupResource acquisition loopsPossibleNatural (Hyper () () as full lifecycle)
+FeatureLearners / AtempCOur Circuit + HyperFree traced monoidalYes (underlying)Yes (Circuit)Final / coinductive modelQuotientedYes (Hyper with trace)Explicit duals / cups / capsYes (by construction)Natural via creator/annihilator pairsSnake / yanking identitiesForced by quotientHold by coinductive fixed point + slidingTrace from dualsYesRecoverable via cap . (f ⊗ id) . cupResource acquisition loopsPossibleNatural (Hyper () () as full lifecycle)
 Hyper sits in a very similar position to the final model in the Learners construction — self-dual via continuation-passing, with feedback internalised structurally.

@@ -171,7 +171,7 @@ flatten h = Lift (Hyper.lower h)
 toHyper :: Circuit (->) (,) a b -> Hyper a b
 toHyper (Lift f) = Hyper.lift f
 toHyper (Compose f g) = toHyper f . toHyper g
-toHyper (Knot f) = Hyper.traceH (Hyper.lift f)
+toHyper (Knot f) = trace (Hyper.lift f)
 
 -- ---------------------------------------------------------------------------
 -- Structure-preserving Either → Hyper encoding

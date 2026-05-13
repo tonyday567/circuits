@@ -26,7 +26,7 @@ module Circuit.Hyper
     lift,
     lower,
     run,
-    traceH,
+
 
     -- * Symbolic operators
     (⇸),
@@ -41,6 +41,8 @@ where
 import Control.Category
 import Data.Profunctor
 import Prelude hiding (id, (.))
+
+import Circuit.Traced (Trace (..))
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
@@ -122,25 +124,26 @@ lower h a = invoke h (Hyper (const a))
 run :: Hyper a a -> a
 run h = invoke h (Hyper run)
 
--- | Hyper-level trace for the (,) tensor.
+-- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
 --
--- This is the coinductive analogue of the lazy knot. The feedback
+-- The coinductive analogue of the lazy knot. The feedback
 -- channel @c@ (first component) is tied recursively through the
 -- Hyper continuation.
 --
--- Law: @lower (traceH (lift f)) x = trace f x@
+-- Law: @lower (trace (lift f)) x = trace @(->) f x@
 --
--- >>> lower (traceH (lift (\p -> (fst p, snd p + 1)))) (0 :: Int)
+-- >>> lower (trace (lift (\p -> (fst p, snd p + 1)))) (0 :: Int)
 -- 1
-traceH :: Hyper (c, a) (c, b) -> Hyper a b
-traceH body = h
-  where
-    h = Hyper $ \k ->
-      let pair = invoke body cont
-          cont = Hyper $ \_ ->
-            let a_val = invoke k (Hyper (const (snd pair)))
-            in (fst pair, a_val)
-      in snd pair
+instance Trace Hyper (,) where
+  trace body = h
+    where
+      h = Hyper $ \k ->
+        let pair = invoke body cont
+            cont = Hyper $ \_ ->
+              let a_val = invoke k (Hyper (const (snd pair)))
+              in (fst pair, a_val)
+        in snd pair
+  untrace = lift . fmap . lower
 
 -- ---------------------------------------------------------------------------
 -- Instances
