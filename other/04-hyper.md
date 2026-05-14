@@ -58,40 +58,46 @@ push  :: (a -> b) -> Hyper a b -> Hyper a b
 The map from initial to final:
 
 ```haskell
-toHyper :: Circuit (->) (,) a b -> Hyper a b
-toHyper (Lift f)      = lift f
-toHyper (Compose f g) = toHyper f . toHyper g
-toHyper (Knot f)      = lift (trace f)
+encode :: Circuit (->) (,) a b -> Hyper a b
+encode (Lift f)      = lift f
+encode (Compose f g) = encode f . encode g
+encode (Knot f)      = trace (lift f)            -- Hyper's Trace instance
 ```
 
-`toHyper` does not need a Mendler case. The `Compose (Knot f) g` pattern reduces through the general `Compose` case:
+The `Knot` case uses `Hyper`'s own `Trace (,)` instance — a coinductive lazy knot
+that preserves the feedback structure inside `Hyper`. This is *not* flattening:
+the knot lives on in `Hyper`'s continuation structure rather than being
+eliminated to a plain function.
 
-```
-toHyper (Compose (Knot f) g)
-  = toHyper (Knot f) . toHyper g      -- general Compose
-  = lift (trace f) . toHyper g        -- Knot case
-```
+`encode` does not need a Mendler case. The `Compose (Knot f) g` pattern reduces
+through the general `Compose` case — `Hyper`'s `Category` instance threads the
+continuation on every composition step, so the feedback channel is always at the
+head of the structure.
 
-No explicit `untrace`. Compare to `lower` on `Circuit`, which does apply `untrace`:
+Compare to `lower` on `Circuit`, which applies `untrace` explicitly:
 
 ```
 lower (Compose (Knot f) g) = trace (f . untrace (lower g))
 ```
 
-The two agree through the sliding axiom. Expanding `lower . toHyper` on the same term:
+The two agree through the sliding axiom. Expanding `lower . encode` on the same term:
 
 ```
-lower (toHyper (Compose (Knot f) g))
-  = lower (lift (trace f) . toHyper g)
-  = lower (lift (trace f)) . lower (toHyper g)    -- lower is a functor
-  = trace f . lower g                             -- axiom 4 + induction
+lower (encode (Compose (Knot f) g))
+  = lower (encode (Knot f) . encode g)
+  = lower (trace (lift f) . encode g)            -- Hyper's trace
+  = lower (trace (lift f)) . lower (encode g)    -- lower is a functor
+  = trace f . lower g                             -- unit law + induction
   = trace (f . untrace (lower g))                 -- sliding axiom
   = lower (Compose (Knot f) g)
 ```
 
-**Triangle:** `lower . toHyper = lower` (on `Circuit`).
+**Triangle:** `lower . encode = lower` (on `Circuit`).
 
-Mapping `Circuit` into `Hyper` and then observing gives the same result as running `Circuit` directly. The sliding axiom closes the triangle.
+Mapping `Circuit` into `Hyper` and then observing gives the same result as
+running `Circuit` directly. The sliding axiom closes the triangle. `Hyper`'s
+own `Trace` instance is the bridge — it ties the coinductive knot that `Knot`
+represents, so the feedback structure survives the mapping.
 
 ---
 
@@ -141,6 +147,13 @@ Hyper a b  =  Fix (Ran (Const a) (Const b))
 
 `lower` is then a left Kan extension — the universal traced functor extending the embedding `arr → Circuit arr t` along the trace structure.
 
+Four consequences fall out of this characterization:
+
+- **Hyper is the codensity representation of Circuit** — it encodes the feedback channel structurally rather than as an explicit constructor.
+- **Sliding is free** — the axiom that traces slide across compositions holds automatically in Hyper because the continuation threads through every layer.
+- **The Mendler case enforces naturality** — without the pattern match `lower (Compose (Knot f) g) = trace (f . untrace (lower g))`, the universal property is violated and Knot collapses to the degenerate model.
+- **Coinductive semantics** — the recursive Hyper definition is coinductively sound. We don't need strict proof that `Fix (Ran ...)` is isomorphic to Hyper — only that they observe the same.
+
 ---
 
 ## Initial vs Final: A Comparison
@@ -152,7 +165,7 @@ Hyper a b  =  Fix (Ran (Const a) (Const b))
 | Feedback       | Explicit `Knot` constructor       | Structural in `Hyper` type    |
 | Degenerate model | Possible without Mendler case   | Not possible                  |
 | Elimination    | `lower` / `reify`                 | `lower`                       |
-| Map to other   | `toHyper` (Circuit → Hyper)       | `flatten` (Hyper → Circuit)   |
+| Map to other   | `encode` / `⇨` (Circuit → Hyper) | `flatten` (Hyper → Circuit)   |
 | Inspection     | Constructors visible              | Opaque; only observable       |
 | Composition    | O(n²) left-nested                 | O(1) amortised                |
 
@@ -167,9 +180,9 @@ flatten :: Hyper a b -> Circuit (->) (,) a b
 flatten h = Lift (lower h)
 ```
 
-`lower` observes the hyperfunction against a constant continuation, collapsing it to a plain function. All feedback structure is lost. `flatten` is not an inverse to `toHyper` — it is the observation that `Hyper` can only be seen from the outside.
+`lower` observes the hyperfunction against a constant continuation, collapsing it to a plain function. All feedback structure is lost. `flatten` is not an inverse to `encode` — it is the observation that `Hyper` can only be seen from the outside.
 
-This asymmetry is real: Circuit is intensional (constructors are inspectable), Hyper is extensional (only behaviour is accessible). The two encodings are not isomorphic on the nose. The triangle `lower . toHyper = lower` holds, but `toHyper . flatten ≠ id` in general.
+This asymmetry is real: Circuit is intensional (constructors are inspectable), Hyper is extensional (only behaviour is accessible). The two encodings are not isomorphic on the nose. The triangle `lower . encode = lower` holds, but `encode . flatten ≠ id` in general.
 
 ---
 
@@ -193,7 +206,7 @@ The typical pattern: **build in Circuit, run via Hyper**.
 
 ## Summary
 
-`Hyper` is `Circuit` with the syntax erased. The feedback channel that `Knot` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `lower . toHyper = lower` connects them.
+`Hyper` is `Circuit` with the syntax erased. The feedback channel that `Knot` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `lower . encode = lower` connects them.
 
 **Next:** [05-tensor.md](05-tensor.md) — the tensor parameter `t`; `(,)` vs `Either`; holding hands vs taking turns.
 
@@ -204,5 +217,4 @@ The typical pattern: **build in Circuit, run via Hyper**.
 - Launchbury, Krstic & Sauerwein (2013) — hyperfunction definitions and operations
 - Kidney & Wu (2026) — modern treatment; producer-consumer insight
 - Icelandjack — Ran characterization; `Fix (Ran (Const a) (Const b))`
-- [kan-extension.md](../other/kan-extension.md) — detailed Kan extension and hierarchy
 - [axioms-hyp.md](../other/axioms-hyp.md) — axioms and triangle identity

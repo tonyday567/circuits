@@ -69,11 +69,11 @@ The observation `Circuit a b ~ Ran (Const a) (Const b)` (before `Fix`) is a diag
 
 **2. Uniqueness of `Knot`**
 
-`toHyper` is a traced functor from `Circuit` to `Hyper`. Is it the *unique* traced functor? The freeness of `Circuit` as a traced monoidal category depends on this. The argument exists informally; it needs to be formalised.
+`encode` is a traced functor from `Circuit` to `Hyper`. Is it the *unique* traced functor? The freeness of `Circuit` as a traced monoidal category depends on this. The argument exists informally; it needs to be formalised.
 
 **3. Fix(Circuit) isomorphism**
 
-Is `Hyper a b ~ Fix (Circuit (->) t a b)` an isomorphism or a strict inequality? `toHyper` exists and the triangle holds, but `flatten` is lossy — the two encodings are not isomorphic on the nose. The precise adjunction needs to be stated.
+Is `Hyper a b ~ Fix (Circuit (->) t a b)` an isomorphism or a strict inequality? `encode` exists and the triangle holds, but `flatten` is lossy — the two encodings are not isomorphic on the nose. The precise adjunction needs to be stated.
 
 **4. Mendler case as counit naturality**
 
@@ -127,24 +127,6 @@ A new `Trace` instance for a tensor `t`:
 ### Formalise an Open Question
 
 Pick one of the open questions above. Any progress — even a sketch or a counterexample — is valuable.
-
----
-
-## The Slogan, Revisited
-
-> **Two adjunctions plus one strength.**
-
-By this point the slogan has a full meaning:
-
-- **Free / forgetful** (`Lift ⊣ lower`) — category structure, most axioms
-- **Initial / final** (`Circuit ↔ Hyper`) — the two encodings; universal property
-- **Sliding axiom** — the one honest traced-category content
-
-And the performance corollary:
-
-> **Amortise via the final encoding.**
-
-Build in `Circuit`. Inspect in `Circuit`. Run in `Hyper`. The Mendler case is the bridge — it makes the sliding axiom operational, which is what `toHyper` then amortises away.
 
 ---
 

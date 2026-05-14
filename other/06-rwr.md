@@ -103,7 +103,7 @@ The RwR analogy also explains the performance story:
 
 **`Hyper`:** Composition threads the continuation on every step — O(1) amortised. The feedback channel is always at the head of the structure. There is no left-spine to traverse.
 
-The transition from `Circuit` to `Hyper` via `toHyper` is the circuits equivalent of the transition from a free monad to the codensity monad in RwR — it amortises the traversal cost by making the structure maximally right-associated.
+The transition from `Circuit` to `Hyper` via `encode` is the circuits equivalent of the transition from a free monad to the codensity monad in RwR — it amortises the traversal cost by making the structure maximally right-associated.
 
 ---
 
@@ -150,8 +150,6 @@ The Mendler case is not a clever hack. It is the application of a well-understoo
 - **With it:** `Circuit` is the free traced monoidal category (correct; O(n) traversal)
 - **`Hyper`:** The amortised form (O(1) composition; sliding is structural)
 
-The slogan extends: **"Two adjunctions plus one strength, amortised by the final encoding."**
-
 **Next:** [07-future.md](07-future.md) — production use; how to extend the library; applications.
 
 ---
@@ -160,4 +158,4 @@ The slogan extends: **"Two adjunctions plus one strength, amortised by the final
 
 - van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
 - Hasegawa (1997) — cyclic sharing vs fixed points; [hasegawa.md](../other/hasegawa.md)
-- [kan-extension.md](../other/kan-extension.md) — Ran characterization and the hierarchy
+- [04-hyper.md](../other/04-hyper.md) — Ran characterization and the hierarchy

@@ -25,4 +25,4 @@ biasedAcc :: Int -> Int
 biasedAcc = unsecond $ \(c, a) -> (a + 10, c + a)
 ```
 
-For theory, design narrative, and complete axiom development, see `other/narrative-arc.md`.
+For theory, design narrative, and complete axiom development, start with `other/01-stack-language.md`.

@@ -17,20 +17,18 @@ the module haddocks top-to-bottom.
 Dependency order — read in this sequence:
 
 ```
-Circuit.Hyper    — standalone. Hyper a b, invoke, run, base/push/lift/lower.
+Circuit.Hyper    — Hyper a b, invoke, run, base/push/lift/lower.
                    Profunctor/Category/Functor/Applicative/Monad instances.
+                   encode (⇨), encodeEither, runEither, flatten.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
 Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. lower/reify,
-                   toHyper (flattening), toHyperE (structure-preserving Either).
-Circuit.Channel  — Producer/Consumer/Channel type aliases over Hyper.
-                   unit/glue (compact closed), yield/accept, prod/cons.
+                   push, operators (↑, ↮, ⊙, ⊲, ↓).
 Circuit          — umbrella re-export. Import this for casual use;
                    import submodules directly for precision.
 ```
 
-Hyper has zero circuit deps. Traced adds `GHC.Exts` (prompt#/control0#).
-Circuit imports both. Channel imports Hyper only.
+Hyper imports Circuit for the GADT constructors. Traced adds `GHC.Exts` (prompt#/control0#).
 
 ## build and test
 
@@ -56,14 +54,13 @@ manual `cabal repl`. Add new cards to the `◊` section of the loom
 
 ## symbols
 
-Non-negotiable. The old names will not compile.
-
 | symbol | name | meaning |
 |--------|------|---------|
 | `↬` | Hyper | type synonym: `a ↬ b = Hyper a b` |
 | `↮` | Knot | postfix Loop constructor |
 | `↪` | trace | close the feedback loop |
 | `↩` | untrace | open the feedback loop |
+| `⇨` | encode | encode Circuit into Hyper |
 | `⇸` | invoke | apply Hyper to continuation |
 | `⊲` | push | push function onto Circuit/Hyper |
 | `⥁` | run | close Hyper's self-referential loop |
@@ -79,57 +76,10 @@ Non-negotiable. The old names will not compile.
 - **Trace direction**: `Left` = feedback (continue), `Right` = exit.
   The `Trace (->) Either` instance iterates until `Right`. The `Trace (->) (,)`
   instance ties a lazy knot.
-- **Knot, not Loop**: The GADT constructor is `Knot`. The symbol `↮` is its
-  postfix form. `Loop` does not exist in the current API.
-- **Channel names**: `yield` not `doneP`. `accept` not `doneC`. `glue` not
-  `counit` or `withQ`. `prod`/`cons` unchanged from Kidney & Wu.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
-- **Profunctor dep**: `profunctors` package is a dependency for the `Profunctor`
-  instance on `Hyper`. Not used elsewhere in the library.
 
 ## gotchas
-
-### toHyper flattens Knots
-
-```haskell
-toHyper (Knot f) = Hyper.lift (trace f)  -- applies trace, wraps result
-toHyperE f       -- preserves Either-loop structure in Hyper
-```
-
-Use `toHyperE` + `runEither` when you need the feedback structure preserved.
-Use `toHyper` when you want the flattened function.
-
-### Channel accumulator types must match
-
-```haskell
-glue :: Consumer m a -> Producer m a -> a
-```
-
-Both sides share message type `m` and accumulator type `a`. The producer's
-`yield` and consumer's `accept` must agree on `a`.
-
-### ByteString IsString trap
-
-`Data.ByteString.Char8` truncates multi-byte UTF-8 (codepoint mod 256).
-Use `Text` with `decodeUtf8` at boundaries. The parser module uses
-`Uncons ByteString Char` — verify the ByteString is ASCII or Latin-1.
-
-### Category Hyper uses Control.Category
-
-```haskell
-import Control.Category ((.), id)
-import Prelude hiding (id, (.))
-```
-
-Forgetting this gives confusing type errors about `Hyper` not being a
-`Category` — it is, just not `Prelude`'s.
-
-### prompt/control0 are internal
-
-`newPromptTag`, `prompt`, `control0`, `PromptTag` are NOT exported from
-`Circuit.Traced`. They're GHC primops used internally by the
-`Trace (Kleisli IO) Either` instance. The user-facing API is `trace`/`↪`.
 
 ### .md cards cannot be loaded directly in cabal repl
 
@@ -196,54 +146,8 @@ import Circuit.Channel
 More code. Use `$setup` blocks for shared state if needed.
 ```
 
-Reference cards to steal from:
-- `channel-basics.md` — the pattern: prose, fenced blocks, doctest-style outputs
-- `stable-marriage.md` — longer form with multiple code sections
-- `repl-pure.md` — Lift, Knot, Compose all in one card
-- `two-loops.md` — includes a "composition trap" section showing what NOT to do
-
 Cards are NOT compiled by `cabal build` — they're validated by pasting
 code blocks into `cabal repl` (see gotcha above). Doctests in comments
 serve as paste-and-verify assertions. For cards needing extra deps, use
 `cabal repl -b <dep>` as declared at the top of the card.
 
-## downstream
-
-### circuits-parser (`~/haskell/circuits-parser/`)
-
-Parser combinators over `Circuit (->) Either`. `Uncons` typeclass decomposes
-streams. Depends on circuits, harpie, clock, deepseq.
-
-**Harpie dep is suspect.** `Circuit.Parser.Token` imports `Harpie.Array`
-for vocabulary storage. This pulls in a large dependency for an array type.
-Consider replacing with `Data.Array` or `Data.Vector`.
-
-**Consumer repos on parser-fix branches:**
-markup-parse, huihua, mtok, dotparse, web-rep, hcount. These migrated from
-flatparse/mpar/regex-applicative to circuits-parser. Not yet merged to main.
-
-### circuits-perf (`~/haskell/circuits-perf/`)
-
-Bare clock primitives: `nanos`, `once`, `times`, `warmup`. Currently
-standalone — no circuits dep. Should depend on circuits for the
-measurement-as-plugin pattern (see `examples/perf.md`).
-
-### circuits-io (`~/haskell/circuits-io/`)
-
-IO combinators on Circuit.Channel. Five stub modules (File, Socket, Server,
-Time, Async). Fill from box library residual — the old `box` library's
-Emitter/Committer map onto Channel's Producer/Consumer.
-
-## reference files
-
-| file | what |
-|------|------|
-| `other/01-stack-language.md` | entry point, five marks, six axioms |
-| `other/03-circuit.md` | free object, universal property |
-| `other/04-hyper.md` | final encoding, Kan characterization |
-| `other/circuit-categorical.md` | categorical shopping list (partial) |
-| `other/symbols.md` | symbol dictionary |
-| `examples/channel-basics.md` | idiomatic Channel usage |
-| `examples/stable-marriage.md` | concurrent coroutines |
-| `~/mg/loom/circuits.md` | active workspace, task tracking |
-| `~/haskell/circuits-io/examples/` | box prototypes (Emitter/Committer) |

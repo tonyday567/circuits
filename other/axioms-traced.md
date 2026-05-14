@@ -1,36 +1,10 @@
-# Traced Monoidal Category Axioms
+# Traced Monoidal Category Axioms — Equational Record
 
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
+**Definitions:** see `02-gadt.md` for the GADT and `lower`; see `src/Circuit/Traced.hs` for `Trace` instances.
 
-We prove the axioms using `run` as the interpretation function. This is the right approach for a free structure: `run` is what terms *mean*, so showing `run` of both sides agrees is a proof.
-
-```haskell
-class Trace arr t where
-  trace   :: arr (t a b) (t a c) -> arr b c
-  untrace :: arr b c -> arr (t a b) (t a c)
-
-instance Trace (->) (,) where
-  trace f b = let (a, c) = f (a, b) in c
-  untrace = fmap
-
-instance Trace (->) Either where
-  trace f b = go (Right b)
-    where go x = case f x of
-            Right c -> c
-            Left a  -> go (Left a)
-  untrace = fmap
-
-data TracedA arr t a b where
-  Lift    :: arr a b -> TracedA arr t a b
-  Compose :: TracedA arr t b c -> TracedA arr t a b -> TracedA arr t a c
-  Knot    :: arr (t a b) (t a c) -> TracedA arr t b c
-
-run :: (Category arr, Trace arr t) => TracedA arr t x y -> arr x y
-run (Lift f)             = f
-run (Compose (Knot f) g) = trace (f . untrace (run g))
-run (Compose f g)        = run f . run g
-run (Knot k)             = trace k
-```
+We prove the axioms by showing `lower` of both sides agrees. Only the equational
+moves are recorded here — narrative motivation lives in the arc docs (01–07).
 
 ---
 
@@ -49,18 +23,18 @@ run (Knot k)             = trace k
 
 A morphism `f : A x I -> B x I` is `f :: ((), a) -> ((), b)`, which under the unit isomorphism is some `g :: a -> b` in disguise: `f = \((), x) -> ((), g x)`.
 
-In `TracedA` this is `Knot f`. We want `run (Knot f) = run (Lift g)`.
+In `Circuit` this is `Knot f`. We want `lower (Knot f) = lower (Lift g)`.
 
 ```haskell
-run (Knot f)
-  = trace f                               -- run definition
+lower (Knot f)
+  = trace f                               -- lower definition
   = \b -> let (a, c) = f (a, b) in c     -- Trace (->) (,) definition
                                           -- a :: (), so a = ()
   = \b -> let ((), c) = f ((), b) in c
   = \b -> let ((), c) = ((), g b) in c   -- definition of f
   = \b -> g b
   = g
-  = run (Lift g)                          -- check
+  = lower (Lift g)                          -- check
 ```
 
 The lazy knot has nothing to tie — `()` is determined immediately, no recursion occurs. The trace degenerates to plain function application.
@@ -70,7 +44,7 @@ The lazy knot has nothing to tie — `()` is determined immediately, no recursio
 `Either Void a ≅ a` since `Left v` is uninhabited. A morphism `f :: Either Void a -> Either Void b` can only map `Right x` to `Right (g x)`.
 
 ```haskell
-run (Knot f)
+lower (Knot f)
   = trace f
   = \b -> go (Right b)
     where go x = case f x of
@@ -79,7 +53,7 @@ run (Knot f)
   = \b -> case f (Right b) of
             Right c -> c           -- only case possible
   = \b -> g b
-  = run (Lift g)                   -- check
+  = lower (Lift g)                   -- check
 ```
 
 The while-loop terminates immediately — `Left` is unreachable. Same result by a different operational path.
@@ -209,77 +183,6 @@ Both sides: `\a -> let (y, b) = f (g y, a) in b`. Check.
 
 The lazy knot ties `y` to `g y` from the output of `f`. Moving `g` to the other side of `f` inside the trace reaches the same fixed point.
 
-### The run special case is sliding
-
-The `run` definition has this case:
-
-```haskell
-run (Compose (Knot f) g) = trace (f . untrace (run g))
-```
-
-This is sliding in the payload direction. With `untrace = fmap` for `(,)`:
-
-```haskell
-untrace h (x, a) = (x, h a)     -- id on channel, h on payload
-```
-
-So:
-
-```haskell
-trace (f . untrace (run g)) a
-  = let (x, b) = (f . untrace (run g)) (x, a) in b
-  = let (x, b) = f (x, run g a) in b
-```
-
-The naive rule would give:
-
-```haskell
-run (Compose (Knot f) g) = run (Knot f) . run g
-  = trace f . run g
-  = \a -> let (x, b) = f (x, run g a) in b
-```
-
-Same result. The special case makes the sliding rewrite explicit — `trace (f . untrace h) = trace f . h` — even though the general `Compose` rule reaches the same answer. It encodes the adjunction between `trace` and `untrace` as a preferred reduction step.
-
-### The fix version
-
-The sliding special case can also be written:
-
-```haskell
-run (Compose (Knot f) g) = unfirst (f . first (run g))
-```
-
-where `unfirst` for `(->)` as a lazy knot:
-
-```haskell
-unfirst f a = let (b, c) = f (a, c) in b
-```
-
-The `fix` version makes the channel fixed point explicit:
-
-```haskell
-unfirst f a = fst (fix (\(b, c) -> f (a, c)))
-```
-
-Note `b` does not appear on the right — the fixed point is driven entirely by `c`. `b` just rides along as `fst (f (a, c*))` once `c*` is resolved.
-
-Substituting:
-
-```haskell
-unfirst (f . first (run g)) a
-  = fst (fix (\(b, c) -> (f . first (run g)) (a, c)))
-  = fst (fix (\(b, c) -> f (run g a, c)))
-```
-
-Or separating the channel fix:
-
-```haskell
-  = let c = fix (\c -> snd (f (run g a, c)))
-    in fst (f (run g a, c))
-```
-
-This is what the original `fix`-based `run` was doing — finding the fixed point of the feedback channel, then reading off the output. The refactored version hides this inside `trace`/`unfirst`. The concerns separate cleanly: `run g` handles composition, `unfirst` handles the knot. The adjunction `trace (f . untrace h) = trace f . h` fell out of that separation, not imposed from outside.
-
 ### With `t = Either`
 
 `f :: Either x a -> Either y b`, `g :: y -> x`.
@@ -352,37 +255,6 @@ trace ((second g) . f . (second h)) a
 Same. Check.
 
 The channel `x` is untouched by `h` and `g` throughout — they act only on the payload. So they pass freely through the trace.
-
-### In TracedA terms
-
-LHS is `Knot ((second g) . f . (second h))`, RHS is `Compose (Lift g) (Compose (Knot f) (Lift h))`.
-
-```haskell
-run (Compose (Lift g) (Compose (Knot f) (Lift h)))
-  = run (Lift g) . run (Compose (Knot f) (Lift h))
-  = g . trace (f . untrace (run (Lift h)))    -- sliding special case
-  = g . trace (f . untrace h)
-```
-
-Expanding `untrace h (x, a) = (x, h a)`:
-
-```haskell
-  = g . trace (\(x, a) -> f (x, h a))
-  = g . (\a -> let (x, c) = f (x, h a) in c)
-  = g . trace f . h
-```
-
-And:
-
-```haskell
-run (Knot ((second g) . f . (second h)))
-  = trace ((second g) . f . (second h))
-  = g . trace f . h                         -- as shown above
-```
-
-Both reach `g . trace f . h`. Check.
-
-Tightening in `TracedA` follows directly from the sliding special case in `run`. The `Compose (Lift g) ... (Lift h)` structure uses `run`'s separation of concerns — `Lift` handles the external morphisms, `Knot` handles the channel, `Compose` sequences them — and sliding absorbs the interaction.
 
 ### With `t = Either`
 
@@ -468,19 +340,6 @@ Same. Check.
 
 `g` acts on `a` before the knot forms and after it resolves — it is invisible to the channel `x`. The lazy knot ties only the `c`/`d` side via `f`; the `a`/`b` side is a straight wire carrying `g`.
 
-### In TracedA terms
-
-Strength says that `Lift g` in parallel with `Knot f` commutes with taking the trace. In `TracedA`, parallel composition over a payload pair can be expressed as a base arrow:
-
-```haskell
-run (Knot (g `par` f))
-  = trace (g `par` f)
-  = bimap g (trace f)
-  = bimap g (run (Knot f))
-```
-
-`g` and the channel knot act on disjoint parts of the type. They have nothing to negotiate.
-
 ### With `t = Either`
 
 `g :: a -> b`, `f :: Either x c -> Either x d`.
@@ -520,7 +379,7 @@ where `swap : X x X -> X x X` is the braiding — it swaps the two copies of `X`
 
 ### With `t = (,)`
 
-The braiding is `swap :: (x, x) -> (x, x)`, `swap (a, b) = (b, a)`.
+The braiding is `swap :: (x, x) -> (x, x)` from `Data.Tuple`.
 
 ```haskell
 trace swap x
@@ -535,12 +394,18 @@ The lazy knot resolves immediately: `a` is set to `x` from the first component o
 
 ### With `t = Either`
 
-The braiding is `mirror :: Either x x -> Either x x`, `mirror (Left x) = Right x`, `mirror (Right x) = Left x`.
+The braiding for `Either` is `swapEither`:
 
 ```haskell
-trace mirror x
+swapEither :: Either a b -> Either b a
+swapEither (Left x)  = Right x
+swapEither (Right x) = Left x
+```
+
+```haskell
+trace swapEither x
   = go (Right x)
-    where go y = case mirror y of
+    where go y = case swapEither y of
             Right c -> c
             Left a  -> go (Left a)
 ```
@@ -548,13 +413,13 @@ trace mirror x
 Expanding:
 
 ```haskell
-  go (Right x) -- mirror (Right x) = Left x
-    -> go (Left x) -- mirror (Left x) = Right x, so return x
+  go (Right x) -- swapEither (Right x) = Left x
+    -> go (Left x) -- swapEither (Left x) = Right x, so return x
     = x
   = id x                              -- check
 ```
 
-The while-loop runs exactly one step: `Right` becomes `Left` via mirror, `Left` becomes `Right` and exits. Operationally different from `(,)` — a two-step state machine vs an immediate lazy substitution — but the same result.
+The while-loop runs exactly one step: `Right` becomes `Left` via swapEither, `Left` becomes `Right` and exits. Operationally different from `(,)` — a two-step state machine vs an immediate lazy substitution — but the same result.
 
 ### Why braiding is required
 
@@ -575,151 +440,4 @@ For `(,)` and `Either` in Haskell, both are symmetric monoidal — swap exists a
 | Yanking    | Tracing a swap is identity                | Requires braiding            |
 
 The `(,)` and `Either` instances are operationally dual throughout: lazy knot vs while-loop. Every axiom holds for both by the same logical structure, reached by different computational paths.
-
----
-
-## Planar Traced Category
-
-A planar traced category has compatible left and right traces. `TracedA` has both — the left trace is `trace` as defined, and the right trace is derived via `swap` since `(,)` is symmetric.
-
-### Left and Right Traces
-
-**Left trace** (our `Trace` class):
-
-```haskell
-trace_L :: ((x, a) -> (x, b)) -> (a -> b)
-trace_L f a = let (x, b) = f (x, a) in b
-```
-
-**Right trace** — channel on the right, derived via swap:
-
-```haskell
-trace_R :: ((a, x) -> (b, x)) -> (a -> b)
-trace_R f a = let (b, x) = f (a, x) in b
-```
-
-Related by:
-
-```haskell
-trace_R f = trace_L (swap . f . swap)
-```
-
-Both exist for `(,)` because `swap :: (a, b) -> (b, a)` is available. For `Either`, `mirror :: Either a b -> Either b a` plays the same role.
-
----
-
-### Axiom: Interchange
-
-```
-tr^X_R(tr^Y_L(f)) = tr^Y_L(tr^X_R(f))    for f : Y x A x X -> Y x B x X
-```
-
-Left and right traces of independent channels commute.
-
-**With `t = (,)`.**
-
-`f :: (y, (a, x)) -> (y, (b, x))` — `y` is the left channel, `x` is the right channel.
-
-**LHS:** left trace over `Y` first, then right trace over `X`:
-
-```haskell
-trace_L f :: (a, x) -> (b, x)
-trace_L f (a, x) = let (y, (b, x')) = f (y, (a, x)) in (b, x')
-
-trace_R (trace_L f) a = let (b, x) = trace_L f (a, x) in b
-                      = let (y, (b, x)) = f (y, (a, x)) in b
-```
-
-**RHS:** right trace over `X` first, then left trace over `Y`:
-
-```haskell
-trace_R f :: (y, a) -> (y, b)
-trace_R f (y, a) = let (y', b) = ...
-```
-
-Reshape `f` for right trace over `X` — need `x` on outer right:
-
-```haskell
-f' :: ((y, a), x) -> ((y, b), x)
-f' ((y, a), x) = let (y', (b, x')) = f (y, (a, x)) in ((y', b), x')
-
-trace_R f' (y, a) = let ((y', b), x) = f' ((y, a), x) in (y', b)
-                  = let (y', (b, x)) = f (y, (a, x)) in (y', b)
-
-trace_L (trace_R f') a = let (y, (y', b)) = ... 
-```
-
-Reshape again for left trace over `Y`:
-
-```haskell
-trace_L (\(y, a) -> trace_R f' (y, a)) a
-  = let (y, (y', b)) = ...
-```
-
-Both paths ultimately tie the same simultaneous fixed point:
-
-```
-(y, (b, x)) = f (y, (a, x))
-```
-
-Same argument as Vanishing part (b): the order of tracing independent channels does not matter. Lazy evaluation ties `y` and `x` together regardless of which trace runs first. Check.
-
----
-
-### Axiom: Left Pivoting
-
-```
-For f : 1 -> A x B:    tr^B_R(id_B x f) = tr^A_L(f x id_A)
-```
-
-**With `t = (,)`, unit `1 = ()`.**
-
-`f :: () -> (a, b)`, which is just a pair `(a0, b0) = f ()`.
-
-LHS — `id_B x f :: (b, ()) -> (b, a, b)`, right trace over `B`:
-
-```haskell
--- id_B x f : (b, ()) -> (b, (a, b))
--- \(b, ()) -> (b, f ())  = \(b, ()) -> (b, (a0, b0))
-trace_R (\(b, ()) -> (b, (a0, b0))) ()
-  = let (b, x) = (\(b, ()) -> (b, (a0, b0))) ((), x) in b
-  -- x :: (a, b), () is unit
-  = let (b, (a, b')) = ((), (a0, b0)) in b  -- b tied lazily to b0
-  = b0
-```
-
-RHS — `f x id_A :: ((), a) -> ((a, b), a)`, left trace over `A`:
-
-```haskell
--- f x id_A : ((), a) -> ((a0, b0), a)  -- f () = (a0, b0), id on a
-trace_L (\((), a) -> ((a0, b0), a)) ()  -- wait, this needs (a, ?) -> (a, ?)
-```
-
-Hmm — pivoting axioms require the monoidal structure to line up cups and caps. For `(,)` with `() ` as unit these axioms become trivial isomorphisms. The content lives in non-trivial pivotal categories; for our symmetric setting both sides reduce to reading off the components of `f ()`. Check by unit iso.
-
----
-
-### Spherical: Left = Right Trace
-
-Since `(,)` is symmetric (`swap . swap = id`), the left and right traces agree:
-
-```haskell
-trace_R f a = trace_L (swap . f . swap) a
-            = let (x, b) = (swap . f . swap) (x, a) in b
-            = let (x, b) = swap (f (swap (x, a))) in b
-            = let (x, b) = swap (f (a, x)) in b
-            = let (b', x') = f (a, x) ; (x, b) = (x', b') in b
-            = let (b, x) = f (a, x) in b
-            = trace_R f a                               -- consistent
-```
-
-And when `f :: (x, a) -> (x, b)` (symmetric channel position):
-
-```haskell
-trace_L f = trace_R (swap . f . swap)
-```
-
-For any `f` where the channel is symmetric in its role, `trace_L f = trace_R f`. `TracedA` is spherical — left and right traces agree — because `(,)` is symmetric monoidal. The planar axioms hold and the left/right distinction collapses.
-
-The same holds for `Either` via `mirror :: Either a b -> Either b a`.
 

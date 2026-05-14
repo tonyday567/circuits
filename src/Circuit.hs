@@ -5,7 +5,7 @@
 -- The main entry point. For most use cases, import submodules directly:
 --
 -- > import Circuit.Circuit (Circuit (..), reify)
--- > import Circuit.Hyper (Hyper (..), run, lower)
+-- > import Circuit.Hyper (Hyper (..), run, lower, encode, flatten)
 -- > import Circuit.Traced (Trace (..))
 --
 -- For detailed design and theory, see @other/@.
@@ -16,7 +16,6 @@ module Circuit
     reify,
     lower,
     push,
-    toHyper,
 
     -- * Hyper (final encoding)
     Hyper (..),
@@ -33,15 +32,19 @@ module Circuit
     (○),
     (↑),
     (↓),
+    (⊙),
 
     -- * Trace typeclass
     Trace (..),
     (↪),
     (↩),
 
-    -- * Structure-preserving encoding
-    toHyperE,
+    -- * Encoding
+    encode,
+    (⇨),
+    encodeEither,
     runEither,
+    flatten,
   )
 where
 
@@ -50,19 +53,22 @@ import Circuit.Circuit
     lower,
     push,
     reify,
-    runEither,
-    toHyper,
-    toHyperE,
     (↑),
     (↓),
     (↮),
     (⊲),
+    (⊙),
   )
 import Circuit.Hyper
   ( Hyper (..),
     base,
+    encode,
+    encodeEither,
+    flatten,
     lift,
     run,
+    runEither,
+    (⇨),
     (⇸),
     (○),
     (⥁),

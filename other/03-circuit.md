@@ -104,7 +104,7 @@ Every traced functor out of `Circuit arr t` factors through `lower`. This is why
 
 ## The Two Adjunctions
 
-The library encodes two adjunctions (plus one strength operation):
+The library's structure comes from two adjunctions and the sliding axiom:
 
 ### Adjunction 1: Free / Forgetful
 
@@ -125,9 +125,9 @@ Axioms derivable from this adjunction:
 ### Adjunction 2: Initial / Final (Galois connection)
 
 ```
-toHyper :: Circuit (->) (,) a b -> Hyper a b
+encode :: Circuit (->) (,) a b -> Hyper a b
 flatten :: Hyper a b -> Circuit (->) (,) a b
-lower . toHyper = lower     -- triangle identity
+lower . encode = lower     -- triangle identity
 ```
 
 This is a Galois connection, not a strict adjunction. The asymmetry is real: Circuit is intensional (you can inspect the constructors), Hyper is extensional (you can only observe behaviour). See [04-hyper.md](04-hyper.md).

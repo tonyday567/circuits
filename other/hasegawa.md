@@ -67,7 +67,7 @@ This is not just an instance of Hasegawa's framework. This is the free object th
 
 **1. The adjunction justifies the axioms**
 
-The fundamental axiom `lower . lift = id` forces `run (lift f) = fix f` to hold [see: other/narrative-arc.md]. Hasegawa's fixed-point machinery is a side-quest—interesting mathematically but not constitutive.
+The fundamental axiom `lower . lift = id` forces `run (lift f) = fix f` to hold [see: other/03-circuit.md]. Hasegawa's fixed-point machinery is a side-quest—interesting mathematically but not constitutive.
 
 **2. The sliding axiom is structural, not ad-hoc**
 
@@ -85,7 +85,7 @@ Circuit becomes a lingua franca for all these cases because it's the free traced
 
 **4. The Hyper adjunction is the final encoding**
 
-Hasegawa doesn't explicitly construct final coalgebras, but his framework predicts them. Your Church encoding `Hyper` is exactly what his abstract machinery allows. The triangle identity `lower . toHyper = lower` is the unique map property of free objects.
+Hasegawa doesn't explicitly construct final coalgebras, but his framework predicts them. Your Church encoding `Hyper` is exactly what his abstract machinery allows. The triangle identity `lower . encode = lower` is the unique map property of free objects.
 
 **5. Cartesian vs cochoice is operationally consequential**
 

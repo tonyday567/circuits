@@ -15,7 +15,7 @@ The circuits library grows from five marks — five operations over an abstract 
 ⥁   run       tie the knot
 ```
 
-See [symbols.md](../other/symbols.md) for the full symbol dictionary.
+See `src/` for the full symbol dictionary.
 
 ---
 
@@ -129,14 +129,6 @@ Each level adds exactly one concept. The five marks at the top already imply eve
 
 Axiom 6 — the feedback axiom — is exactly the sliding axiom of a traced monoidal category. The five marks, taken together, are the generators of the free traced monoidal category over a base arrow. Every operation in the circuits library is a consequence of making these generators precise.
 
-The slogan:
-
-> **Two adjunctions plus one strength.**
-
-- `η ⊣ ε` (lift and lower) — the free/forgetful adjunction — gives you the category structure.
-- `Circuit ↔ Hyper` — the initial/final Galois connection — gives you the two encodings.
-- Axiom 6 — the sliding axiom — is the one piece of genuine traced-category content.
-
 **Next:** [02-gadt.md](02-gadt.md) — how the axioms force a three-constructor GADT.
 
 ---
@@ -146,4 +138,4 @@ The slogan:
 - Launchbury, Krstic & Sauerwein, "Hyperfunctions" (2013) — original axiom system
 - Kidney & Wu, "Hyperfunctions and the monad of streams" (2026) — modern notation
 - Joyal, Street & Verity, "Traced monoidal categories" (1996) — categorical foundations
-- [symbols.md](../other/symbols.md) — symbol dictionary (single source of truth)
+- `src/` — symbol dictionary (single source of truth in code)

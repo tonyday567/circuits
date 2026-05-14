@@ -39,7 +39,7 @@ After substitution and simplification the essential content reduces to:
    Or in symbols:
 
    ```
-   ε ((f ⊲ p) ⊙ q) = f . ε (q ⊙ p)
+   ((f ⊲ p) ⊙ q) ↓ = f . ((q ⊙ p) ↓)
    ```
 
    This is exactly the sliding axiom of traced monoidal categories.
@@ -75,14 +75,14 @@ lower (Knot k)                  = trace k
 ```haskell
 newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
 
-toHyper :: Circuit (->) t a b -> Hyper a b
+encode :: Circuit (->) (,) a b -> Hyper a b
 lower   :: Hyper a b -> (a -> b)
 ```
 
 The triangle holds:
 
 ```
-lower . toHyper = lower   (on Circuit)
+lower . encode = lower
 ```
 
 Hyper bakes the feedback channel into the type itself, so sliding is structural rather than enforced by pattern matching.

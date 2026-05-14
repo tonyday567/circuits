@@ -78,16 +78,14 @@ Hyper a b
 │
 └── Final Object
       lower    :: Hyper a b -> (a -> b)
-      toHyper  :: Circuit (->) (,) a b -> Hyper a b
-      triangle :: lower . toHyper = lower (on Circuit)
+      encode  :: Circuit (->) (,) a b -> Hyper a b
+      triangle :: lower . encode = lower (on Circuit)
       ⊢ unique map *into* Hyper; Hyper is the final object
 ```
 
 ---
 
 ## The Two Adjunctions
-
-The library is **two adjunctions plus one strength**. Every axiom in `other/axioms-hyp.md` collapses into one of these three ingredients.
 
 ### Adjunction 1 — Free / Forgetful
 
@@ -110,16 +108,16 @@ f ⊙ η id = f = η id ⊙ f     Identity laws
 ### Adjunction 2 — Initial / Final (Galois Connection)
 
 ```
-toHyper :: Circuit (->) (,) a b -> Hyper a b
+encode :: Circuit (->) (,) a b -> Hyper a b
 flatten :: Hyper a b -> Circuit (->) (,) a b
 
-lower . toHyper = lower     ← triangle identity
+lower . encode = lower     ← triangle identity
 ```
 
 A **Galois connection**, not a strict adjunction. The asymmetry is real:
 - Circuit is intensional — constructors are inspectable
 - Hyper is extensional — only behaviour is accessible
-- `toHyper . flatten ≠ id` in general
+- `encode . flatten ≠ id` in general
 
 ### The One Ingredient That Is Not An Adjunction Property
 
@@ -168,9 +166,10 @@ This is the **Mendler case** in `lower`. It is a strength/costrength operation o
 ↯   ⟜  untrace   ⟜  inject into the channel without closing
 ⥁   ⟜  run       ⟜  fix . ε  (compound, derived)
 ⊲   ⟜  push      ⟜  Compose . Lift  (compound, smart constructor)
+⇨   ⟜  encode    ⟜  encode; Circuit → Hyper (traced functor)
 ```
 
-Full dictionary: `~/haskell/circuits/other/symbols.md`
+Full dictionary: see the `Symbol Cross-Reference` section above.
 
 ---
 
@@ -186,7 +185,7 @@ Full dictionary: `~/haskell/circuits/other/symbols.md`
 | `lower` | Forgetful functor ε; unique traced functor out |
 | Mendler case in `lower` | Sliding axiom; genuine traced content |
 | `Hyper` | Final encoding; coinductive; self-dual |
-| `toHyper` | Initial → Final; triangle identity |
+| `encode` / `⇨` | Initial → Final; encode; triangle identity |
 | `Trace` typeclass | Costrength / cochoice on tensor t |
 
 ### Theory → Code
@@ -199,98 +198,29 @@ Full dictionary: `~/haskell/circuits/other/symbols.md`
 | Freeness | `Lift` as left adjoint; `lower` as forgetful |
 | Sliding axiom | Mendler case: `lower (Compose (Knot f) g) = …` |
 | Final object | `Hyper`; coinductive Church encoding |
-| Universal property | `toHyper`, `flatten`; triangle `lower . toHyper = lower` |
+| Universal property | `encode` / `⇨`, `flatten`; triangle `lower . encode = lower` |
 
 ---
 
-## The Knot→Hyper Section-Retraction
+## Structure-Preserving Encoding
 
-The `toHyper` conversion for `Knot` flattens feedback structure:
+`encode` for `(,)` preserves feedback structure: `encode (Knot f) = trace (lift f)` uses
+`Hyper`'s own `Trace (,)` instance — a coinductive lazy knot — rather than `(->)`'s trace.
+The knot lives on inside `Hyper`'s continuation structure.
 
-```haskell
-toHyper (Knot f) = lift (trace f)  -- runs trace, wraps result
-```
-
-This is a **retraction** — structure-forgetting, but semantically correct.
-`lift . trace . f` gives a plain `Hyper b c` with no visible feedback type.
-
-The dual says: we can also encode `Knot` as a **section** — structure-preserving,
-embedding the full feedback protocol into a stateful Hyper:
+For `Either`, `encode` is not defined (its signature fixes `t = (,)`). Use `encodeEither`
+to encode an Either-loop as a self-referential `Hyper` that preserves the loop state
+in the function domain:
 
 ```haskell
--- For Either: iterate until Right
-loopEither :: (Either a b -> Either a c)
-           -> Hyper (Either a b -> c) (Either a b -> c)
-loopEither f = h where
-  h = Hyper $ \k s ->
-    case f s of Right c -> c; Left a -> invoke k h (Left a)
-
--- For These: iterate with optional output
-loopThese :: (These a b -> These a c)
-         -> Hyper (These a b -> c) (These a b -> c)
-loopThese f = h where
-  h = Hyper $ \k s ->
-    case f s of That c -> c; This a -> invoke k h (This a)
-                 These a _ -> invoke k h (This a)
-
--- For (,): lazy knot — toHyper already works
---   trace f b = let (a,c) = f(a,b) in c
---   'run' ties the same knot at the type level
+encodeEither :: (Either a b -> Either a c)
+         -> Hyper (Either a b -> c) (Either a b -> c)
 ```
 
-The pair forms a section-retraction:
-
-```
-                    loopEither
-Knot f ──────────────────────────────► Hyper (Either a b → c) (Either a b → c)
-  │                                                         │
-  │ toHyper = lift ∘ trace                                  │ lift ∘ run ∘ Right
-  │ (retraction: forgets a)                                 │ (collapses state)
-  ▼                                                         ▼
-                  Hyper b c ◄───────────────────────────
-                          equal results:
-                   trace f = run (loopEither f) ∘ Right
-```
-
-`loopEither` is the **section** — injective, preserves the feedback type `a`
-in the function domain. `lift . trace` is the **retraction** — surjective,
-collapses the stateful encoding to a plain `Hyper b c`.
-
-The (,) tensor is different: `trace` for (,) ties a lazy knot that eliminates
-`a` by self-reference. `toHyper` and `lift . trace` don't lose information
-because there's no iteration protocol to preserve — just a knot.
-
-| Tensor | loop→Hyper section | toHyper retraction | State visible? |
-|--------|-------------------|-------------------|----------------|
-| `Either` | `Hyper (Either a b → c) (Either a b → c)` + `run` | `lift (trace f)` | `a` in function domain |
-| `These` | `Hyper (These a b → c) (These a b → c)` + `run` | `lift (trace f)` | `a` in function domain |
-| `(,)` | `run` on `Hyper (b → c) (b → c)` (knot) | `lift (trace f)` | `a` eliminated by knot |
+`runEither f b = run (encodeEither f) (Right b)` ties the recursive knot from an initial input.
 
 See `~/haskell/circuits/examples/coroutine-hyper.hs` §4–5 for implementations
 and the `KnotToHyper` dispatch class.
-
----
-
-## The Core Slogan
-
-> **Two adjunctions plus one strength.**
-
-**Adjunction 1: Free / Forgetful** (`Lift ⊣ lower`)
-- Category structure, monoidal structure, functoriality
-- Most of the axioms for free
-
-**Adjunction 2: Initial / Final** (`Circuit ↔ Hyper`)
-- Syntactic (Circuit) vs semantic (Hyper) representation
-- Universal property tying them together
-- Amortised O(1) composition in Hyper vs O(n) in Circuit
-
-**The Sliding Axiom** (the one genuine traced content)
-- `lower (Compose (Knot f) g) = trace (f . untrace (lower g))`
-- Not derivable from adjunctions
-- Makes the trace honest; prevents degenerate model
-- Operational form of Hasegawa's naturality in X
-
-Once these three ingredients are in place, the code shape is forced, the axioms are determined, and navigation between theory and code is systematic.
 
 ---
 
@@ -300,5 +230,4 @@ Once these three ingredients are in place, the code shape is forced, the axioms 
 ⟜ `~/haskell/circuits/other/03-circuit.md` — free object and universal property
 ⟜ `~/haskell/circuits/other/04-hyper.md` — final encoding, Kan characterization
 ⟜ `~/haskell/circuits/other/hasegawa.md` — sliding as naturality; fixed points
-⟜ `~/haskell/circuits/other/symbols.md` — symbol dictionary (single source of truth)
 ⟜ `~/mg/buff/learners-full.md` — compact closed via learner categories
