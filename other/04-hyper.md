@@ -1,7 +1,7 @@
 # Hyper: The Final Encoding
 
 **Status:** Draft  
-**Prev:** [03-circuit.md](03-circuit.md) | **Next:** [05-tensor.md](05-tensor.md)
+**Prev:** [02-circuit.md](02-circuit.md) | **Next:** [05-tensor.md](05-tensor.md)
 
 ---
 

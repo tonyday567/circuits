@@ -157,5 +157,5 @@ The Mendler case is not a clever hack. It is the application of a well-understoo
 ## References
 
 - van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
-- Hasegawa (1997) — cyclic sharing vs fixed points; [see 03-circuit.md](03-circuit.md#hasegawa-recursion-from-cyclic-sharing)
+- Hasegawa (1997) — cyclic sharing vs fixed points; [see 02-circuit.md](02-circuit.md#hasegawa-recursion-from-cyclic-sharing)
 - [04-hyper.md](../other/04-hyper.md) — Ran characterization and the hierarchy

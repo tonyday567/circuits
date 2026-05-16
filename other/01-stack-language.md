@@ -1,7 +1,7 @@
 # The Little Stack Language
 
-**Status:** Draft  
-**Next:** [02-gadt.md](02-gadt.md)
+**Status:** Draft
+**Next:** [02-circuit.md](02-circuit.md)
 
 ---
 
@@ -97,7 +97,7 @@ Running it:
 3
 ```
 
-This example looks simple. It hides a subtlety: a naive interpreter gets the wrong answer on the second iteration. The fix requires exactly one extra pattern match — the Mendler case — which is the operational form of axiom 6. See [02-gadt.md](02-gadt.md).
+This example looks simple. It hides a subtlety: a naive interpreter gets the wrong answer on the second iteration. The fix requires exactly one extra pattern match — the Mendler case — which is the operational form of axiom 6. See [02-circuit.md](02-circuit.md).
 
 ---
 
@@ -129,7 +129,7 @@ Each level adds exactly one concept. The five marks at the top already imply eve
 
 Axiom 6 — the feedback axiom — is exactly the sliding axiom of a traced monoidal category. The five marks, taken together, are the generators of the free traced monoidal category over a base arrow. Every operation in the circuits library is a consequence of making these generators precise.
 
-**Next:** [02-gadt.md](02-gadt.md) — how the axioms force a three-constructor GADT.
+**Next:** [02-circuit.md](02-circuit.md) — how the axioms force a three-constructor GADT.
 
 ---
 
