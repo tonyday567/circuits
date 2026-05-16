@@ -81,7 +81,7 @@ Compare to `reify` on `Circuit`, which applies `↩` explicitly:
 ↘ (Compose (Knot f) g) = ↪ (f . ↩ (↘ g))
 ```
 
-The two agree through the sliding axiom. Expanding `lower . encode` on the same term:
+The two agree through the sliding axiom. Expanding `↓ . encode` on the same term:
 
 ```
 ↓ (encode (Compose (Knot f) g))
