@@ -145,6 +145,23 @@ structure is lost. This is the **degenerate model**.
 **One pattern match separates the free traced monoidal category from
 the degenerate model.**
 
+This is not just a correctness issue — it is an operational one.
+Hasegawa (1997) distinguishes two ways to achieve recursion:
+
+- **Fixed-point combinator:** `fix f = f (fix f)`. Applies `f` repeatedly.
+  Each application may duplicate resources.
+- **Cyclic sharing:** Ties a cycle in the graph. The cycle is shared,
+  not duplicated.
+
+In `Circuit`:
+- `Knot k` is cyclic sharing — the channel is held open through `Compose`
+- `↑ (trace' k)` is the fixed-point combinator — the channel closes immediately
+
+The Mendler case preserves the distinction. Without it, `Knot` collapses
+to `↑ (trace' k)` — cyclic sharing becomes the fixed-point combinator.
+The structural information (\"this is a shared cycle\") is lost. The
+interpreter produced a result — just the wrong one.
+
 ---
 
 ## Abstracting Trace

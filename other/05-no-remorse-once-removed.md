@@ -1,74 +1,74 @@
 # No Remorse, Once Removed
 
-**Summary:** In which we learn that the Mendler case is viewl by another name,
-that left-nesting is a performance trap, and that remorse is producing the
-right answer the wrong way.
+**Summary:** In which the Mendler case turns out to be viewl by another
+name, left-nesting is a performance trap, and the hierarchy of free
+structures gains a new row.
 **Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-follow-the-knots.md](06-follow-the-knots.md)
 
 ---
 
-Van der Ploeg & Kiselyov (2014) solve the left-nested composition problem for monads. The same problem appears in traced categories, and the same solution applies — with the Mendler case playing the role of `viewl`.
+Van der Ploeg & Kiselyov (2014) solve the left-nested composition problem
+for monads. The same problem appears in traced categories, and the same
+solution applies — with the pattern match in `reify` playing the role of
+`viewl`.
 
 ---
 
 ## The Problem: Left-Nested Composition
 
-In any free structure built from sequential composition, left-nesting is a performance trap:
+In any free structure built from sequential composition, left-nesting is
+a performance trap:
 
 ```
 ((a . b) . c) . d . e . ...
 ```
 
-Each `(.)` must traverse the left spine to find the base case. For a list this is O(n²). For a free monad it is the same. For `Circuit` it is the same — and worse: `Knot` gets buried under the left-nesting and collapses to the degenerate model if the Mendler case isn't in place.
+Each `(.)` must traverse the left spine to find the base case. For a
+list this is O(n²). For a free monad it is the same. For `Circuit` it
+is the same — and worse: `Knot` gets buried under the left-nesting and
+collapses to the degenerate model without the pattern match.
 
-Van der Ploeg & Kiselyov establish a hierarchy for solving this:
+RwR establishes a hierarchy:
 
-| Structure | Naive | Efficient (Ran / Fix.Ran) | Inspection mechanism |
-|-----------|-------|---------------------------|----------------------|
+| Structure | Naive | Efficient | Inspection |
+|-----------|-------|-----------|------------|
 | Monoid | list | difference list | head/tail |
-| Monad | free monad | codensity monad | `viewl` on TCQueue |
+| Monad | free monad | codensity monad | `viewl` |
 | Category | `Cat` | `Queue` (Ran) | `viewl` on type-aligned queue |
-| **Traced category** | **`Circuit`** | **`Hyper`** | **Mendler case in `reify`** |
+| **Traced category** | **`Circuit`** | **`Hyper`** | **pattern match in `reify`** |
 
-The paper stops at categories. The natural next row is traced categories.
+The paper stops at categories. Traced categories is the natural next row.
 
 ---
 
-## `viewl` is the Mendler Case
+## `viewl` is the Pattern Match
 
-The paper's solution requires `viewl` on the type-aligned queue — inspecting the head of the sequence before recursing. Without `viewl`, the interpreter falls through to a general case that buries the structure and produces O(n²) behaviour.
+The paper's solution requires `viewl` — inspecting the head of the
+sequence before recursing. Without `viewl`, the interpreter falls
+through to a general case that buries the structure.
 
-In `reify`, the Mendler case does exactly this:
+In `reify`:
 
 ```haskell
 reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))
 ```
 
-When a `Knot` appears at the head of a composition, **inspect it before recursing into `g`**. Without this case, `reify` falls through to the general `Compose` rule, buries the `Knot`, and produces the degenerate model.
-
-The analogy:
+When a `Knot` appears at the head of a composition, inspect it before
+recursing into `g`. Without this case, `reify` falls through to the
+general `Compose` rule, closes the channel immediately, and produces
+the degenerate model.
 
 ```
-Cat  +  viewl      =  Queue              -- RwR for categories
-Circuit  +  Mendler  =  Hyper             -- RwR for traced categories
+Cat     +  viewl     =  Queue      -- RwR for categories
+Circuit +  viewl     =  Hyper      -- RwR for traced categories
 ```
-
----
-
-## The Hidden Sequence
-
-The paper's title refers to the implicit sequence of monadic binds, made explicit by a type-aligned queue. In `Circuit`, the hidden structure is the **feedback channel inside `Knot`**. Both are made explicit by their respective constructions:
-
-- The **type-aligned queue** in RwR makes the bind sequence inspectable
-- The **`Knot` constructor** in `Circuit` makes the feedback channel inspectable
-
-Both solve the same problem: making implicit structure explicit so the interpreter can inspect it without traversing the entire left spine first.
 
 ---
 
 ## `PMonad` and `Trace`
 
-The paper introduces `PMonad` — an alternative to `Monad` where bind takes an explicit type-aligned sequence as its right argument rather than a single continuation:
+The paper introduces `PMonad` — an alternative to `Monad` where bind
+takes an explicit type-aligned sequence:
 
 ```haskell
 class PMonad m where
@@ -76,88 +76,60 @@ class PMonad m where
   (>>^=)  :: m a -> MCExp m a b -> m b
 ```
 
-This is structurally the same move as the `Trace` class: instead of hiding the feedback channel inside the monad, make it an explicit typed argument:
+This is structurally the same move as `Trace`: instead of hiding the
+channel inside the monad, make it an explicit typed argument:
 
 ```haskell
 class Trace arr t where
-  trace   :: arr (t a b) (t a c) -> arr b c   -- observe the channel
-  untrace :: arr b c -> arr (t a b) (t a c)   -- inject into the channel
+  trace   :: arr (t a b) (t a c) -> arr b c
+  untrace :: arr b c -> arr (t a b) (t a c)
 ```
 
-| RwR concept | Circuits equivalent |
-|-------------|---------------------|
+| RwR | Circuits |
+|-----|----------|
 | `PMonad` | `Trace` typeclass |
 | Type-aligned queue | Explicit tensor `t` in `Knot` |
-| `viewl` (head inspection) | Mendler case in `reify` |
-| `tsingleton` (single element) | `untrace` (inject one morphism) |
-| `val` (observe head) | `trace` (eliminate the channel) |
-| Degenerate model (O(n²)) | `reify` without Mendler (collapses to `↑ (↪ k)`) |
+| `viewl` | Pattern match in `reify` |
+| `tsingleton` | `untrace` |
+| `val` | `trace` |
 
 ---
 
 ## Performance: Circuit vs Hyper
 
-The RwR analogy also explains the performance story:
+The RwR analogy explains the performance story:
 
-**`Circuit` (naive):** Left-nested `Compose` produces O(n²) traversal. Worse: if `Knot` gets buried under left-nesting without the Mendler case, the traced structure collapses.
+**`Circuit` (naive):** Left-nested `Compose` produces O(n²) traversal.
+Worse: if `Knot` gets buried under left-nesting without the pattern
+match, the traced structure collapses.
 
-**`Circuit` (with Mendler):** The Mendler case prevents collapse, but left-nested `Compose` still requires O(n) traversal to find each `Knot`.
+**`Circuit` (with pattern match):** The pattern match prevents collapse,
+but left-nested `Compose` still requires O(n) traversal to find each
+`Knot`.
 
-**`Hyper`:** Composition threads the continuation on every step — O(1) amortised. The feedback channel is always at the head of the structure. There is no left-spine to traverse.
+**`Hyper`:** Composition threads the continuation on every step — O(1)
+amortised. The feedback channel is always at the head. No left-spine to
+traverse.
 
-The transition from `Circuit` to `Hyper` via `encode` is the circuits equivalent of the transition from a free monad to the codensity monad in RwR — it amortises the traversal cost by making the structure maximally right-associated.
-
----
-
-## Hasegawa: Cyclic Sharing vs Fixed Points
-
-Hasegawa (1997) separates two notions that are extensionally equal but operationally different:
-
-- **Fixed-point combinator:** `fix f = f (fix f)`. Applies `f` repeatedly. Can cause resource duplication in sharing-based implementations.
-- **Trace / cyclic sharing:** Ties a cycle in the graph. The cycle is shared, not duplicated.
-
-In `Circuit`:
-- `↑ (↪ k)` is the fixed-point combinator — it closes the channel immediately
-- `Knot k` is cyclic sharing — the channel is held open through `Compose`
-
-The Mendler case preserves the distinction. Without it, `Knot` becomes `↑ (↪ k)` — cyclic sharing collapses to the fixed-point combinator.
-
-**This is the remorse:** Without the Mendler case, `Knot` forgets that it is cyclic sharing. The structural information is lost. The remorse is that the interpreter produced a result — just the wrong one.
-
----
-
-## The Full Hierarchy
-
-| Structure | Naive | Efficient | Inspection |
-|-----------|-------|-----------|------------|
-| Monoid | list | difference list | head/tail |
-| Monad | free monad | codensity monad | `viewl` |
-| Category | `Cat` | `Queue` (Ran) | `viewl` on type-aligned queue |
-| Traced category | `Circuit` | `Hyper` (Fix . Ran) | Mendler case in `reify` |
-
-Each row adds one concept:
-- **Monad:** adds bind (sequential dependency)
-- **Category:** adds typing (typed composition)
-- **Traced:** adds feedback (cyclic sharing)
-
-Each row has the same solution shape: make the implicit structure explicit, inspect before recursing, amortise via the final encoding.
+The transition from `Circuit` to `Hyper` via `encode` is the traced
+equivalent of the transition from free monad to codensity monad — it
+amortises traversal by making the structure maximally right-associated.
 
 ---
 
 ## Summary
 
-The Mendler case is not a clever hack. It is the application of a well-understood principle — reflection without remorse — to traced categories.
+The pattern match in `reify` is not a hack. It is the application of a
+well-understood principle — reflection without remorse — to traced
+categories. The hierarchy gains a row. The pattern match is `viewl` for
+feedback channels.
 
-- **Without it:** `Circuit` collapses to the free category with a fixed-point operator (degenerate model; O(n²) or worse)
-- **With it:** `Circuit` is the free traced monoidal category (correct; O(n) traversal)
-- **`Hyper`:** The amortised form (O(1) composition; sliding is structural)
-
-**Next:** [06-follow-the-knots.md](06-follow-the-knots.md) — production use; how to extend the library; applications.
+**Next:** [06-follow-the-knots.md](06-follow-the-knots.md) — production
+use; parsers, pipes, agents, and the compact closed frontier.
 
 ---
 
 ## References
 
 - van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
-- Hasegawa (1997) — cyclic sharing vs fixed points; [see 02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md)
-- [03-hyper-buries-the-knot.md](../other/03-hyper-buries-the-knot.md) — Ran characterization and the hierarchy
+- [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — Ran characterization and the hierarchy
