@@ -16,24 +16,25 @@
 -- lift       (↑)      Circuit/Hyper   embed a plain arrow
 -- compose    (⊙)      Circuit/Hyper   sequential composition
 -- knot       (↮)      Circuit         feedback loop constructor
--- reify                Circuit         interpret to plain arrow
+-- reify      (↘)      Circuit         interpret to plain arrow
 -- lower      (↓)      Hyper           observe hyperfunction
 -- base       (○)      Hyper           constant continuation
 -- push       (⊲)      both            prepend function
 -- run        (⥁)      Hyper           tie self-referential knot
 -- encode     (⇨)      Hyper           Circuit → Hyper
 -- invoke     (⇸)      Hyper           apply continuation
+-- flatten    (⇦)      Hyper           Hyper → Circuit (lossy)
 -- trace      (↪)      Traced          close feedback loop
 -- untrace    (↩)      Traced          open feedback loop
--- flatten              Hyper           Hyper → Circuit (lossy)
 -- @
 --
 -- For detailed design and theory, see @other/@.
 -- For examples, see @examples/@.
 module Circuit
-  ( -- * Circuit (initial encoding)
+  (    -- * Circuit (initial encoding)
     Circuit (..),
     reify,
+    (↘),
     lower,
     push,
 
@@ -52,6 +53,7 @@ module Circuit
     (○),
     (↑),
     (⊙),
+    (⇦),
 
     -- * Trace typeclass
     Trace (..),
@@ -73,6 +75,7 @@ import Circuit.Circuit
     reify,
     (↑),
     (↮),
+    (↘),
     (⊲),
     (⊙),
   )
@@ -87,6 +90,7 @@ import Circuit.Hyper
     run,
     runEither,
     (⇨),
+    (⇦),
     (⇸),
     (○),
     (⥁),

@@ -28,7 +28,7 @@ Van der Ploeg & Kiselyov establish a hierarchy for solving this:
 | Monoid | list | difference list | head/tail |
 | Monad | free monad | codensity monad | `viewl` on TCQueue |
 | Category | `Cat` | `Queue` (Ran) | `viewl` on type-aligned queue |
-| **Traced category** | **`Circuit`** | **`Hyper`** | **Mendler case in `lower`** |
+| **Traced category** | **`Circuit`** | **`Hyper`** | **Mendler case in `reify`** |
 
 The paper stops at categories. The natural next row is traced categories.
 
@@ -38,13 +38,13 @@ The paper stops at categories. The natural next row is traced categories.
 
 The paper's solution requires `viewl` on the type-aligned queue — inspecting the head of the sequence before recursing. Without `viewl`, the interpreter falls through to a general case that buries the structure and produces O(n²) behaviour.
 
-In `lower`, the Mendler case does exactly this:
+In `reify`, the Mendler case does exactly this:
 
 ```haskell
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))
+reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))
 ```
 
-When a `Knot` appears at the head of a composition, **inspect it before recursing into `g`**. Without this case, `lower` falls through to the general `Compose` rule, buries the `Knot`, and produces the degenerate model.
+When a `Knot` appears at the head of a composition, **inspect it before recursing into `g`**. Without this case, `reify` falls through to the general `Compose` rule, buries the `Knot`, and produces the degenerate model.
 
 The analogy:
 
@@ -88,10 +88,10 @@ class Trace arr t where
 |-------------|---------------------|
 | `PMonad` | `Trace` typeclass |
 | Type-aligned queue | Explicit tensor `t` in `Knot` |
-| `viewl` (head inspection) | Mendler case in `lower` |
+| `viewl` (head inspection) | Mendler case in `reify` |
 | `tsingleton` (single element) | `untrace` (inject one morphism) |
 | `val` (observe head) | `trace` (eliminate the channel) |
-| Degenerate model (O(n²)) | `lower` without Mendler (collapses to `Lift (trace k)`) |
+| Degenerate model (O(n²)) | `reify` without Mendler (collapses to `↑ (↪ k)`) |
 
 ---
 
@@ -117,10 +117,10 @@ Hasegawa (1997) separates two notions that are extensionally equal but operation
 - **Trace / cyclic sharing:** Ties a cycle in the graph. The cycle is shared, not duplicated.
 
 In `Circuit`:
-- `Lift (trace k)` is the fixed-point combinator — it closes the channel immediately
+- `↑ (↪ k)` is the fixed-point combinator — it closes the channel immediately
 - `Knot k` is cyclic sharing — the channel is held open through `Compose`
 
-The Mendler case preserves the distinction. Without it, `Knot` becomes `Lift (trace k)` — cyclic sharing collapses to the fixed-point combinator.
+The Mendler case preserves the distinction. Without it, `Knot` becomes `↑ (↪ k)` — cyclic sharing collapses to the fixed-point combinator.
 
 **This is the remorse:** Without the Mendler case, `Knot` forgets that it is cyclic sharing. The structural information is lost. The remorse is that the interpreter produced a result — just the wrong one.
 
@@ -133,7 +133,7 @@ The Mendler case preserves the distinction. Without it, `Knot` becomes `Lift (tr
 | Monoid | list | difference list | head/tail |
 | Monad | free monad | codensity monad | `viewl` |
 | Category | `Cat` | `Queue` (Ran) | `viewl` on type-aligned queue |
-| Traced category | `Circuit` | `Hyper` (Fix . Ran) | Mendler case in `lower` |
+| Traced category | `Circuit` | `Hyper` (Fix . Ran) | Mendler case in `reify` |
 
 Each row adds one concept:
 - **Monad:** adds bind (sequential dependency)

@@ -150,7 +150,7 @@ The choice of tensor is a design decision:
 
 ## The Circuit is Generic; the Choice is Yours
 
-The `Circuit` GADT is identical for both tensors. The `Knot` constructor is the same. The `lower` interpreter is the same (modulo the `Trace` instance). The difference is entirely in the `Trace` instance — in what `trace` and `untrace` mean.
+The `Circuit` GADT is identical for both tensors. The `Knot` constructor is the same. The `reify` interpreter is the same (modulo the `Trace` instance). The difference is entirely in the `Trace` instance — in what `trace` and `untrace` mean.
 
 This is the point of parametrising over `t`. The categorical structure — the free traced monoidal category — is the same. The operational character — simultaneous or sequential — is a choice made at the instance level.
 

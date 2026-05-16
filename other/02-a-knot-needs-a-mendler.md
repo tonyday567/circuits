@@ -26,7 +26,7 @@ data Circuit arr t a b where
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
 ```
 
-Axiom 4 (`ε . η = id`) is a constraint on interpretation — it introduces
+axiom 4 (`↘ . ↑ = id`) is a constraint on interpretation — it introduces
 no new constructor.
 
 Axiom 5 (centrality — lifted arrows slide past anything) holds automatically
@@ -34,10 +34,10 @@ when the tensor `t` is symmetric. No new constructor.
 
 **Axiom 6 alone forces the third constructor.**
 
-Substituting `f ⊲ p = η f ⊙ p` and `⥁ = fix . ε` into axiom 6:
+Substituting `f ⊲ p = ↑ f ⊙ p` and `⥁ = fix . ↓` into axiom 6:
 
 ```
-ε ((η f ⊙ p) ⊙ q) = f . ε (q ⊙ p)
+↘ ((↑ f ⊙ p) ⊙ q) = f . ↘ (q ⊙ p)
 ```
 
 The right-hand side swaps `p` and `q`. This is not reassociation — it is a
@@ -73,7 +73,7 @@ data Circuit arr t a b where
 
 | Constructor | Structure | Role |
 |-------------|-----------|------|
-| `Lift` | Strict monoidal functor | Embed base arrows; η of the free/forgetful adjunction |
+| `Lift` | Strict monoidal functor | Embed base arrows; ↑ of the free/forgetful adjunction |
 | `Compose` | Category laws | Sequential composition; associativity and identity |
 | `Knot` | Trace | Open a feedback channel; the trace constructor |
 
@@ -120,19 +120,19 @@ lower (Knot k)      = trace k
 This compiles. The Fibonacci example runs correctly. It is easy to believe
 this is complete.
 
-It is not. Substituting `f ⊲ p = Lift f ⊙ p` into axiom 6, the LHS reduces to:
+It is not. Substituting `f ⊲ p = ↑ f ⊙ p` into axiom 6, the LHS reduces to:
 
 ```
-lower (Compose (Lift f) (Compose p q)) = f . lower p . lower q
+reify (Compose (↑ f) (Compose p q)) = f . reify p . reify q
 ```
 
 The RHS:
 
 ```
-f . lower (Compose q p) = f . lower q . lower p
+f . reify (Compose q p) = f . reify q . reify p
 ```
 
-These are equal only if `lower p` and `lower q` commute. In general they do not.
+These are equal only if `reify p` and `reify q` commute. In general they do not.
 
 The naive interpreter fails axiom 6. The Fibonacci example did not catch this
 because it has no `Compose` wrapping a `Knot` on the left. That structure only
@@ -150,16 +150,16 @@ before `trace` closes the loop.
 The naive interpreter gives:
 
 ```
-lower (Compose (Knot f) g) = trace f . lower g    -- WRONG
+reify (Compose (Knot f) g) = ↪ f . reify g    -- WRONG
 ```
 
 Axiom 6 requires:
 
 ```
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))    -- CORRECT
+reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))    -- CORRECT
 ```
 
-The difference: in the correct version, `lower g` is threaded into the
+The difference: in the correct version, `reify g` is threaded into the
 feedback channel via `untrace` on every pass. In the naive version it is
 applied once at entry.
 
@@ -175,11 +175,11 @@ even on the first iteration.
 The fix is one extra pattern match, inserted before the general `Compose` case:
 
 ```haskell
-lower :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-lower (Lift f)             = f
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))   -- Mendler case
-lower (Compose f g)        = lower f . lower g
-lower (Knot k)             = trace k
+reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
+reify (Lift f)             = f
+reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))   -- Mendler case
+reify (Compose f g)        = reify f . reify g
+reify (Knot k)             = ↪ k
 ```
 
 The order is load-bearing. Without the `Compose (Knot f) g` case appearing
@@ -190,10 +190,10 @@ Each case corresponds to one axiom:
 
 | Case | Axiom | What it does |
 |------|-------|--------------|
-| `Lift f` | `ε . η = id` | Faithful embedding; returns the base arrow unchanged |
+| `Lift f` | `↘ . ↑ = id` | Faithful embedding; returns the base arrow unchanged |
 | `Compose f g` | Associativity | Composes the two interpretations |
-| `Knot k` | `ε (↬ k) = ⥀ k` | Closes the feedback channel via `trace` |
-| `Compose (Knot f) g` | **Sliding** | Threads `lower g` into the channel via `untrace` before tracing |
+| `Knot k` | `↘ (↮ k) = ↪ k` | Closes the feedback channel via `trace` |
+| `Compose (Knot f) g` | **Sliding** | Threads `reify g` into the channel via `↩` before tracing |
 
 This is the **Mendler algebra step**: inspecting one syntactic layer before
 recursing. The Mendler case converts a structural observation into an
@@ -202,7 +202,7 @@ the trailing morphism is wired into the feedback channel before the trace
 closes.
 
 Without this case, `Knot` becomes observationally equivalent to
-`Lift (trace k)` — the feedback channel closes immediately, the loop
+`↑ (↪ k)` — the feedback channel closes immediately, the loop
 structure is lost, and `Circuit` collapses to the free category with a
 fixed-point operator. This is the **degenerate model** that the 2013 paper
 warns about.
@@ -218,13 +218,13 @@ warns about.
 **Naturality (sliding).** The Mendler case enforces:
 
 ```
-trace (f . untrace g) = trace f . g
+↪ (f . ↩ g) = ↪ f . g
 ```
 
 This is the sliding axiom: a morphism composed on the output of a trace can
 be moved inside. The Mendler case reifies this as a pattern match — when a
 `Knot` appears at the head of a `Compose`, the right morphism is injected
-into the channel via `untrace` before `trace` closes it.
+into the channel via `↩` before `↪` closes it.
 
 **Vanishing I.** `Knot (id ⊗ id) = id`. The identity feedback channel is
 trivial.
@@ -232,7 +232,7 @@ trivial.
 **Superposing.** Tensor distributes over trace as expected.
 
 **Yanking.** In the cartesian case (`arr = (->)`, `t = (,)`), Hasegawa's
-Theorem 3.1 gives `run (lift f) = fix f` as a derived consequence. The
+Theorem 3.1 gives `⥁ (↑ f) = fix f` as a derived consequence. The
 trace and fixed-point operator coincide. See [the Hasegawa
 section](#hasegawa-recursion-from-cyclic-sharing) below.
 
@@ -256,13 +256,13 @@ section](#hasegawa-recursion-from-cyclic-sharing) below.
 >     F ---------> C
 > ```
 
-`lower` is the instance of this universal property where `C = arr` and
+`reify` is the instance of this universal property where `C = arr` and
 `F = id`. It is the unique traced functor from the free object back to the
 base.
 
-Every traced functor out of `Circuit arr t` factors through `lower`. This
+Every traced functor out of `Circuit arr t` factors through `reify`. This
 is why `Circuit` is useful: **you build in `Circuit`, and any target traced
-category interprets it via `lower`**.
+category interprets it via `reify`**.
 
 ---
 
@@ -281,9 +281,9 @@ properties. Circuit *constructs* the free one: the GADT with `Lift`, `Compose`,
 and `Knot` is exactly the object his framework presupposes. He proves theorems
 about it; this library is a constructive proof that it exists.
 
-**Where they meet.** Theorem 3.1 is why `run (lift f) = fix f` holds in the
+**Where they meet.** Theorem 3.1 is why `⥁ (↑ f) = fix f` holds in the
 cartesian case — not as an axiom, but as a consequence of the adjunction
-`lower . lift = id` plus the cartesian trace. What Hasegawa derives from
+`↘ . ↑ = id` plus the cartesian trace. What Hasegawa derives from
 semantic models, circuits derives from the GADT construction.
 
 **Where they diverge.** Hasegawa distinguishes `letrec` (unrestricted sharing)
@@ -295,9 +295,9 @@ models; circuits captures both as `Trace` instances over the same GADT.
 
 **The sliding axiom.** In Hasegawa's framework, sliding is a naturality
 condition on the trace. In circuits, it is a pattern match — the Mendler case
-in `lower`. A categorical requirement becomes an operational guarantee: the
+in `reify`. A categorical requirement becomes an operational guarantee: the
 pattern match enforces that a `Knot` on the left of `Compose` threads the
-right morphism through `untrace` before the trace closes. See `05-no-remorse-once-removed.md` for
+right morphism through `↩` before the trace closes. See `05-no-remorse-once-removed.md` for
 the Reflection Without Remorse connection.
 
 ---
@@ -309,17 +309,17 @@ The library's structure comes from two adjunctions and the sliding axiom:
 ### Adjunction 1: Free / Forgetful
 
 ```
-Lift   :: arr a b -> Circuit arr t a b      ← left adjoint (free)
-lower  :: Circuit arr t a b -> arr a b      ← right adjoint (forgetful)
-ε . η  =  id                                ← unit-counit triangle
+↑     :: arr a b -> Circuit arr t a b     ← left adjoint (free)
+reify :: Circuit arr t a b -> arr a b     ← right adjoint (forgetful)
+↘ . ↑  =  id                              ← unit-counit triangle
 ```
 
 Axioms derivable from this adjunction:
 
 ```
-η (f . g) = η f ⊙ η g       (Lift is functorial)
-η id = id                   (Lift preserves identity)
-(f ⊙ g) ⊙ h = f ⊙ (g ⊙ h)  (Compose is associative)
+↑ (f . g) = ↑ f ⊙ ↑ g        (Lift is functorial)
+↑ id = id                    (Lift preserves identity)
+(f ⊙ g) ⊙ h = f ⊙ (g ⊙ h)   (Compose is associative)
 ```
 
 ### Adjunction 2: Initial / Final (Galois connection)
@@ -327,7 +327,7 @@ Axioms derivable from this adjunction:
 ```
 encode :: Circuit (->) (,) a b -> Hyper a b
 flatten :: Hyper a b -> Circuit (->) (,) a b
-lower . encode = lower     -- triangle identity
+↓ . encode = ↘                              -- triangle identity
 ```
 
 This is a Galois connection, not a strict adjunction. The asymmetry is real:
@@ -340,7 +340,7 @@ The Mendler case is the one ingredient that is **not** a consequence of
 adjunctions:
 
 ```haskell
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))
+reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))
 ```
 
 This is a genuine strength/costrength operation on the profunctor, not
@@ -353,9 +353,9 @@ collapses.
 ## Ruling Out the Degenerate Model
 
 Without the Mendler case, `Circuit` is the **free category with a fixed-point
-operator** — a weaker structure. The degenerate model is `H a b = a -> b`,
-with `Compose` as function composition and `Lift = id`. In this model,
-`Knot k = trace k` immediately — the feedback channel never iterates.
+operator** — a weaker structure. The degenerate model is `a -> b`,
+with `Compose` as function composition and `↑ = id`. In this model,
+`↮ k = ↪ k` immediately — the feedback channel never iterates.
 
 The Mendler case rules this out by ensuring that when a `Knot` appears on the
 left of a `Compose`, the right morphism participates in every iteration of the
@@ -385,13 +385,13 @@ not the design principle.
 ## Summary
 
 ```
-ε (η f)         =  f                           -- faithful embedding
-ε (↬ k)         =  ⥀ k                         -- trace closes the channel
-ε (↬ f ⊙ g)    =  ⥀ (f . ↯ (ε g))             -- Mendler case (sliding)
-ε (f ⊙ g)      =  ε f . ε g                    -- functoriality of ε
+↘ (↑ f)         =  f                           -- faithful embedding
+↘ (↮ k)         =  ↪ k                         -- trace closes the channel
+↘ (↮ f ⊙ g)    =  ↪ (f . ↩ (↘ g))             -- Mendler case (sliding)
+↘ (f ⊙ g)      =  ↘ f . ↘ g                    -- functoriality of ↘
 ```
 
-Circuit is the free object. `lower` is the unique elimination. The Mendler
+Circuit is the free object. `reify` is the unique elimination. The Mendler
 case is the content. Everything else follows.
 
 **Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — Hyper as the final encoding; the

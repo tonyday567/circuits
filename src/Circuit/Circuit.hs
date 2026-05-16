@@ -22,6 +22,7 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
+    (↘),
     push,
     (⊲),
   )
@@ -67,6 +68,13 @@ infixr 9 ↮
 -- | Synonym for 'Compose'.
 (⊙) :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
 (⊙) = Compose
+
+-- | Synonym for 'reify'.
+infixl 9 ↘
+
+-- | Collapse a Circuit to a plain arrow.
+(↘) :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
+(↘) = reify
 
 instance (Category arr) => Category (Circuit arr t) where
   id = Lift id

@@ -35,6 +35,7 @@ module Circuit.Hyper
     encodeEither,
     runEither,
     flatten,
+    (⇦),
   )
 where
 
@@ -285,6 +286,12 @@ runEither f b = run (encodeEither f) (Right b)
 -- 6
 flatten :: Hyper a b -> Circuit (->) (,) a b
 flatten h = Lift (lower h)
+
+-- | Synonym for 'flatten'. Collapses Hyper to Circuit (lossy).
+infixr 9 ⇦
+
+(⇦) :: Hyper a b -> Circuit (->) (,) a b
+(⇦) = flatten
 
 -- * Instances
 

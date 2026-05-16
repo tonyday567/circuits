@@ -92,18 +92,18 @@ Axioms 4 and 5 introduce no new constructors. Only axiom 6 forces one:
 
 ## The Mendler Case
 
-In `Circuit`, the sliding axiom is reified as a pattern match in `lower`:
+In `Circuit`, the sliding axiom is reified as a pattern match in `reify`:
 
 ```haskell
-lower :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-lower (Lift f)             = f
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))   -- Mendler
-lower (Compose f g)        = lower f . lower g
-lower (Knot k)             = trace k
+reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
+reify (Lift f)             = f
+reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))   -- Mendler
+reify (Compose f g)        = reify f . reify g
+reify (Knot k)             = ↪ k
 ```
 
 The Mendler case must appear before the general `Compose` case. Without
-it, `Compose (Knot f) g` falls through to `trace f . lower g` — the
+it, `Compose (Knot f) g` falls through to `↪ f . reify g` — the
 naive form that closes the channel immediately, losing the feedback
 structure. One pattern match separates a free traced monoidal category
 from the degenerate model. For the full story see `02-a-knot-needs-a-mendler.md` and

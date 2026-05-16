@@ -14,28 +14,36 @@ make it inspectable, prove the structure is free. Everything else in
 the library is a consequence of making these five operations precise.
 
 ```
-η   lift      embed a plain arrow
-ε   lower     observe / eliminate
+↑   lift      embed a plain arrow
+↘   reify     eliminate / observe
 ⊙   compose   sequential composition
 ⊲   push      prepend a plain function
 ⥁   run       tie the knot
 ```
 
-See `src/` for the full symbol dictionary.
+The library uses several names for the interpretation step — `reify`,
+`lower`, `run`, `flatten` — all forms of "running" the structure.
+`reify` (↘) interprets a `Circuit` to a plain arrow; `lower` (↓)
+observes a `Hyper`; `run` (⥁) ties the self-referential knot on `Hyper`;
+`flatten` (⇦) collapses `Hyper` back to `Circuit` (lossy). They are
+different elimination forms for different encodings. The common thread:
+each peels away one layer of structure to reach a plainer value.
+
+See `src/Circuit.hs` for the full symbol dictionary (single source of truth).
 
 ---
 
 ## The Five Marks as a Language
 
 ```haskell
-(⊙)  :: H b c -> H a b -> H a c   -- compose
-η    :: (a -> b) -> H a b          -- lift
-ε    :: H a b -> (a -> b)          -- lower
-(⊲)  :: (a -> b) -> H a b -> H a b -- push
-⥁    :: H a a -> a                 -- run
+(⊙)  :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c  -- compose
+↑    :: arr a b -> Circuit arr t a b                                   -- lift
+↘    :: Circuit arr t a b -> arr a b                                   -- reify
+(⊲)  :: arr b c -> Circuit arr t a b -> Circuit arr t a c             -- push
+⥁    :: Hyper a a -> a                                                 -- run
 ```
 
-These are the semantics of Section 7 in Launchbury, Krstic & Sauerwein (2013), restated in modern notation.
+These are the semantics of Section 7 in Launchbury, Krstic & Sauerwein (2013), restated in library notation. `Lift` and `reify` are the free/forgetful adjunction for `Circuit`; `lift`/`lower`/`run` are the corresponding operations for `Hyper`.
 
 ---
 
@@ -45,11 +53,11 @@ These five operations satisfy six axioms. The first three build a free category.
 
 ```
 axiom 1  (f ⊙ g) ⊙ h  =  f ⊙ (g ⊙ h)           associativity
-axiom 2  f ⊙ η id     =  f  =  η id ⊙ f          identity
-axiom 3  η (f . g)    =  η f ⊙ η g                lift is a functor
-axiom 4  ⥁ (η f)      =  fix f                    run is fixed-point
-axiom 5  (f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q) push composition
-axiom 6  ⥁ ((f ⊲ p) ⊙ q)    =  f (⥁ (q ⊙ p))    feedback / sliding
+axiom 2  f ⊙ ↑ id      =  f  =  ↑ id ⊙ f         identity
+axiom 3  ↑ (f . g)     =  ↑ f ⊙ ↑ g               lift is a functor
+axiom 4  ⥁ (↑ f)        =  fix f                   run is fixed-point
+axiom 5  (f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q)  push composition
+axiom 6  ⥁ ((f ⊲ p) ⊙ q)     =  f (⥁ (q ⊙ p))     feedback / sliding
 ```
 
 ---
@@ -61,13 +69,13 @@ Two of the five marks are not primitive — they decompose into simpler terms:
 **Push decomposes into lift and compose:**
 
 ```haskell
-f ⊲ p  =  η f ⊙ p
+f ⊲ p  =  ↑ f ⊙ p
 ```
 
 **Run decomposes into lower and fix:**
 
 ```haskell
-⥁  =  fix . ε
+⥁  =  fix . ↓
 ```
 
 Substituting these into axioms 4, 5, 6 reduces the axiom set to three structural roles:
@@ -75,7 +83,7 @@ Substituting these into axioms 4, 5, 6 reduces the axiom set to three structural
 | Axioms | Role | Constructors |
 |--------|------|--------------|
 | 1, 2, 3 | Free category | `Lift`, `Compose` |
-| 4 | Faithful embedding: `ε . η = id` | Interpretation only |
+| 4 | Faithful embedding: `↘ . ↑ = id` | Interpretation only |
 | 5 | Centrality: lifted arrows slide past anything | Free from tensor symmetry |
 | 6 | Feedback / sliding | `Knot` constructor |
 
@@ -89,7 +97,7 @@ The language is already powerful enough to express the classic Fibonacci stream:
 
 ```haskell
 fibs :: Circuit (->) (,) Int Int
-fibs = Knot (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
+fibs = Knot (\\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
 ```
 
 The feedback channel `(,)` carries the stream alongside the index. The loop ties the knot: the output stream feeds back into itself to compute successive elements.
@@ -112,7 +120,7 @@ This example looks simple. It hides a subtlety: a naive interpreter gets the wro
 The five marks sit at the top of a conceptual tower. Each layer below adds one concept:
 
 ```
-η ε ⊙ ⊲ ⥁            ← the five marks (this section)
+↑ ↘ ⊙ ⊲ ⥁              ← the five marks (this section)
      ↓
 Axioms 1–6             ← what the marks must satisfy
      ↓
@@ -144,4 +152,4 @@ Axiom 6 — the feedback axiom — is exactly the sliding axiom of a traced mono
 - Launchbury, Krstic & Sauerwein, "Hyperfunctions" (2013) — original axiom system
 - Kidney & Wu, "Hyperfunctions and the monad of streams" (2026) — modern notation
 - Joyal, Street & Verity, "Traced monoidal categories" (1996) — categorical foundations
-- `src/` — symbol dictionary (single source of truth in code)
+- `src/Circuit.hs` — symbol dictionary (single source of truth in code)
