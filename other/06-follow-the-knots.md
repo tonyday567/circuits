@@ -125,12 +125,24 @@ two Hypers in compact closed composition.
 
 ## The Compact Closed Frontier
 
+`Hyper`, like profunctors and lenses, opens a contravariant channel —
+`invoke :: Hyper b a -> b`. The backwards pass slides through `⊙`
+(centrality: lifted arrows commute past everything) but gets stuck at
+`↮`. The Knot's type change `arr (t a b) (t a c)` is a barrier — the
+backwards pass arrives at `b` or `c` but the Knot expects `t a b` or
+`t a c`.
+
+To cross: the backwards pass uses `↩` to lift into the tensor channel,
+slides through the forward arrow inside the Knot, then `↪` closes on
+the far side. This is already the Mendler case — a backwards pass
+through a Knot, in the forward interpreter.
+
 The open question: does `⇨` carry duals through the coinduction? A
-`Circuit` with a `Dual` constructor (flipping `a` and `b`) plus `↮`
+`Circuit` with a `Dual` constructor (flipping `a` ⟷ `b`) plus `↮`
 should form a compact closed category when the base arrow is
 `*`-autonomous. The triangle `↓ . ⇨ = ↘` holds for the traced structure.
-Whether it holds for the dual structure — whether `⇦` leaks the duality —
-is the knot on the other side of this story.
+Whether the backwards pass survives the encoding — whether `⇦` leaks
+the duality — is the knot on the other side of this story.
 
 ---
 
