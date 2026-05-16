@@ -136,9 +136,6 @@ position, no matter what hyperfunction it was pushed onto. It's the move
 that makes function stacks work — `(g . f) x` is `f x` then `g`. So
 natural we barely notice it.
 
-The pin goes here: in the initial encoding, centrality is not free — it
-depends on the tensor being symmetric. See 04.
-
 ### 6: Feedback / Sliding
 
 ```
