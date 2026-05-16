@@ -1,9 +1,10 @@
-⟝ hyperfunctions 
+⟝ hyperfunctions
 
 # Circuit.Hyper ⟜ Control.Monad.Hyper — A Comparative Analysis
 
-Two libraries, same newtype, divergent designs. This document maps the shared
-territory and the choices that separate them.
+Two libraries, same newtype, divergent designs. This card maps the shared
+territory and the choices that separate them. For the operations, instances,
+and capabilities of Circuit.Hyper itself, see `examples/hyper.md`.
 
 ## The Shared Core
 
@@ -28,12 +29,11 @@ constructs.
 | **Constant**      | `base`                                  | `pure`                                |
 | **Embedding**     | `lift` (recursive)                      | `arr = fix . push`                    |
 | **Observation**   | `lower`                                 | `project`                             |
-| **Instances**     | Category, Semigroup, Monoid             | + Profunctor, Arrow, ArrowKnot        |
-|                   | + Profunctor, Functor, Applicative (new)| + Functor, Applicative, Monad, Zip    |
-| **Helpers**       | hyperAp, hyperBind, valueFix, hyperFix  | ana, cata, unroll, roll, fold, build  |
+| **Instances**     | Category, Profunctor, Functor           | + Arrow, ArrowKnot, Monad, Zip        |
+|                   | Applicative, Monad                      | + ana, cata, unroll, roll, fold       |
 | **Dep chain**     | base + profunctors                      | base + profunctors + adjunctions + …  |
 
-### `run` — Two Different Operations
+## `run` — Two Different Operations
 
 This is the deepest difference:
 
@@ -67,121 +67,6 @@ Under circuits `run`: `run query` = `invoke (Hyper run) (base 5)` = 5.
 Under Kmett `run`: `run query` = `invoke (arr id) (base 5)` = `project id 5` = 5.
 Same result here, but the operational paths differ.
 
-### `base` = `pure`
-
-```haskell
--- circuits
-base :: a -> Hyper b a
-base a = Hyper (const a)
-
--- Kmett
-pure :: a -> Hyper b a
-pure a = Hyper $ \_ -> a
-```
-
-Identical. A hyperfunction that ignores feedback and returns a constant.
-
-### `lift` = `arr`
-
-```haskell
--- circuits (recursive)
-lift :: (a -> b) -> Hyper a b
-lift f = push f (lift f)
-
--- Kmett (fixed-point)
-arr :: (a -> b) -> Hyper a b
-arr = fix . push
-```
-
-Both expand to `push f (push f (push f ...))` — an infinite stack of
-function applications. Under lazy evaluation, each layer unwraps on demand.
-
-### `lower` = `project`
-
-```haskell
--- circuits
-lower :: Hyper a b -> (a -> b)
-lower h a = invoke h (base a)
-
--- Kmett
-project :: Hyper a b -> a -> b
-project q x = invoke q (pure x)
-```
-
-Identical. Observe the hyperfunction by giving it a constant continuation.
-
-## The Instance Landscape
-
-### Before: "Hyper is invariant"
-
-The original `Circuit.Hyper` claimed hyperfunctions admit no Functor,
-Applicative, or Monad instances because `b` appears in both covariant
-and contravariant positions:
-
-```
-invoke :: Hyper a b -> Hyper b a -> b
-           ^covariant    ^b in 1st param (contravariant in invoke)
-```
-
-### After: Coinductive instances work
-
-Kmett showed the way: define `Profunctor` with mutually recursive methods
-that never structurally terminate, relying on laziness:
-
-```haskell
-instance Profunctor Hyper where
-  dimap f g h = Hyper $ g . invoke h . dimap g f
-  lmap f h   = Hyper $ invoke h . rmap f
-  rmap f h   = Hyper $ f . invoke h . lmap f
-```
-
-`dimap` calls itself — the hyperfunction's continuation is itself a `dimap`
-of the original continuation. `lmap` and `rmap` call each other in a mutual
-recursion that never bottoms out.
-
-This is **sound** under lazy evaluation: any finite observation (via `lower`
-or `run`) will only unfold finitely many layers, never reaching bottom.
-
-From `Profunctor` we get `Functor` for free:
-
-```haskell
-instance Functor (Hyper a) where
-  fmap = rmap
-```
-
-And `Applicative` via the anamorphism:
-
-```haskell
-instance Applicative (Hyper a) where
-  pure = base
-  p <* _ = p
-  _ *> p = p
-  (<*>) = curry $ ana $ \(i, j) fga ->
-    unroll i (\i' -> fga (i', j)) $ unroll j (\j' -> fga (i, j'))
-```
-
-### Why not Monad?
-
-Kmett provides `Monad (Hyper a)` via catamorphism:
-
-```haskell
-instance Monad (Hyper a) where
-  return = pure
-  m >>= f = cata (\g -> roll $ \k -> unroll (f (g k)) k) m
-```
-
-Circuit.Hyper omits this instance to keep the surface area small.
-`hyperBind` serves as the stand-alone equivalent:
-
-```haskell
-hyperBind :: Hyper a b -> (b -> Hyper a c) -> Hyper a c
-hyperBind m k = lift $ \a -> lower (k (lower m a)) a
-```
-
-The key difference: `hyperBind` observes through `lower` and rebuilds with
-`lift`, losing any internal feedback structure. The `Monad` instance preserves
-the coinductive structure but is harder to reason about.
-
 ## The fold/build Pattern
 
 Kmett's library includes a classic fold/build fusion system adapted to
@@ -212,86 +97,6 @@ buildC :: (forall b c. (a -> b -> c) -> c -> Hyper b c) -> [a]
 buildC g = run (g (:) [])
 ```
 
-Example:
-
-```
->>> buildC (\c n -> foldC [1,2,3] c n)
-[1,2,3]
-```
-
-## Recursion Patterns Compared
-
-### Fixed-point recursion
-
-```haskell
--- circuits: hyperFix (structural fix at Hyper level)
-hyperFix :: (Hyper a a -> Hyper a a) -> Hyper a a
-hyperFix = fix
-
--- Usage: factorial
-fact :: Hyper Int Int
-fact = hyperFix $ \f -> lift $ \n ->
-  if n == 0 then 1 else n * lower f (n - 1)
-```
-
-In both libraries, `fix` at the `Hyper` level works because `Hyper a a` is
-a coinductive type — the fixed point is a productive infinite structure.
-
-### Value recursion
-
-```haskell
--- circuits: valueFix (fix at the output value)
-valueFix :: (b -> Hyper a b) -> Hyper a b
-valueFix f = lift $ \a -> fix $ \b -> lower (f b) a
-
--- Usage: constant stream 1,1,1,...
-ones :: Hyper () [Int]
-ones = valueFix $ \xs -> lift $ \_ -> 1 : xs
-```
-
-This is equivalent to Kmett's approach where `MonadFix` on hyperfunctions
-enables `mfix`-style recursion.
-
-### Anamorphism / Catamorphism
-
-Kmett's `ana` and `cata` are now available in Circuit.Hyper:
-
-```haskell
--- Unfold a hyperfunction from state
-counter :: Int -> Hyper Int Int
-counter = ana $ \i self -> (i, self (i + 1))
-
--- Fold a hyperfunction to a value
-summarise :: Hyper a b -> ???
-```
-
-The anamorphism builds a hyperfunction by threading state; the catamorphism
-consumes one. Together they form the universal construction for hyperfunctions
-as a final coalgebra.
-
-## Example: Stream Processing
-
-Both libraries can express stream processing, but the idioms differ:
-
-```haskell
--- Circuit.Hyper style: use lift + combinators
-process :: Hyper [Int] [Int]
-process = lift (map (+1)) ⊙ lift (filter even)
-
--- Kmett style: use Arrow syntax
-process :: Hyper [Int] [Int]
-process = arr (map (+1)) >>> arr (filter even)
-```
-
-With the new `Profunctor` instance, Circuit.Hyper also gains `dimap` for
-pre/post-processing:
-
-```haskell
--- Pre-process input, run hyperfunction, post-process output
-pipeline :: Hyper String String
-pipeline = dimap words unwords (lift (map reverse))
-```
-
 ## The Philosophical Tension
 
 Circuit.Hyper originally claimed "Hyper is invariant… does not admit Functor,
@@ -306,8 +111,7 @@ another coinductive layer rather than structurally transforming the type.
 The `Circuit.Hyper` module now provides both perspectives:
 - The Profunctor/Functor/Applicative instances for those who want the Kmett
   style
-- The `hyperAp`/`hyperBind`/`valueFix`/`hyperFix` combinators for those who
-  prefer explicit observation-and-rebuilding
+- The coinductive approach that treats observations as finite unfoldings
 
 This reflects a broader pattern in the circuits library: **the initial
 encoding (Circuit GADT) is the ground truth** — Functor, Applicative, Monad

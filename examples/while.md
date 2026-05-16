@@ -7,7 +7,7 @@ until `Left r`, return `r`.  This card shows the same loop in both encodings.
 
 ```haskell
 -- $setup
--- >>> import Circuit (Hyper (..), Circuit (..), Trace (..), run, lower)
+-- >>> import Circuit (Hyper (..), Circuit (..), Trace (..), run, reify)
 -- >>> import Circuit.Hyper qualified as Hyper
 -- >>> import Circuit.Circuit qualified as Circuit
 -- >>> import Prelude hiding (id, (.))
@@ -73,7 +73,7 @@ swap.
 
 ```haskell
 whileC :: Step s r -> s -> r
-whileC step = lower (Knot (Lift step'))
+whileC step = reify (Knot (Lift step'))
   where
     step' :: Either s s -> Either s r
     step' = either swapRL swapRL

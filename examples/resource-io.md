@@ -24,7 +24,6 @@ A numeric loop with an IO effect. The `Right` exit path is the only way out.
 
 ```haskell
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 

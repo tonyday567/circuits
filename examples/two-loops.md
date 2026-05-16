@@ -90,6 +90,5 @@ What works instead:
 ## reference
 
 - `Circuit.Circuit` — toHyper vs toHyperE (SKILL.md gotchas)
-- `examples/pair-loops.md` — fused version with pair tensor
 - `examples/hyper-stream.md` — same task via Hyper directly
 - `examples/channel-basics.md` — composable streaming with Channel

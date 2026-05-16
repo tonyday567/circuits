@@ -1,8 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE PostfixOperators #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE UndecidableInstances #-}
 -- | The free traced monoidal category.
 --
 -- `Circuit arr t a b` is the initial encoding of a traced monoidal category
@@ -14,7 +10,7 @@
 --
 -- For example, a `Circuit (->) (,)` is the initial traced monoidal cartesian category over Haskell functions.
 --
--- The `lower` function interprets any `Circuit` to a plain function via
+-- The `reify` function interprets any `Circuit` to a plain arrow via
 -- the `Trace` instance on `t`. For encoding into 'Circuit.Hyper', see
 -- 'Circuit.Hyper.encode' and 'Circuit.Hyper.encodeEither'.
 module Circuit.Circuit
@@ -26,8 +22,6 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
-    lower,
-    (↓),
     push,
     (⊲),
   )
@@ -35,14 +29,21 @@ where
 
 import Circuit.Traced ( Trace (..))
 import Control.Category
+import Data.Bifunctor
+import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup
---
--- >>> :set -XBlockArguments -XLambdaCase
+-- >>> import Data.Profunctor (dimap)
+-- >>> import Prelude hiding (id, (.))
 
--- | Circuit arr t a b is the free traced monoidal category.
--- 🟣 need something special here. clear, tight, simple, complete.
+-- | The free traced monoidal category over base morphism @arr@ and tensor @t@.
+--
+-- Three constructors:
+--
+--   * 'Lift' — embed a base arrow.
+--   * 'Compose' — sequential composition.
+--   * 'Knot' — feedback loop via the tensor.
 data Circuit arr t a b where
   -- | Lift embeds a base arrow (strict monoidal functor).
   Lift :: arr a b -> Circuit arr t a b
@@ -64,7 +65,7 @@ infixr 9 ↮
 (↮) = Knot
 
 -- | Synonym for 'Compose'.
-(⊙) :: (Category arr) => Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
+(⊙) :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
 (⊙) = Compose
 
 instance (Category arr) => Category (Circuit arr t) where
@@ -81,6 +82,26 @@ instance (Trace (->) t) => Applicative (Circuit (->) t x) where
 instance (Trace (->) t) => Monad (Circuit (->) t x) where
   m >>= k = Lift $ \x -> reify (k (reify m x)) x
 
+-- | Profunctor instance for Circuit.
+--
+-- Maps over both ends of the arrow. For @Compose@, the map is applied
+-- to the input of the left sub-circuit and the output of the right
+-- sub-circuit, leaving the intermediate type aligned. For @Knot@, the
+-- map is lifted through the tensor via 'bimap'.
+--
+-- >>> reify (dimap (+ 1) (+ 1) (Lift (* 2) :: Circuit (->) (,) Int Int)) 5
+-- 13
+instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
+  dimap f g (Lift h) = Lift (dimap f g h)
+  dimap f g (Compose h k) = Compose (dimap id g h) (dimap f id k)
+  dimap f g (Knot k) = Knot (dimap (bimap id f) (bimap id g) k)
+  lmap f (Lift h) = Lift (lmap f h)
+  lmap f (Compose h k) = Compose (lmap id h) (lmap f k)
+  lmap f (Knot k) = Knot (lmap (bimap id f) k)
+  rmap g (Lift h) = Lift (rmap g h)
+  rmap g (Compose h k) = Compose (rmap g h) (rmap id k)
+  rmap g (Knot k) = Knot (rmap (bimap id g) k)
+
 -- | Push a plain function onto a Circuit.
 --
 -- >>> reify (push (+1) (Lift (*2) :: Circuit (->) (,) Int Int)) 5
@@ -94,29 +115,16 @@ infixr 8 ⊲
 (⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 (⊲) = push
 
--- | Interpret a Circuit to a plain function.
+-- | Interpret a Circuit to a plain arrow.
 --
 -- This is the unique traced functor from the initial object (Circuit)
--- to the target category. The Mendler case (when a Loop appears on the
+-- to the target category. The Mendler case (when a Knot appears on the
 -- left of Compose) enforces the sliding axiom of traced monoidal categories.
 --
--- >>> lower (Lift (+1) :: Circuit (->) (,) Int Int) 5
+-- >>> reify (Lift (+1) :: Circuit (->) (,) Int Int) 5
 -- 6
-lower :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-lower (Lift f) = f
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))
-lower (Compose f g) = lower f . lower g
-lower (Knot k) = trace k
-
--- | Synonym for 'lower'.
---
--- Because 'lower' returns a plain function, the postfix form
--- chains naturally via function application.
-infixl 9 ↓
-
-(↓) :: (Category arr, Trace arr t) => Circuit arr t a b -> arr a b
-(↓) = lower
-
--- | Alias for 'lower': interpret a Circuit as a plain function. Useful to distinguish Circuit.lower from the other adjunctions.
 reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-reify = lower
+reify (Lift f) = f
+reify (Compose (Knot f) g) = trace (f . untrace (reify g))
+reify (Compose f g) = reify f . reify g
+reify (Knot k) = trace k

@@ -133,7 +133,7 @@ Pick one of the open questions above. Any progress — even a sketch or a counte
 ## References
 
 - Kidney & Wu (2026) — breadth-first search, concurrency scheduler, producer/consumer
-- Riley (2025) — learners and compact closed categories; [buff/learners-full.md](../../mg/buff/learners-full.md)
+- Riley (2025) — learners and compact closed categories; [learners-riley.md](../../../self/external/learners-riley.md)
 - Van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
 - Hasegawa (1997) — Geometry of Interaction connection (conjecture)
 - [circuit-categorical.md](../../mg/buff/circuit-categorical.md) — categorical shopping list

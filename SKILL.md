@@ -124,14 +124,50 @@ cabal repl -b yaya     # for yaya.md
 
 The dependency lives in the command, not in circuits.cabal.
 
+### wrong tensor
+
+`Circuit` is parametric in the tensor `t`. `(,)` and `Either` have
+different loop semantics but identical GADT constructors. The compiler
+won't stop you from using the wrong one — you'll get a puzzling type
+error deep inside a `Knot` or `reify`, often mentioning mismatched
+`Either` vs `(,)` constructors.
+
+| if you wanted | but wrote | symptom |
+|-------------|----------|---------|
+| iteration loop | `Circuit (->) (,)` | `Left`/`Right` not in scope inside Knot body |
+| lazy knot | `Circuit (->) Either` | lazy knot needs pair pattern `(a, b)`, got `Either` |
+
+The doctest convention: pin the tensor explicitly with a type annotation.
+`:: Circuit (->) (,) Int Int` or `:: Circuit (->) Either Int Int`.
+The annotation also resolves the overlapping `Trace (->)` instances.
+
+### either blindness
+
+`Trace (->) Either` uses `Left` = feedback (continue), `Right` = exit.
+User-facing code often uses the opposite convention — `Left` = result
+(done), `Right` = continue (next state). See `examples/while.md`'s
+`Step s r` type and the `swapRL` bridge.
+
+When a Knot body behaves strangely — exiting immediately when it should
+loop, or looping forever when it should exit — check which branch you're
+returning. The convention is fixed by the class, not configurable.
+
+The convention is also visible in the `encodeEither` / `runEither`
+combinators and the `Control0` wrapper in `Circuit.Traced`.
+
 ## example authoring
 
-New example cards go in `~/haskell/circuits/examples/`. Pattern:
+New example cards go in `~/haskell/circuits/examples/`.
+
+### structure
+
+A card is a mini-readme: what this is, usage, the guts of what you want to
+showcase, a few more examples. Top-to-bottom verifiable in a repl.
 
 ```markdown
 # card-name ⟜ one-line summary
 
-Prose introduction — what this demonstrates.
+Prose introduction — what this demonstrates and why.
 
 ## first section
 
@@ -145,6 +181,24 @@ import Circuit.Channel
 
 More code. Use `$setup` blocks for shared state if needed.
 ```
+
+### quality
+
+- **Repl-verifiable.** Paste code blocks into `cabal repl` and they work.
+- **Pleasant to read.** Not a wall of code. Break up large blocks from the
+  testing phase into narrative sections.
+- **Pleasant to copy/paste.** The reader should want to grab a block and play.
+- **Not too long.** Can be as short as ~12 lines. If it's sprawling, split it.
+- **Not too polished.** A few rough edges encourage participation. The card
+  isn't a publication — it's a living artifact that evolves.
+
+### r&d stretch
+
+Cards beyond pure examples — looser, sketchier, more about a path of discovery
+or intention than a finished demonstration. Some are easter eggs: a card that
+makes you think "a circuit is isomorphic to pipes that easily?"
+
+### validation
 
 Cards are NOT compiled by `cabal build` — they're validated by pasting
 code blocks into `cabal repl` (see gotcha above). Doctests in comments
