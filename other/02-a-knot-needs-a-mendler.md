@@ -1,11 +1,11 @@
-# Circuit: The Free Traced Monoidal Category
+# A Knot Needs a Mendler
 
 **Status:** Draft
-**Prev:** [01-stack-language.md](01-stack-language.md) | **Next:** [04-hyper.md](04-hyper.md)
+**Prev:** [01-marks-and-stacks.md](01-marks-and-stacks.md) | **Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md)
 
 ---
 
-The six axioms from [Section 1](01-stack-language.md) determine a GADT exactly.
+The six axioms from [Section 1](01-marks-and-stacks.md) determine a GADT exactly.
 Three constructors, no more. `Circuit arr t a b` is the resulting **initial
 object** in the category of traced monoidal categories over the base arrow
 `arr` with tensor `t`. This section derives the construction, shows why
@@ -101,7 +101,7 @@ for traced monoidal categories.
 The `Trace` typeclass is separate from the GADT because the choice of tensor
 `t` is not fixed by the axioms — it is a parameter. The GADT is generic over
 `t`; the `Trace` instances for `(,)` and `Either` are concrete choices.
-See [05-tensor.md](05-tensor.md).
+See [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md).
 
 ---
 
@@ -295,7 +295,7 @@ models; circuits captures both as `Trace` instances over the same GADT.
 condition on the trace. In circuits, it is a pattern match — the Mendler case
 in `lower`. A categorical requirement becomes an operational guarantee: the
 pattern match enforces that a `Knot` on the left of `Compose` threads the
-right morphism through `untrace` before the trace closes. See `06-rwr.md` for
+right morphism through `untrace` before the trace closes. See `05-no-remorse-once-removed.md` for
 the Reflection Without Remorse connection.
 
 ---
@@ -330,7 +330,7 @@ lower . encode = lower     -- triangle identity
 
 This is a Galois connection, not a strict adjunction. The asymmetry is real:
 Circuit is intensional (you can inspect the constructors), Hyper is extensional
-(you can only observe behaviour). See [04-hyper.md](04-hyper.md).
+(you can only observe behaviour). See [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md).
 
 ### The Sliding Axiom: Not an Adjunction Property
 
@@ -392,7 +392,7 @@ not the design principle.
 Circuit is the free object. `lower` is the unique elimination. The Mendler
 case is the content. Everything else follows.
 
-**Next:** [04-hyper.md](04-hyper.md) — Hyper as the final encoding; the
+**Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — Hyper as the final encoding; the
 coinductive type; why sliding is structural there.
 
 ---

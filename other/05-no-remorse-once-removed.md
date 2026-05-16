@@ -1,7 +1,7 @@
-# Reflection Without Remorse for Traced Categories
+# No Remorse, Once Removed
 
 **Status:** Draft  
-**Prev:** [05-tensor.md](05-tensor.md) | **Next:** [07-future.md](07-future.md)
+**Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-follow-the-knots.md](06-follow-the-knots.md)
 
 ---
 
@@ -150,12 +150,12 @@ The Mendler case is not a clever hack. It is the application of a well-understoo
 - **With it:** `Circuit` is the free traced monoidal category (correct; O(n) traversal)
 - **`Hyper`:** The amortised form (O(1) composition; sliding is structural)
 
-**Next:** [07-future.md](07-future.md) — production use; how to extend the library; applications.
+**Next:** [06-follow-the-knots.md](06-follow-the-knots.md) — production use; how to extend the library; applications.
 
 ---
 
 ## References
 
 - van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
-- Hasegawa (1997) — cyclic sharing vs fixed points; [see 02-circuit.md](02-circuit.md#hasegawa-recursion-from-cyclic-sharing)
-- [04-hyper.md](../other/04-hyper.md) — Ran characterization and the hierarchy
+- Hasegawa (1997) — cyclic sharing vs fixed points; [see 02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md#hasegawa-recursion-from-cyclic-sharing)
+- [03-hyper-buries-the-knot.md](../other/03-hyper-buries-the-knot.md) — Ran characterization and the hierarchy

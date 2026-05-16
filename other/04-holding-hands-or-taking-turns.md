@@ -1,7 +1,7 @@
-# The Tensor Parameter: Holding Hands vs Taking Turns
+# Holding Hands or Taking Turns
 
 **Status:** Draft  
-**Prev:** [04-hyper.md](04-hyper.md) | **Next:** [06-rwr.md](06-rwr.md)
+**Prev:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) | **Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
 ---
 
@@ -165,12 +165,12 @@ This is the point of parametrising over `t`. The categorical structure — the f
 | Use case | Streams, concurrency, dataflow | Coroutines, parsers, schedulers |
 | Categorical name | Costrong | Cochoice |
 
-**Next:** [06-rwr.md](06-rwr.md) — Reflection Without Remorse; the Mendler case as `viewl`; performance story.
+**Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md) — Reflection Without Remorse; the Mendler case as `viewl`; performance story.
 
 ---
 
 ## References
 
 - Kidney & Wu (2026) — producer/consumer insight; both tensor instances
-- Hasegawa (1997) — cartesian vs computational traces; [see 02-circuit.md](02-circuit.md#hasegawa-recursion-from-cyclic-sharing)
+- Hasegawa (1997) — cartesian vs computational traces; [see 02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md#hasegawa-recursion-from-cyclic-sharing)
 - [axioms.md](../other/axioms.md) — proofs for both `(,)` and `Either` instances

@@ -1,7 +1,7 @@
 # Traced Monoidal Category Axioms
 
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
-**See also:** `02-circuit.md` (GADT derivation), `src/Circuit/Traced.hs` (Trace instances)
+**See also:** `02-a-knot-needs-a-mendler.md` (GADT derivation), `src/Circuit/Traced.hs` (Trace instances)
 
 The five Joyal–Street–Verity axioms proved for tensors `(,)` and `Either`
 over the base arrow `(->)`. Narrative motivation lives in the arc docs (01–07).
@@ -86,7 +86,7 @@ to three structural roles:
 | 6 | Sliding | Feedback (forces `Knot` constructor) |
 
 Axioms 4 and 5 introduce no new constructors. Only axiom 6 forces one:
-`Knot`. See `02-circuit.md` for the full derivation.
+`Knot`. See `02-a-knot-needs-a-mendler.md` for the full derivation.
 
 ## The Mendler Case
 
@@ -104,8 +104,8 @@ The Mendler case must appear before the general `Compose` case. Without
 it, `Compose (Knot f) g` falls through to `trace f . lower g` — the
 naive form that closes the channel immediately, losing the feedback
 structure. One pattern match separates a free traced monoidal category
-from the degenerate model. For the full story see `02-circuit.md` and
-`06-rwr.md`.
+from the degenerate model. For the full story see `02-a-knot-needs-a-mendler.md` and
+`05-no-remorse-once-removed.md`.
 
 ## Proofs
 
@@ -341,5 +341,5 @@ structure.
 - Launchbury, Krstic & Sauerwein (2013) — hyperfunction axioms
 - Hasegawa (1997) — Theorem 3.1: cartesian traces = fixpoints
 - Van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
-- `other/02-circuit.md` — how the axioms force the GADT
-- `other/06-rwr.md` — Mendler case as `viewl`
+- `other/02-a-knot-needs-a-mendler.md` — how the axioms force the GADT
+- `other/05-no-remorse-once-removed.md` — Mendler case as `viewl`

@@ -1,7 +1,7 @@
-# Where We Go Next
+# Follow the Knots
 
 **Status:** Draft  
-**Prev:** [06-rwr.md](06-rwr.md)
+**Prev:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
 ---
 
@@ -41,7 +41,7 @@ The `Either` feedback carries the counter. The machine iterates `n` times then t
 
 ### Self-Referential Streams
 
-`Hyper` with `(,)` models self-referential streams — streams that feed back into themselves. The Fibonacci example from [Section 1](01-stack-language.md) is the canonical case. More complex examples: breadth-first tree traversal, concurrent scheduler, backpropagation through a neural network.
+`Hyper` with `(,)` models self-referential streams — streams that feed back into themselves. The Fibonacci example from [Section 1](01-marks-and-stacks.md) is the canonical case. More complex examples: breadth-first tree traversal, concurrent scheduler, backpropagation through a neural network.
 
 ### Parsers
 

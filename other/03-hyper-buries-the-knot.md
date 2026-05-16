@@ -1,7 +1,7 @@
-# Hyper: The Final Encoding
+# Hyper Buries the Knot
 
 **Status:** Draft  
-**Prev:** [02-circuit.md](02-circuit.md) | **Next:** [05-tensor.md](05-tensor.md)
+**Prev:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md) | **Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md)
 
 ---
 
@@ -208,7 +208,7 @@ The typical pattern: **build in Circuit, run via Hyper**.
 
 `Hyper` is `Circuit` with the syntax erased. The feedback channel that `Knot` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `lower . encode = lower` connects them.
 
-**Next:** [05-tensor.md](05-tensor.md) — the tensor parameter `t`; `(,)` vs `Either`; holding hands vs taking turns.
+**Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) — the tensor parameter `t`; `(,)` vs `Either`; holding hands vs taking turns.
 
 ---
 

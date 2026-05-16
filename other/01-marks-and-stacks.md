@@ -1,11 +1,15 @@
-# The Little Stack Language
+# Marks and Stacks
 
 **Status:** Draft
-**Next:** [02-circuit.md](02-circuit.md)
+**Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md)
 
 ---
 
-The circuits library grows from five marks — five operations over an abstract type. They form a tiny stack-based language. Everything else in the library is a consequence of making these five operations precise.
+Five marks and a stack language. That's an almost perfect description of
+functional programming — data flows through pure functions arranged by
+composition. Circuits sets out to make it a bit better: add feedback,
+make it inspectable, prove the structure is free. Everything else in
+the library is a consequence of making these five operations precise.
 
 ```
 η   lift      embed a plain arrow
@@ -97,7 +101,7 @@ Running it:
 3
 ```
 
-This example looks simple. It hides a subtlety: a naive interpreter gets the wrong answer on the second iteration. The fix requires exactly one extra pattern match — the Mendler case — which is the operational form of axiom 6. See [02-circuit.md](02-circuit.md).
+This example looks simple. It hides a subtlety: a naive interpreter gets the wrong answer on the second iteration. The fix requires exactly one extra pattern match — the Mendler case — which is the operational form of axiom 6. See [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md).
 
 ---
 
@@ -129,7 +133,7 @@ Each level adds exactly one concept. The five marks at the top already imply eve
 
 Axiom 6 — the feedback axiom — is exactly the sliding axiom of a traced monoidal category. The five marks, taken together, are the generators of the free traced monoidal category over a base arrow. Every operation in the circuits library is a consequence of making these generators precise.
 
-**Next:** [02-circuit.md](02-circuit.md) — how the axioms force a three-constructor GADT.
+**Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md) — how the axioms force a three-constructor GADT.
 
 ---
 
