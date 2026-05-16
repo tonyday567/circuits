@@ -136,4 +136,3 @@ Pick one of the open questions above. Any progress — even a sketch or a counte
 - Riley (2025) — learners and compact closed categories; [learners-riley.md](../../../self/external/learners-riley.md)
 - Van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
 - Hasegawa (1997) — Geometry of Interaction connection (conjecture)
-- [circuit-categorical.md](../../mg/buff/circuit-categorical.md) — categorical shopping list

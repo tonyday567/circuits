@@ -168,6 +168,5 @@ The Mendler case is the operational content. Everything else — the categorical
 ## References
 
 - Launchbury, Krstic & Sauerwein (2013) — axioms and the degenerate model
-- Hasegawa (1997) — sliding as naturality; [hasegawa.md](../other/hasegawa.md)
-- [axioms-hyp.md](../other/axioms-hyp.md) — modern axiom presentation
-- [axioms-traced.md](../other/axioms-traced.md) — detailed proofs with (,) and Either
+- Hasegawa (1997) — sliding as naturality; [see 03-circuit.md](03-circuit.md#hasegawa-recursion-from-cyclic-sharing)
+- [axioms.md](../other/axioms.md) — traced monoidal axioms; proofs for (,) and Either

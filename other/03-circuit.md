@@ -63,7 +63,7 @@ The Mendler case is the only non-trivial one. It is the operational form of the 
 
 ## The Traced Monoidal Axioms
 
-`Circuit` satisfies all six traced monoidal axioms (Joyal, Street & Verity 1996). The detailed proofs with `(,)` and `Either` are in [axioms-traced.md](../other/axioms-traced.md). The key structural points:
+`Circuit` satisfies all five traced monoidal axioms (Joyal, Street & Verity 1996). The detailed proofs with `(,)` and `Either` are in [axioms.md](../other/axioms.md). The key structural points:
 
 **Naturality (sliding).** The Mendler case enforces:
 
@@ -77,7 +77,7 @@ This is the sliding axiom: a morphism composed on the output of a trace can be m
 
 **Superposing.** Tensor distributes over trace as expected.
 
-**Yanking.** In the cartesian case (`arr = (->)`, `t = (,)`), Hasegawa's Theorem 3.1 gives `run (lift f) = fix f` as a derived consequence. The trace and fixed-point operator coincide. See [hasegawa.md](../other/hasegawa.md).
+**Yanking.** In the cartesian case (`arr = (->)`, `t = (,)`), Hasegawa's Theorem 3.1 gives `run (lift f) = fix f` as a derived consequence. The trace and fixed-point operator coincide. See [the Hasegawa section](#hasegawa-recursion-from-cyclic-sharing) below.
 
 ---
 
@@ -99,6 +99,42 @@ This is the sliding axiom: a morphism composed on the output of a trace can be m
 `lower` is the instance of this universal property where `C = arr` and `F = id`. It is the unique traced functor from the free object back to the base.
 
 Every traced functor out of `Circuit arr t` factors through `lower`. This is why `Circuit` is useful: **you build in `Circuit`, and any target traced category interprets it via `lower`**.
+
+---
+
+## Hasegawa: Recursion from Cyclic Sharing
+
+Hasegawa (1997) asks what recursion is operationally: implementations use cyclic
+data structures — self-referential environments, cyclic graphs — to achieve
+recursion efficiently. This is semantically different from applying a fixed-point
+combinator, even though both produce recursion. His framework uses traced
+monoidal categories (Joyal, Street & Verity) to model cyclic sharing formally,
+and proves **Theorem 3.1**: in a cartesian traced category, traces and
+fixed-point operators are in bijection. The trace IS the fixed point.
+
+Hasegawa's framework assumes traced monoidal categories exist and have nice
+properties. Circuit *constructs* the free one: the GADT with `Lift`, `Compose`,
+and `Knot` is exactly the object his framework presupposes. He proves theorems
+about it; this library is a constructive proof that it exists.
+
+**Where they meet.** Theorem 3.1 is why `run (lift f) = fix f` holds in the
+cartesian case — not as an axiom, but as a consequence of the adjunction
+`lower . lift = id` plus the cartesian trace. What Hasegawa derives from
+semantic models, circuits derives from the GADT construction.
+
+**Where they diverge.** Hasegawa distinguishes `letrec` (unrestricted sharing)
+from `vletrec` (value-restricted sharing) to model different operational
+semantics. Circuits makes the same distinction through tensor choice:
+`(,)` gives parallel, lock-step sharing (Costrong); `Either` gives sequential,
+taking-turns handoff (Cochoice). Hasegawa states these as separate semantic
+models; circuits captures both as `Trace` instances over the same GADT.
+
+**The sliding axiom.** In Hasegawa's framework, sliding is a naturality
+condition on the trace. In circuits, it is a pattern match — the Mendler case
+in `lower`. A categorical requirement becomes an operational guarantee: the
+pattern match enforces that a `Knot` on the left of `Compose` threads the
+right morphism through `untrace` before the trace closes. See `06-rwr.md` for
+the Reflection Without Remorse connection.
 
 ---
 
@@ -166,7 +202,7 @@ instance (Trace (->) t) => Applicative (Circuit (->) t x) where
   f <*> v = Lift $ \x -> reify f x (reify v x)
 ```
 
-The full categorical shopping list — Strong, Costrong, Monoidal, Symmetric, Traced — is in [circuit-categorical.md](../../mg/buff/circuit-categorical.md).
+For Strong/Costrong at `(,)` and Choice/Cochoice at `Either`, see the `Trace` instances in `Circuit/Traced.hs` and [05-tensor.md](05-tensor.md).
 
 ---
 
@@ -198,6 +234,5 @@ Circuit is the free object. `lower` / `reify` is the unique elimination. The Men
 ## References
 
 - Joyal, Street & Verity (1996) — traced monoidal categories; axioms
-- Hasegawa (1997) — fixed points from traces; cartesian case; [hasegawa.md](../other/hasegawa.md)
-- [axioms-traced.md](../other/axioms-traced.md) — detailed proof of all six axioms
-- [axioms-hyp.md](../other/axioms-hyp.md) — modern axiom presentation
+- Hasegawa (1997) — fixed points from traces; cartesian case
+- [axioms.md](../other/axioms.md) — proofs for all five axioms; connection to LKS hyperfunction axioms
