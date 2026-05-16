@@ -173,5 +173,5 @@ This is the point of parametrising over `t`. The categorical structure — the f
 ## References
 
 - Kidney & Wu (2026) — producer/consumer insight; both tensor instances
-- Hasegawa (1997) — cartesian vs computational traces; [see 02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md#hasegawa-recursion-from-cyclic-sharing)
+- Hasegawa (1997) — cartesian vs computational traces; [see 02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md)
 - [axioms.md](../other/axioms.md) — proofs for both `(,)` and `Either` instances

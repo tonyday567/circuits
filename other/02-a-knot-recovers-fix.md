@@ -1,8 +1,8 @@
-# A Knot Needs a Mendler
+# A Knot Recovers Fix
 
-**Summary:** In which axiom 4 forces a third constructor with a concrete
-type change, a naive interpreter nearly takes us in, and a single pattern
-match saves everything from degeneracy.
+**Summary:** In which axiom 4 forces a third constructor with a type change,
+the lazy knot that GHC can tie, and a single pattern match keeps the trace
+honest.
 **Prev:** [01-marks-and-stacks.md](01-marks-and-stacks.md) | **Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md)
 
 ---

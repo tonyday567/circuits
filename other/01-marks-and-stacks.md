@@ -3,7 +3,7 @@
 **Summary:** In which five marks and a stack language turn out to be an
 almost perfect description of functional programming, and we set out to
 make it a bit better.
-**Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md)
+**Next:** [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md)
 
 ---
 
@@ -191,7 +191,7 @@ The language is immediately executable:
 The real power surfaces when the feedback channel carries state — a
 stream, a counter, a coroutine handoff. That requires an explicit
 tensor to name the channel, which forces a third constructor. See
-[02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md).
+[02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md).
 
 ---
 
@@ -228,9 +228,9 @@ sanity check. Axiom 5 is centrality. Axiom 6 is the one that isn't
 free. In `Hyper` it falls out of the type. In an initial encoding, it
 must be enforced by a single pattern match.
 
-**Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md) — how
-the axioms force a three-constructor GADT, and one pattern match saves
-everything from degeneracy.
+**Next:** [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md) — how
+axiom 4 forces a type change, the lazy knot GHC can tie, and one pattern
+match keeps the trace honest.
 
 ---
 
