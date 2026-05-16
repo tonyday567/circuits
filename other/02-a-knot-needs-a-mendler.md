@@ -1,6 +1,8 @@
 # A Knot Needs a Mendler
 
-**Status:** Draft
+**Summary:** In which a sixth axiom forces a third constructor, a naive
+interpreter nearly takes us in, and a single pattern match saves everything
+from degeneracy.
 **Prev:** [01-marks-and-stacks.md](01-marks-and-stacks.md) | **Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md)
 
 ---

@@ -1,6 +1,8 @@
 # No Remorse, Once Removed
 
-**Status:** Draft  
+**Summary:** In which we learn that the Mendler case is viewl by another name,
+that left-nesting is a performance trap, and that remorse is producing the
+right answer the wrong way.
 **Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-follow-the-knots.md](06-follow-the-knots.md)
 
 ---

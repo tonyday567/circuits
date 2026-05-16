@@ -1,138 +1,94 @@
 # Follow the Knots
 
-**Status:** Draft  
+**Summary:** In which we follow the knots through parsers and pipes and
+agents, and glimpse the compact closed frontier where two Hypers talk
+to each other.
 **Prev:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
 ---
 
-`Circuit` is the free traced monoidal category. `Hyper` is its final encoding. The two adjunctions and the sliding axiom are in place. What can you build with this?
+The library's reach is its real selling point. Not one thing — one structure
+that ties many knots. A natural home for makers: pick up a knot and make
+something.
 
 ---
 
-## Production Patterns
+## Parsers
 
-### Bidirectional Pipes
+`Circuit (->) Either [s] (These a [s])` — the Either tensor gives genuine
+two-phase alternation for backtracking; `These` output distinguishes "consumed
+and succeeded" from "touched nothing, safe to backtrack" from "consumed
+everything, done." The `Knot` constructor builds recursive grammars; the
+Mendler case ensures left-recursive grammars are handled correctly.
 
-The `(,)` tensor with `Kleisli IO` gives bidirectional pipes: processes that produce and consume simultaneously, with feedback threading state through the loop.
-
-```haskell
--- A pipe that echoes input and counts steps
-counter :: Circuit (Kleisli IO) (,) Int Int
-counter = Knot $ \(n, x) -> do
-  putStrLn $ "step " ++ show n ++ ": " ++ show x
-  pure (n + 1, x)
-```
-
-The `(,)` feedback carries the count; the output passes the value through. The loop runs indefinitely, threading state without explicit mutation.
-
-### State Machines
-
-The `Either` tensor gives state machines: processes that iterate until a termination condition, with `Left` meaning "continue" and `Right` meaning "done".
-
-```haskell
--- A machine that counts to n then stops
-countdown :: Int -> Circuit (->) Either () ()
-countdown n = Knot $ \case
-  Left  k | k > 0 -> Left  (k - 1)
-  _               -> Right ()
-```
-
-The `Either` feedback carries the counter. The machine iterates `n` times then terminates with `Right ()`.
-
-### Self-Referential Streams
-
-`Hyper` with `(,)` models self-referential streams — streams that feed back into themselves. The Fibonacci example from [Section 1](01-marks-and-stacks.md) is the canonical case. More complex examples: breadth-first tree traversal, concurrent scheduler, backpropagation through a neural network.
-
-### Parsers
-
-The `Either` tensor with backtracking gives parsers: a `Left` result means "failed, try the next alternative"; a `Right` result means "succeeded, return the parse tree". The `Knot` constructor builds recursive grammars. The `Mendler case` ensures that left-recursive grammars are handled correctly.
-
-### Agents
-
-`Circuit (Kleisli IO) (,) Observation Action` is an agent: an IO process that takes observations and produces actions, with feedback threading the agent's internal state through the loop.
-
-```haskell
-type Agent state obs action = Circuit (Kleisli IO) (,) obs action
-```
-
-The `(,)` feedback carries the state. The agent loop runs indefinitely. The `Knot` constructor is where the state update lives.
+The `circuits-parser` library ports `markup-parse` onto this foundation —
+fast, working, a dependency of `chart-svg` and others. The mtok tokenizer
+refactor confirmed the `These` three-arm pattern in practice. See
+`examples/parser.md`.
 
 ---
 
-## Open Mathematical Questions
+## IO
 
-Several questions from the development are unresolved:
+`Circuit (Kleisli IO) Either a b` — the Either tensor gives sequential
+feedback with a structural guarantee: the only way out is `Right`, so
+every exit path must include resource release. The `Trace (Kleisli IO) Either`
+instance uses GHC's delimited continuation primops (`prompt#`/`control0#`)
+for constant stack space regardless of iteration count.
 
-**1. Kan isomorphism (formal)**
-
-The observation `Circuit a b ~ Ran (Const a) (Const b)` (before `Fix`) is a diagram observation, not a theorem. The precise isomorphism needs to be established.
-
-**2. Uniqueness of `Knot`**
-
-`encode` is a traced functor from `Circuit` to `Hyper`. Is it the *unique* traced functor? The freeness of `Circuit` as a traced monoidal category depends on this. The argument exists informally; it needs to be formalised.
-
-**3. Fix(Circuit) isomorphism**
-
-Is `Hyper a b ~ Fix (Circuit (->) t a b)` an isomorphism or a strict inequality? `encode` exists and the triangle holds, but `flatten` is lossy — the two encodings are not isomorphic on the nose. The precise adjunction needs to be stated.
-
-**4. Mendler case as counit naturality**
-
-The Mendler case enforces the sliding axiom. Is it exactly the counit naturality of `Ran (Const a) (Const b)`, formalised? This would close the loop between the operational description and the categorical one.
-
-**5. Geometry of Interaction**
-
-The `Int(C)` completion, `callCC`, `shift/reset` — the connection to the Geometry of Interaction is a conjecture, not yet developed. `Hyper` looks like it should fit into the GoI framework; the precise connection is open.
+The `circuits-io` library builds on this for resource-bracketed IO loops,
+producer/consumer channels via Emit/Commit, and the compact closed
+frontier.
 
 ---
 
-## Extensions
+## Pipes
 
-### Graded Circuits
-
-A graded version would count `Knot` depth as a grade. This would give finer control over the feedback structure and map onto Okasaki's amortised queue analysis — the grading tracks how many levels of `viewl` are needed.
-
-### More Effects
-
-`Circuit (Kleisli m) t` works for any monad `m` with a suitable `Trace` instance. The current `Kleisli IO` instance uses delimited continuations (`prompt`, `control0`). Other monads — `State`, `Writer`, `Except` — need their own `Trace` instances, which may require additional structure on `m`.
-
-### Profunctor Optics
-
-`Circuit` is already a profunctor. The connection to profunctor optics (lenses, prisms, traversals) is direct: optics are exactly the morphisms in categories of profunctors. `Circuit` with `(,)` gives a traced version of `Strong`; with `Either` a traced version of `Choice`. This suggests a library of traced optics built on `Circuit`.
-
-### Learner Integration
-
-The learners paper ([buff/learners-full.md](../../mg/buff/learners-full.md)) shows that the category of extensional learners is almost compact closed — it needs one quotient. `Circuit` is the free traced monoidal category; `AtempC` (atemporal learners) is the free compact closed category. The connection is the theorem that compact closed = traced + duals. Implementing this in Haskell would give a library of bidirectional, backpropagating, compact-closed circuits.
+`Pipe m a b ~ Circuit (Kleisli m) Either a b`. The entire `pipes` library
+compresses into one type parameterised over the monad. The Either tensor's
+await/yield handoff matches the Proxy pattern's Request/Respond alternation.
+The Mendler fold appears 13 times through `fmap`, `<*>`, `>>=`, and the rest —
+every instance follows the same structural recursion. See `examples/pipes.md`.
 
 ---
 
-## How to Contribute
+## Agent & Lib
 
-### Add an Example
+Two `Hyper [Text] [Text]` glued together through their duals. Each side's
+output is the other's input; the continuation channel carries the conversation
+state. No `run`, no `lower` — just two open ends composing via compact closure.
 
-The `examples/` directory contains existing patterns (Agent, Dual, Parser). A good new example:
+Lib is the terminal object Agents navigate through: a shared surface where
+marks accumulate and state persists. A conversation such as the one that
+produced this document is exactly this structure — two Hypers in compact
+closed composition.
 
-1. Picks one of the production patterns above
-2. Is self-contained (compiles without external dependencies)
-3. Has a doctest showing the input/output
-4. Links back to the relevant narrative section
+---
 
-### Add a Trace Instance
+## Bidirectional Harness
 
-A new `Trace` instance for a tensor `t`:
+The next engineering step: a harness where agents connect directly through
+Hyper connections, with no intervening infrastructure like tmux. Two Hypers
+composed compact-closed, each side driving the other's continuation. The
+connection IS the protocol.
 
-1. Define `trace` and `untrace` for the new `t`
-2. Prove (or argue) the sliding axiom: `trace (f . untrace g) = trace f . g`
-3. Add a doctest showing a non-trivial `Circuit` over the new `t`
+---
 
-### Formalise an Open Question
+## The Compact Closed Frontier
 
-Pick one of the open questions above. Any progress — even a sketch or a counterexample — is valuable.
+The open question: does `encode` carry duals through the coinduction? A
+Circuit with a `Dual` constructor (flipping `a` and `b`) plus `Knot` should
+form a compact closed category when the base arrow is `*`-autonomous. The
+triangle `lower . encode = lower` holds for the traced structure. Whether
+it holds for the dual structure — whether `flatten` leaks the duality —
+is the knot on the other side of this story.
 
 ---
 
 ## References
 
-- Kidney & Wu (2026) — breadth-first search, concurrency scheduler, producer/consumer
-- Riley (2025) — learners and compact closed categories; [learners-riley.md](../../../self/external/learners-riley.md)
-- Van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
-- Hasegawa (1997) — Geometry of Interaction connection (conjecture)
+- `circuits-parser` — `Circuit (->) Either` with `These` output
+- `circuits-io` — `Circuit (Kleisli IO) Either` with delimited continuations
+- `examples/parser.md` — the parser knot
+- `examples/pipes.md` — the pipes isomorphism
+- `examples/resource-io.md` — bracketed resource lifecycle

@@ -1,6 +1,7 @@
 # Holding Hands or Taking Turns
 
-**Status:** Draft  
+**Summary:** In which we must choose: hold hands and progress together, or
+take turns passing the channel back and forth.
 **Prev:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) | **Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
 ---

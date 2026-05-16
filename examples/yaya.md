@@ -5,7 +5,7 @@
 For background on both libraries see [hyper-basic.md](hyper-basic.md) (Circuit.Hyper)
 and the [yaya repo](https://github.com/sellout/yaya) (recursion schemes over pattern
 functors). This card proves the isomorphism conjectured in the narrative
-([04-hyper.md](../other/04-hyper.md)):
+([03-hyper-buries-the-knot.md](../other/03-hyper-buries-the-knot.md)):
 
 > **`Hyper a b  ≅  Fix (Ran (Const a) (Const b))`**
 
@@ -306,7 +306,7 @@ The bridge shows these are the same function.
 
 ## Connection to the Narrative
 
-The narrative ([04-hyper.md](../other/04-hyper.md)) characterises `Hyper` as
+The narrative ([03-hyper-buries-the-knot.md](../other/03-hyper-buries-the-knot.md)) characterises `Hyper` as
 the Kan-extension fixpoint.  This card provides the constructive proof:
 
 ```
@@ -318,7 +318,7 @@ Hyper a b  ≅  Fix (Ran (Const a) (Const b))
 - **After Fix:** `Hyper a b = Fix (Ran (Const a) (Const b))` (the traced category)
 
 The Mendler case in `lower` on `Circuit` makes the catamorphism valid.
-`toHyper` maps `Circuit → Hyper` as the unique traced functor from the initial
+`encode` maps `Circuit → Hyper` as the unique traced functor from the initial
 to the final encoding. The bridge in this card shows the converse:
 `Hyper` **is** the fixpoint of the Ran functor, and standard recursion
 schemes work directly on it through `toFix`/`fromFix`.

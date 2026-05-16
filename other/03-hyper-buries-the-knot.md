@@ -1,6 +1,7 @@
 # Hyper Buries the Knot
 
-**Status:** Draft  
+**Summary:** In which the knot dissolves into the type itself, sliding
+becomes structural, and we discover that Hyper was a Kan extension all along.
 **Prev:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md) | **Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md)
 
 ---

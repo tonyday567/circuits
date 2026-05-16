@@ -1,6 +1,8 @@
 # Marks and Stacks
 
-**Status:** Draft
+**Summary:** In which five marks and a stack language turn out to be an
+almost perfect description of functional programming, and we set out to
+make it a bit better.
 **Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md)
 
 ---

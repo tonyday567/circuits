@@ -1,5 +1,7 @@
 # Traced Monoidal Category Axioms
 
+**Summary:** Equational proofs for all five axioms, both tensors. For when
+you need to be sure.
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
 **See also:** `02-a-knot-needs-a-mendler.md` (GADT derivation), `src/Circuit/Traced.hs` (Trace instances)
 

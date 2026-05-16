@@ -53,5 +53,5 @@ step through. Same structure, different driving discipline.
 ## reference
 
 - `Circuit.Hyper` — the module
-- `other/04-hyper.md` — final encoding, Kan characterization
+- `other/03-hyper-buries-the-knot.md` — final encoding, Kan characterization
 - `examples/while.md` — while loop: Hyper vs Circuit comparison

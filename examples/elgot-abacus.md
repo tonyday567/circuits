@@ -1,8 +1,5 @@
-I'm glad the abacus-to-Circuit translation clicked for you! That's one of the nicest things about the design — you can read the Circuit backwards and recover the imperative counter-machine intuition almost directly.
 
-Here's a cleaned-up, more idiomatic version that fits your library style (using Either tensor, proper use of Knot + Mendler, and ready to drop into your codebase).
-
-## Polished Abacus → Circuit Compiler
+## Abacus → Circuit Compiler
 
 ```haskell
 {-# LANGUAGE LambdaCase #-}
@@ -71,8 +68,6 @@ This is almost a direct syntactic embedding of the initial Elgot category from N
 
 ---
 
-## Multi-Register Abacus (Symbol-Heavy)
-
 A symbol-heavy presentation using the little-language operators (η, ε, ⊙, ⊲, ↬, ⥁, etc.).
 
 ### Core Symbols Recap
@@ -118,65 +113,6 @@ runMultiply m n = ε (abacus (multiplyAbacus m)) n
 ```
 
 This reads almost like a formal grammar for the initial Elgot category.
-
-### Multi-Register Abacus (Product in Feedback Channel)
-
-We carry a tuple of registers in the Left channel. For two registers (r1, r2) + main input:
-
-```haskell
-type Reg2 = (Int, Int)                     -- (r1, r2)
-
-data Abacus2 a
-  = Inc1 (Abacus2 a)          -- r1+
-  | Inc2 (Abacus2 a)          -- r2+
-  | Dec1 (Abacus2 a) (Abacus2 a)   -- r1-  (zero branch / nonzero branch)
-  | Dec2 (Abacus2 a) (Abacus2 a)   -- r2-
-  | Output a
-
--- Symbolic compiler
-abacus2 :: Abacus2 b → Circuit (->) Either (Reg2, b) b   -- or simplify input
-
-inc1 next = η (λcase 
-                Left ((r1,r2), x) → Left ((r1+1, r2), x)
-                Right y           → Right y) ⊙ next
-
-inc2 next = η (λcase 
-                Left ((r1,r2), x) → Left ((r1, r2+1), x)
-                Right y           → Right y) ⊙ next
-
-dec1 next1 next0 = ↬ (λcase
-  Left ((0,  r2), x) → Left (ε (abacus2 next0) ((0,r2), x))
-  Left ((r1, r2), x) → Left (ε (abacus2 next1) ((r1-1,r2), x))
-  Right y            → Right y )
-
-dec2 next1 next0 = ↬ (λcase   -- symmetric for r2
-  Left ((r1, 0), x) → Left (ε (abacus2 next0) ((r1,0), x))
-  Left ((r1,r2), x) → Left (ε (abacus2 next1) ((r1,r2-1), x))
-  Right y           → Right y )
-
-output2 x = η (const (Right x))
-```
-
-**Classic Two-Register Example: Multiplication (r1 = m, r2 = n, result in r1)**
-
-```haskell
--- Multiply using r1 += m, r2 times (result ends in r1)
-mult2 :: Int → Int → Int
-mult2 m n = ε (abacus2 program) ((0, n), 0)   -- start: r1=0 (accumulator), r2=n
-  where
-    program = dec2
-      (inc1 (mult2 m n))     -- while r2 > 0: r1 += m, r2--
-      (output2 0)            -- when r2 reaches 0, result is in r1
-```
-
-In pure symbolic little-language form (no Haskell data type):
-
-```
-multiply(m, n)  ≜  ↬ ( dec2 ( inc1 (multiply(m,n)) ) (output 0) ) 
-                   ⊙ η (λ(r1,r2) → (0, n))   -- initial setup
-```
-
-This scales nicely: add more registers by enlarging the product in the feedback channel (r1, r2, r3, ...) and adding Inck / Deck combinators. The Mendler case in lower ensures that when you compose larger programs, the register tuple stays correctly threaded through every ↬.
 
 ### Why This Is Nice
 

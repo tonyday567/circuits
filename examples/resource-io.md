@@ -40,7 +40,7 @@ countdown = loopIO \n ->
     putStrLn $ "tick " <> show n
     pure (Left (n - 1))                         -- loop with n-1
 
--- >>> runKleisli (run countdown) 3
+-- >>> runKleisli (reify countdown) 3
 -- tick 3
 -- tick 2
 -- tick 1
@@ -63,7 +63,7 @@ echo = loopIO \line ->
     putStrLn $ "echo: " <> line
     pure (Left "next>")                         -- feedback token
 
--- >>> runKleisli (run echo) "hello"
+-- >>> runKleisli (reify echo) "hello"
 -- echo: hello
 ```
 
@@ -98,7 +98,7 @@ fileReader path = loopIO \case
         putStrLn line
         pure (Left h)                           -- continue with handle
 
--- >>> runKleisli (run (fileReader "examples/resource-file.md")) ()
+-- >>> runKleisli (reify (fileReader "examples/resource-file.md")) ()
 ```
 
 The state machine phases:
