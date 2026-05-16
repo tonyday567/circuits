@@ -118,17 +118,24 @@ Substituting `⊲ = ↑ then ⊙`:
 (↑ f ⊙ p) ⊙ (↑ g ⊙ q)  =  ↑ (f . g) ⊙ (p ⊙ q)
 ```
 
-The lifted arrows `↑ f` and `↑ g` slide to the left and compose with
-each other. The two hyperfunctions `p` and `q` compose with each other
-on the right. The lifted arrows are *central* — they commute with
-everything. A plain function pushed onto the stack can always be
-re-associated to the outermost position.
+Strip the `q` — it's a witness, not structure:
+
+```
+(↑ f ⊙ p) ⊙ ↑ g  =  ↑ (f . g) ⊙ p
+```
+
+Lifted arrows slide left past hyperfunctions. `↑ f` and `↑ g` compose
+with each other; `p` stays on the right. The `q` in the general form is
+just this pattern composed with `q` on both sides.
 
 This is the move that makes function stacks work: `(g . f) x` is the
-same as `f x` then `g`. Centrality is why we can reason about programs as
-pipelines. It's so natural we barely notice it. The pin goes here: in
-the initial encoding, centrality is not free — it depends on the tensor
-being symmetric. See 04.
+same as `f x` then `g`. A plain function pushed onto the stack can
+always be re-associated to the outermost position, no matter what
+hyperfunction it was pushed onto. Centrality is why we can reason about
+programs as pipelines — it's so natural we barely notice it.
+
+The pin goes here: in the initial encoding, centrality is not free — it
+depends on the tensor being symmetric. See 04.
 
 ### 6: Feedback / Sliding
 
