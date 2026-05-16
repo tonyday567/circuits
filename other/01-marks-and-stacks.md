@@ -112,27 +112,29 @@ behaviour, it only adds structure (the continuation channel).
 (f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q)
 ```
 
-Substituting `⊲ = ↑ then ⊙`:
+Substitute `⊲ = ↑ then ⊙`:
 
 ```
 (↑ f ⊙ p) ⊙ (↑ g ⊙ q)  =  ↑ (f . g) ⊙ (p ⊙ q)
 ```
 
-Strip the `q` — it's a witness, not structure:
+Apply associativity (axiom 1) and functoriality (axiom 3):
 
 ```
-(↑ f ⊙ p) ⊙ ↑ g  =  ↑ (f . g) ⊙ p
+↑ f ⊙ p ⊙ ↑ g ⊙ q  =  ↑ f ⊙ ↑ g ⊙ p ⊙ q
 ```
 
-Lifted arrows slide left past hyperfunctions. `↑ f` and `↑ g` compose
-with each other; `p` stays on the right. The `q` in the general form is
-just this pattern composed with `q` on both sides.
+Cancel `↑ f` on the left and `q` on the right:
 
-This is the move that makes function stacks work: `(g . f) x` is the
-same as `f x` then `g`. A plain function pushed onto the stack can
-always be re-associated to the outermost position, no matter what
-hyperfunction it was pushed onto. Centrality is why we can reason about
-programs as pipelines — it's so natural we barely notice it.
+```
+p ⊙ ↑ g  =  ↑ g ⊙ p
+```
+
+Centrality is commutativity of lifted arrows via `⊙`. A plain function
+pushed onto the stack can always be re-associated to the outermost
+position, no matter what hyperfunction it was pushed onto. It's the move
+that makes function stacks work — `(g . f) x` is `f x` then `g`. So
+natural we barely notice it.
 
 The pin goes here: in the initial encoding, centrality is not free — it
 depends on the tensor being symmetric. See 04.
