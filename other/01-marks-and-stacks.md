@@ -73,45 +73,90 @@ axiom 6  ⥁ ((f ⊲ p) ⊙ q)     =  f (⥁ (q ⊙ p))     feedback / sliding
 
 ---
 
-## Push and Run are Compound
+Two of the marks are compound — `⊲` is `↑` then `⊙`, `⥁` is `fix` then `↓` —
+but the axioms don't care. They constrain the interface, not the implementation.
 
-Two of the five marks are not primitive — they decompose into simpler
-terms:
+## Reading the Axioms
 
-**Push decomposes into lift and compose:**
+### 1–3: The Free Category
 
-```haskell
-f ⊲ p  =  ↑ f ⊙ p
+```
+(f ⊙ g) ⊙ h  =  f ⊙ (g ⊙ h)       associativity
+f ⊙ ↑ id      =  f  =  ↑ id ⊙ f     identity
+↑ (f . g)     =  ↑ f ⊙ ↑ g           lift is a functor
 ```
 
-**Run decomposes into lower and fix:**
+These three say: composition is associative, `↑ id` is the identity
+morphism, and `↑` respects composition of plain functions. Together they
+make `Hyper` a category with `↑` as a functor from `(->)`.
 
-```haskell
-⥁  =  fix . ↓
+If you stop here, you have the free category over Haskell functions.
+This is the core of functional programming: function application and
+composition. GHC itself is a function stack interpreter built on these
+moves.
+
+### 4: Faithful Embedding
+
+```
+⥁ (↑ f)  =  fix f
 ```
 
-Substituting these into axioms 4, 5, 6 reduces the axiom set to three
-structural roles:
+Substituting `⥁ = fix . ↓` gives the cleaner form: `↓ . ↑ = id`.
+Observation recovers the original arrow. What you embed is what you
+observe. This is the sanity check — `Hyper` doesn't add or remove
+behaviour, it only adds structure (the continuation channel).
 
-| Axioms | Role | What holds |
-|--------|------|------------|
-| 1, 2, 3 | Free category | `↑`, `⊙` build a category |
-| 4 | Faithful embedding: `↓ . ↑ = id` | Observation recovers the original arrow |
-| 5 | Centrality: lifted arrows slide past anything | Free from tensor symmetry |
-| 6 | Feedback / sliding | Self-reference preserves structure |
+### 5: Centrality
 
-Axioms 4 and 5 introduce no new structure. Only axiom 6 does — it says
-that when a pushed function meets a composed morphism, the two swap
-places inside `⥁`. This swap is the trace. In `Hyper`, this holds
-structurally: composition is defined as
-
-```haskell
-f . g = Hyper $ \h -> invoke f (g . h)
+```
+(f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q)
 ```
 
-The continuation `h` threads through `g . h` before `f` sees it, on
-every unfolding. Sliding is free. There is no degenerate model to fall
-into because the type itself encodes the feedback.
+Substituting `⊲ = ↑ then ⊙`:
+
+```
+(↑ f ⊙ p) ⊙ (↑ g ⊙ q)  =  ↑ (f . g) ⊙ (p ⊙ q)
+```
+
+The lifted arrows `↑ f` and `↑ g` slide to the left and compose with
+each other. The two hyperfunctions `p` and `q` compose with each other
+on the right. The lifted arrows are *central* — they commute with
+everything. A plain function pushed onto the stack can always be
+re-associated to the outermost position.
+
+This is the move that makes function stacks work: `(g . f) x` is the
+same as `f x` then `g`. Centrality is why we can reason about programs as
+pipelines. It's so natural we barely notice it. The pin goes here: in
+the initial encoding, centrality is not free — it depends on the tensor
+being symmetric. See 04.
+
+### 6: Feedback / Sliding
+
+```
+⥁ ((f ⊲ p) ⊙ q)  =  f (⥁ (q ⊙ p))
+```
+
+Substituting the compounds:
+
+```
+fix (↓ ((↑ f ⊙ p) ⊙ q))  =  f (fix (↓ (q ⊙ p)))
+```
+
+A pushed function `f` on the left of a composition `q` swaps places
+with `q` inside the fixed point. `p` and `q` exchange positions. This
+is not reassociation — it is a genuine swap. A plain category cannot
+produce it. This is the one axiom that is not a move in ordinary
+functional programming.
+
+It is the sliding axiom of a traced monoidal category. It is what makes
+feedback honest — what keeps the loop from collapsing to a single
+application. In `Hyper`, sliding holds structurally: every `Category`
+composition threads the continuation through `g . h` before `f` sees
+it. The type itself enforces the axiom.
+
+Axioms 1–3 are the moves of FP. Axiom 4 is the sanity check. Axiom 5
+is centrality — the move we use without noticing. Axiom 6 is the new
+move.
 
 ---
 
@@ -172,11 +217,10 @@ next chapter.
 
 ## This Little Language Scales
 
-Axiom 6 — the feedback axiom — is exactly the sliding axiom of a traced
-monoidal category. The five marks, taken together, are the generators of
-the free traced monoidal category over a base arrow. In `Hyper`, sliding
-falls out of the type. In the initial encoding, it must be enforced by a
-single pattern match.
+Axioms 1–3 are the free category — the moves of FP. Axiom 4 is the
+sanity check. Axiom 5 is centrality. Axiom 6 is the one that isn't
+free. In `Hyper` it falls out of the type. In an initial encoding, it
+must be enforced by a single pattern match.
 
 **Next:** [02-a-knot-needs-a-mendler.md](02-a-knot-needs-a-mendler.md) — how
 the axioms force a three-constructor GADT, and one pattern match saves
