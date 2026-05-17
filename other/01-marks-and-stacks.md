@@ -21,8 +21,13 @@ is a consequence of making these five operations precise.
 ⥁   run       tie the knot
 ```
 
-The five marks live on `Hyper`, the final encoding of a traced monoidal
-category:
+The five marks first appear on `Hyper`, the final encoding. We meet them
+here because the interface is simpler — no constructors, no pattern
+matching, just five operations on one coinductive type. The next chapter
+builds the initial encoding (a GADT) and discovers what structure forces
+these marks to exist.
+
+`Hyper` is the final encoding of a traced monoidal category:
 
 ```haskell
 newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
@@ -73,7 +78,7 @@ axiom 6  ⥁ ((f ⊲ p) ⊙ q)     =  f (⥁ (q ⊙ p))     feedback / sliding
 
 ---
 
-Two of the marks are compound — `⊲` is `↑` then `⊙`, `⥁` is `fix` then `↓` —
+Two of the marks are compound — `⊲` is `↑` then `⊙`, `run` is `fix` then `↓` —
 but the axioms don't care. They constrain the interface, not the implementation.
 
 ## Reading the Axioms

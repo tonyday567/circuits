@@ -138,6 +138,13 @@ Each case corresponds to one axiom:
 | `Knot' f` | Axiom 4 | Closes the feedback channel via `trace'` |
 | `Compose (Knot' f) g` | Axiom 6 | Threads `g` into the channel before tracing |
 
+The `Compose (Knot' f) g` case must appear before the general `Compose`
+case — the order is load-bearing. The name "Mendler" comes from
+Mendler-style recursion, where the recursive call is guarded by a
+constructor match. Here the constructor being matched is `Knot'` inside
+a `Compose`; the guard is the single pattern match that threads `g`
+into the feedback channel before closing the loop.
+
 Without the Mendler case, `Knot'` becomes observationally equivalent to
 `↑ (trace' f)` — the feedback channel closes immediately, the loop
 structure is lost. This is the **degenerate model**.

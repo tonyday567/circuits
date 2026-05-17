@@ -84,13 +84,13 @@ to three structural roles:
 |-----------|-----------|-----------------|
 | 1–3 | — | Free category (`Lift` + `Compose`) |
 | 4 | — | `run (lift f) = fix f` (Hasegawa Theorem 3.1) |
-| 5 | — | Push composition (holds when `t` symmetric) |
+| 5 | — | Centrality: push composition glues lifted arrows through the stack. Plain functions can be moved to the outside of a composition without changing meaning — the property that makes ordinary FP feel natural inside a traced setting. |
 | 6 | Sliding | Feedback (forces `Knot` constructor) |
 
-LKS axioms 1–5 have no direct JSV counterpart — they fall out of the free
-category structure (associativity, identity, functoriality) and the
-Hasegawa fixpoint correspondence. Only axiom 6 (sliding/feedback) maps
-cleanly to a JSV axiom.
+LKS axioms 1–5 have no direct JSV counterpart — LKS 1–3 fall out of the free
+category structure, LKS 4 follows from the Hasegawa fixpoint correspondence,
+and LKS 5 (centrality) is what makes `push` well-behaved. Only LKS 6
+(sliding/feedback) maps cleanly to a JSV axiom.
 
 Axioms 4 and 5 introduce no new constructors. Only axiom 6 forces one:
 `Knot`. See `02-a-knot-recovers-fix.md` for the full derivation.
