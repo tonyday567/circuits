@@ -215,7 +215,7 @@ The typical pattern: **build in Circuit, run via Hyper**.
 
 ## References
 
-- Launchbury, Krstic & Sauerwein (2013) — hyperfunction definitions and operations
-- Kidney & Wu (2026) — modern treatment; producer-consumer insight
+- [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — hyperfunction definitions and operations
+- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — modern treatment; producer-consumer insight
 - Icelandjack — Ran characterization; `Fix (Ran (Const a) (Const b))`
-- [axioms.md](../other/axioms.md) — axioms and triangle identity
+- [axioms.md](../other/axioms.md) — axioms and the commuting triangle

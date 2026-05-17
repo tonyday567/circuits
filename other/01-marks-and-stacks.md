@@ -239,7 +239,7 @@ match keeps the trace honest.
 
 ## References
 
-- Launchbury, Krstic & Sauerwein, "Hyperfunctions" (2013) — original axiom system
-- Kidney & Wu, "Hyperfunctions and the monad of streams" (2026) — modern notation
-- Joyal, Street & Verity, "Traced monoidal categories" (1996) — categorical foundations
+- [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — original axiom system; coroutining folds with hyperfunctions
+- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — hyperfunctions: communicating continuations
+- [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
 - `src/Circuit/Hyper.hs` — the five marks in code

@@ -344,9 +344,9 @@ structure.
 
 ## References
 
-- Joyal, Street & Verity (1996) — traced monoidal categories
-- Launchbury, Krstic & Sauerwein (2013) — hyperfunction axioms
-- Hasegawa (1997) — Theorem 3.1: cartesian traces = fixpoints
-- Van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
+- [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
+- [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — hyperfunction axioms
+- [Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) — Theorem 3.1: cartesian traces = fixpoints
+- [Van der Ploeg & Kiselyov (2014)](https://doi.org/10.1145/2633357.2633360) — Reflection Without Remorse
 - `other/02-a-knot-recovers-fix.md` — how the axioms force the GADT
 - `other/05-no-remorse-once-removed.md` — Mendler case as `viewl`

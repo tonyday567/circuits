@@ -131,5 +131,5 @@ use; parsers, pipes, agents, and the circuits-io frontier.
 
 ## References
 
-- van der Ploeg & Kiselyov (2014) — Reflection Without Remorse
+- [Van der Ploeg & Kiselyov (2014)](https://doi.org/10.1145/2633357.2633360) — Reflection Without Remorse
 - [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — Ran characterization and the hierarchy

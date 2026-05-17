@@ -172,6 +172,6 @@ This is the point of parametrising over `t`. The categorical structure — the f
 
 ## References
 
-- Kidney & Wu (2026) — producer/consumer insight; both tensor instances
-- Hasegawa (1997) — cartesian vs computational traces; [see 02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md)
+- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — producer/consumer insight; both tensor instances
+- [Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) — cartesian vs computational traces
 - [axioms.md](../other/axioms.md) — proofs for both `(,)` and `Either` instances

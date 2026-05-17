@@ -124,8 +124,8 @@ conversation IS the protocol.
 (centrality: lifted arrows commute past everything) but gets stuck at
 `↮`. The Knot's type change `arr (t a b) (t a c)` is a barrier.
 
-The next layer — `circuits-io` — builds on this. Kidney & Wu (POPL 2026)
-show that hyperfunctions give a fully-abstract model of CCS [KW26]. Their `Communicator` type is a hyperfunction
+The next layer — `circuits-io` — builds on this. [Kidney & Wu (2026)](https://doi.org/10.1145/3776649)
+show that hyperfunctions give a fully-abstract model of CCS. Their `Communicator` type is a hyperfunction
 on message-passing functions; `circuits-io` ports this to `Channel`,
 `Producer`, and `Consumer` with IO effects.
 
@@ -143,6 +143,7 @@ consumer composition, and the categorical claims that belong there.
 
 ## References
 
+- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — hyperfunctions: communicating continuations
 - `circuits-parser` — `Circuit (->) Either` with `These` output
 - `circuits-io` — `Circuit (Kleisli IO) Either` with delimited continuations
 - `examples/parser.md` — the parser knot

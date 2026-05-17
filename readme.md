@@ -54,7 +54,7 @@ Two tensors, two notions of time:
 circuits is a rethink of how to interact with a compiler and arrange code
 pipelines — circuits — in ways that are intentional and clear.
 
-Within the context of the Kidney–Wu hyperfunctions paper, we propose the
+Within the context of the [Kidney & Wu hyperfunctions paper](https://doi.org/10.1145/3776649), we propose the
 free traced monoidal category. `Circuit` is the initial encoding — a GADT
 with visible constructors, interpreted by `reify`. `Hyper` is the final
 encoding — a coinductive type where feedback dissolves into the structure

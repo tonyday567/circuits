@@ -285,7 +285,7 @@ coinductive type; why sliding is structural there.
 
 ## References
 
-- Launchbury, Krstic & Sauerwein (2013) — axioms and the degenerate model
-- Joyal, Street & Verity (1996) — traced monoidal categories
-- Hasegawa (1997) — fixed points from traces; cartesian case
+- [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — axioms and the degenerate model
+- [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
+- [Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) — recursion from cyclic sharing; fixed points from traces
 - [axioms.md](axioms.md) — proofs for all five axioms
