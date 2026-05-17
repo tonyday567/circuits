@@ -46,7 +46,7 @@ stateful morphism   ≅   Knot-able circuit fragment
 
 A lens `Lens s s b c` is exactly a stateful morphism `(s, b) -> (s, c)`
 — the update function carries the state wire through unchanged. `Knot`
-hide the wire; `untrace` introduces it.
+hides the wire; `untrace` introduces it.
 
 ---
 
@@ -146,18 +146,24 @@ The standard categorical formulation of optics (Riley) is a coend:
 Optic ⟨s, t⟩ ⟨a, b⟩ = ∫^m C(s, m ⊗ a) × D(m ⊗ b, t)
 ```
 
-The residual `m` is the hidden state wire. The coend exists to
-quantify over all possible ways to factor the source and target
-through a common residual.
+The residual `m` is the hidden state wire. The coend quantifies over
+all possible residuals — it is a universal type saying "there exists
+some `m` such that."
 
-In a traced monoidal category, this collapses. `trace` and `untrace`
-already give you the primitives to introduce and eliminate a state
-wire of any type. `Knot` hides it; composition of knotted circuits
-implicitly handles the residuals via vanishing and sliding. You do not
-need a coend to range over possible residuals because the trace
-structure internalises the wiring.
+In a traced monoidal category, `trace` and `untrace` give primitives to
+introduce and eliminate a specific state wire. `Knot` hides it;
+composition of knotted circuits merges wires via vanishing and sliding.
+The trace handles the wiring for any *chosen* residual — but it does
+not quantify over the family of all possible residuals. That universal
+quantification is what the coend adds.
 
-Does this mean the full optic coend formulation is just the type of a
-`Circuit` morphism before you apply a trace to hide the residual? That
-would collapse a lot of the optics literature into the traced monoidal
-setting already built here.
+In a compact closed category the coend collapses because the residual
+can be constructed explicitly (it is an internal hom). The `Trace`
+class is strictly weaker: it eliminates wires but does not construct
+new ones. The gap between trace and coend is precisely the gap between
+traced monoidal and compact closed.
+
+What the circuits setting gives you is the *practical* side: pick a
+residual, `Knot` it, compose with others, let the axioms handle the
+wiring. The coend remains the *semantic* type that captures "any
+possible wiring" — a different structure at a different level.

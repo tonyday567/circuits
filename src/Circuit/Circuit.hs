@@ -28,6 +28,7 @@ module Circuit.Circuit
     push,
     (⊲),
     ambient,
+    (↣),
   )
 where
 
@@ -118,6 +119,12 @@ infixr 8 ⊲
 
 (⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 (⊲) = push
+
+-- | Left-to-right sequential composition. Operator form of @(>>>).
+infixl 9 ↣
+
+(↣) :: Circuit arr t a b -> Circuit arr t b c -> Circuit arr t a c
+f ↣ g = g ⊙ f
 
 -- | Thread a state wire through a Circuit.
 --
