@@ -31,7 +31,7 @@
 -- For detailed design and theory, see @other/@.
 -- For examples, see @examples/@.
 module Circuit
-  (    -- * Circuit (initial encoding)
+  ( -- * Circuit (initial encoding)
     Circuit (..),
     reify,
     (↘),
@@ -74,10 +74,10 @@ import Circuit.Circuit
     push,
     reify,
     (↑),
-    (↮),
     (↘),
-    (⊲),
+    (↮),
     (⊙),
+    (⊲),
   )
 import Circuit.Hyper
   ( Hyper (..),
@@ -89,8 +89,8 @@ import Circuit.Hyper
     lower,
     run,
     runEither,
-    (⇨),
     (⇦),
+    (⇨),
     (⇸),
     (○),
     (⥁),

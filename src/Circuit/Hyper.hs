@@ -39,11 +39,11 @@ module Circuit.Hyper
   )
 where
 
+import Circuit.Circuit (Circuit (..), reify)
+import Circuit.Traced (Trace (..))
 import Control.Category
 import Data.Profunctor
 import Prelude hiding (id, (.))
-import Circuit.Traced (Trace (..))
-import Circuit.Circuit (Circuit (..), reify)
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
@@ -226,8 +226,8 @@ instance Trace Hyper (,) where
     let pair = invoke body cont
         cont = Hyper $ \_ ->
           let a_val = invoke k (Hyper (const (snd pair)))
-          in (fst pair, a_val)
-    in snd pair
+           in (fst pair, a_val)
+     in snd pair
   untrace = lift . fmap . lower
 
 -- * Encoding Circuit into Hyper
@@ -267,10 +267,13 @@ infixr 9 ⇨
 encodeEither :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
 encodeEither f = h
   where
-    h = Hyper (\k s ->
-      case f s of
-        Right c -> c
-        Left a -> invoke k h (Left a))
+    h =
+      Hyper
+        ( \k s ->
+            case f s of
+              Right c -> c
+              Left a -> invoke k h (Left a)
+        )
 
 -- | Run an 'encodeEither'-encoded circuit from initial input @b@.
 --
@@ -338,20 +341,3 @@ instance Profunctor Hyper where
 
 instance Functor (Hyper a) where
   fmap = rmap
-
--- | 'Applicative' instance for 'Hyper'.
---
--- Two 'lower' calls are natural here: one extracts the function
--- @a -> b@, the other extracts the argument @a@. There is no
--- single-step alternative that preserves the hyperfunction structure.
-instance Applicative (Hyper a) where
-  pure = base
-  hf <*> ha = lift $ \a -> lower hf a (lower ha a)
-
--- | 'Monad' instance for 'Hyper'.
---
--- @m >>= k@ extracts a value from @m@, feeds it to @k@ to obtain
--- a new hyperfunction, then extracts the final result. The pattern
--- is: lower to observe, lift to re-encode.
-instance Monad (Hyper a) where
-  m >>= k = lift $ \a -> lower (k (lower m a)) a

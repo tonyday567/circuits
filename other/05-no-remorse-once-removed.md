@@ -125,7 +125,7 @@ categories. The hierarchy gains a row. The pattern match is `viewl` for
 feedback channels.
 
 **Next:** [06-follow-the-knots.md](06-follow-the-knots.md) — production
-use; parsers, pipes, agents, and the compact closed frontier.
+use; parsers, pipes, agents, and the circuits-io frontier.
 
 ---
 

@@ -39,7 +39,6 @@ module Circuit.Traced
   )
 where
 
-
 import Control.Arrow (Kleisli (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
@@ -121,7 +120,6 @@ infixr 9 ↩
 -- (6,6)
 --
 -- prop> \a c -> trace ((\(x, (p, q)) -> (x, (p + a, q + 1))) :: ((Int, (Int, Int)) -> (Int, (Int, Int)))) (0 :: Int, c :: Int) == (a :: Int, c + 1)
-
 instance Trace (->) (,) where
   trace f b = let (a, c) = f (a, b) in c
   untrace = fmap
@@ -157,7 +155,6 @@ instance Trace (->) (,) where
 -- 11
 --
 -- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either () Int -> Either () Int) (x :: Int) == x * 2 + 1
-
 instance Trace (->) Either where
   trace f b = go (Right b)
     where
@@ -169,14 +166,15 @@ instance Trace (->) Either where
 -- * Kleisli IO Either — delimited continuations
 
 -- | GHC delimited-continuation primops.
-
-
 data PromptTag a = PromptTag (PromptTag# a)
 
 newPromptTag :: IO (PromptTag a)
-newPromptTag = IO (\s ->
-  case newPromptTag# s of
-    (# s', t #) -> (# s', PromptTag t #))
+newPromptTag =
+  IO
+    ( \s ->
+        case newPromptTag# s of
+          (# s', t #) -> (# s', PromptTag t #)
+    )
 
 prompt :: PromptTag a -> IO a -> IO a
 prompt (PromptTag t) (IO m) = IO (prompt# t m)
@@ -196,15 +194,23 @@ control0 (PromptTag t) f = IO (control0# t arg)
 -- >>> runKleisli (trace (Kleisli $ \case Right () -> pure (Right (42 :: Int)))) ()
 -- 42
 instance Trace (Kleisli IO) Either where
-  trace (Kleisli body) = Kleisli (\initial -> do
-    tag <- newPromptTag
-    let go x =
-          prompt tag $
-            body x >>= (\case
-              Right c -> pure c
-              Left a -> control0 tag (\k -> k (go (Left a))))
-    go (Right initial))
+  trace (Kleisli body) =
+    Kleisli
+      ( \initial -> do
+          tag <- newPromptTag
+          let go x =
+                prompt tag $
+                  body x
+                    >>= ( \case
+                            Right c -> pure c
+                            Left a -> control0 tag (\k -> k (go (Left a)))
+                        )
+          go (Right initial)
+      )
 
-  untrace (Kleisli f) = Kleisli (\case
-    Left a -> pure (Left a)
-    Right b -> Right <$> f b)
+  untrace (Kleisli f) =
+    Kleisli
+      ( \case
+          Left a -> pure (Left a)
+          Right b -> Right <$> f b
+      )

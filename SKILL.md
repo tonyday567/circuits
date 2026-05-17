@@ -1,13 +1,13 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Circuit GADT, Hyper (final encoding), Trace, and Channel (compact closed on Hyper). For reading, building, extending, and debugging.
+description: Free traced monoidal categories. Circuit GADT, Hyper (final encoding), Trace, and Channel (bidirectional communication on Hyper). For reading, building, extending, and debugging.
 ---
 
 # circuits — agent field guide
 
 A free traced monoidal category over any base arrow. Two representations:
 Circuit (initial, inspectable) and Hyper (final, coinductive). Plus
-compact closed structure on Hyper for bidirectional communication.
+bidirectional channel structure on Hyper via self-dual continuation.
 
 Start here: `other/01-marks-and-stacks.md` (five marks, six axioms, one Fibonacci),
 then follow the Prev/Next chain through the six-chapter narrative arc.
@@ -18,11 +18,11 @@ Read in order. Each builds on the last.
 
 ```
 01-marks-and-stacks               five marks, six axioms, the stack language
-02-a-knot-needs-a-mendler          how axiom 6 forces a GADT and a load-bearing pattern match
+02-a-knot-recovers-fix            how axiom 4 forces a GADT and a load-bearing pattern match
 03-hyper-buries-the-knot           final encoding where feedback dissolves into the type
 04-holding-hands-or-taking-turns   (,) vs Either — simultaneous vs sequential
 05-no-remorse-once-removed         Mendler case is viewl; performance story
-06-follow-the-knots                parsers, pipes, IO, agents; the compact closed frontier
+06-follow-the-knots                parsers, pipes, IO, agents; the circuits-io frontier
 axioms                             equational proofs (appendix)
 ```
 
@@ -32,7 +32,7 @@ Dependency order — read source in this sequence:
 
 ```
 Circuit.Hyper    — Hyper a b, invoke, run, base/push/lift/lower.
-                   Profunctor/Category/Functor/Applicative/Monad instances.
+                   Profunctor/Category/Functor instances.
                    encode (⇨), encodeEither, runEither, flatten.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
@@ -175,4 +175,4 @@ Solid examples to learn from: `parser.md`, `while.md`, `elgot-abacus.md`,
   backtracking parsers. Working, fast, a dependency of `chart-svg`.
 - **circuits-io** — `Circuit (Kleisli IO) Either` with delimited
   continuations for resource-bracketed IO loops, producer/consumer
-  channels, and the compact closed frontier.
+  channels, and the circuits-io frontier.

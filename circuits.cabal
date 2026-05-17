@@ -15,9 +15,9 @@ description:
 
 build-type: Simple
 tested-with:
-  ghc ==9.14.1
-  ghc ==9.12.2
   ghc ==9.10.1
+  ghc ==9.12.2
+  ghc ==9.14.1
 
 source-repository head
   type: git
@@ -53,7 +53,7 @@ library
     Circuit.Traced
 
   build-depends:
+    QuickCheck >=2.14 && <3,
     base >=4.18 && <5,
     profunctors >=5.0 && <6,
     these >=1.1 && <2,
-    QuickCheck >=2.14 && <3,

@@ -186,8 +186,11 @@ The sliding axiom is structural, not enforced by pattern matching.
 | `Category` | `f . g = Hyper $ \h -> invoke f (g . h)` | continuation threads through composition |
 | `Profunctor` | `dimap f g h = Hyper $ g . invoke h . dimap g f` | coinductive — calls itself |
 | `Functor` | `fmap = rmap` | from Profunctor |
-| `Applicative` | `pure = base`, `<*>` via `lower` | observes then rebuilds |
-| `Monad` | `>>=` via `lower` / `lift` | observes, rebuilds — loses feedback structure |
+
+`Hyper` does not provide `Applicative` or `Monad` instances. These
+would require observing via `lower` on every step, collapsing the
+continuation structure back to plain functions. If you need monadic
+composition, see `examples/reader-monad.md`.
 
 The `Profunctor` instance is coinductive: `dimap` calls itself. Under
 lazy evaluation, any finite observation (via `lower` or `run`) only
@@ -197,14 +200,6 @@ unfolds finitely many layers, never reaching bottom.
 -- | Profunctor: dimap pre- and post-processes.
 -- >>> lower (dimap words unwords (lift (map reverse))) "hello world"
 -- "olleh dlrow"
-
--- | Applicative: combine a function-producing hyperfunction with a value.
--- >>> lower (lift (\x -> (x +)) <*> lift (\x -> x)) 5
--- 10
-
--- | Monad: bind through observation and rebuilding.
--- >>> lower (lift (+ 1) >>= \n -> lift (* n)) 5
--- 30
 ```
 
 ---

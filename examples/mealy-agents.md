@@ -88,4 +88,4 @@ preserves it, and `Knot` gives agents time to think.
 
 - `examples/hyper-loop.md` — stepwise iteration in Hyper
 - `examples/encode-either.md` — why Hyper can't host Either natively
-- `other/06-follow-the-knots.md` — agents as dual Hypers
+- `other/06-follow-the-knots.md` — agents and the circuits-io frontier

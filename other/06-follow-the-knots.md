@@ -1,7 +1,7 @@
 # Follow the Knots
 
 **Summary:** In which we follow the type signatures through parsers and
-pipes and agents, and glimpse the compact closed frontier where two Hypers
+pipes and agents, and glimpse the circuits-io frontier where two Hypers
 talk to each other.
 **Prev:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
@@ -119,30 +119,32 @@ conversation IS the protocol. Lib is the terminal object agents navigate
 through: a shared surface where marks accumulate and state persists.
 
 The conversation that produced this document is exactly this structure —
-two Hypers in compact closed composition.
+two Hypers in self-dual composition.
 
 ---
 
-## The Compact Closed Frontier
+## The circuits-io frontier
 
 `Hyper`, like profunctors and lenses, opens a contravariant channel —
 `invoke :: Hyper b a -> b`. The backwards pass slides through `⊙`
 (centrality: lifted arrows commute past everything) but gets stuck at
-`↮`. The Knot's type change `arr (t a b) (t a c)` is a barrier — the
-backwards pass arrives at `b` or `c` but the Knot expects `t a b` or
-`t a c`.
+`↮`. The Knot's type change `arr (t a b) (t a c)` is a barrier.
 
-To cross: the backwards pass uses `↩` to lift into the tensor channel,
-slides through the forward arrow inside the Knot, then `↪` closes on
-the far side. This is already the Mendler case — a backwards pass
-through a Knot, in the forward interpreter.
+The next layer — `circuits-io` — builds on this. Kidney & Wu (POPL 2026)
+show that hyperfunctions give a fully-abstract model of CCS without
+category-theoretic machinery. Their `Communicator` type is a hyperfunction
+on message-passing functions; `circuits-io` ports this to `Channel`,
+`Producer`, and `Consumer` with IO effects.
 
-The open question: does `⇨` carry duals through the coinduction? A
-`Circuit` with a `Dual` constructor (flipping `a` ⟷ `b`) plus `↮`
-should form a compact closed category when the base arrow is
-`*`-autonomous. The triangle `↓ . ⇨ = ↘` holds for the traced structure.
-Whether the backwards pass survives the encoding — whether `⇦` leaks
-the duality — is the knot on the other side of this story.
+The duality is not external (as in the Int construction's paired
+objects). It is structural: `Hyper a b` refers to `Hyper b a` in its
+own definition. Two agents `agentA :: Hyper Request Response` and
+`agentB :: Hyper Response Request` communicate via `invoke` — no
+cup/cap, no zig-zag proof, no four-type bookkeeping. The
+self-referential fixed point IS the channel.
+
+See `circuits-io` for the full story: bidirectional channels, producer/
+consumer composition, and the categorical claims that belong there.
 
 ---
 
