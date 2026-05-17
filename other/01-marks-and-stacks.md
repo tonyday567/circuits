@@ -188,17 +188,16 @@ The language is immediately executable:
 43
 ```
 
-The real power surfaces when the feedback channel carries state — a
-stream, a counter, a coroutine handoff. That requires an explicit
-tensor to name the channel, which forces a third constructor. See
+When the feedback channel carries state — a stream, a counter, a
+coroutine handoff — the five marks need an explicit tensor to name
+the channel. That forces a third constructor. See
 [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md).
 
 ---
 
 ## The Conceptual Stack
 
-The five marks sit at the top of a conceptual tower. Each layer below
-adds one concept:
+The five marks depend on the following structure:
 
 ```
 ↑ ↓ ⊙ ⊲ ⥁              ← the five marks on Hyper
@@ -214,10 +213,9 @@ Tensor choice           ← (,) vs Either: dataflow vs coroutines
 Production use          ← agents, pipes, parsers, backprop
 ```
 
-Each level adds exactly one concept. The five marks at the top already
-imply everything below. The bridge to an initial encoding — a GADT with
-explicit constructors — is where the Mendler case enters. That's the
-next chapter.
+The five marks already imply everything below. The bridge to an initial
+encoding — a GADT with explicit constructors — is where the Mendler case
+enters. That's the next chapter.
 
 ---
 
@@ -225,7 +223,7 @@ next chapter.
 
 Axioms 1–3 are the free category — the moves of FP. Axiom 4 is the
 sanity check. Axiom 5 is centrality. Axiom 6 is the one that isn't
-free. In `Hyper` it falls out of the type. In an initial encoding, it
+free. In `Hyper` it is inherent in the type. In an initial encoding, it
 must be enforced by a single pattern match.
 
 **Next:** [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md) — how

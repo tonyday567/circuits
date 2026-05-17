@@ -1,15 +1,13 @@
 # Follow the Knots
 
 **Summary:** In which we follow the type signatures through parsers and
-pipes and agents, and glimpse the circuits-io frontier where two Hypers
+pipes and agents, and glimpse the circuits-io extension where two Hypers
 talk to each other.
 **Prev:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
 
 ---
 
-The library's reach is its real selling point. Not one thing — one
-structure that ties many knots. Each section header is a type. Each type
-is a use case.
+Each section header is a type. Each type is a use case.
 
 ---
 
@@ -115,11 +113,7 @@ agentB ⇸ agentA    -- B speaks, A listens
 ```
 
 No `⥁`, no `↓` — just two open ends composing via the dual arrow. The
-conversation IS the protocol. Lib is the terminal object agents navigate
-through: a shared surface where marks accumulate and state persists.
-
-The conversation that produced this document is exactly this structure —
-two Hypers in self-dual composition.
+conversation IS the protocol.
 
 ---
 
@@ -131,8 +125,7 @@ two Hypers in self-dual composition.
 `↮`. The Knot's type change `arr (t a b) (t a c)` is a barrier.
 
 The next layer — `circuits-io` — builds on this. Kidney & Wu (POPL 2026)
-show that hyperfunctions give a fully-abstract model of CCS without
-category-theoretic machinery. Their `Communicator` type is a hyperfunction
+show that hyperfunctions give a fully-abstract model of CCS [KW26]. Their `Communicator` type is a hyperfunction
 on message-passing functions; `circuits-io` ports this to `Channel`,
 `Producer`, and `Consumer` with IO effects.
 

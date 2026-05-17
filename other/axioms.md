@@ -87,6 +87,11 @@ to three structural roles:
 | 5 | — | Push composition (holds when `t` symmetric) |
 | 6 | Sliding | Feedback (forces `Knot` constructor) |
 
+LKS axioms 1–5 have no direct JSV counterpart — they fall out of the free
+category structure (associativity, identity, functoriality) and the
+Hasegawa fixpoint correspondence. Only axiom 6 (sliding/feedback) maps
+cleanly to a JSV axiom.
+
 Axioms 4 and 5 introduce no new constructors. Only axiom 6 forces one:
 `Knot`. See `02-a-knot-recovers-fix.md` for the full derivation.
 

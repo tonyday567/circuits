@@ -4,7 +4,7 @@
 
 -- | Hyperfunctions: final encoding of traced monoidal categories.
 --
--- A 'Hyper' is a Church encoding of a 'Circuit'. The feedback channel is
+-- A 'Hyper' is a final encoding of a 'Circuit'. The feedback channel is
 -- structural in the type rather than explicit, so the sliding axiom
 -- is inherent to composition rather than enforced by pattern matching.
 --
@@ -175,7 +175,8 @@ infixr 8 ⊲
 --
 -- For a hyperfunction @h :: a ↬ a@, @run h@ resolves the fixed point
 -- by feeding the hyperfunction's dual back into itself. The recursive
--- knot ties the covariant output to the contravariant input.
+-- by applying the hyperfunction to its own continuation. The value
+-- returned by @invoke h@ feeds into @h@'s dual, tying the knot.
 --
 -- >>> run (Hyper $ \_ -> 42 :: Int)
 -- 42
@@ -235,8 +236,8 @@ instance Trace Hyper (,) where
 -- | Encode a Circuit into a Hyper. Symbol: @(⇨)@.
 --
 -- This is the unique traced functor from the initial object (Circuit)
--- to the final object (Hyper). The triangle @lower . encode = lower@ holds,
--- making this the map that respects the adjunction.
+-- to the final object (Hyper), satisfying the commuting triangle
+-- @lower . encode = reify@.
 --
 -- The @Knot@ case uses Hyper's own @Trace (,)@ instance — a coinductive
 -- lazy knot that preserves the feedback structure inside Hyper.

@@ -145,7 +145,6 @@ structure is lost. This is the **degenerate model**.
 **One pattern match separates the free traced monoidal category from
 the degenerate model.**
 
-This is not just a correctness issue — it is an operational one.
 Hasegawa (1997) distinguishes two ways to achieve recursion:
 
 - **Fixed-point combinator:** `fix f = f (fix f)`. Applies `f` repeatedly.

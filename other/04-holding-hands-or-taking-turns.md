@@ -6,7 +6,7 @@ take turns passing the channel back and forth.
 
 ---
 
-`Circuit arr t a b` is generic over the tensor `t`. This is not a technical convenience — it is an operational choice. The two primary tensors `(,)` and `Either` give fundamentally different semantics for feedback, and choosing between them is a design decision about how processes communicate.
+`Circuit arr t a b` is generic over the tensor `t`. The two primary tensors `(,)` and `Either` give fundamentally different semantics for feedback, and choosing between them is a design decision about how processes communicate.
 
 ---
 
