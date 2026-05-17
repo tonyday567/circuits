@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | The free traced monoidal category.
@@ -26,6 +27,7 @@ module Circuit.Circuit
     (↘),
     push,
     (⊲),
+    ambient,
   )
 where
 
@@ -116,6 +118,34 @@ infixr 8 ⊲
 
 (⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 (⊲) = push
+
+-- | Thread a state wire through a Circuit.
+--
+-- 'ambient' threads a state component @s@ through a circuit unchanged.
+-- The circuit operates on the payload while the state rides alongside
+-- via the tensor @t@ — ambient, unnoticed.
+--
+-- The @braid@ function swaps the state wire past the feedback channel:
+-- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
+-- @\\(x, (s, a)) -> (s, (x, a))@.
+--
+-- For 'Lift', the state tags along via 'untrace'.
+-- For 'Compose', the state threads through both stages.
+-- For 'Knot', the state slides past the feedback loop via braiding —
+-- the sliding axiom made explicit.
+--
+-- >>> let braid (x, (s, a)) = (s, (x, a)) in reify (ambient braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
+-- ("st",6)
+--
+-- >>> let braid (x, (s, a)) = (s, (x, a)); step (xs, ()) = (0 : xs, take 3 xs) in reify (ambient braid (Knot step)) ("st", ())
+-- ("st",[0,0,0])
+ambient :: (Profunctor arr, Trace arr t)
+        => (forall x y z. t x (t y z) -> t y (t x z))
+        -> Circuit arr t a b
+        -> Circuit arr t (t s a) (t s b)
+ambient _braid (Lift f) = Lift (untrace f)
+ambient braid (Compose f g) = Compose (ambient braid f) (ambient braid g)
+ambient braid (Knot k) = Knot (dimap braid braid (untrace k))
 
 -- | Interpret a Circuit to a plain arrow.
 --

@@ -40,8 +40,10 @@ module Circuit.Traced
 where
 
 import Control.Arrow (Kleisli (..))
+import Data.IORef (newIORef, readIORef, writeIORef)
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
+import System.IO.Unsafe (unsafeInterleaveIO)
 
 -- $setup
 -- >>> import Control.Arrow (Kleisli (..), second)
@@ -162,6 +164,39 @@ instance Trace (->) Either where
         Right c -> c
         Left a -> go (Left a)
   untrace = fmap
+
+-- * Kleisli IO (,) — lazy knot via IORef
+
+-- | ⚠️ UNSAFE: Lazy knot tying for @Kleisli IO@ with the cartesian tensor.
+--
+-- The feedback value is tied via an 'IORef' and 'unsafeInterleaveIO'.
+-- This defies IO's ordering guarantees — the knot crashes at runtime if
+-- the body forces the feedback channel before the 'writeIORef' completes.
+--
+-- Safe only when the body is lazy in the feedback channel (the first
+-- component of the pair), which holds for circuits built from 'ambient',
+-- 'preC', 'postC', and plain 'Kleisli' arrows. Composition with effects
+-- that sequence strictly may break the knot silently.
+--
+-- >>> runKleisli (trace (Kleisli $ \(fibs, ()) -> pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs))) ()
+-- [0,1,1]
+instance Trace (Kleisli IO) (,) where
+  trace (Kleisli f) =
+    Kleisli
+      ( \b -> do
+          ref <- newIORef (error "Trace (Kleisli IO) (,): knot not tied")
+          a <- unsafeInterleaveIO (readIORef ref)
+          (a', c) <- f (a, b)
+          writeIORef ref a'
+          pure c
+      )
+
+  untrace (Kleisli f) =
+    Kleisli
+      ( \(a, b) -> do
+          c <- f b
+          pure (a, c)
+      )
 
 -- * Kleisli IO Either — delimited continuations
 
