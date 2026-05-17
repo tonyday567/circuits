@@ -56,3 +56,4 @@ library
     base >=4.18 && <5,
     profunctors >=5.0 && <6,
     these >=1.1 && <2,
+    QuickCheck >=2.14 && <3,

@@ -188,6 +188,16 @@ run h = invoke h (Hyper run)
 (⥁) :: Hyper a a -> a
 (⥁) = run
 
+-- * Properties
+
+-- Faithful embedding: observation recovers the original arrow.
+--
+-- prop> \x -> lower (lift (+1)) (x :: Int) == x + 1
+
+-- Functoriality: lift respects composition.
+--
+-- prop> \x -> lower (lift (*2) . lift (+1)) (x :: Int) == (x + 1) * 2
+
 -- * Trace
 
 -- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
