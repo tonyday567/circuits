@@ -48,6 +48,7 @@ import Circuit.Circuit (Circuit (..), reify)
 -- $setup
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
+-- >>> import Data.Profunctor
 -- >>> import Circuit.Traced (Trace (..))
 -- >>> import Circuit.Circuit (Circuit (..), reify)
 
@@ -314,6 +315,22 @@ instance Category Hyper where
 -- 'rmap' is not a composition of 'push'; it acts directly on the
 -- hyperfunction's output. 'dimap' routes both input and output
 -- through the continuation structure.
+--
+-- Profunctor identity: dimap id id = id
+--
+-- prop> \x -> lower (dimap id id (lift (+1) :: Hyper Int Int)) (x :: Int) == x + 1
+--
+-- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
+--
+-- prop> \x -> let h = lift (+1) :: Hyper Int Int; f1 = (*2) :: Int -> Int; g1 = (+10) :: Int -> Int; f2 = (+3) :: Int -> Int; g2 = (*100) :: Int -> Int in lower (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == lower (dimap (f2 . f1) (g1 . g2) h) x
+--
+-- lmap f = dimap f id
+--
+-- prop> \x -> lower (lmap ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) (x :: Int) == lower (dimap ((*2) :: Int -> Int) id (lift (+1) :: Hyper Int Int)) x
+--
+-- rmap g = dimap id g
+--
+-- prop> \x -> lower (rmap ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) (x :: Int) == lower (dimap id ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) x
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f
   lmap f h = Hyper $ invoke h . rmap f
