@@ -16,8 +16,8 @@
 --     terminates (exit). The loop runs until a 'Right' is produced.
 --
 -- Together these instances supply the 'Trace' constraints that
--- 'Circuit.Circuit''s @lower@ function dispatches on when it encounters
--- a 'Knot', making 'Circuit' the free traced monoidal category over any
+-- 'Circuit.Hyper''s @lower@ function dispatches on when it encounters
+-- a 'Knot' (via 'encode'), making 'Circuit' the free traced monoidal category over any
 -- base arrow with a tensor.
 --
 -- * Delimited continuations

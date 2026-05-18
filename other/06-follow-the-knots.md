@@ -117,6 +117,32 @@ conversation IS the protocol.
 
 ---
 
+## `Circuit (Kleisli IO) (,)`
+
+Performance measurement. A `Meter` introduces a state wire before a
+computation and reads it after — clock time, memory allocation, or any
+observable state:
+
+```haskell
+meterK :: Meter s t -> Kleisli IO a b -> Kleisli IO a (t, b)
+```
+
+`meterK` is `reify . meterC . Lift`: lift the arrow into `Circuit`, wrap
+it with pre/post measurement, then reify back to `Kleisli IO`. The
+bracket operators `◅` and `▻` make the metering unobtrusive:
+
+```haskell
+meterC_ m c = (m ◅ c) ▻ m
+```
+
+`circuits-perf` builds on this: `timesK` for repeated measurement,
+`warmup` for cold-start elimination, and `hold` + `evaluate . force` to
+prevent GHC from constant-folding the benchmark away. The delimited
+continuation `Trace (Kleisli IO) Either` instance costs ~10ns per
+iteration — measured, not guessed.
+
+---
+
 ## The circuits-io frontier
 
 `Hyper`, like profunctors and lenses, opens a contravariant channel —
@@ -145,6 +171,7 @@ consumer composition, and the categorical claims that belong there.
 
 - [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — hyperfunctions: communicating continuations
 - `circuits-parser` — `Circuit (->) Either` with `These` output
+- `circuits-perf` — `Circuit (Kleisli IO) (,)` with meter brackets
 - `circuits-io` — `Circuit (Kleisli IO) Either` with delimited continuations
 - `examples/parser.md` — the parser knot
 - `examples/pipes.md` — the pipes isomorphism

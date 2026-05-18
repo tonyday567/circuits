@@ -19,6 +19,7 @@ is a consequence of making these five operations precise.
 ⊙   compose   sequential composition
 ⊲   push      prepend a plain function
 ⥁   run       tie the knot
+∥   ambient   thread state wire alongside
 ```
 
 The five marks first appear on `Hyper`, the final encoding. We meet them
@@ -75,6 +76,32 @@ axiom 4  ⥁ (↑ f)        =  fix f                   run is fixed-point
 axiom 5  (f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q)  push composition
 axiom 6  ⥁ ((f ⊲ p) ⊙ q)     =  f (⥁ (q ⊙ p))     feedback / sliding
 ```
+
+---
+
+## Threading State: `∥ ambient`
+
+When we move from the final encoding (`Hyper`) to the initial encoding
+(`Circuit`), a sixth operation appears:
+
+```haskell
+∥ :: (Profunctor arr, Trace arr t)
+  => (forall x y z. t x (t y z) -> t y (t x z))
+  -> Circuit arr t a b
+  -> Circuit arr t (t s a) (t s b)
+```
+
+`ambient` threads a state wire through a circuit unchanged. The state
+rides alongside the payload via the tensor `t` — present but untouched,
+sliding past feedback loops via braiding. For `Lift`, the state tags
+along via `untrace`. For `Compose`, the state threads through both
+stages. For `Knot`, the state slides past the feedback loop — the
+sliding axiom made explicit.
+
+`ambient` is not a mark on `Hyper` because `Hyper`'s feedback channel is
+already structural in the type. In `Circuit`, where feedback is explicit
+(via the `Knot` constructor), sliding state past a loop requires an
+explicit braid. `ambient` is that braid, packaged as a combinator.
 
 ---
 
@@ -206,6 +233,7 @@ The five marks depend on the following structure:
 
 ```
 ↑ ↓ ⊙ ⊲ ⥁              ← the five marks on Hyper
+∥                      ← thread state (Circuit only)
      ↓
 Axioms 1–6             ← what the marks must satisfy
      ↓

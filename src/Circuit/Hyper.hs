@@ -54,21 +54,10 @@ import Circuit.Classes
 --
 -- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1) in ask `invoke` base 42
 -- 43
-newtype Hyper a b = Hyper {invoke :: Hyper b a -> b}
-
--- | Type synonym for 'Hyper'.
-
--- | Invoke a hyperfunction with a continuation.
---
--- >>> invoke (lift (+1)) (base 0)
--- 1
-
-
-
--- | Sequential composition. Alias for '(.)'.
--- >>> lower (lift (+1) . lift (*2)) 5
--- 11
-
+newtype Hyper a b = Hyper
+  { -- | Invoke a hyperfunction with a continuation.
+    invoke :: Hyper b a -> b
+  }
 
 -- * Construction and elimination
 
@@ -82,11 +71,6 @@ newtype Hyper a b = Hyper {invoke :: Hyper b a -> b}
 lift :: (a -> b) -> Hyper a b
 lift f = push f (lift f)
 
---
--- >>> lower (lift (+1)) 5
--- 6
-
-
 -- | Extract a plain function from a hyperfunction.
 --
 -- Supplies the hyperfunction with a constant continuation
@@ -98,28 +82,12 @@ lift f = push f (lift f)
 lower :: Hyper a b -> (a -> b)
 lower h a = invoke h (Hyper (const a))
 
---
--- Because 'lower' returns a plain function, the postfix form
--- chains naturally via function application:
---
--- >>> lower (lift (+1)) 5
--- 6
---
--- >>> lower (lift (*2)) 5 + 10
--- 20
-
-
 -- | Ignores the input and returns a constant value.
 --
 -- >>> lower (base 42) undefined
 -- 42
 base :: a -> Hyper b a
 base a = Hyper (const a)
-
---
--- >>> lower (base 42) undefined
--- 42
-
 
 -- | Push a plain function onto a hyperfunction.
 --
@@ -132,18 +100,13 @@ base a = Hyper (const a)
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push f h = Hyper (\k -> f (invoke k h))
 
---
--- >>> lower (push (*2) (lift (+1))) 5
--- 10
-
-
 -- | Close the self-referential loop. Applies a hyperfunction to its
 -- own dual: @run h = invoke h (Hyper run)@.
 --
 -- For a hyperfunction @h :: a ↬ a@, @run h@ resolves the fixed point
 -- by feeding the hyperfunction's dual back into itself. The recursive
--- by applying the hyperfunction to its own continuation. The value
--- returned by @invoke h@ feeds into @h@'s dual, tying the knot.
+-- knot is tied by applying the hyperfunction to its own continuation.
+-- The value returned by @invoke h@ feeds into @h@'s dual.
 --
 -- >>> run (Hyper $ \_ -> 42 :: Int)
 -- 42
