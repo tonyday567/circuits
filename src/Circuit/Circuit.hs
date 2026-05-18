@@ -21,7 +21,6 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
-    push,
     ambient,
   )
 where
@@ -85,11 +84,6 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 
 -- | Push a plain function onto a Circuit.
 --
--- >>> reify (push (+1) (Lift (*2) :: Circuit (->) (,) Int Int)) 5
--- 11
-push :: arr b c -> Circuit arr t a b -> Circuit arr t a c
-push f = Compose (Lift f)
-
 -- | Thread a state wire through a Circuit.
 --
 -- 'ambient' threads a state component @s@ through a circuit unchanged.

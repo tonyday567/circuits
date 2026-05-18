@@ -22,7 +22,6 @@
 -- compose    (⊙)      Circuit/Hyper   sequential composition
 -- knot       (↮)      Circuit         feedback loop constructor
 -- reify      (↘)      Circuit         interpret to plain arrow
--- push       (⊲)      Circuit/Hyper   prepend function
 -- lower      (↓)      Hyper           observe hyperfunction
 -- base       (○)      Hyper           constant continuation
 -- run        (⥁)      Hyper           tie self-referential knot
@@ -42,7 +41,6 @@ module Circuit.Symbols
 
     -- * Symbol aliases — Circuit
     (↘),
-    (⊲),
     (⊙),
     (↮),
     (↑),
@@ -63,8 +61,7 @@ module Circuit.Symbols
   )
 where
 
-import Circuit.Circuit hiding (push)
-import Circuit.Circuit qualified as C
+import Circuit.Circuit
 import Circuit.Hyper
 import Circuit.Traced
 import Control.Category (Category, (.))
@@ -187,20 +184,6 @@ infixl 9 ↘
 -- @
 (↘) :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
 (↘) = reify
-
-infixr 8 ⊲
-
--- | Push a plain function onto the end of a 'Circuit'.
--- Symbol alias for 'Circuit.Circuit.push'.
---
--- @
---   a ──[ c ]──▶ ──[ f ]──▶ b
--- @
---
--- >>> (↘) ((+1) ⊲ (↑) (*2) :: Circuit (->) (,) Int Int) 5
--- 11
-(⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
-(⊲) = C.push
 
 infixl 5 ∥
 

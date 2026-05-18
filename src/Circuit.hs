@@ -15,7 +15,6 @@ module Circuit
   ( -- * Circuit
     Circuit (..),
     reify,
-    push,
     ambient,
 
     -- * Traced
@@ -37,7 +36,6 @@ where
 import Circuit.Circuit
   ( Circuit (..),
     ambient,
-    push,
     reify,
   )
 import Circuit.Hyper
