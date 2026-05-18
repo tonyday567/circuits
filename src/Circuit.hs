@@ -12,23 +12,21 @@
 -- For detailed design and theory, see @other/@.
 -- For examples, see @examples/@.
 module Circuit
-  ( -- * Circuit (initial encoding)
+  ( -- * Circuit
     Circuit (..),
     reify,
-    lower,
     push,
     ambient,
 
-    -- * Hyper (final encoding)
+    -- * Traced
+    Trace (..),
+
+    -- * Hyper
     Hyper (..),
     run,
     base,
     lift,
-
-    -- * Trace typeclass
-    Trace (..),
-
-    -- * Encoding
+    lower,
     encode,
     encodeEither,
     runEither,

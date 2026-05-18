@@ -3,8 +3,8 @@
 
 -- | The free traced monoidal category.
 --
--- `Circuit arr t a b` is the initial encoding of a traced monoidal category
--- over a base morphism `arr` with a supplied tensor `t` for the category. The three constructors encode:
+-- @Circuit arr t a b@ is the initial encoding of a traced monoidal category
+-- over a base morphism @arr@ with a supplied tensor @t@ for the category. The three constructors encode:
 --
 --   - `Lift`: embedding of a base arrow (strict monoidal functor)
 --   - `Compose`: sequential composition (category structure)
@@ -13,7 +13,7 @@
 -- For example, a `Circuit (->) (,)` is the initial traced monoidal cartesian category over Haskell functions.
 --
 -- The `reify` function interprets any `Circuit` to a plain arrow via
--- the `Trace` instance on `t`. For encoding into 'Circuit.Hyper', see
+-- the `Trace` instance on @t@. For encoding into 'Circuit.Hyper', see
 -- 'Circuit.Hyper.encode' and 'Circuit.Hyper.encodeEither'.
 module Circuit.Circuit
   ( -- * Circuit
@@ -105,10 +105,13 @@ push f = Compose (Lift f)
 -- For 'Knot', the state slides past the feedback loop via braiding —
 -- the sliding axiom made explicit.
 --
--- >>> let braid (x, (s, a)) = (s, (x, a)) in reify (ambient braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
+-- >>> let braid (x, (s, a)) = (s, (x, a))
+-- >>> reify (ambient braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
 -- ("st",6)
 --
--- >>> let braid (x, (s, a)) = (s, (x, a)); step (xs, ()) = (0 : xs, take 3 xs) in reify (ambient braid (Knot step)) ("st", ())
+-- >>> let braid (x, (s, a)) = (s, (x, a))
+-- >>> let step (xs, ()) = (0 : xs, take 3 xs)
+-- >>> reify (ambient braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambient :: (Profunctor arr, Trace arr t)
         => (forall x y z. t x (t y z) -> t y (t x z))

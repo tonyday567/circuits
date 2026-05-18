@@ -17,7 +17,7 @@
 --
 -- Together these instances supply the 'Trace' constraints that
 -- 'Circuit.Hyper''s @lower@ function dispatches on when it encounters
--- a 'Knot' (via 'encode'), making 'Circuit' the free traced monoidal category over any
+-- a 'Circuit.Circuit.Knot' (via 'Circuit.Hyper.encode'), making 'Circuit.Circuit.Circuit' the free traced monoidal category over any
 -- base arrow with a tensor.
 --
 -- * Delimited continuations
@@ -69,8 +69,13 @@ class Trace arr t where
 -- | The cartesian trace ties a lazy knot: the feedback value @a@ and
 -- output @c@ are produced simultaneously in a single recursive binding.
 --
--- >>> take 5 (trace (\(fibs, ()) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs)) () :: [Integer])
--- [0,1,1,2,3]
+-- >>> :{
+-- let powers (ns, ()) =
+--       (1 : map (*2) ns, take 5 ns)
+-- :}
+--
+-- >>> trace powers () :: [Integer]
+-- [1,2,4,8,16]
 --
 -- Vanishing (a): tracing over the unit does nothing.
 --
@@ -79,38 +84,44 @@ class Trace arr t where
 -- channel instead — the channel value is unconstrained, so the trace
 -- degenerates to plain function application.
 --
--- >>> let f (x, a) = (x, a + 1) in trace f 5
+-- >>> let f (x, a) = (x, a + 1)
+-- >>> trace f 5
 -- 6
 --
 -- prop> \n -> trace ((\(x, a) -> (x, a + n)) :: ((Int, Int) -> (Int, Int))) (0 :: Int) == (n :: Int)
 --
 -- Yanking: tracing a swap is the identity.
 --
--- >>> let swap (x, y) = (y, x) in trace swap 42
+-- >>> let swap (x, y) = (y, x)
+-- >>> trace swap 42
 -- 42
 --
 -- prop> \x -> trace ((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int))) (x :: Int) == x
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
--- >>> let f (x, a) = (x, a) in trace (second (+1) . f . second (*2)) 5
+-- >>> let f (x, a) = (x, a)
+-- >>> trace (second (+1) . f . second (*2)) 5
 -- 11
 --
 -- prop> \x -> trace (second ((+1) :: Int -> Int) . (id :: ((Int, Int) -> (Int, Int))) . second ((*2) :: Int -> Int)) (x :: Int) == x * 2 + 1
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --
--- >>> let swap (x, y) = (y, x) in trace (second (+1) . swap) 5
+-- >>> let swap (x, y) = (y, x)
+-- >>> trace (second (+1) . swap) 5
 -- 6
 --
--- >>> let swap (x, y) = (y, x) in trace (swap . second (+1)) 5
+-- >>> trace (swap . second (+1)) 5
 -- 6
 --
 -- prop> \x -> trace (second ((+1) :: Int -> Int) . ((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int)))) (x :: Int) == trace (((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int))) . second ((+1) :: Int -> Int)) x
 --
 -- Strength: an independent payload wire is invisible to the trace.
 --
--- >>> let f (x, c) = (x, c + 1) in trace (\(x, (a, c)) -> let (x', d) = f (x, c) in (x', (a * 2, d))) (3, 5)
+-- >>> let f (x, c) = (x, c + 1)
+-- >>> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = f (x, c)
+-- >>> trace g (3, 5)
 -- (6,6)
 --
 -- prop> \a c -> trace ((\(x, (p, q)) -> (x, (p + a, q + 1))) :: ((Int, (Int, Int)) -> (Int, (Int, Int)))) (0 :: Int, c :: Int) == (a :: Int, c + 1)
@@ -123,29 +134,38 @@ instance Trace (->) (,) where
 -- | The Either trace iterates: 'Left' feeds back (continue), 'Right'
 -- terminates (exit). A compact, under-appreciated pattern for loops in Haskell.
 --
--- >>> trace (\x -> case x of Right n | n < 3 -> Left (n + 1); _ -> Right ()) (0 :: Int)
--- ()
+-- >>> :{
+-- let fac (n, acc) | n <= 1    = Right acc
+--                  | otherwise = Left (n - 1, n * acc)
+-- :}
 --
--- >>> let step n = if n < 3 then Left (n + 1) else Right n in trace (either step step) (0 :: Int)
--- 3
+-- >>> trace (either fac fac) (5, 1 :: Int)
+-- 120
 --
 -- Vanishing (a): tracing over the unit does nothing.
 --
--- >>> let f = Right . (+1) . fromRight undefined in trace f 5
+-- >>> let f = Right . (+1) . fromRight undefined
+-- >>> trace f 5
 -- 6
 --
 -- prop> \n -> trace ((Right . (+ n) . fromRight (undefined :: Int)) :: (Either () Int -> Either () Int)) (0 :: Int) == (n :: Int)
 --
 -- Yanking: tracing a swap is the identity.
 --
--- >>> let swapEither (Left x) = Right x; swapEither (Right x) = Left x in trace swapEither 42
+-- >>> :{
+-- let swapEither (Left x)  = Right x
+--     swapEither (Right x) = Left x
+-- :}
+--
+-- >>> trace swapEither 42
 -- 42
 --
 -- prop> \x -> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: (Either Int Int -> Either Int Int)) (x :: Int) == x
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
--- >>> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either () Int -> Either () Int) 5
+-- >>> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
+-- >>> trace (f :: Either () Int -> Either () Int) 5
 -- 11
 --
 -- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either () Int -> Either () Int) (x :: Int) == x * 2 + 1
@@ -163,16 +183,21 @@ instance Trace (->) Either where
 
 -- | ⚠️ UNSAFE: Lazy knot tying for @Kleisli IO@ with the cartesian tensor.
 --
--- The feedback value is tied via an 'IORef' and 'unsafeInterleaveIO'.
+-- The feedback value is tied via a 'Data.IORef.IORef' and 'unsafeInterleaveIO'.
 -- This defies IO's ordering guarantees — the knot crashes at runtime if
 -- the body forces the feedback channel before the 'writeIORef' completes.
 --
 -- Safe only when the body is lazy in the feedback channel (the first
--- component of the pair), which holds for circuits built from 'ambient',
--- 'preC', 'postC', and plain 'Kleisli' arrows. Composition with effects
+-- component of the pair), which holds for circuits built from 'Circuit.Circuit.ambient',
+-- preC, postC, and plain 'Kleisli' arrows. Composition with effects
 -- that sequence strictly may break the knot silently.
 --
--- >>> runKleisli (trace (Kleisli $ \(fibs, ()) -> pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs))) ()
+-- >>> :{
+-- let fibs = Kleisli $ \(fibs, ()) ->
+--       pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs)
+-- :}
+--
+-- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
 instance Trace (Kleisli IO) (,) where
   trace (Kleisli f) =
@@ -216,11 +241,16 @@ control0 (PromptTag t) f = IO (control0# t arg)
 
 -- | Trace for 'Kleisli' 'IO' with 'Either' tensor.
 --
--- Each iteration re-establishes the prompt boundary. When 'control0'
+-- Each iteration re-establishes the prompt boundary. When @control0@
 -- fires on @Left a@, it captures the continuation, wraps it around
 -- the next loop step, and jumps back to the prompt — constant stack.
 --
--- >>> runKleisli (trace (Kleisli $ \case Right () -> pure (Right (42 :: Int)))) ()
+-- >>> :{
+-- let exit42 = Kleisli $ \case
+--       Right () -> pure (Right (42 :: Int))
+-- :}
+--
+-- >>> runKleisli (trace exit42) ()
 -- 42
 instance Trace (Kleisli IO) Either where
   trace (Kleisli body) =

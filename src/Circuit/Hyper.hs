@@ -45,6 +45,11 @@ import Circuit.Classes
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Traced (Trace (..))
 -- >>> import Circuit.Circuit (Circuit (..), reify)
+-- >>> let h = lift (+1) :: Hyper Int Int
+-- >>> let f1 = (*2) :: Int -> Int
+-- >>> let g1 = (+10) :: Int -> Int
+-- >>> let f2 = (+3) :: Int -> Int
+-- >>> let g2 = (*100) :: Int -> Int
 
 -- | Hyper a b is a hyperfunction from @a@ to @b@.
 --
@@ -52,7 +57,8 @@ import Circuit.Classes
 -- a value of type @b@. The continuation argument appears in contravariant
 -- position; the result appears in covariant position.
 --
--- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1) in ask `invoke` base 42
+-- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1)
+-- >>> ask `invoke` base 42
 -- 43
 newtype Hyper a b = Hyper
   { -- | Invoke a hyperfunction with a continuation.
@@ -146,7 +152,8 @@ run h = invoke h (Hyper run)
 -- Law: @lower (trace (lift f)) x = trace \@ (->) f x@
 --
 -- >>> import Circuit.Traced (Trace (..))
--- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs)) in lower (trace body) ()
+-- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
+-- >>> lower (trace body) ()
 -- [0,0,0]
 instance Trace Hyper (,) where
   trace body = Hyper $ \k ->
@@ -183,7 +190,15 @@ encode (Knot f) = trace (lift f)
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
--- >>> runEither (\case Right n | n < 3 -> Left (n+1); Right n -> Right n; Left n | n < 3 -> Left (n+1); Left n -> Right n) (0 :: Int)
+-- >>> :{
+-- let step = \case
+--       Right n | n < 3 -> Left (n + 1)
+--       Right n         -> Right n
+--       Left n  | n < 3 -> Left (n + 1)
+--       Left n          -> Right n
+-- :}
+--
+-- >>> runEither step (0 :: Int)
 -- 3
 encodeEither :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
 encodeEither f = h
@@ -202,7 +217,15 @@ encodeEither f = h
 -- 'encodeEither' embeds the Either state machine into Hyper, @run@ ties the
 -- self-referential knot, and @Right b@ injects the initial state.
 --
--- >>> runEither (\case Right n | n < 3 -> Left (n+1); Right n -> Right n; Left n | n < 3 -> Left (n+1); Left n -> Right n) (0 :: Int)
+-- >>> :{
+-- let step = \case
+--       Right n | n < 3 -> Left (n + 1)
+--       Right n         -> Right n
+--       Left n  | n < 3 -> Left (n + 1)
+--       Left n          -> Right n
+-- :}
+--
+-- >>> runEither step (0 :: Int)
 -- 3
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = run (encodeEither f) (Right b)
@@ -212,12 +235,14 @@ runEither f b = run (encodeEither f) (Right b)
 -- This is the forgetful map from the final encoding to the initial encoding.
 -- All feedback structure is lost; only the observable behaviour remains.
 --
--- >>> let h = lift (+ 1) in reify (flatten h) 5
+-- >>> let h = lift (+ 1)
+-- >>> reify (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:
 --
--- >>> let h = lift (+ 1) in lower (encode (flatten h)) 5
+-- >>> let h = lift (+ 1)
+-- >>> lower (encode (flatten h)) 5
 -- 6
 flatten :: Hyper a b -> Circuit (->) (,) a b
 flatten h = Lift (lower h)
@@ -236,19 +261,19 @@ instance Category Hyper where
 --
 -- Profunctor identity: dimap id id = id
 --
--- prop> \x -> lower (dimap id id (lift (+1) :: Hyper Int Int)) (x :: Int) == x + 1
+-- prop> \x -> lower (dimap id id h) (x :: Int) == x + 1
 --
 -- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
 --
--- prop> \x -> let h = lift (+1) :: Hyper Int Int; f1 = (*2) :: Int -> Int; g1 = (+10) :: Int -> Int; f2 = (+3) :: Int -> Int; g2 = (*100) :: Int -> Int in lower (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == lower (dimap (f2 . f1) (g1 . g2) h) x
+-- prop> \x -> lower (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == lower (dimap (f2 . f1) (g1 . g2) h) x
 --
 -- lmap f = dimap f id
 --
--- prop> \x -> lower (lmap ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) (x :: Int) == lower (dimap ((*2) :: Int -> Int) id (lift (+1) :: Hyper Int Int)) x
+-- prop> \x -> lower (lmap ((*2) :: Int -> Int) h) (x :: Int) == lower (dimap ((*2) :: Int -> Int) id h) x
 --
 -- rmap g = dimap id g
 --
--- prop> \x -> lower (rmap ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) (x :: Int) == lower (dimap id ((*2) :: Int -> Int) (lift (+1) :: Hyper Int Int)) x
+-- prop> \x -> lower (rmap ((*2) :: Int -> Int) h) (x :: Int) == lower (dimap id ((*2) :: Int -> Int) h) x
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f
   lmap f h = Hyper $ invoke h . rmap f
