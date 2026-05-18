@@ -71,6 +71,65 @@ import Control.Category (Category, (.))
 import Data.Profunctor (Profunctor)
 import Prelude hiding ((.))
 
+-- $setup
+-- >>> import Prelude hiding (id, (.))
+-- >>> import Control.Arrow (Kleisli (..), first, second)
+-- >>> import Control.Category ((.))
+-- >>> import Data.Either (fromRight)
+-- >>> import Circuit.Symbols
+--
+-- Circuit axioms:
+--
+-- >>> let f = (+1)
+-- >>> let g = (*2)
+-- >>> (↘) ((↑) f ⊙ (↑) g :: Circuit (->) (,) Int Int) 5
+-- 11
+--
+-- Traced axioms:
+--
+-- Vanishing:
+-- >>> let h x = x + 1
+-- >>> (↪) ((↩) h :: ((), Int) -> ((), Int)) 5
+-- 6
+--
+-- Yanking:
+-- >>> let swap (x, y) = (y, x)
+-- >>> (↪) swap 42
+-- 42
+--
+-- Tightening:
+-- >>> let h (x, a) = (x, a)
+-- >>> (↪) (second (+1) . h . second (*2)) 5
+-- 11
+--
+-- Sliding:
+-- >>> let swap (x, y) = (y, x)
+-- >>> (↪) (second (+1) . swap) 5
+-- 6
+-- >>> (↪) (swap . second (+1)) 5
+-- 6
+--
+-- Strength:
+-- >>> let h (x, c) = (x, c + 1)
+-- >>> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = h (x, c)
+-- >>> (↪) g (3, 5)
+-- (6,6)
+--
+-- Hyper axioms:
+--
+-- >>> (↓) ((⇨) ((↑) (+1) :: Circuit (->) (,) Int Int)) 5
+-- 6
+-- >>> (↓) ((○) 42) undefined
+-- 42
+-- >>> let ask = Hyper (\k -> (⇸) k ((○) 0) + 1)
+-- >>> (⇸) ask ((○) 42)
+-- 43
+--
+-- Either iteration:
+-- >>> let fac (n, acc) = if n <= 1 then Right acc else Left (n - 1, n * acc)
+-- >>> (↪) (either fac fac) (5, 1 :: Int)
+-- 120
+
 -- Circuit.Circuit ----------------------------------------------------------
 
 infixr 9 ↑
@@ -80,6 +139,9 @@ infixr 9 ↑
 -- @
 --   a ──[ f ]──▶ b
 -- @
+--
+-- >>> (↘) ((↑) (+1) :: Circuit (->) (,) Int Int) 5
+-- 6
 (↑) :: arr a b -> Circuit arr t a b
 (↑) = Lift
 
@@ -111,7 +173,7 @@ infixr 9 ↮
 
 infixr 9 ⊙
 
--- >>> reify ((Lift (+1) :: Circuit (->) (,) Int Int) `Compose` Lift (*2)) 5
+-- >>> (↘) ((↑) (+1) ⊙ (↑) (*2) :: Circuit (->) (,) Int Int) 5
 -- 11
 
 infixl 9 ↘
@@ -129,11 +191,14 @@ infixl 9 ↘
 infixr 8 ⊲
 
 -- | Push a plain function onto the end of a 'Circuit'.
--- Symbol alias for 'push'.
+-- Symbol alias for 'Circuit.Circuit.push'.
 --
 -- @
 --   a ──[ c ]──▶ ──[ f ]──▶ b
 -- @
+--
+-- >>> (↘) ((+1) ⊲ (↑) (*2) :: Circuit (->) (,) Int Int) 5
+-- 11
 (⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 (⊲) = C.push
 
@@ -175,6 +240,13 @@ infixl 5 ∥
 --        │        │        │
 --        └─────────────────┘
 -- @
+--
+-- >>> let braid (x, (s, a)) = (s, (x, a))
+-- >>> (↘) ((∥) braid ((↑) (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
+-- ("st",6)
+-- >>> let step (xs, ()) = (0 : xs, take 3 xs)
+-- >>> (↘) ((∥) braid ((↮) step)) ("st", ())
+-- ("st",[0,0,0])
 (∥) ::
   (Profunctor arr, Trace arr t) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
@@ -197,6 +269,10 @@ infixr 0 ⇸
 -- @
 --   Hyper a b ──[⇸]──▶ Hyper b a ──▶ b
 -- @
+--
+-- >>> let ask = Hyper (\k -> (⇸) k ((○) 0) + 1)
+-- >>> (⇸) ask ((○) 42)
+-- 43
 (⇸) :: Hyper a b -> Hyper b a -> b
 (⇸) = invoke
 
@@ -214,6 +290,13 @@ infixl 9 ↓
 --        └────┘
 --   constant continuation
 -- @
+--
+-- >>> (↓) (lift (+1)) 5
+-- 6
+-- >>> (↓) (lift reverse) "hello"
+-- "olleh"
+-- >>> (↓) ((○) 42) undefined
+-- 42
 (↓) :: Hyper a b -> (a -> b)
 (↓) = lower
 
@@ -229,6 +312,11 @@ infixl 9 ↓
 --   │                      │
 --   └──────────────────────┘
 -- @
+--
+-- >>> (⥁) (Hyper $ \_ -> 42 :: Int)
+-- 42
+-- >>> (⥁) (Hyper $ \h -> (⇸) h ((○) 0) + 1) :: Int
+-- 1
 (⥁) :: Hyper a a -> a
 (⥁) = run
 
@@ -259,6 +347,9 @@ infixr 9 ⇨
 --       ↘                 ↓
 --       └────── arr ──────┘
 -- @
+--
+-- >>> (↓) ((⇨) ((↑) (+1) :: Circuit (->) (,) Int Int)) 5
+-- 6
 (⇨) :: Circuit (->) (,) a b -> Hyper a b
 (⇨) = encode
 
@@ -271,6 +362,12 @@ infixr 9 ⇦
 -- @
 --   Hyper ──[⇦]──▶ Circuit     (forgetful)
 -- @
+--
+-- >>> let h = lift (+ 1)
+-- >>> (↘) ((⇦) h) 5
+-- 6
+-- >>> (↓) ((⇨) ((⇦) h)) 5
+-- 6
 (⇦) :: Hyper a b -> Circuit (->) (,) a b
 (⇦) = flatten
 
@@ -305,6 +402,57 @@ infixr 9 ↪
 --       └─────┼────────┘
 --             └─ loop
 -- @
+--
+-- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
+-- >>> (↪) powers () :: [Integer]
+-- [1,2,4,8,16]
+--
+-- >>> let f (x, a) = (x, a + 1)
+-- >>> (↪) f 5
+-- 6
+--
+-- >>> let swap (x, y) = (y, x)
+-- >>> (↪) swap 42
+-- 42
+--
+-- >>> let f (x, a) = (x, a)
+-- >>> (↪) (second (+1) . f . second (*2)) 5
+-- 11
+--
+-- >>> let swap (x, y) = (y, x)
+-- >>> (↪) (second (+1) . swap) 5
+-- 6
+-- >>> (↪) (swap . second (+1)) 5
+-- 6
+--
+-- >>> let f (x, c) = (x, c + 1)
+-- >>> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = f (x, c)
+-- >>> (↪) g (3, 5)
+-- (6,6)
+--
+-- >>> let fac (n, acc) = if n <= 1 then Right acc else Left (n - 1, n * acc)
+-- >>> (↪) (either fac fac) (5, 1 :: Int)
+-- 120
+--
+-- >>> let f = Right . (+1) . fromRight undefined
+-- >>> (↪) f 5
+-- 6
+--
+-- >>> let swapEither = \case Left x -> Right x; Right x -> Left x
+-- >>> (↪) swapEither 42
+-- 42
+--
+-- >>> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
+-- >>> (↪) (f :: Either () Int -> Either () Int) 5
+-- 11
+--
+-- >>> let fibs = Kleisli $ \(fibs, ()) -> pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs)
+-- >>> runKleisli ((↪) fibs) ()
+-- [0,1,1]
+--
+-- >>> let exit42 = Kleisli $ \case Right () -> pure (Right (42 :: Int))
+-- >>> runKleisli ((↪) exit42) ()
+-- 42
 (↪) :: (Trace arr t) => arr (t a b) (t a c) -> arr b c
 (↪) = trace
 
@@ -316,5 +464,9 @@ infixr 9 ↩
 -- @
 --   b ──[ f ]──▶ c    ──↩──▶    (a,b) ──[ f ]──▶ (a,c)
 -- @
+--
+-- >>> let f x = x + 1
+-- >>> (↪) ((↩) f :: ((), Int) -> ((), Int)) 5
+-- 6
 (↩) :: (Trace arr t) => arr b c -> arr (t a b) (t a c)
 (↩) = untrace
