@@ -74,6 +74,7 @@ import Prelude hiding ((.))
 -- Circuit.Circuit ----------------------------------------------------------
 
 infixr 9 ↑
+
 -- | Embed a plain arrow into a 'Circuit'.  Symbol alias for 'Lift'.
 --
 -- @
@@ -83,6 +84,7 @@ infixr 9 ↑
 (↑) = Lift
 
 infixr 9 ↮
+
 -- | Tie a feedback loop.  Symbol alias for 'Knot'.
 --
 -- @
@@ -104,14 +106,16 @@ infixr 9 ↮
 -- @
 --   a ──[ g ]──▶ ──[ f ]──▶ c
 -- @
-(⊙) :: Category cat => cat b c -> cat a b -> cat a c
+(⊙) :: (Category cat) => cat b c -> cat a b -> cat a c
 (⊙) = (.)
+
 infixr 9 ⊙
 
 -- >>> reify ((Lift (+1) :: Circuit (->) (,) Int Int) `Compose` Lift (*2)) 5
 -- 11
 
 infixl 9 ↘
+
 -- | Collapse a 'Circuit' to a plain arrow.
 -- This is the unique traced functor from the initial encoding.
 -- Symbol alias for 'reify'.
@@ -123,6 +127,7 @@ infixl 9 ↘
 (↘) = reify
 
 infixr 8 ⊲
+
 -- | Push a plain function onto the end of a 'Circuit'.
 -- Symbol alias for 'push'.
 --
@@ -133,6 +138,7 @@ infixr 8 ⊲
 (⊲) = C.push
 
 infixl 5 ∥
+
 -- | Thread a state wire alongside a circuit.
 -- The state @s@ rides ambient through the computation — present but untouched,
 -- sliding past feedback loops via braiding.
@@ -169,10 +175,11 @@ infixl 5 ∥
 --        │        │        │
 --        └─────────────────┘
 -- @
-(∥) :: (Profunctor arr, Trace arr t)
-    => (forall x y z. t x (t y z) -> t y (t x z))
-    -> Circuit arr t a b
-    -> Circuit arr t (t s a) (t s b)
+(∥) ::
+  (Profunctor arr, Trace arr t) =>
+  (forall x y z. t x (t y z) -> t y (t x z)) ->
+  Circuit arr t a b ->
+  Circuit arr t (t s a) (t s b)
 (∥) = ambient
 
 -- Circuit.Hyper ------------------------------------------------------------
@@ -181,6 +188,7 @@ infixl 5 ∥
 type (↬) = Hyper
 
 infixr 0 ⇸
+
 -- | Invoke a hyperfunction with a continuation.
 -- The continuation @Hyper b a@ feeds back into @Hyper a b@,
 -- and the result @b@ emerges.
@@ -193,6 +201,7 @@ infixr 0 ⇸
 (⇸) = invoke
 
 infixl 9 ↓
+
 -- | Observe a hyperfunction by supplying a constant continuation.
 -- The feedback channel is severed; what remains is a plain function.
 -- Symbol alias for 'lower'.
@@ -224,6 +233,7 @@ infixl 9 ↓
 (⥁) = run
 
 infixl 9 ○
+
 -- | Constant continuation.  Ignores the feedback channel and returns
 -- a fixed value.  For any continuation @k@, @base a \`invoke\` k == a@.
 -- Symbol alias for 'base'.
@@ -235,6 +245,7 @@ infixl 9 ○
 (○) = base
 
 infixr 9 ⇨
+
 -- | Encode a 'Circuit' into a 'Hyper'.
 -- This is the unique traced functor from the initial to the final encoding,
 -- satisfying the commuting triangle: @lower . encode = reify@.
@@ -252,6 +263,7 @@ infixr 9 ⇨
 (⇨) = encode
 
 infixr 9 ⇦
+
 -- | Flatten a 'Hyper' to a 'Circuit' by observation.
 -- All feedback structure is lost; only the observable behaviour remains.
 -- Symbol alias for 'flatten'.
@@ -265,6 +277,7 @@ infixr 9 ⇦
 -- Circuit.Traced -----------------------------------------------------------
 
 infixr 9 ↪
+
 -- | Close the feedback loop.  Symbol alias for 'trace'.
 --
 -- For the @(,)@ tensor — lazy knot (output and feedback produced simultaneously):
@@ -296,6 +309,7 @@ infixr 9 ↪
 (↪) = trace
 
 infixr 9 ↩
+
 -- | Open the feedback loop.  Lifts a plain morphism into the tensor,
 -- passing the channel unchanged.  Symbol alias for 'untrace'.
 --

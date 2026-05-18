@@ -113,10 +113,11 @@ push f = Compose (Lift f)
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
 -- >>> reify (ambient braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
-ambient :: (Profunctor arr, Trace arr t)
-        => (forall x y z. t x (t y z) -> t y (t x z))
-        -> Circuit arr t a b
-        -> Circuit arr t (t s a) (t s b)
+ambient ::
+  (Profunctor arr, Trace arr t) =>
+  (forall x y z. t x (t y z) -> t y (t x z)) ->
+  Circuit arr t a b ->
+  Circuit arr t (t s a) (t s b)
 ambient _braid (Lift f) = Lift (untrace f)
 ambient braid (Compose f g) = Compose (ambient braid f) (ambient braid g)
 ambient braid (Knot k) = Knot (dimap braid braid (untrace k))
