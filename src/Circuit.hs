@@ -1,30 +1,13 @@
 -- | Circuit: free traced monoidal categories and hyperfunctions.
 --
--- The main entry point. For most use cases, import submodules directly:
+-- The main entry point. Re-exports all lowercase names from the submodules.
+-- For unicode symbols, import 'Circuit.Symbols'.
+--
+-- For most use cases, import submodules directly:
 --
 -- > import Circuit.Circuit (Circuit (..), reify)
 -- > import Circuit.Hyper (Hyper (..), run, lower, encode, flatten)
 -- > import Circuit.Traced (Trace (..))
---
--- === operator cheatsheet
---
--- @
--- name       symbol   module          meaning
--- ──────────────────────────────────────────────────
--- lift       (↑)      Circuit/Hyper   embed a plain arrow
--- compose    (⊙)      Circuit/Hyper   sequential composition
--- knot       (↮)      Circuit         feedback loop constructor
--- reify      (↘)      Circuit         interpret to plain arrow
--- lower      (↓)      Hyper           observe hyperfunction
--- base       (○)      Hyper           constant continuation
--- push       (⊲)      both            prepend function
--- run        (⥁)      Hyper           tie self-referential knot
--- encode     (⇨)      Hyper           Circuit → Hyper
--- invoke     (⇸)      Hyper           apply continuation
--- flatten    (⇦)      Hyper           Hyper → Circuit (lossy)
--- trace      (↪)      Traced          close feedback loop
--- untrace    (↩)      Traced          open feedback loop
--- @
 --
 -- For detailed design and theory, see @other/@.
 -- For examples, see @examples/@.
@@ -32,35 +15,21 @@ module Circuit
   ( -- * Circuit (initial encoding)
     Circuit (..),
     reify,
-    (↘),
     lower,
     push,
+    ambient,
 
     -- * Hyper (final encoding)
     Hyper (..),
-    type (↬),
     run,
     base,
     lift,
 
-    -- * Symbolic operators
-    (⇸),
-    (⊲),
-    (↮),
-    (⥁),
-    (○),
-    (↑),
-    (⊙),
-    (⇦),
-
     -- * Trace typeclass
     Trace (..),
-    (↪),
-    (↩),
 
     -- * Encoding
     encode,
-    (⇨),
     encodeEither,
     runEither,
     flatten,
@@ -69,13 +38,9 @@ where
 
 import Circuit.Circuit
   ( Circuit (..),
+    ambient,
     push,
     reify,
-    (↑),
-    (↘),
-    (↮),
-    (⊙),
-    (⊲),
   )
 import Circuit.Hyper
   ( Hyper (..),
@@ -87,15 +52,7 @@ import Circuit.Hyper
     lower,
     run,
     runEither,
-    (⇦),
-    (⇨),
-    (⇸),
-    (○),
-    (⥁),
-    type (↬),
   )
 import Circuit.Traced
   ( Trace (..),
-    (↩),
-    (↪),
   )

@@ -12,29 +12,19 @@
 module Circuit.Hyper
   ( -- * Hyper
     Hyper (..),
-    type (↬),
-    (⇸),
-    (⊙),
 
     -- * Construction and elimination
     lift,
-    (↑),
     lower,
-    (↓),
     base,
-    (○),
     push,
-    (⊲),
     run,
-    (⥁),
 
     -- * Encoding
     encode,
-    (⇨),
     encodeEither,
     runEither,
     flatten,
-    (⇦),
   )
 where
 
@@ -62,34 +52,23 @@ import Circuit.Classes
 -- a value of type @b@. The continuation argument appears in contravariant
 -- position; the result appears in covariant position.
 --
--- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1) in ask ⇸ (○) 42
+-- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1) in ask `invoke` base 42
 -- 43
 newtype Hyper a b = Hyper {invoke :: Hyper b a -> b}
 
 -- | Type synonym for 'Hyper'.
-type (↬) = Hyper
 
 -- | Invoke a hyperfunction with a continuation.
 --
--- >>> ((+1) ↑) ⇸ (○) 0
+-- >>> invoke (lift (+1)) (base 0)
 -- 1
-infixr 0 ⇸
 
-(⇸) :: Hyper a b -> Hyper b a -> b
-(⇸) = invoke
+
 
 -- | Sequential composition. Alias for '(.)'.
-compose :: Hyper b c -> Hyper a b -> Hyper a c
-compose = (.)
-
--- | Sequential composition. Operator form of 'compose'.
---
--- >>> (((+1) ↑) ⊙ ((*2) ↑)) ↓ 5
+-- >>> lower (lift (+1) . lift (*2)) 5
 -- 11
-infixr 9 ⊙
 
-(⊙) :: Hyper b c -> Hyper a b -> Hyper a c
-(⊙) = compose
 
 -- * Construction and elimination
 
@@ -103,14 +82,10 @@ infixr 9 ⊙
 lift :: (a -> b) -> Hyper a b
 lift f = push f (lift f)
 
--- | Operator form of 'lift'.
 --
--- >>> ((+1) ↑) ↓ 5
+-- >>> lower (lift (+1)) 5
 -- 6
-infixr 9 ↑
 
-(↑) :: (a -> b) -> Hyper a b
-(↑) = lift
 
 -- | Extract a plain function from a hyperfunction.
 --
@@ -123,20 +98,16 @@ infixr 9 ↑
 lower :: Hyper a b -> (a -> b)
 lower h a = invoke h (Hyper (const a))
 
--- | Postfix lower. Operator form of 'lower'.
 --
 -- Because 'lower' returns a plain function, the postfix form
 -- chains naturally via function application:
 --
--- >>> ((+1) ↑) ↓ 5
+-- >>> lower (lift (+1)) 5
 -- 6
 --
--- >>> ((*2) ↑) ↓ 5 + 10
+-- >>> lower (lift (*2)) 5 + 10
 -- 20
-infixl 9 ↓
 
-(↓) :: Hyper a b -> (a -> b)
-(↓) = lower
 
 -- | Ignores the input and returns a constant value.
 --
@@ -145,14 +116,10 @@ infixl 9 ↓
 base :: a -> Hyper b a
 base a = Hyper (const a)
 
--- | Prefix constant. Operator form of 'base'.
 --
--- >>> (○) 42 ↓ undefined
+-- >>> lower (base 42) undefined
 -- 42
-infixl 9 ○
 
-(○) :: a -> Hyper b a
-(○) = base
 
 -- | Push a plain function onto a hyperfunction.
 --
@@ -160,19 +127,15 @@ infixl 9 ○
 -- continuation on @h@. In this way @f@ is threaded through the
 -- continuation, enabling feedback-aware composition.
 --
--- >>> lower ((+1) ⊲ lift (*2)) 5
+-- >>> lower (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push f h = Hyper (\k -> f (invoke k h))
 
--- | Operator form of 'push'.
 --
--- >>> ((*2) ⊲ ((+1) ↑)) ↓ 5
+-- >>> lower (push (*2) (lift (+1))) 5
 -- 10
-infixr 8 ⊲
 
-(⊲) :: (a -> b) -> Hyper a b -> Hyper a b
-(⊲) = push
 
 -- | Close the self-referential loop. Applies a hyperfunction to its
 -- own dual: @run h = invoke h (Hyper run)@.
@@ -189,10 +152,6 @@ infixr 8 ⊲
 -- 1
 run :: Hyper a a -> a
 run h = invoke h (Hyper run)
-
--- | Close the loop. Operator form of 'run'.
-(⥁) :: Hyper a a -> a
-(⥁) = run
 
 -- * Properties
 
@@ -255,12 +214,6 @@ encode (Lift f) = lift f
 encode (Compose f g) = encode f . encode g
 encode (Knot f) = trace (lift f)
 
--- | Synonym for 'encode'.
-infixr 9 ⇨
-
-(⇨) :: Circuit (->) (,) a b -> Hyper a b
-(⇨) = encode
-
 -- | Encode an Either-loop as a self-referential Hyper.
 --
 -- Whereas 'encode' handles the @(,)@ tensor using Hyper's own Trace
@@ -305,12 +258,6 @@ runEither f b = run (encodeEither f) (Right b)
 -- 6
 flatten :: Hyper a b -> Circuit (->) (,) a b
 flatten h = Lift (lower h)
-
--- | Synonym for 'flatten'. Collapses Hyper to Circuit (lossy).
-infixr 9 ⇦
-
-(⇦) :: Hyper a b -> Circuit (->) (,) a b
-(⇦) = flatten
 
 -- * Instances
 

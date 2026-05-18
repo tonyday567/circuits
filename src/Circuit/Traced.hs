@@ -39,8 +39,6 @@
 -- These instances require GHC; they are omitted on other compilers.
 module Circuit.Traced
   ( Trace (..),
-    (↪),
-    (↩),
   )
 where
 
@@ -65,19 +63,6 @@ import System.IO.Unsafe (unsafeInterleaveIO)
 class Trace arr t where
   trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
-
--- | Alias for 'trace'.
-infixr 9 ↪
-
--- | Close a type tensored over a morphism.
-(↪) :: (Trace arr t) => arr (t a b) (t a c) -> arr b c
-(↪) = trace
-
--- | Symbolic alias for 'untrace'.
-infixr 9 ↩
-
-(↩) :: (Trace arr t) => arr b c -> arr (t a b) (t a c)
-(↩) = untrace
 
 -- * Cartesian tensor — lazy knot
 

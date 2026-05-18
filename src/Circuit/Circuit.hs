@@ -18,17 +18,11 @@
 module Circuit.Circuit
   ( -- * Circuit
     Circuit (..),
-    (↑),
-    (⊙),
-    (↮),
 
     -- * Operators
     reify,
-    (↘),
     push,
-    (⊲),
     ambient,
-    (↣),
   )
 where
 
@@ -61,29 +55,6 @@ data Circuit arr t a b where
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
   -- | Knot ties a feedback loop. The tensor t carries the channel type.
   Knot :: arr (t a b) (t a c) -> Circuit arr t b c
-
--- | Synonym for 'Lift'.
-infixr 9 ↑
-
-(↑) :: arr a b -> Circuit arr t a b
-(↑) = Lift
-
--- | Synonym for 'Knot'.
-infixr 9 ↮
-
-(↮) :: arr (t a b) (t a c) -> Circuit arr t b c
-(↮) = Knot
-
--- | Synonym for 'Compose'.
-(⊙) :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-(⊙) = Compose
-
--- | Synonym for 'reify'.
-infixl 9 ↘
-
--- | Collapse a Circuit to a plain arrow.
-(↘) :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-(↘) = reify
 
 instance (Category arr) => Category (Circuit arr t) where
   id = Lift id
@@ -118,18 +89,6 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 -- 11
 push :: arr b c -> Circuit arr t a b -> Circuit arr t a c
 push f = Compose (Lift f)
-
--- | Push / prepend a plain function to a Circuit. Operator form of 'push'.
-infixr 8 ⊲
-
-(⊲) :: arr b c -> Circuit arr t a b -> Circuit arr t a c
-(⊲) = push
-
--- | Left-to-right sequential composition. Operator form of @(>>>).
-infixl 9 ↣
-
-(↣) :: Circuit arr t a b -> Circuit arr t b c -> Circuit arr t a c
-f ↣ g = g ⊙ f
 
 -- | Thread a state wire through a Circuit.
 --
