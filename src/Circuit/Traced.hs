@@ -1,5 +1,8 @@
+{-# LANGUAGE CPP #-}
+#ifdef __GLASGOW_HASKELL__
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+#endif
 
 -- | The trace: feedback in a monoidal category.
 --
@@ -32,6 +35,8 @@
 --   feedback Left               ≅   shift / control0
 --   exit Right                  ≅   return from reset
 -- @
+--
+-- These instances require GHC; they are omitted on other compilers.
 module Circuit.Traced
   ( Trace (..),
     (↪),
@@ -39,11 +44,13 @@ module Circuit.Traced
   )
 where
 
+#ifdef __GLASGOW_HASKELL__
 import Control.Arrow (Kleisli (..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
 import System.IO.Unsafe (unsafeInterleaveIO)
+#endif
 
 -- $setup
 -- >>> import Control.Arrow (Kleisli (..), second)
@@ -165,6 +172,8 @@ instance Trace (->) Either where
         Left a -> go (Left a)
   untrace = fmap
 
+#ifdef __GLASGOW_HASKELL__
+
 -- * Kleisli IO (,) — lazy knot via IORef
 
 -- | ⚠️ UNSAFE: Lazy knot tying for @Kleisli IO@ with the cartesian tensor.
@@ -249,3 +258,5 @@ instance Trace (Kleisli IO) Either where
           Left a -> pure (Left a)
           Right b -> Right <$> f b
       )
+
+#endif

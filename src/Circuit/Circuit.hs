@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | The free traced monoidal category.
@@ -33,10 +33,15 @@ module Circuit.Circuit
 where
 
 import Circuit.Traced (Trace (..))
+import Prelude hiding (id, (.))
+
+#ifdef __GLASGOW_HASKELL__
 import Control.Category
 import Data.Bifunctor
 import Data.Profunctor
-import Prelude hiding (id, (.))
+#else
+import Circuit.Classes
+#endif
 
 -- $setup
 -- >>> import Data.Profunctor (dimap)

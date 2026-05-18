@@ -49,11 +49,12 @@ library
   exposed-modules:
     Circuit
     Circuit.Circuit
+    Circuit.Classes
     Circuit.Hyper
     Circuit.Traced
 
   build-depends:
-    QuickCheck >=2.14 && <3,
     base >=4.18 && <5,
-    profunctors >=5.0 && <6,
-    these >=1.1 && <2,
+
+  if impl(ghc)
+    build-depends: profunctors >=5.0 && <6,

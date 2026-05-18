@@ -1,5 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Hyperfunctions: final encoding of traced monoidal categories.
@@ -41,9 +40,14 @@ where
 
 import Circuit.Circuit (Circuit (..), reify)
 import Circuit.Traced (Trace (..))
+import Prelude hiding (id, (.))
+
+#ifdef __GLASGOW_HASKELL__
 import Control.Category
 import Data.Profunctor
-import Prelude hiding (id, (.))
+#else
+import Circuit.Classes
+#endif
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))

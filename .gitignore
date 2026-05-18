@@ -5,3 +5,4 @@
 *.dyn_hi
 *.dyn_o
 .hie/
+dist-mcabal/

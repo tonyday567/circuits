@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 -- | Circuit: free traced monoidal categories and hyperfunctions.
 --
 -- The main entry point. For most use cases, import submodules directly:
