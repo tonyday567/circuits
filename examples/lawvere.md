@@ -191,67 +191,9 @@ categorical class than traced monoidal.
 `Curry`/`Uncurry` would be the second — the one that makes it closed.
 What others? What's the 2-cell for [distributive categories](https://ncatlab.org/nlab/show/distributive+category)?
 For [linear logic](https://ncatlab.org/nlab/show/linear+logic)?
-The design space opens from here.
-
----
-
-## Evidence: System L Wired to Circuit
-
-The ladder isn't hypothetical. **SysL** (`~/haskell/sysl/`) is a Haskell
-implementation of System L — the portion of linear logic expressible as a
-free category. As of this card it imports Circuit directly:
-
-```haskell
-import Circuit (Circuit(..), Wire, reify)
-type Traced = Wire
-```
-
-SysL's type system covers the full multiplicative-additive fragment plus
-graded modalities:
-
-| Type | Constructor | Meaning |
-|---|---|---|
-| `One` | `()` | multiplicative unit |
-| `Times a b` | `VPair a b` | multiplicative conjunction (⊗) |
-| `Zero` | — | additive unit |
-| `Plus a b` | `VLeft a \| VRight b` | additive disjunction (⊕) |
-| `Hom a b` | `VFun (a → Result b)` | linear implication (⊸) |
-| `GradedHom a [b]` | `VGradedFun (a → Result b)` | graded implication |
-| `Then a b` | `VThen a (a → Result b)` | sequential composition (⨟) |
-
-The dualistic syntax — Command, Term/Coterm, Comatch/Cointro — encodes
-each connective as a **pair of structural 2-cells** (introduction/elimination).
-The translation `commandToTraced :: Command v → Traced [Val v] (Int, Val v)`
-compiles every connective into `Circuit (->) (,)` using `Lift` and
-`Compose`. No `Knot` is needed for the current fragment — but `reify` is
-the runtime, and `Knot` is available if recursion enters.
-
-**The full 2-cell ladder, across three projects:**
-
-| Connective | 2-cell pair | Circuit | Lawvere | SysL |
-|---|---|---|---|---|
-| **⊗** (product) | pair / unpair | `(,)` tensor, Bifunctor | Cone / Proj | TensorIntro / TensorMatch |
-| **⊕** (coproduct) | inject / case | `Either` tensor, Bifunctor | CoCone / Inj | PlusIntroL+R / PlusMatch |
-| **trace** (feedback) | Knot / Mendler | `Knot`, `reify` Mendler case | `Fix` (ad-hoc mfix) | — (available via Circuit) |
-| **⊸** (exponential) | curry / uncurry | *missing* | Curry / UnCurry | HomComatch / HomCointro |
-| **⨟** (sequential) | then-in / then-out | *missing* | *missing* | ThenComatch / ThenCointro |
-| **graded ⊸** | graded pair | *missing* | *missing* | GradedHomComatch / GradedHomCointro |
-
-SysL proves that Circuit's GADT — `Lift`/`Compose`/`Knot` — is the right
-engine for a broader class of free categories. The same three constructors
-interpret linear logic's multiplicative fragment without modification.
-Adding `Knot` would bring recursion under the trace constraint. Adding
-curry/uncurry (or `Then`) would add new constructors — not a new engine,
-just new cases in `reify`.
-
-This is the "allies" the claim needs. SysL doesn't speculate about what the
-2-cell for linear logic might be — it *implements* it and runs on Circuit.
-
-SysL originates from dependent optics research (Riley, 2018; Boisseau &
-Gibbons, 2018; Capucci et al., 2022). The correspondence between linear
-logic and optics is well-established — optics are the dinatural
-transformation semantics of linear types. Circuit's profunctor encoding
-(`Knot` as a Cell in `Prof(Hask)`) is the same mathematical substrate.
+The design space opens from here. For evidence that the pattern generalises
+beyond the Circuit-Lawvere pair, see [sysl examples](https://github.com/tonyday567/sysl)
+— System L wired to Circuit, adding ⊸ and ⨟ to the ladder.
 
 ---
 
@@ -290,18 +232,5 @@ transformation semantics of linear types. Circuit's profunctor encoding
 - `src/Circuit/Traced.hs` — `Trace` typeclass and instances.
 - `~/other/lawvere/src/Lawvere/Expr.hs` — `Curry`, `UnCurry` constructors.
 - `~/other/lawvere/src/Lawvere/Eval.hs` — `evalAr` on `Curry`/`UnCurry`.
-- `~/haskell/sysl/src/SysL.hs` — System L wired to Circuit. Types `Hom`, `Then`,
-  `GradedHom`; dualistic syntax (Term/Coterm); traced interpretation.
-  Tests: `testIdTraced`, `testThenTraced`.
-- [Milewski, Profunctor Optics](https://bartoszmilewski.com/2017/07/07/profunctor-optics/) —
-  the profunctor encoding of optics.
-- [Riley, Categories of Optics](https://arxiv.org/abs/1809.00738) (2018) —
-  dependent optics; mixed optics as dinatural transformations.
-- [Boisseau & Gibbons, What You Needa Know about Yoneda](https://www.cs.ox.ac.uk/jeremy.gibbons/publications/proyo.pdf) (2018) —
-  profunctor optics and Yoneda.
-- [Capucci, Gavranovic, Hedges, Rischel](https://arxiv.org/abs/2209.09351) (2022) —
-  categorical systems theory; optics for open diagrams.
 - [nLab: cartesian closed category](https://ncatlab.org/nlab/show/cartesian+closed+category)
 - [nLab: distributive category](https://ncatlab.org/nlab/show/distributive+category)
-- [nLab: linear logic](https://ncatlab.org/nlab/show/linear+logic)
-- [nLab: profunctor optics](https://ncatlab.org/nlab/show/optic+%28in+computer+science%29)
