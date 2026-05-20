@@ -75,7 +75,7 @@ itself. The triangle `reify = lower . encode` connects them.
 
 ## 📖 Read
 
-["tracing hyperfunctions"](https://doi.org/10.1145/3776649) — Kidney & Wu (2025). The paper that inspired the core construction. Introduces `Hyper` as a self-dual object in the traced sense and the hyperfunction axioms.
+["tracing hyperfunctions"](https://doi.org/10.1145/3776649) — Kidney & Wu (2026). The paper that inspired the core construction. Introduces `Hyper` as a self-dual object in the traced sense and the hyperfunction axioms.
 
 `other/` — the narrative arc (notation, marks-and-stacks, knot, triangle proof, tensors, Mendler case, examples). For the long version.
 
