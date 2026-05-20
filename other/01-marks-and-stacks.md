@@ -105,8 +105,11 @@ explicit braid. `ambient` is that braid, packaged as a combinator.
 
 ---
 
-Two of the marks are compound — `⊲` is `↑` then `⊙`, `run` is `fix` then `↓` —
-but the axioms don't care. They constrain the interface, not the implementation.
+`run` is the compound `fix . lower`. `push` is a primitive — the Hyper-level
+form of prepending a function on the input side of the feedback channel.
+`push f h` applies `f` to the value the continuation feeds back, before
+`h` sees it. It corresponds to `flip Compose . Lift` in the GADT (see
+[02](02-a-knot-recovers-fix.md)).
 
 ## Reading the Axioms
 
@@ -138,35 +141,23 @@ Observation recovers the original arrow. What you embed is what you
 observe. This is the sanity check — `Hyper` doesn't add or remove
 behaviour, it only adds structure (the continuation channel).
 
-### 5: Centrality
+### 5: Push composition
 
 ```
 (f ⊲ p) ⊙ (g ⊲ q)  =  (f . g) ⊲ (p ⊙ q)
 ```
 
-Substitute `⊲ = ↑ then ⊙`:
+Push distributes over composition: prepending `f` then `g` is the same as
+prepending `f . g`. This is a homomorphism — push respects the monoid
+structure of plain functions and the category structure of Hypers.
 
 ```
-(↑ f ⊙ p) ⊙ (↑ g ⊙ q)  =  ↑ (f . g) ⊙ (p ⊙ q)
+push (f . g) (p . q)  =  push f p . push g q
 ```
 
-Apply associativity (axiom 1) and functoriality (axiom 3):
-
-```
-↑ f ⊙ p ⊙ ↑ g ⊙ q  =  ↑ f ⊙ ↑ g ⊙ p ⊙ q
-```
-
-Cancel `↑ f` on the left and `q` on the right:
-
-```
-p ⊙ ↑ g  =  ↑ g ⊙ p
-```
-
-Centrality is commutativity of lifted arrows via `⊙`. A plain function
-pushed onto the stack can always be re-associated to the outermost
-position, no matter what hyperfunction it was pushed onto. It's the move
-that makes function stacks work — `(g . f) x` is `f x` then `g`. So
-natural we barely notice it.
+This is not a derived identity. It constrains push, not defines it. Push
+is primitive — it prepends a function on the input side of the feedback
+channel. This axiom says that two pushes in sequence compose cleanly.
 
 ### 6: Feedback / Sliding
 
@@ -174,12 +165,7 @@ natural we barely notice it.
 ⥁ ((f ⊲ p) ⊙ q)  =  f (⥁ (q ⊙ p))
 ```
 
-Substituting the compounds:
-
-```
-fix (↓ ((↑ f ⊙ p) ⊙ q))  =  f (fix (↓ (q ⊙ p)))
-```
-
+In kmett's notation: `run (push f p . q) = f (run (q . p))`.
 A pushed function `f` on the left of a composition `q` swaps places
 with `q` inside the fixed point. `p` and `q` exchange positions. This
 is not reassociation — it is a genuine swap. A plain category cannot
@@ -193,8 +179,8 @@ composition threads the continuation through `g . h` before `f` sees
 it. The type itself enforces the axiom.
 
 Axioms 1–3 are the moves of FP. Axiom 4 is the sanity check. Axiom 5
-is centrality — the move we use without noticing. Axiom 6 is the new
-move.
+is push composition — the homomorphism that keeps push well-behaved.
+Axiom 6 is the new move.
 
 ---
 
@@ -255,7 +241,7 @@ enters. That's the next chapter.
 ## This Little Language Scales
 
 Axioms 1–3 are the free category — the moves of FP. Axiom 4 is the
-sanity check. Axiom 5 is centrality. Axiom 6 is the one that isn't
+sanity check. Axiom 5 is push composition. Axiom 6 is the one that isn't
 free. In `Hyper` it is inherent in the type. In an initial encoding, it
 must be enforced by a single pattern match.
 

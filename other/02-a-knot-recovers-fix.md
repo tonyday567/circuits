@@ -238,6 +238,25 @@ instance (Category arr) => Category (Circuit arr t) where
   (.) = Compose
 ```
 
+### GADT ↔ Hyper
+
+Each GADT primitive has a counterpart in the final encoding:
+
+```
+GADT                              Hyper
+────────────────────────────────────────────────
+Lift f                            lift f
+Compose f g                       f . g
+Knot f                            trace (lift f)
+flip Compose . Lift f             push f
+```
+
+`flip Compose . Lift` prepends a function on the input side — the
+GADT-level form of `push`.  Under `encode`, `Compose (Lift f) h` maps
+to `lift f . encode h` (output-side), while `push f (encode h)` is the
+input-side primitive.  Both are first-class; neither is derived from
+the other.
+
 ---
 
 ## The Universal Property

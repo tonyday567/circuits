@@ -222,6 +222,7 @@ instance Trace (Kleisli IO) (,) where
 -- | GHC delimited-continuation primops.
 data PromptTag a = PromptTag (PromptTag# a)
 
+-- | Create a new prompt tag for delimited continuations.
 newPromptTag :: IO (PromptTag a)
 newPromptTag =
   IO
@@ -230,6 +231,7 @@ newPromptTag =
           (# s', t #) -> (# s', PromptTag t #)
     )
 
+-- | Run an IO computation under a prompt boundary.
 prompt :: PromptTag a -> IO a -> IO a
 prompt (PromptTag t) (IO m) = IO (prompt# t m)
 

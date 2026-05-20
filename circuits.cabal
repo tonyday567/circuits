@@ -9,9 +9,9 @@ author: Tony Day
 maintainer: tonyday567@gmail.com
 homepage: https://github.com/tonyday567/circuits#readme
 bug-reports: https://github.com/tonyday567/circuits/issues
-synopsis: Free traced monoidal category over any base category
+synopsis: traced categories and circuits
 description:
-  @circuits@ provides a free traced monoidal category construction over any base category.
+  circuits is a Haskell library that makes feedback first-class, by providing Circuit, the initial traced category over a base category, hyperfunctions via Hyper, and combinators and interpreters. It is experimental, but could be a promising approach to programming circuits that is intensional, ergonomic and performant.
 
 build-type: Simple
 tested-with:

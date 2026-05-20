@@ -1,197 +1,137 @@
-⟝ circuit-basic 
+# While, Until, For — Circuit loops
 
-# While Knot — Hyper vs Circuit
-
-The simplest recursive pattern: a step function `s -> Either r s`, iterate
-until `Left r`, return `r`.  This card shows the same loop in both encodings.
+The three canonical loop patterns using Circuit's `Knot` constructor
+and the `Trace (->) Either` instance.  One fundamental pattern, three
+specialisations.
 
 ```haskell
 -- $setup
--- >>> import Circuit (Hyper (..), Circuit (..), Trace (..), run, reify)
--- >>> import Circuit.Hyper qualified as Hyper
--- >>> import Circuit.Circuit qualified as Circuit
+-- >>> import Circuit (Circuit (..), Trace (..), reify)
+-- >>> import Control.Category (id, (.))
 -- >>> import Prelude hiding (id, (.))
 ```
 
 ---
 
-## The Step Function
+## The pattern
+
+A `Step` either produces a result (`Left r`, done) or a next state
+(`Right s`, continue).  `Knot` ties the feedback loop via the `Either`
+channel: `Left` feeds back, `Right` exits.  The step function and the
+trace use opposite conventions — bridge with a swap.
 
 ```haskell
--- | One step: return result (Left) or continue with new state (Right).
 type Step s r = s -> Either r s
 ```
 
-Example: count down from `n`, return the count of steps:
-
-```haskell
-countdown :: Step Int Int
-countdown n
-  | n <= 0    = Left 0       -- done
-  | otherwise = Right (n - 1)  -- continue
-```
-
 ---
 
-## Hyper Version
+## loop
 
-The recursion lives in `run` — the self-referential knot. The step function
-is used directly, with the continuation `k` threaded by `run`.
+The fundamental form.  Apply `step` on each iteration; swap conventions
+so that `Left r` (done) becomes `Right r` (exit) and `Right s` (continue)
+becomes `Left s` (feedback).
 
 ```haskell
-whileH :: Step s r -> s -> r
-whileH step = run h
+loop :: Step s r -> s -> r
+loop step s0 = reify (Knot step') s0
   where
-    h :: Hyper (s -> r) (s -> r)
-    h = Hyper $ \k s ->
-      case step s of
-        Left r  -> r
-        Right s' -> invoke k h s'
+    step' (Left s)  = case step s of Left r -> Right r; Right s' -> Left s'
+    step' (Right s) = case step s of Left r -> Right r; Right s' -> Left s'
 ```
 
-Trace: `run h s0 = invoke h (Hyper run) s0`. The first call unwraps `h`,
-evaluates `step s0`. If `Left r`, returns `r`. If `Right s1`, calls
-`invoke (Hyper run) h s1 = run h s1`. The continuation `k = Hyper run` is
-`run` repackaged — the knot closes through the type.
-
 ```haskell
--- >>> whileH countdown 5
+-- >>> let countdown n | n <= 0 = Left 0 | otherwise = Right (n - 1)
+-- >>> loop countdown 5
 -- 0
--- >>> whileH countdown 0
+
+-- >>> loop countdown 0
 -- 0
 ```
 
 ---
 
-## Circuit Version
+## while — condition, then step
 
-The recursion lives in `trace` — the `Trace (->) Either` instance iterates
-the feedback channel until it produces `Right`. The step function must be
-adapted: `Either` in `Knot` uses `Left` as the feedback channel and `Right`
-as output. Our `Step` uses `Left` as output and `Right` as continue — so we
-swap.
+Check `cond` before each step.  When `cond` fails, convert the state to
+a result with `done` and exit.
 
 ```haskell
-whileC :: Step s r -> s -> r
-whileC step = reify (Knot (Lift step'))
+whileC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
+whileC cond done step s0 = reify (Knot step') s0
   where
-    step' :: Either s s -> Either s r
-    step' = either swapRL swapRL
-    -- Both Left (feedback) and Right (fresh input) carry an s.
-    -- Apply step, then swap: continue → Left (feedback), done → Right (output).
-    swapRL (Left r)  = Right r   -- result  → output channel
-    swapRL (Right s) = Left s    -- continue → feedback channel
+    step' (Left s)  = if cond s then case step s of Left r -> Right r; Right s' -> Left s'
+                                else Right (done s)
+    step' (Right s) = step' (Left s)
 ```
 
-Equivalently, using `trace` directly (without `Circuit` constructors):
-
 ```haskell
-whileT :: Step s r -> s -> r
-whileT step = trace step'
-  where step' = either swapRL swapRL
-        swapRL (Left r)  = Right r
-        swapRL (Right s) = Left s
-```
-
-Trace: `trace step' s0` feeds `Right s0` to `step'`. If `step s0 = Left r`,
-then `step' (Right s0) = Right r` — trace returns `r`. If `step s0 = Right s1`,
-then `step' (Right s0) = Left s1` — trace feeds `Left s1` back to `step'`,
-iterating.
-
-```haskell
--- >>> whileC countdown 5
+-- >>> let pos n = n > 0; countdown n | n <= 0 = Left 0 | otherwise = Right (n - 1)
+-- >>> whileC pos id countdown 5
 -- 0
--- >>> whileC countdown 0
--- 0
--- >>> whileT countdown 5
+
+-- >>> whileC pos id countdown 0
 -- 0
 ```
 
 ---
 
-## Where the Recursion Lives
+## until — step, then condition
+
+Step first (always runs at least once), then check `cond` on the new
+state.  When `cond` becomes true, exit with `done`.
 
 ```haskell
--- Hyper: run ties the knot
-run :: Hyper a a -> a
-run h = invoke h (Hyper run)       -- self-reference in the type
-
--- Circuit: trace iterates the channel
-trace :: (Either a b -> Either a c) -> b -> c
-trace f b = case f (Right b) of
-  Right c -> c                     -- done
-  Left a  -> trace f a             -- feedback
+untilC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
+untilC cond done step s0 = reify (Knot step') s0
+  where
+    step' (Left s)  = case step s of
+                        Left r  -> Right r
+                        Right s' -> if cond s' then Right (done s') else Left s'
+    step' (Right s) = step' (Left s)
 ```
 
-| Aspect | Hyper | Circuit |
-|--------|-------|---------|
-| Recursion site | `run` (self-knot) | `trace` (channel iteration) |
-| Step shape | `s -> Either r s` (unchanged) | `Either s s -> Either s r` (channel-adapted) |
-| Continuation | `k :: Hyper (s→r) (s→r)`, passed explicitly | Implicit in `Either` Left/Right |
-| Termination | `Left r` — ignore continuation | `Right c` — trace stops iterating |
-| Continue | `Right s'` — call `invoke k h s'` | `Left a` — trace feeds back |
+```haskell
+-- >>> let countup target n | n >= target = Left n | otherwise = Right (n + 1)
+-- >>> untilC (>= 3) id (countup 5) 0
+-- 3
+
+-- >>> untilC (>= 3) id (countup 5) 5
+-- 5
+```
 
 ---
 
-## The Convention Swap
+## for — counted loop
 
-Both encodings use `Either` but with opposite conventions:
-
-| Branch | `Step s r` (while loop) | `Trace (->) Either` (Circuit) |
-|--------|-------------------------|-------------------------------|
-| `Left` | **Result** — done, return `r` | **Feedback** — iterate again |
-| `Right` | **Continue** — next state `s` | **Output** — done, return `c` |
-
-This is why `swapRL` is needed to bridge them. The hyperfunction version
-avoids Either altogether inside the loop body — the continuation is passed
-explicitly as `k`, and the step just returns a value or a new state.
-
----
-
-## A Larger Example: Sum [1..n]
+Index `i` runs from `0` to `n-1`.  The body receives `i` and the current
+state; it must produce a result within `n` iterations.
 
 ```haskell
-sumStep :: Step (Int, Int) Int     -- (current n, accumulated sum)
-sumStep (n, acc)
-  | n <= 0    = Left acc
-  | otherwise = Right (n - 1, acc + n)
+forC :: Int -> (Int -> Step s r) -> s -> r
+forC n body s0 = loop step' (0, s0)
+  where
+    step' (i, s)
+      | i >= n    = error "forC: body did not produce result"
+      | otherwise = case body i s of
+                      Left r  -> Left r
+                      Right s' -> Right (i + 1, s')
+```
 
--- >>> whileH sumStep (5, 0)
--- 15
--- >>> whileC sumStep (5, 0)
+```haskell
+-- >>> forC 5 (\i (_, acc) -> if i == 4 then Left (acc + i + 1) else Right ((), acc + i + 1)) ((), 0 :: Int)
 -- 15
 ```
 
 ---
 
-## The Mendler Case in Action
+## Convention
 
-For `Circuit`, the `Knot` constructor is eliminated by `lower`. The
-Mendler case is what makes this work when `Knot` appears on the left
-of a `Compose`:
+| branch | `Step s r` (user code) | `Trace (->) Either` (Knot) |
+|--------|------------------------|----------------------------|
+| `Left` | **done** — return `r`  | **feedback** — iterate     |
+| `Right`| **continue** — new `s` | **exit** — return `c`      |
 
-```haskell
-lower (Compose (Knot f) g) = trace (f . untrace (lower g))
-```
-
-For our simple `whileC`, there is no `Compose` — just a bare `Knot`:
-
-```haskell
-lower (Knot (Lift step'))
-  = trace step'                    -- base case, no Mendler needed
-```
-
-The Mendler case comes into play when you compose loops:
-
-```haskell
--- Two loops in sequence: run whileC step1, feed result to whileC step2
-pipeline :: Circuit (->) Either s s
-pipeline = Knot (Lift step2') `Compose` Knot (Lift step1')
-
-lower pipeline
-  = trace (step2' . untrace (lower (Knot (Lift step1'))))   -- Mendler
-  = trace (step2' . untrace (trace step1'))
-```
-
-This is where `Circuit` earns its keep — composing feedback structures.
-For a single while loop, `trace` directly is simplest.
+The `step'` function bridges the two.  The swap is mechanical: wherever
+the user's `step` returns `Left r`, `step'` returns `Right r`; wherever
+`step` returns `Right s`, `step'` returns `Left s`.

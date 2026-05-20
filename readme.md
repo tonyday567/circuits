@@ -1,27 +1,27 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-## Add Feedback, Keep Structure
+## First-Class Feedback
 
 > The free traced monoidal category is the smallest thing you can add to a
 > category to get feedback. Not a library of combinators — a single GADT and
-> a single coinductive type, connected by one triangle.
+> a single coinductive type, a hyperfunction no less, connected by this gallois connection ...
 >
-> — What we learned building it
+> ~ What we learned building it
 
 <br>
 
 ## ⚙️ Install
 
 ```
-cabal install circuits
+(m)cabal build circuits
 ```
 
-GHC 9.10+, `base`, `profunctors`, `these`.
+Compiles on MicroHS & GHC 9.10+ with `base` & `profunctors`
 
 ## 📡 Usage
 
 ```haskell
-import Circuit.Traced (trace)
+import Circuit
 
 -- Fibonacci via knot-tying
 >>> take 5 (trace (\(fibs, ()) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs)) () :: [Integer])
@@ -32,66 +32,67 @@ import Circuit.Traced (trace)
 3
 ```
 
-Five operations on one type:
-
-```
-↑  lift     embed a plain arrow
-↓  lower    observe hyperfunction
-⊙  compose  sequential composition
-⊲  push     prepend a function
-⥁  run      tie the knot
-```
-
-Two tensors, two notions of time:
-
-| Tensor  | Semantics                                    | Trace      |
-|---------|----------------------------------------------|------------|
-| `(,)`   | Simultaneous — lazy knot, DP tables, streams | `unsecond` |
-| `Either`| Sequential — iteration, parsers, pipes       | `unright`  |
-
 ## 🧭 Pitch
 
 circuits is a rethink of how to interact with a compiler and arrange code
-pipelines — circuits — in ways that are intentional and clear.
+pipelines — circuits — in ways that are intentional, clear, correct and performant.
 
-Within the context of the [Kidney & Wu hyperfunctions paper](https://doi.org/10.1145/3776649), we propose the
-free traced monoidal category. `Circuit` is the initial encoding — a GADT
+Hyper is the same as the Kidney & Wu construction; a self-dual object:
+
+```haskell
+newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
+```
+
+From the paper and surrounding literature, we use the hyperfunction axioms and derive a `Circuit`:
+
+```haskell
+data Circuit arr t a b where
+  Lift    :: arr a b -> Circuit arr t a b
+  Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
+  Knot    :: arr (t a b) (t a c) -> Circuit arr t b c
+```
+
+This happens to be the initial traced category over a base category and naturally encodes to a Hyper. Roughly, it can be described as the free category with Arrow.loop bolted on. Lifting the trace over a category and abstracting the tensor came later. Surprisingly, it seems that this all works quite well (at least so far).
+
+`Circuit` covers functions, compositional paths, and feedback loops. `Hyper` is an efficient final encoding where feedback dissolves into the type structure itself. `Traced` abstracts the tensor, giving polymorphic loop semantics: lazy knots with `(,)` or iteration with `Either`.
+
+`other/01-marks-and-stacks.md` begins a six-chapter narrative arc tracing these ideas from the [Kidney & Wu hyperfunctions](https://doi.org/10.1145/3776649) paper. `Circuit` is the initial encoding — a GADT
 with visible constructors, interpreted by `reify`. `Hyper` is the final
 encoding — a coinductive type where feedback dissolves into the structure
 itself. The triangle `reify = lower . encode` connects them.
 
 ## 📦 Sibling libraries
 
-**circuits-parser** — `Circuit (->) Either` with `These` output for
-backtracking parsers. Fast, working, a dependency of `chart-svg`.
+**circuits-parser** — `Circuit (->) Either f (These a f)` as a parser for a wide variety of f and a.
 
-**circuits-io** — `Circuit (Kleisli IO) Either` with delimited
-continuations: file I/O, sockets, servers, timing, async. Home of
-`Circuit.Channel`'s Producer/Consumer framework and the compact closed
-frontier.
+**circuits-io** — `Circuit (Kleisli IO) Either` as a way to engage with file I/O, sockets, servers, (a)timings & asynchronicity.
 
-**circuits-perf** — performance measurement and R&D. `perf-bench` compares
-delimited continuation trace against IORef control groups. Results on Apple
-Silicon M3, GHC 9.14, `-O2`:
-
-| benchmark          | per-iteration | ratio    |
-|--------------------|---------------|----------|
-| clock overhead     | 125ns         | —        |
-| whileM_ (IORef)    | 8ns           | baseline |
-| trace-delim        | 18ns          | 2.25×    |
-
-1000 iterations: whileM_ = 8µs, trace-delim = 18µs. The delimited
-continuation overhead is ~10ns per step — a handful of instructions plus
-a closure allocation.
+**circuits-meter** — circuit measurement and performance.
 
 ## 📖 Read
 
-`other/01-marks-and-stacks.md` — the full story: five marks, six axioms.
-Follow the Prev/Next chain through six chapters from the GADT to the
-self-dual frontier.
+"tracing hyperfunctions"
 
-`examples/` — 12 cards: lazy knot-tying, parsers, pipes, Elgot iteration,
-delimited continuations. Paste code blocks into `cabal repl`.
+`examples/` — 12 cards: parsers, pipes, Elgot iteration, delimited continuations. Paste code blocks into `cabal repl`.
+
+## Contributing
+
+We welcome contributions of any persuasion or fancy. New contributors should open an issue and say hi.
+
+AI / LLM policy
+
+LLMs and agents have been used in the development of this library, including category theory, coding, generation, refactoring, documentation and narrative.
+
+what we prefer
+  ⟜ all code must compile, have and pass doctests, and be reviewable.
+  ⟜ if you open a PR, you must be able to explain what the code does and why. "my buddy Grok wrote it" is not an explanation.
+  ⟜ do not submit code you have not read, understood, and tested.
+
+what we do not do
+  ⟜ ban AI tools. they are part of the workflow.
+  ⟜ accept code that fails the same standards we apply to AI contributions.
+
+code is code and coders are going to code.
 
 <br>
 

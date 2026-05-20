@@ -65,40 +65,95 @@ encode (Compose f g) = encode f . encode g
 encode (Knot f)      = trace (lift f)            -- Hyper's Trace instance
 ```
 
-The `Knot` case uses `Hyper`'s own `Trace (,)` instance — a coinductive lazy knot
-that preserves the feedback structure inside `Hyper`. This is *not* flattening:
-the knot lives on in `Hyper`'s continuation structure rather than being
-eliminated to a plain function.
+The `Knot` case uses `Hyper`'s own `Trace (,)` instance — a coinductive lazy
+knot that preserves the feedback structure inside `Hyper`. This is *not*
+flattening: the knot lives on in `Hyper`'s continuation structure rather than
+being eliminated to a plain function.
 
-`encode` does not need a Mendler case. The `Compose (Knot f) g` pattern reduces
-through the general `Compose` case — `Hyper`'s `Category` instance threads the
-continuation on every composition step, so the feedback channel is always at the
-head of the structure.
+**Triangle:** `↓ . encode = reify` (on `Circuit`).
 
-Compare to `reify` on `Circuit`, which applies `↩` explicitly:
+We prove each case.
 
-```
-↘ (Compose (Knot f) g) = ↪ (f . ↩ (↘ g))
-```
-
-The two agree through the sliding axiom. Expanding `↓ . encode` on the same term:
+**`Lift`:**
 
 ```
-↓ (encode (Compose (Knot f) g))
-  = ↓ (encode (Knot f) . encode g)
-  = ↓ (↪ (↑ f) . encode g)                      -- Hyper's trace
-  = ↓ (↪ (↑ f)) . ↓ (encode g)                  -- lower is a functor
-  = ↪ f . ↓ g                                    -- unit law + induction
-  = ↪ (f . ↩ (↓ g))                              -- sliding axiom
-  = ↘ (Compose (Knot f) g)
+↓ (encode (Lift f)) b
+  = ↓ (lift f) b
+  = invoke (lift f) (Hyper (const b))         -- definition of lower
+  = invoke (push f (lift f)) (Hyper (const b))  -- lift f = push f (lift f)
+  = f (invoke (Hyper (const b)) (lift f))       -- push f h = Hyper (\k -> f (invoke k h))
+  = f b                                          -- Hyper (const b) ignores argument
+  = reify (Lift f) b
 ```
 
-**Triangle:** `↓ . encode = ↘` (on `Circuit`).
+**`Compose`:** By induction, `↓ (encode f) = reify f` and `↓ (encode g) = reify g`.
 
-Mapping `Circuit` into `Hyper` and then observing gives the same result as
-running `Circuit` directly. The sliding axiom closes the triangle. `Hyper`'s
-own `Trace` instance is the bridge — it ties the coinductive knot that `Knot`
-represents, so the feedback structure survives the mapping.
+```
+↓ (encode (Compose f g)) b
+  = ↓ (encode f . encode g) b
+  = invoke (encode f . encode g) (Hyper (const b))
+  = invoke (Hyper $ \h -> invoke (encode f) (encode g . h)) (Hyper (const b))
+  = invoke (encode f) (encode g . Hyper (const b))
+  = ↓ (encode f) (↓ (encode g) b)              -- lower threads through composition
+  = reify f (reify g b)
+  = reify (Compose f g) b
+```
+
+**`Knot`:** This is the case the previous version skipped. Expand
+`trace (lift f)` using the `Trace Hyper (,)` instance:
+
+```haskell
+trace body = Hyper $ \k ->
+  let pair = invoke body cont
+      cont = Hyper $ \_ ->
+        let a_val = invoke k (Hyper (const (snd pair)))
+         in (fst pair, a_val)
+   in snd pair
+```
+
+Substituting `body = lift f = push f (lift f)`:
+
+```
+pair = invoke (push f (lift f)) cont
+  = f (invoke cont (lift f))            -- push f h = Hyper (\k -> f (invoke k h))
+  = f (fst pair, a_val)                 -- cont ignores its argument (_ -> ...)
+```
+
+where `a_val = invoke k (Hyper (const (snd pair)))`.
+
+Now apply `lower` — i.e. supply `k = Hyper (const b)`:
+
+```
+a_val = invoke (Hyper (const b)) (Hyper (const (snd pair)))
+  = b                                   -- Hyper (const b) ignores its argument
+```
+
+So `pair = f (fst pair, b)`. Writing `(a, c) = pair`:
+
+```
+(a, c) = f (a, b)                       -- the lazy knot: a feeds back
+```
+
+And `snd pair = c`, so:
+
+```
+↓ (encode (Knot f)) b
+  = ↓ (trace (lift f)) b
+  = let (a, c) = f (a, b) in c
+  = trace f b                           -- Trace (->) (,) instance
+  = reify (Knot f) b
+```
+
+The `Trace Hyper (,)` instance ties a coinductive knot through `pair` and
+`cont`. When `lower` supplies `Hyper (const b)` as the outer continuation,
+`a_val` collapses to `b`, the `Hyper`-level self-reference dissolves, and
+what remains is exactly the lazy knot of `Trace (->) (,)`.
+
+**`Compose (Knot f) g`:** Follows from the `Compose` case by induction,
+using the `Knot` base case just proved. The Mendler case in `reify` and
+the `Compose` case in `encode` reach the same result via different paths —
+`reify` enforces sliding explicitly via the pattern match; `encode` gets
+it structurally from `Hyper`'s `Category` instance threading the continuation.
 
 ---
 

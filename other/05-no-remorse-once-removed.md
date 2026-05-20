@@ -3,7 +3,7 @@
 **Summary:** In which the Mendler case turns out to be viewl by another
 name, left-nesting is a performance trap, and the hierarchy of free
 structures gains a new row.
-**Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-follow-the-knots.md](06-follow-the-knots.md)
+**Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-some-more-knots.md](06-some-more-knots.md)
 
 ---
 
@@ -124,8 +124,8 @@ well-understood principle — reflection without remorse — to traced
 categories. The hierarchy gains a row. The pattern match is `viewl` for
 feedback channels.
 
-**Next:** [06-follow-the-knots.md](06-follow-the-knots.md) — production
-use; parsers, pipes, agents, and the circuits-io frontier.
+**Next:** [06-some-more-knots.md](06-some-more-knots.md) — making
+stuff: parsers, pipes, loops, agents, metering.
 
 ---
 

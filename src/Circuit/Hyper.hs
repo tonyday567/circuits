@@ -6,9 +6,6 @@
 -- A 'Hyper' is a final encoding of a 'Circuit'. The feedback channel is
 -- structural in the type rather than explicit, so the sliding axiom
 -- is inherent to composition rather than enforced by pattern matching.
---
--- Each named function is paired with its symbolic form immediately
--- below, so the haddock serves as a key between the two APIs.
 module Circuit.Hyper
   ( -- * Hyper
     Hyper (..),

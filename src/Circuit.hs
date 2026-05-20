@@ -3,17 +3,20 @@
 -- The main entry point. Re-exports all lowercase names from the submodules.
 -- For unicode symbols, import 'Circuit.Symbols'.
 --
--- For most use cases, import submodules directly:
+-- === usage
 --
--- > import Circuit.Circuit (Circuit (..), reify)
--- > import Circuit.Hyper (Hyper (..), run, lower, encode, flatten)
--- > import Circuit.Traced (Trace (..))
+-- >>> :set -XGHC2024
+-- >>> import Circuit
+-- >>> import Circuit.Symbols -- optional
 --
--- For detailed design and theory, see @other/@.
--- For examples, see @examples/@.
+-- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
+-- >>> trace powers () :: [Integer]
+-- [1,2,4,8,16]
 module Circuit
   ( -- * Circuit
     Circuit (..),
+    Wire,
+    Step,
     reify,
     ambient,
 
@@ -35,6 +38,8 @@ where
 
 import Circuit.Circuit
   ( Circuit (..),
+    Wire,
+    Step,
     ambient,
     reify,
   )

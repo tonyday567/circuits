@@ -124,7 +124,10 @@ instance Trace (Kleisli IO) (,)     where ...
 instance Trace (Kleisli IO) Either  where ...
 ```
 
-The `(,)` instance uses `prompt` and `control0` to implement a lazy knot in IO. The `Either` instance iterates with `prompt` until a `Right` is produced.
+The `(,)` instance uses `IORef` and `unsafeInterleaveIO` to tie the lazy
+knot in IO — safe only when the body is lazy in the feedback channel
+(see the ⚠️ UNSAFE warning in `src/Circuit/Traced.hs`). The `Either`
+instance iterates with `prompt`/`control0` until a `Right` is produced.
 
 This gives `Circuit (Kleisli IO) t a b` — effectful circuits. The `Knot` constructor runs IO actions in a feedback loop, with the tensor choice controlling how the IO actions are interleaved.
 

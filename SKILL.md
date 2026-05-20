@@ -22,7 +22,7 @@ Read in order. Each builds on the last.
 03-hyper-buries-the-knot           final encoding where feedback dissolves into the type
 04-holding-hands-or-taking-turns   (,) vs Either — simultaneous vs sequential
 05-no-remorse-once-removed         Mendler case is viewl; performance story
-06-follow-the-knots                parsers, pipes, IO, agents; the circuits-io frontier
+06-some-more-knots                 making stuff: parsers, pipes, loops, agents, metering
 axioms                             equational proofs (appendix)
 ```
 

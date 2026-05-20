@@ -19,6 +19,10 @@ module Circuit.Circuit
   ( -- * Circuit
     Circuit (..),
 
+    -- * Type aliases
+    Wire,
+    Step,
+
     -- * Operators
     reify,
     ambient,
@@ -55,6 +59,24 @@ data Circuit arr t a b where
   -- | Knot ties a feedback loop. The tensor t carries the channel type.
   Knot :: arr (t a b) (t a c) -> Circuit arr t b c
 
+-- | A traced circuit over plain functions with the cartesian tensor.
+--
+-- @Wire a b = Circuit (->) (,) a b@
+--
+-- The @(,)@ tensor ties a lazy knot: output and feedback are produced
+-- simultaneously. State rides alongside the computation — ambient,
+-- uninterrupted — via 'ambient'.
+type Wire = Circuit (->) (,)
+
+-- | A traced circuit over plain functions with the Either tensor.
+--
+-- @Step a b = Circuit (->) Either a b@
+--
+-- The @Either@ tensor iterates: @Left@ feeds back (continue),
+-- @Right@ terminates (exit). Each step decides whether to loop
+-- or stop.
+type Step = Circuit (->) Either
+
 instance (Category arr) => Category (Circuit arr t) where
   id = Lift id
   (.) = Compose
@@ -82,8 +104,6 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
   rmap g (Compose h k) = Compose (rmap g h) (rmap id k)
   rmap g (Knot k) = Knot (rmap (second g) k)
 
--- | Push a plain function onto a Circuit.
---
 -- | Thread a state wire through a Circuit.
 --
 -- 'ambient' threads a state component @s@ through a circuit unchanged.
