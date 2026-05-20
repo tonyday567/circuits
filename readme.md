@@ -1,8 +1,5 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-[![Hackage](https://img.shields.io/hackage/v/circuits.svg)](https://hackage.haskell.org/package/circuits)
-[![build](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml)
-
 ## First-Class Feedback
 
 > The free traced monoidal category is the smallest thing you can add to a
@@ -55,7 +52,11 @@ data Circuit arr t a b where
   Knot    :: arr (t a b) (t a c) -> Circuit arr t b c
 ```
 
-This happens to be the initial traced category over a base category and naturally encodes to a Hyper. Roughly, it can be described as the free category with Arrow.loop bolted on. Lifting the trace over a category and abstracting the tensor came later. Surprisingly, it seems that this all works quite well (at least so far).
+This happens to be the initial traced category over a base category and naturally encodes to a Hyper. To be concrete and on the nose, it's a 2-cell bolted on to the free category. Lifting the trace over a category and abstracting the tensor came later.
+
+> Have you used your eyeballs yet and read Bartosz's latest? Original thought is a strong claim and could be awkward.
+>
+> ~ claude ([tank](https://github.com/tonyday567/mg/blob/main/word/tank.md) mode on)
 
 `Circuit` covers functions, compositional paths, and feedback loops. `Hyper` is an efficient final encoding where feedback dissolves into the type structure itself. `Traced` abstracts the tensor, giving polymorphic loop semantics: lazy knots with `(,)` or iteration with `Either`.
 
@@ -98,3 +99,8 @@ what we do not do
   ⟜ accept code that fails the same standards we apply to AI contributions.
 
 code is code and coders are going to code.
+
+<br>
+
+[![Hackage](https://img.shields.io/hackage/v/circuits.svg)](https://hackage.haskell.org/package/circuits)
+[![build](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml)
