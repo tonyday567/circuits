@@ -12,7 +12,6 @@ alone cannot express.
 ```haskell
 -- $setup
 -- >>> import Circuit.Hyper
--- >>> import Circuit.Symbols
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
 ```

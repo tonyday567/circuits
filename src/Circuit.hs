@@ -1,13 +1,12 @@
 -- | Circuit: free traced monoidal categories and hyperfunctions.
 --
 -- The main entry point. Re-exports all lowercase names from the submodules.
--- For unicode symbols, import 'Circuit.Symbols'.
+-- For notation conventions, see 'other/symbols.md'.
 --
 -- === usage
 --
 -- >>> :set -XGHC2024
 -- >>> import Circuit
--- >>> import Circuit.Symbols -- optional
 --
 -- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
 -- >>> trace powers () :: [Integer]

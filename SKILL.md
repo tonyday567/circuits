@@ -33,11 +33,10 @@ Dependency order — read source in this sequence:
 ```
 Circuit.Hyper    — Hyper a b, invoke, run, base/push/lift/lower.
                    Profunctor/Category/Functor instances.
-                   encode (⇨), encodeEither, runEither, flatten.
+                   encode, encodeEither, runEither, flatten.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
-Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. reify, push,
-                   operators (↑, ↮, ⊙, ⊲).
+Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. reify, push.
 Circuit           — umbrella re-export. Import this for casual use;
                     import submodules directly for precision.
 ```
@@ -66,24 +65,15 @@ Example cards are markdown with fenced Haskell blocks. They are NOT
 compiled by `cabal build` — they're validated by pasting into `cabal repl`
 or via `cabal-docspec`.
 
-## symbols
+## notation
 
-| symbol | name | meaning |
-|--------|------|---------|
-| `↬` | Hyper | type synonym: `a ↬ b = Hyper a b` |
-| `↮` | Knot | feedback loop constructor |
-| `↪` | trace | close the feedback loop |
-| `↩` | untrace | open the feedback loop |
-| `⇨` | encode | encode Circuit into Hyper |
-| `⇸` | invoke | apply Hyper to continuation |
-| `⊲` | push | prepend function onto Circuit/Hyper |
-| `⥁` | run | close Hyper's self-referential loop |
-| `○` | base | constant continuation (ignore feedback) |
-| `↑` | lift | embed function into Hyper |
-| `↓` | lower | observe Hyper with constant continuation |
-| `⊙` | compose | sequential composition |
+Unicode symbols are used throughout the narrative and examples as
+mathematical notation — not Haskell identifiers.  See
+[other/symbols.md](other/symbols.md) for the full table, axioms, and
+worked examples.
 
-`↬` is the only symbol used at the type level. All others are value-level.
+The canonical API uses lowercase names: `lift`, `lower`, `reify`,
+`encode`, `push`, `run`, `trace`, `untrace`, etc.
 
 ## conventions
 
