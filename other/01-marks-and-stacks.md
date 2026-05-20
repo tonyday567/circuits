@@ -106,10 +106,11 @@ explicit braid. `ambient` is that braid, packaged as a combinator.
 ---
 
 `run` is the compound `fix . lower`. `push` is a primitive — the Hyper-level
-form of prepending a function on the input side of the feedback channel.
+form of threading a function through the feedback channel.
 `push f h` applies `f` to the value the continuation feeds back, before
-`h` sees it. It corresponds to `flip Compose . Lift` in the GADT (see
-[02](02-a-knot-recovers-fix.md)).
+`h` sees it. The GADT has no direct counterpart; the closest analogue is
+`Compose (Lift f) h` (post-composition on `reify`), but the two are
+different operations (see [02](02-a-knot-recovers-fix.md)).
 
 ## Reading the Axioms
 

@@ -248,14 +248,22 @@ GADT                              Hyper
 Lift f                            lift f
 Compose f g                       f . g
 Knot f                            trace (lift f)
-flip Compose . Lift f             push f
 ```
 
-`flip Compose . Lift` prepends a function on the input side — the
-GADT-level form of `push`.  Under `encode`, `Compose (Lift f) h` maps
-to `lift f . encode h` (output-side), while `push f (encode h)` is the
-input-side primitive.  Both are first-class; neither is derived from
-the other.
+`push` has no direct GADT counterpart — it threads `f` through the
+continuation channel, which is Hyper behavior, not GADT structure.
+The GADT can express two related operations:
+
+| GADT form | `reify` | what it does |
+|-----------|---------|-------------|
+| `Compose h (Lift f)` | `reify h . f` | `f` on input, then `h` (input-side) |
+| `Compose (Lift f) h` | `f . reify h` | `h` first, then `f` on output (output-side) |
+
+Neither is `push`.  `push f h` in Hyper applies `f` to the result of
+invoking `h` with the continuation — it threads through the feedback
+channel.  Under `encode`, `Compose (Lift f) h` maps to `lift f . encode h`;
+`push f (encode h)` is different.  Both are first-class; neither
+subsumes the other.
 
 ---
 

@@ -65,10 +65,11 @@ foldH  (x:xs) c n = push (c x) (foldH xs c n)
 of a Hyper, through the continuation channel.  Same shape, flipped
 polarity.
 
-`push` is the Hyper-level primitive for prepending a function on the input
-side.  Its GADT counterpart is `flip Compose . Lift`.
+`push` is the Hyper-level primitive for threading a function through the
+feedback channel.  The GADT has no direct counterpart; `Compose (Lift f) h`
+(post-composition on `reify`) is the closest analogue but not equivalent.
 `push f h` applies `f` to the value the continuation feeds back,
-before `h` sees it — the input-side analogue of `(:)` which attaches
+before `h` sees it — a structural dual of `(:)` which attaches
 to the outside.
 
 ---
@@ -290,7 +291,7 @@ double-category clothes.
 ## The breadcrumb trail
 
 1. **foldH** — looked like foldr with push instead of (:).
-2. **push** — the generator in Hyper-space. `push f = (flip Compose . Lift) f` in the GADT.
+2. **push** — the generator in Hyper-space. Hyper-specific; no direct GADT equivalent.
 3. **foldr' / foldh'** — identical λ-term, different Endo monoids.
 4. **zip** — two orthogonal composition layers, independent.
 5. **zipWith** — `foldH ys id _` as conjoint, vertical slot open.

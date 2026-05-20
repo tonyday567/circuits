@@ -58,16 +58,15 @@ See [examples/parser.md](../examples/parser.md).
 
 ## `Circuit (->) Either a b` — while-loops
 
-Three canonical loop patterns from one `Knot`.  The `Step s r = s -> Either r s`
-convention uses `Left r` = done, `Right s` = continue — opposite to the
-`Trace` instance which uses `Left` = feedback, `Right` = exit.  A
-mechanical swap bridges the two.
+Three canonical loop patterns from one `Knot`.  The convention matches
+`Trace (->) Either`: `Left s` = continue (feedback), `Right r` = done
+(exit).  No bridge needed between step functions and the `Knot` constructor.
 
 ```haskell
-loop  :: Step s r -> s -> r          -- fundamental form
-while :: (s -> Bool) -> Step s r -> s -> r   -- condition, then step
-until :: (s -> Bool) -> Step s r -> s -> r   -- step, then condition
-for   :: Int -> (Int -> Step s r) -> s -> r  -- counted loop
+loop  :: (s -> Either s r) -> s -> r    -- fundamental form
+while :: (s -> Bool) -> (s -> r) -> (s -> Either s r) -> s -> r  -- condition, then step
+until :: (s -> Bool) -> (s -> r) -> (s -> Either s r) -> s -> r  -- step, then condition
+for   :: Int -> (Int -> (s -> Either s r)) -> s -> r  -- counted loop
 ```
 
 All four are `reify (Knot step') s0` with different `step'` bodies.

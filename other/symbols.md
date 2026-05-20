@@ -153,9 +153,9 @@ foldr'  :: [a → a] → ([a] → [a])       — Endo([a])
 foldh'  :: [a → a] → (Hyper a a → Hyper a a)   — Endo(Hyper a a)
 ```
 
-`push` is not compound in `Hyper` — it is primitive, prepending on the
-input side of the feedback channel. In the GADT it corresponds to
-`flip Compose . Lift`.
+`push` is not compound in `Hyper` — it is primitive, threading through the
+feedback channel.  The GADT has no direct counterpart; `Compose (Lift f) h`
+(post-composition on `reify`) is the closest analogue but not equivalent.
 
 ---
 

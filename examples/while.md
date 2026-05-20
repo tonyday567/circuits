@@ -13,35 +13,33 @@ specialisations.
 
 ---
 
-## The pattern
+## The convention
 
-A `Step` either produces a result (`Left r`, done) or a next state
-(`Right s`, continue).  `Knot` ties the feedback loop via the `Either`
-channel: `Left` feeds back, `Right` exits.  The step function and the
-trace use opposite conventions — bridge with a swap.
+`Trace (->) Either` uses `Left = feedback` (iterate) and `Right = exit`
+(done).  We adopt the same convention for user-facing step functions:
 
 ```haskell
-type Step s r = s -> Either r s
+type Step s r = s -> Either s r   -- Left s = continue, Right r = done
 ```
+
+No bridge needed — the step function speaks the same language as `Knot`.
 
 ---
 
 ## loop
 
-The fundamental form.  Apply `step` on each iteration; swap conventions
-so that `Left r` (done) becomes `Right r` (exit) and `Right s` (continue)
-becomes `Left s` (feedback).
+The fundamental form.  A `Knot` wraps the step function directly.
 
 ```haskell
 loop :: Step s r -> s -> r
 loop step s0 = reify (Knot step') s0
   where
-    step' (Left s)  = case step s of Left r -> Right r; Right s' -> Left s'
-    step' (Right s) = case step s of Left r -> Right r; Right s' -> Left s'
+    step' (Left s) = step s
+    step' (Right s) = step s
 ```
 
 ```haskell
--- >>> let countdown n | n <= 0 = Left 0 | otherwise = Right (n - 1)
+-- >>> let countdown n | n <= 0 = Right 0 | otherwise = Left (n - 1)
 -- >>> loop countdown 5
 -- 0
 
@@ -53,20 +51,18 @@ loop step s0 = reify (Knot step') s0
 
 ## while — condition, then step
 
-Check `cond` before each step.  When `cond` fails, convert the state to
-a result with `done` and exit.
+Check `cond` before each step.  When `cond` fails, exit with `done s`.
 
 ```haskell
 whileC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
 whileC cond done step s0 = reify (Knot step') s0
   where
-    step' (Left s)  = if cond s then case step s of Left r -> Right r; Right s' -> Left s'
-                                else Right (done s)
+    step' (Left s)  = if cond s then step s else Right (done s)
     step' (Right s) = step' (Left s)
 ```
 
 ```haskell
--- >>> let pos n = n > 0; countdown n | n <= 0 = Left 0 | otherwise = Right (n - 1)
+-- >>> let pos n = n > 0; countdown n | n <= 0 = Right 0 | otherwise = Left (n - 1)
 -- >>> whileC pos id countdown 5
 -- 0
 
@@ -86,13 +82,13 @@ untilC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
 untilC cond done step s0 = reify (Knot step') s0
   where
     step' (Left s)  = case step s of
-                        Left r  -> Right r
-                        Right s' -> if cond s' then Right (done s') else Left s'
+                        Right r -> Right r
+                        Left s' -> if cond s' then Right (done s') else Left s'
     step' (Right s) = step' (Left s)
 ```
 
 ```haskell
--- >>> let countup target n | n >= target = Left n | otherwise = Right (n + 1)
+-- >>> let countup target n | n >= target = Right n | otherwise = Left (n + 1)
 -- >>> untilC (>= 3) id (countup 5) 0
 -- 3
 
@@ -114,12 +110,12 @@ forC n body s0 = loop step' (0, s0)
     step' (i, s)
       | i >= n    = error "forC: body did not produce result"
       | otherwise = case body i s of
-                      Left r  -> Left r
-                      Right s' -> Right (i + 1, s')
+                      Right r -> Right r
+                      Left s' -> Left (i + 1, s')
 ```
 
 ```haskell
--- >>> forC 5 (\i (_, acc) -> if i == 4 then Left (acc + i + 1) else Right ((), acc + i + 1)) ((), 0 :: Int)
+-- >>> forC 5 (\i (_, acc) -> if i == 4 then Right (acc + i + 1) else Left ((), acc + i + 1)) ((), 0 :: Int)
 -- 15
 ```
 
@@ -127,11 +123,11 @@ forC n body s0 = loop step' (0, s0)
 
 ## Convention
 
-| branch | `Step s r` (user code) | `Trace (->) Either` (Knot) |
-|--------|------------------------|----------------------------|
-| `Left` | **done** — return `r`  | **feedback** — iterate     |
-| `Right`| **continue** — new `s` | **exit** — return `c`      |
+All loops use the same convention as `Trace (->) Either`:
 
-The `step'` function bridges the two.  The swap is mechanical: wherever
-the user's `step` returns `Left r`, `step'` returns `Right r`; wherever
-`step` returns `Right s`, `step'` returns `Left s`.
+| branch | meaning |
+|--------|---------|
+| `Left s`  | **feedback** — continue with new state `s` |
+| `Right r` | **exit** — done, produce result `r` |
+
+No bridge, no swap.  The step function speaks the same language as `Knot`.
