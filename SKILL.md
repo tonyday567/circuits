@@ -75,6 +75,10 @@ worked examples.
 The canonical API uses lowercase names: `lift`, `lower`, `reify`,
 `encode`, `push`, `run`, `trace`, `untrace`, etc.
 
+Symbols appear in two places only: the notation table (01/symbols.md)
+and axiom blocks. Everywhere else — prose, proof steps, explanations,
+type signatures, code — use names. This boundary prevents agent churn.
+
 ## conventions
 
 - **Language**: GHC2024, extensions declared per module.

@@ -207,7 +207,7 @@ Four consequences fall out of this characterization:
 
 - **Hyper is the codensity representation of Circuit** — it encodes the feedback channel structurally rather than as an explicit constructor.
 - **Sliding is free** — the axiom that traces slide across compositions holds automatically in Hyper because the continuation threads through every layer.
-- **The Mendler case enforces naturality** — without the pattern match `reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))`, the universal property is violated and Knot collapses to the degenerate model.
+- **The Mendler case enforces naturality** — without the pattern match `reify (Compose (Knot f) g) = trace (f . untrace (reify g))`, the universal property is violated and Knot collapses to the degenerate model.
 - **Coinductive semantics** — the recursive Hyper definition is guarded. We don't need strict proof that `Fix (Ran ...)` is isomorphic to Hyper — only that they observe the same.
 
 ---

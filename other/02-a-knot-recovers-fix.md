@@ -38,7 +38,7 @@ core moves, no feedback.
 ⥁ (↑ f)  =  fix f
 ```
 
-In `Hyper`, `⥁` ties the self-referential knot and `↑` embeds. In the
+In `Hyper`, `run` ties the self-referential knot and `lift` embeds. In the
 initial encoding, we need a constructor that carries a feedback
 channel — a place for the fixed point to live.
 

@@ -108,7 +108,7 @@ reify (Knot k)             = ↪ k
 ```
 
 The Mendler case must appear before the general `Compose` case. Without
-it, `Compose (Knot f) g` falls through to `↪ f . reify g` — the
+it, `Compose (Knot f) g` falls through to `trace f . reify g` — the
 naive form that closes the channel immediately, losing the feedback
 structure. One pattern match separates a free traced monoidal category
 from the degenerate model. For the full story see `02-a-knot-recovers-fix.md` and

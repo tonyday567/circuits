@@ -23,7 +23,7 @@ foldr'  (x:xs) = (:) x . foldr' xs      foldh' (x:xs) = push x . foldh' xs
 of a Hyper, through the continuation channel.  Same shape, flipped
 polarity.  Both build endofunction chains — `Endo([a])` vs `Endo(Hyper a b)`.
 
-From this, `zip` and `zipWith` emerge as two folds composed via `⊙` with
+From this, `zip` and `zipWith` emerge as two folds composed via `.` with
 a channel token carrying elements between them.  The structure admits two
 independent composition layers (horizontal pipeline, vertical element
 transform).  For the double-category framing of this observation see
