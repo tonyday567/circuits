@@ -37,8 +37,8 @@ where
 
 import Circuit.Circuit
   ( Circuit (..),
-    Wire,
     Step,
+    Wire,
     ambient,
     reify,
   )
