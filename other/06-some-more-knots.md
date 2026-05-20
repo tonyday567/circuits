@@ -105,7 +105,7 @@ See [examples/resource-io.md](../examples/resource-io.md), [examples/traced.md](
 
 ## `Circuit (Kleisli m) Either ~ Pipe m`
 
-The entire `pipes` library compresses into one type:
+The `Pipe` core type is isomorphic to one `Circuit`:
 
 ```haskell
 Pipe m a b ~ Circuit (Kleisli m) Either a b

@@ -27,7 +27,7 @@ For `arr = (->)`:
 | `(,)`      | `unsecond` | `second`   | Simultaneous    |
 | `Either`   | `unright`  | `fmap`     | Sequential      |
 
-The `Knot` constructor is the same in both cases. What changes is how the feedback channel behaves when `trace` closes it.
+The `Knot` constructor syntax is the same in both cases. What changes is how the feedback channel behaves when `trace` closes it — the semantics differ via the `Trace` instance.
 
 ---
 

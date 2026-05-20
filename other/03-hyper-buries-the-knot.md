@@ -187,7 +187,7 @@ Fix (Ran (Const a) (Const b))
 
 So: **`Hyper a b  ≅  Fix (Ran (Const a) (Const b))`**
 
-This characterization explains *why* the self-duality emerges (from the continuation structure locked into the Ran form plus the fixpoint), while the direct definition shows the computational form. Both are final coalgebras with observably identical behaviour; they are coinductively equivalent.
+This characterization explains *why* the self-duality emerges (from the continuation structure locked into the Ran form plus the fixpoint), while the direct definition shows the computational form. Both are final coalgebras with observably identical behaviour; they are observationally equivalent.
 
 Before the fixpoint, `Circuit a b` is related to the Ran of the free category:
 

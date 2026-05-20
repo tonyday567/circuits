@@ -147,12 +147,15 @@ into the feedback channel before closing the loop.
 
 Without the Mendler case, `Knot'` becomes observationally equivalent to
 `↑ (trace' f)` — the feedback channel closes immediately, the loop
-structure is lost. This is the **degenerate model**.
+structure is lost. This is the **degenerate model**: `Knot f` collapses
+to `Lift (trace f)`, reducing cyclic sharing to iterated fixed-point
+application. Hasegawa (1997) proved this is the difference between
+genuine cyclic sharing and mere recursion.
 
 **One pattern match separates the free traced monoidal category from
 the degenerate model.**
 
-Hasegawa (1997) distinguishes two ways to achieve recursion:
+[Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) distinguishes two ways to achieve recursion:
 
 - **Fixed-point combinator:** `fix f = f (fix f)`. Applies `f` repeatedly.
   Each application may duplicate resources.

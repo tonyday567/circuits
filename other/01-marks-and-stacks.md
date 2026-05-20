@@ -57,7 +57,7 @@ operate on this self-referential structure.
 ⥁    :: Hyper a a -> a                           -- run
 ```
 
-These are the semantics of Section 7 in Launchbury, Krstic & Sauerwein (2013), restated in library notation. The five marks are the generators of the free traced monoidal category — they just happen to have a particularly clean final encoding in `Hyper`.
+These are the semantics of Section 7 in Launchbury, Krstic & Sauerwein (2013), restated in our notation. The five marks are the generators of the free traced monoidal category — they just happen to have a particularly clean final encoding in `Hyper`.
 
 See `src/Circuit/Hyper.hs` for the definitions.
 
@@ -97,6 +97,11 @@ sliding past feedback loops via braiding. For `Lift`, the state tags
 along via `untrace`. For `Compose`, the state threads through both
 stages. For `Knot`, the state slides past the feedback loop — the
 sliding axiom made explicit.
+
+The `Profunctor` constraint is load-bearing: `dimap braid braid` in the
+`Knot` case re-braids both sides of the feedback channel, sliding the
+state wire past the loop. Without `lmap`/`rmap` (Profunctor's
+contravariant and covariant maps), the braid can't reach both sides.
 
 `ambient` is not a mark on `Hyper` because `Hyper`'s feedback channel is
 already structural in the type. In `Circuit`, where feedback is explicit
