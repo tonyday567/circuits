@@ -1,10 +1,13 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
+[![Hackage](https://img.shields.io/hackage/v/circuits.svg)](https://hackage.haskell.org/package/circuits)
+[![build](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml)
+
 ## First-Class Feedback
 
 > The free traced monoidal category is the smallest thing you can add to a
 > category to get feedback. Not a library of combinators — a single GADT and
-> a single coinductive type, a hyperfunction no less, connected by this gallois connection ...
+> a single coinductive type, a hyperfunction no less, connected by this Galois connection ...
 >
 > ~ What we learned building it
 
@@ -37,7 +40,7 @@ import Circuit
 circuits is a rethink of how to interact with a compiler and arrange code
 pipelines — circuits — in ways that are intentional, clear, correct and performant.
 
-Hyper is the same as the Kidney & Wu construction; a self-dual object:
+Hyper is the same as the Kidney & Wu construction:
 
 ```haskell
 newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
@@ -56,7 +59,7 @@ This happens to be the initial traced category over a base category and naturall
 
 `Circuit` covers functions, compositional paths, and feedback loops. `Hyper` is an efficient final encoding where feedback dissolves into the type structure itself. `Traced` abstracts the tensor, giving polymorphic loop semantics: lazy knots with `(,)` or iteration with `Either`.
 
-`other/01-marks-and-stacks.md` begins a six-chapter narrative arc tracing these ideas from the [Kidney & Wu hyperfunctions](https://doi.org/10.1145/3776649) paper. `Circuit` is the initial encoding — a GADT
+`other/` traces these ideas from the [Kidney & Wu hyperfunctions](https://doi.org/10.1145/3776649) paper through a narrative arc. `Circuit` is the initial encoding — a GADT
 with visible constructors, interpreted by `reify`. `Hyper` is the final
 encoding — a coinductive type where feedback dissolves into the structure
 itself. The triangle `reify = lower . encode` connects them.
@@ -71,9 +74,11 @@ itself. The triangle `reify = lower . encode` connects them.
 
 ## 📖 Read
 
-"tracing hyperfunctions"
+["tracing hyperfunctions"](https://doi.org/10.1145/3776649) — Kidney & Wu (2025). The paper that inspired the core construction. Introduces `Hyper` as a self-dual object in the traced sense and the hyperfunction axioms.
 
-`examples/` — 12 cards: parsers, pipes, Elgot iteration, delimited continuations. Paste code blocks into `cabal repl`.
+`other/` — the narrative arc (notation, marks-and-stacks, knot, triangle proof, tensors, Mendler case, examples). For the long version.
+
+`examples/` — cards: parsers, pipes, Elgot iteration, delimited continuations. Paste code blocks into `cabal repl`.
 
 ## Contributing
 
@@ -93,8 +98,3 @@ what we do not do
   ⟜ accept code that fails the same standards we apply to AI contributions.
 
 code is code and coders are going to code.
-
-<br>
-
-[![Hackage](https://img.shields.io/hackage/v/circuits.svg)](https://hackage.haskell.org/package/circuits)
-[![build](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/tonyday567/circuits/actions/workflows/haskell-ci.yml)
