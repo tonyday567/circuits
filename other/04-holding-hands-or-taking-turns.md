@@ -115,21 +115,23 @@ In a cartesian traced category (`(,)` tensor), Hasegawa's Theorem 3.1 shows that
 
 ---
 
-## Kleisli IO via Delimited Continuations
+## Kleisli m via MonadFix and Delimited Continuations
 
-Both tensors extend to `Kleisli IO` via delimited continuations:
+Both tensors extend to `Kleisli m`:
 
 ```haskell
-instance Trace (Kleisli IO) (,)     where ...
+instance MonadFix m => Trace (Kleisli m) (,)     where ...
 instance Trace (Kleisli IO) Either  where ...
 ```
 
-The `(,)` instance uses `IORef` and `unsafeInterleaveIO` to tie the lazy
-knot in IO — safe only when the body is lazy in the feedback channel
-(see the ⚠️ UNSAFE warning in `src/Circuit/Traced.hs`). The `Either`
-instance iterates with `prompt`/`control0` until a `Right` is produced.
+The `(,)` instance uses `mfix` from `MonadFix` to tie the lazy knot — a direct
+generalisation of the pure `let (a, c) = f (a, b) in c`. Works for any
+`MonadFix` (IO, Maybe, [], etc). The `Either` instance uses `prompt`/`control0`
+(IO-specific delimited continuations), iterating until a `Right` is produced.
 
-This gives `Circuit (Kleisli IO) t a b` — effectful circuits. The `Knot` constructor runs IO actions in a feedback loop, with the tensor choice controlling how the IO actions are interleaved.
+This gives `Circuit (Kleisli m) t a b` — effectful circuits. The `Knot`
+constructor runs monadic actions in a feedback loop, with the tensor choice
+controlling how the actions are interleaved.
 
 ---
 

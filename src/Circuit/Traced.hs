@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 #ifdef __GLASGOW_HASKELL__
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -44,10 +45,9 @@ where
 
 #ifdef __GLASGOW_HASKELL__
 import Control.Arrow (Kleisli (..))
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Control.Monad.Fix (MonadFix, mfix)
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
-import System.IO.Unsafe (unsafeInterleaveIO)
 #endif
 
 -- $setup
@@ -179,18 +179,14 @@ instance Trace (->) Either where
 
 #ifdef __GLASGOW_HASKELL__
 
--- * Kleisli IO (,) — lazy knot via IORef
+-- * Kleisli m (,) — lazy knot via MonadFix
 
--- | ⚠️ UNSAFE: Lazy knot tying for @Kleisli IO@ with the cartesian tensor.
+-- | Trace for 'Kleisli' @m@ with the cartesian tensor, requiring @'MonadFix' m@.
 --
--- The feedback value is tied via a 'Data.IORef.IORef' and 'unsafeInterleaveIO'.
--- This defies IO's ordering guarantees — the knot crashes at runtime if
--- the body forces the feedback channel before the 'writeIORef' completes.
---
--- Safe only when the body is lazy in the feedback channel (the first
--- component of the pair), which holds for circuits built from 'Circuit.Circuit.ambient',
--- preC, postC, and plain 'Kleisli' arrows. Composition with effects
--- that sequence strictly may break the knot silently.
+-- The lazy knot is tied via 'mfix'. The feedback channel is lazy in the
+-- recursive binding — the body must not force the feedback value before
+-- producing it, or 'mfix' will diverge (just as the pure @(,)@ trace
+-- black-holes on strict fields).
 --
 -- >>> :{
 -- let fibs = Kleisli $ \(fibs, ()) ->
@@ -199,14 +195,11 @@ instance Trace (->) Either where
 --
 -- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
-instance Trace (Kleisli IO) (,) where
+instance MonadFix m => Trace (Kleisli m) (,) where
   trace (Kleisli f) =
     Kleisli
       ( \b -> do
-          ref <- newIORef (error "Trace (Kleisli IO) (,): knot not tied")
-          a <- unsafeInterleaveIO (readIORef ref)
-          (a', c) <- f (a, b)
-          writeIORef ref a'
+          (_, c) <- mfix $ \ ~(s, _) -> f (s, b)
           pure c
       )
 
@@ -217,7 +210,41 @@ instance Trace (Kleisli IO) (,) where
           pure (a, c)
       )
 
--- * Kleisli IO Either — delimited continuations
+-- * Kleisli m Either — iteration for any Monad
+
+-- | Trace for 'Kleisli' @m@ with the 'Either' tensor, for any @'Monad' m@.
+--
+-- Iterates by feeding 'Left' back into the step function until a 'Right'
+-- is produced. Uses plain recursion — builds stack proportional to
+-- iteration count.
+--
+-- >>> :{
+-- let countTo target = Kleisli $ \case
+--       Left n | n < target -> pure (Left (n + 1))
+--              | otherwise  -> pure (Right n)
+--       Right ()            -> pure (Left 0)
+-- :}
+--
+-- >>> runKleisli (trace (countTo (3 :: Int))) ()
+-- 3
+--
+-- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
+-- priority for 'IO', providing constant-stack iteration via delimited
+-- continuations.
+instance {-# OVERLAPPABLE #-} Monad m => Trace (Kleisli m) Either where
+  trace (Kleisli f) =
+    Kleisli $ \b -> go (Right b)
+      where
+        go x = f x >>= \case
+          Right c -> pure c
+          Left a -> go (Left a)
+
+  untrace (Kleisli f) =
+    Kleisli $ \case
+      Left a -> pure (Left a)
+      Right b -> Right <$> f b
+
+-- * Kleisli IO Either — delimited continuations (constant stack)
 
 -- | GHC delimited-continuation primops.
 data PromptTag a = PromptTag (PromptTag# a)
@@ -254,7 +281,7 @@ control0 (PromptTag t) f = IO (control0# t arg)
 --
 -- >>> runKleisli (trace exit42) ()
 -- 42
-instance Trace (Kleisli IO) Either where
+instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
   trace (Kleisli body) =
     Kleisli
       ( \initial -> do
