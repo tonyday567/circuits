@@ -5,39 +5,48 @@
 {-# LANGUAGE UnboxedTuples #-}
 #endif
 
--- | The trace: feedback in a monoidal category.
+-- | Close and open feedback loops in a monoidal category.
 --
--- 'Trace' generalises the ability to close a feedback loop. For each
--- tensor @t@, a 'Trace' instance specifies what \"feedback\" means:
+-- A 'Trace' instance for a tensor @t@ specifies how to thread a value
+-- through a feedback channel:
 --
---   * @(,)@ — lazy knot: output and feedback are produced simultaneously.
---     @trace f b = let (a, c) = f (a, b) in c@.
+--   * 'trace' closes the channel — eliminates the tensor and produces
+--     a plain morphism. This is where the loop semantics live.
 --
---   * @Either@ — iteration: @Left a@ feeds back (continue), @Right c@
---     terminates (exit). The loop runs until a 'Right' is produced.
+--   * 'untrace' opens the channel — lifts a plain morphism into the
+--     tensor, leaving the feedback value untouched.
 --
--- Together these instances supply the 'Trace' constraints that
--- 'Circuit.Hyper''s @lower@ function dispatches on when it encounters
--- a 'Circuit.Circuit.Knot' (via 'Circuit.Hyper.encode'), making 'Circuit.Circuit.Circuit' the free traced monoidal category over any
--- base arrow with a tensor.
+-- Two tensor semantics are provided, corresponding to the standard
+-- traced monoidal structures:
 --
--- * Delimited continuations
+-- [@(,)@] A single lazy recursive binding.  @trace f b@ produces
+-- @let (a, c) = f (a, b) in c@ — the feedback value @a@ and the
+-- output @c@ are co-defined.  This is cyclic sharing, not iteration:
+-- the body executes once with a self-referential channel.
+-- Only works in a lazy setting — the feedback value is a self-referential
+-- thunk.  In a strict language this binding is circular and divergent.
 --
--- The @Trace (Kleisli IO) Either@ instance uses GHC's delimited
--- continuation primops (@prompt#@ / @control0#@) to run IO loops in
--- constant stack space. Each iteration re-enters at the prompt boundary
--- rather than building up a call stack.
+-- [@Either@] A while-loop.  @Left a@ feeds back into another iteration;
+-- @Right c@ terminates.  The loop runs until a 'Right' is produced.
 --
--- Correspondence with delimited continuation operators:
+-- For effectful arrows, both tensors lift to 'Kleisli' @m@:
 --
--- @
---   Trace (Kleisli IO) Either   ≅   delimited continuations
---   trace / reset               ≅   prompt
---   feedback Left               ≅   shift / control0
---   exit Right                  ≅   return from reset
--- @
+--   * @'MonadFix' m => 'Trace' ('Kleisli' m) (,)@ ties the lazy knot
+--     via 'mfix'.
 --
--- These instances require GHC; they are omitted on other compilers.
+--   * @'Monad' m => 'Trace' ('Kleisli' m) 'Either'@ iterates via
+--     plain recursion.  For 'IO' specifically, an overlapping instance
+--     uses GHC's delimited-continuation primops ('prompt#', 'control0#')
+--     for constant stack space.
+--
+-- /References:/
+--
+--   * Hasegawa (1997) — cartesian (cyclic-sharing) vs computational
+--     (iterative) traces.  The @(,)@/@Either@ distinction.
+--
+--   * Kidney & Wu (2026) — hyperfunctions, producer-consumer pattern.
+--
+--   * Joyal, Street & Verity (1996) — traced monoidal categories.
 module Circuit.Traced
   ( Trace (..),
   )
@@ -68,6 +77,11 @@ class Trace arr t where
 
 -- | The cartesian trace ties a lazy knot: the feedback value @a@ and
 -- output @c@ are produced simultaneously in a single recursive binding.
+--
+-- Only works in a lazy setting — the feedback value is a self-referential
+-- thunk.  In a strict language this binding is circular and divergent.
+-- Haskell's lazy evaluation makes cyclic sharing possible without
+-- mutation or explicit suspension primitives.
 --
 -- >>> :{
 -- let powers (ns, ()) =
