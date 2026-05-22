@@ -17,7 +17,18 @@ module Circuit
     Wire,
     Step,
     reify,
+    ambientBy,
+
+    -- * Braided
+    Braided (..),
     ambient,
+
+    -- * Cartesian
+    assoc,
+    assoc',
+    seed,
+    absorb,
+    release,
 
     -- * Traced
     Trace (..),
@@ -35,11 +46,22 @@ module Circuit
   )
 where
 
+import Circuit.Braided
+  ( Braided (..),
+    ambient,
+  )
+import Circuit.Cartesian
+  ( absorb,
+    assoc,
+    assoc',
+    release,
+    seed,
+  )
 import Circuit.Circuit
   ( Circuit (..),
     Step,
     Wire,
-    ambient,
+    ambientBy,
     reify,
   )
 import Circuit.Hyper

@@ -25,7 +25,7 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
-    ambient,
+    ambientBy,
   )
 where
 
@@ -65,7 +65,7 @@ data Circuit arr t a b where
 --
 -- The @(,)@ tensor ties a lazy knot: output and feedback are produced
 -- simultaneously. State rides alongside the computation — ambient,
--- uninterrupted — via 'ambient'.
+-- uninterrupted — via 'ambientBy'.
 type Wire = Circuit (->) (,)
 
 -- | A traced circuit over plain functions with the Either tensor.
@@ -106,7 +106,7 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 
 -- | Thread a state wire through a Circuit.
 --
--- 'ambient' threads a state component @s@ through a circuit unchanged.
+-- 'ambientBy' threads a state component @s@ through a circuit unchanged.
 -- The circuit operates on the payload while the state rides alongside
 -- via the tensor @t@ — ambient, unnoticed.
 --
@@ -120,21 +120,21 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 -- the sliding axiom made explicit.
 --
 -- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> reify (ambient braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
+-- >>> reify (ambientBy braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
 -- ("st",6)
 --
 -- >>> let braid (x, (s, a)) = (s, (x, a))
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> reify (ambient braid (Knot step)) ("st", ())
+-- >>> reify (ambientBy braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
-ambient ::
+ambientBy ::
   (Profunctor arr, Trace arr t) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
   Circuit arr t a b ->
   Circuit arr t (t s a) (t s b)
-ambient _braid (Lift f) = Lift (untrace f)
-ambient braid (Compose f g) = Compose (ambient braid f) (ambient braid g)
-ambient braid (Knot k) = Knot (dimap braid braid (untrace k))
+ambientBy _braid (Lift f) = Lift (untrace f)
+ambientBy braid (Compose f g) = Compose (ambientBy braid f) (ambientBy braid g)
+ambientBy braid (Knot k) = Knot (dimap braid braid (untrace k))
 
 -- | Interpret a Circuit to a plain arrow.
 --
