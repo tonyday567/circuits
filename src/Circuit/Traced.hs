@@ -49,6 +49,8 @@
 --   * Joyal, Street & Verity (1996) — traced monoidal categories.
 module Circuit.Traced
   ( Trace (..),
+    Iter (..),
+    loopIter,
   )
 where
 
@@ -72,6 +74,31 @@ import GHC.IO (IO (..))
 class Trace arr t where
   trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
+
+-- * Iterated bridge — Either-trace iteration on the cartesian tensor
+
+-- | The 'Either'-trace iteration pattern, manually encoded on @(,)@.
+--
+-- 'Loop' feeds back with new state (like 'Left' in the 'Either' trace).
+-- 'Exit' terminates with a result (like 'Right' in the 'Either' trace).
+--
+-- This bridges the gap when the tensor is fixed to @(,)@ — for example,
+-- when a meter wraps outputs in @(t, b)@, breaking the 'Either' shape
+-- required by 'Knot'.
+data Iter s r = Loop s | Exit r
+
+-- | Explicit iteration on the cartesian tensor.
+--
+-- This is what 'trace' does for 'Either', rebuilt by hand for @(,)@.
+-- The state @s@ rides the cartesian wire; 'Loop' recurses, 'Exit' returns.
+loopIter :: (Monad m) => Kleisli m s (Iter s r) -> Kleisli m s r
+loopIter (Kleisli f) = Kleisli go
+  where
+    go s =
+      f s >>= \case
+        Loop s' -> go s'
+        Exit r' -> pure r'
+{-# INLINEABLE loopIter #-}
 
 -- * Cartesian tensor — lazy knot
 

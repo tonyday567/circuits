@@ -32,6 +32,8 @@ module Circuit
 
     -- * Traced
     Trace (..),
+    Iter (..),
+    loopIter,
 
     -- * Hyper
     Hyper (..),
@@ -76,5 +78,7 @@ import Circuit.Hyper
     runEither,
   )
 import Circuit.Traced
-  ( Trace (..),
+  ( Iter (..),
+    Trace (..),
+    loopIter,
   )
