@@ -53,12 +53,10 @@ library
     Circuit.Circuit
     Circuit.Classes
     Circuit.Hyper
-    Circuit.Queue
     Circuit.Traced
 
   build-depends:
     base >=4.18 && <5,
-    these >=1 && <2,
 
   if impl(ghc)
     build-depends: profunctors >=5.0 && <6,

@@ -75,14 +75,6 @@ import Circuit.Hyper
     run,
     runEither,
   )
-import Circuit.Queue
-  ( HasEmpty (..),
-    HasLength (..),
-    Uncons (..),
-    pop,
-    push,
-    queue,
-  )
 import Circuit.Traced
   ( Trace (..),
   )
