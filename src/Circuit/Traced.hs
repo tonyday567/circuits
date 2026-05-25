@@ -75,12 +75,14 @@
 --   * Joyal, Street & Verity (1996) — traced monoidal categories.
 module Circuit.Traced
   ( Trace (..),
+    cellIO,
   )
 where
 
 #ifdef __GLASGOW_HASKELL__
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
+import Data.IORef
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
 #endif
@@ -342,5 +344,33 @@ instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
           Left a -> pure (Left a)
           Right b -> Right <$> f b
       )
+
+-- * Stateful stages via IORef
+
+-- | Create a stateful 'Kleisli' 'IO' arrow backed by 'IORef'.
+--
+-- Allocates a mutable reference once, then each invocation reads the
+-- current state, applies the transfer function, writes the new state
+-- back, and returns the output. The 'IORef' is hidden inside the
+-- arrow — callers see a pure @Kleisli IO a b@.
+--
+-- This breaks the circular dependency that 'MonadFix' requires for
+-- the 'Trace' @(,)@ instance: the feedback value is stored in the
+-- mutable cell rather than being self-referential. Strict accumulators
+-- (counters, frequency tables, running sums) work without diverging.
+cellIO
+  :: s
+  -- ^ initial state
+  -> (s -> a -> IO (s, b))
+  -- ^ transfer: current state and input yield next state and output
+  -> IO (Kleisli IO a b)
+cellIO s0 step = do
+  ref <- newIORef s0
+  pure $
+    Kleisli $ \a -> do
+      s <- readIORef ref
+      (s', b) <- step s a
+      writeIORef ref s'
+      pure b
 
 #endif
