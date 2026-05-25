@@ -2,6 +2,18 @@
 --
 -- Unlike the existential Ends in PureQueue, this module keeps state types
 -- visible so they compose as circuits with push/pop.
+--
+-- The pure analogue of @makeQueue@ is to use 'PureQueue.ends' to get the
+-- write/read functions, then lift them with the combinators below.  The
+-- state type (@'FIFO' a@, @'Maybe' a@, or @a@) is determined by the strategy
+-- and threaded by the caller via 'Compose'.
+--
+-- @
+--   let (q0, write, read) = ends Unbounded
+--       src = Lift (\() -> (q0, 7))
+--       pipe = src >>> pushC write >>> popC read
+--   in reify pipe ()
+-- @
 module PureQueue.Circuit where
 
 import Circuit
@@ -43,14 +55,3 @@ pushDrop f = Lift $ \(s, a) -> case f s a of
 -- Same as readC, but with explicit naming.
 popMaybe :: (s -> (s, Maybe a)) -> Circuit (->) (,) (s, ()) (s, Maybe a)
 popMaybe = readC
-
--- ---------------------------------------------------------------------------
--- Example: compose pushC and popC as a bounded queue
--- ---------------------------------------------------------------------------
---
--- >>> let writeFn (q :: FIFO Int) x = if size q < 3 then (snoc x q, True) else (q, False)
--- >>> let readFn q = let (ma, q') = uncons q in (q', ma)
--- >>> let push3 = pushC writeFn
--- >>> let pop3  = popMaybe readFn
--- >>> reify (Compose pop3 push3) (([], []), 1)
--- (([],[1]),Just 1)
