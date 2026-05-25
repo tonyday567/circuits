@@ -32,8 +32,6 @@ module Circuit
 
     -- * Traced
     Trace (..),
-    Iter (..),
-    loopIter,
 
     -- * Hyper
     Hyper (..),
@@ -77,8 +75,14 @@ import Circuit.Hyper
     run,
     runEither,
   )
+import Circuit.Queue
+  ( HasEmpty (..),
+    HasLength (..),
+    Uncons (..),
+    pop,
+    push,
+    queue,
+  )
 import Circuit.Traced
-  ( Iter (..),
-    Trace (..),
-    loopIter,
+  ( Trace (..),
   )

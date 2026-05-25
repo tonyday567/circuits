@@ -16,6 +16,32 @@
 --   * 'untrace' opens the channel — lifts a plain morphism into the
 --     tensor, leaving the feedback value untouched.
 --
+-- The trace laws (traced monoidal category axioms):
+--
+-- 1. __Naturality (tightening)__. Morphisms that don't touch the traced
+--    wire pass through freely.
+--
+--      @trace (untrace f . g . untrace h) = f . trace g . h@
+--
+-- 2. __Dinaturality (sliding)__. A morphism on the traced wire can slide
+--    from one side of the trace to the other.
+--
+--      @trace (g . untrace f) = trace (untrace f . g)@
+--
+-- 3. __Vanishing__.
+--
+--      * Unit: @trace (untrace f) = f@
+--      * Tensor: @trace (trace g) = trace (assoc . g . assoc')@
+--
+-- 4. __Yanking__. Tracing a swap is identity.
+--
+--      @trace swap = id@
+--
+-- And for 'trace' and 'untrace' specifically: @'trace' . 'untrace' = 'id'@.
+-- 'untrace' is a section of 'trace'; round-tripping through
+-- @'untrace' . 'trace'@ only recovers morphisms that were already of the
+-- form @'untrace' f@.
+--
 -- Two tensor semantics are provided, corresponding to the standard
 -- traced monoidal structures:
 --
@@ -49,8 +75,6 @@
 --   * Joyal, Street & Verity (1996) — traced monoidal categories.
 module Circuit.Traced
   ( Trace (..),
-    Iter (..),
-    loopIter,
   )
 where
 
@@ -74,31 +98,6 @@ import GHC.IO (IO (..))
 class Trace arr t where
   trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
-
--- * Iterated bridge — Either-trace iteration on the cartesian tensor
-
--- | The 'Either'-trace iteration pattern, manually encoded on @(,)@.
---
--- 'Loop' feeds back with new state (like 'Left' in the 'Either' trace).
--- 'Exit' terminates with a result (like 'Right' in the 'Either' trace).
---
--- This bridges the gap when the tensor is fixed to @(,)@ — for example,
--- when a meter wraps outputs in @(t, b)@, breaking the 'Either' shape
--- required by 'Knot'.
-data Iter s r = Loop s | Exit r
-
--- | Explicit iteration on the cartesian tensor.
---
--- This is what 'trace' does for 'Either', rebuilt by hand for @(,)@.
--- The state @s@ rides the cartesian wire; 'Loop' recurses, 'Exit' returns.
-loopIter :: (Monad m) => Kleisli m s (Iter s r) -> Kleisli m s r
-loopIter (Kleisli f) = Kleisli go
-  where
-    go s =
-      f s >>= \case
-        Loop s' -> go s'
-        Exit r' -> pure r'
-{-# INLINEABLE loopIter #-}
 
 -- * Cartesian tensor — lazy knot
 
