@@ -1,0 +1,127 @@
+# State in Circuits
+
+Circuits offer three mechanisms for managing state, corresponding to three
+different relationships between the state and the computation.
+
+## 1. Visible state — threaded by `Compose`
+
+The state appears explicitly in the type. Composition threads it through.
+
+```haskell
+-- StateC s a b = Circuit (->) (,) (s, a) (s, b)
+-- This is the state monad in arrow form.
+
+push :: Circuit (->) (,) ([a], a) ([a], ())
+push = Lift $ \(buf, a) -> (buf ++ [a], ())
+
+pop :: Circuit (->) (,) ([a], ()) ([a], a)
+pop = Lift $ \(buf, ()) -> case uncons buf of
+  These x xs -> (xs, x)
+  That _     -> (buf, error "Queue.pop: empty buffer")
+  This x     -> ([], x)
+
+-- Compose threads state
+queue :: Circuit (->) (,) ([a], a) ([a], a)
+queue = Compose pop push
+```
+
+State is **visible**, **mutable**, and **persistent across composition**.
+You can inspect it, meter it, branch on it. Composition merges state
+wires automatically via the trace axioms.
+
+This is the everyday mechanism. It corresponds to `StateT s m a` in
+monadic code — but in arrow form, the state is the first component of
+the `(,)` tensor.
+
+Trade: the state type appears in the interface. Callers see `[a]`.
+
+## 2. Ambient state — threaded by `ambient`
+
+State rides alongside the computation, invisible to the circuit itself.
+
+```haskell
+-- A circuit that operates on the payload only
+increment :: Circuit (->) (,) Int Int
+increment = Lift (+1)
+
+-- Thread a log through ambiently
+metered :: Circuit (->) (,) ([String], Int) ([String], Int)
+metered = ambient increment
+-- reify metered (["start"], 5) = (["start"], 6)
+```
+
+The ambient state `s` passes through **unchanged**. The circuit can't
+read or write it. This is for metering, logging, carrying context that
+the computation shouldn't touch.
+
+The `meteredAmbient` combinator in `circuits-meter` extends this: the
+circuit CAN read and write the state, using it as an accumulator.
+
+```haskell
+meteredAmbient :: (s -> t -> s) -> Meter s t -> Kleisli IO a b
+               -> Circuit (Kleisli IO) (,) (s, a) (s, b)
+```
+
+Trade: state is threaded automatically, but the circuit is unaware
+of it (unless using `meteredAmbient`).
+
+## 3. Hidden state — threaded by `Knot`
+
+State is the feedback channel of a trace, invisible in the visible
+interface. Two sub-mechanisms:
+
+### 3a. `(,)` trace — lazy knot (coinductive)
+
+```
+trace f b = let (a, c) = f (a, b) in c
+```
+
+The feedback value `a` is recursively bound. The body executes once with
+a self-referential channel.
+
+```haskell
+-- powers = [1, 2, 4, 8, 16, ...] via lazy knot
+powers :: Circuit (->) (,) () [Integer]
+powers = Knot $ \(ns, ()) -> (1 : map (*2) ns, take 5 ns)
+```
+
+Constraint: the feedback channel must be **lazy** — you can reference
+it without forcing. Pattern-matching on the channel diverges (black hole).
+Write-only for the feedback direction.
+
+### 3b. `Either` trace — iteration (inductive)
+
+```
+trace f b = go (Right b)
+  where go x = case f x of Right c -> c; Left a -> go (Left a)
+```
+
+`Left a` continues with updated state, `Right c` exits with result.
+
+```haskell
+fac :: Circuit (->) Either (Int, Int) Int  -- input: (n, acc)
+fac = Knot $ either step step
+  where step (n, acc) | n <= 1    = Right acc
+                      | otherwise = Left (n - 1, n * acc)
+```
+
+Constraint: each `reify` call starts a fresh trace. State doesn't
+persist across calls. You get one iteration's worth of mutation per
+invocation.
+
+## Decision table
+
+| Need | Mechanism |
+|------|-----------|
+| State modified by computation, persists across composition | Visible state (`Compose`) |
+| Read-only context (logging, metrics) | Ambient state (`ambient`) |
+| Accumulator updated by computation (metering) | `meteredAmbient` |
+| Self-referential lazy structure (powers, fibs) | `Knot` + `(,)` trace |
+| Iterative computation with exit condition (fac) | `Knot` + `Either` trace |
+| Persistent mutable state across operations | Visible state — there is no hidden persistent mutable state in pure circuits |
+
+## No `StateT`
+
+Circuits don't need a separate `StateT` because `Circuit (->) (,) (s, a) (s, b)`
+already IS the state monad in arrow form. `Compose` binds. The `(,)` tensor
+carries the state. There's nothing to add.
