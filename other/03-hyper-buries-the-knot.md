@@ -49,8 +49,8 @@ push  :: (a -> b) -> Hyper a b -> Hyper a b
 
 - **lift** embeds a plain function: `lift f = push f (lift f)` — coinductive unrolling
 - **lower** observes a hyperfunction by supplying a constant continuation
-- **run** ties the knot on the diagonal: `run = fix . lower`
-- **push** prepends a function to the continuation stack: `push f h = lift f . h`
+- **run** ties the knot on the diagonal: `run h = invoke h (Hyper run)`. For lifted functions, `run (lift f) = fix f`.
+- **push** prepends a function to the continuation stack.
 
 ---
 

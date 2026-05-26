@@ -110,7 +110,7 @@ explicit braid. `ambient` is that braid, packaged as a combinator.
 
 ---
 
-`run` is the compound `fix . lower`. `push` is a primitive — the Hyper-level
+`run h = invoke h (Hyper run)` — the self-referential knot. For lifted functions, `run (lift f) = fix f`. `push` is a primitive — the Hyper-level
 form of threading a function through the feedback channel.
 `push f h` applies `f` to the value the continuation feeds back, before
 `h` sees it. The GADT has no direct counterpart; the closest analogue is
@@ -142,9 +142,9 @@ moves.
 ⥁ (↑ f)  =  fix f
 ```
 
-Substituting `⥁ = fix . ↓` gives the cleaner form: `↓ . ↑ = id`.
-Observation recovers the original arrow. What you embed is what you
-observe. This is the sanity check — `Hyper` doesn't add or remove
+Running a lifted function is taking its fixed point: `run (lift f) = f (run (lift f))`.
+Observation recovers the original arrow: `↓ . ↑ = id`.
+What you embed is what you observe. This is the sanity check — `Hyper` doesn't add or remove
 behaviour, it only adds structure (the continuation channel).
 
 ### 5: Push composition
