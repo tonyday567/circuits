@@ -110,7 +110,7 @@ explicit braid. `ambient` is that braid, packaged as a combinator.
 
 ---
 
-`run h = invoke h (Hyper run)` — the self-referential knot. For lifted functions, `run (lift f) = fix f`. `push` is a primitive — the Hyper-level
+`run` ties the self-referential knot. Axiom 4 below gives its defining property on lifted functions. `push` is a primitive — the Hyper-level
 form of threading a function through the feedback channel.
 `push f h` applies `f` to the value the continuation feeds back, before
 `h` sees it. The GADT has no direct counterpart; the closest analogue is
@@ -142,9 +142,7 @@ moves.
 ⥁ (↑ f)  =  fix f
 ```
 
-Running a lifted function is taking its fixed point: `run (lift f) = f (run (lift f))`.
-Observation recovers the original arrow: `↓ . ↑ = id`.
-What you embed is what you observe. This is the sanity check — `Hyper` doesn't add or remove
+Running a lifted function yields its fixed point. Together with `↓ . ↑ = id` (observation recovers the embedding), this is the sanity check — `Hyper` doesn't add or remove
 behaviour, it only adds structure (the continuation channel).
 
 ### 5: Push composition
@@ -192,24 +190,22 @@ Axiom 6 is the new move.
 
 ## A Small Taste
 
-The language is immediately executable:
+In pseudocode, the five marks look like this:
 
 ```haskell
 -- lift embeds a plain function
->>> ↓ (↑ (+ 1)) 5
-6
+↓ (↑ (+ 1)) 5  =  6
 
 -- run ties the self-referential knot
->>> ⥁ (Hyper $ \_ -> 42 :: Int)
-42
+⥁ (Hyper $ \_ -> 42)  =  42
 
--- push prepends a function to the output
->>> ↓ ((+ 1) ⊲ ↑ (* 2)) 5
-6
+-- fmap prepends a function to the output
+-- (in Circuit this is fmap; in Hyper it is push)
+↓ (fmap (+ 1) (↑ (* 2))) 5  =  6
 
 -- ask: "how many layers deep is the continuation chain?"
->>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1) in ask ⇸ (○) 42
-43
+let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1)
+in ask ⇸ ○ 42  =  43
 ```
 
 When the feedback channel carries state — a stream, a counter, a

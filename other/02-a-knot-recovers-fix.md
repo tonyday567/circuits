@@ -75,7 +75,7 @@ reify' (Knot' f)     = trace' f
 This compiles. The Fibonacci stream runs:
 
 ```haskell
->>> let fibs = Knot' (\\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
+>>> let fibs = Knot' (\(fibs, i) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs !! i))
 >>> reify' fibs 0
 0
 >>> reify' fibs 4
