@@ -1,8 +1,14 @@
 # Holding Hands or Taking Turns
 
-**Summary:** In which we must choose: hold hands and progress together, or
-take turns passing the channel back and forth.
-**Prev:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) | **Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*we find a basic choice: hold hands and go together, or take turns passing control back and forth.*
+
+**[⟵ Prev: Hyper Buries the Knot](03-hyper-buries-the-knot.md)** · **[Next: No Remorse, Once Removed ⟶](05-no-remorse-once-removed.md)**
+
+</div>
 
 ---
 

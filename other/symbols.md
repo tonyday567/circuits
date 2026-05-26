@@ -13,7 +13,7 @@ notation, used as mathematical notation — no apologies to GHC.
 | `↓` | lower | `Hyper a b → (a → b)` | observe a hyperfunction |
 | `⊙` | compose | `cat b c → cat a b → cat a c` | sequential composition |
 | `⊲` | push | `(a → b) → Hyper a b → Hyper a b` | prepend a plain function |
-| `⥁` | run | `Hyper a a → a` | tie the self-referential knot |
+| `⥁` | run | `Hyper a a → a` | tie the self-referential knot (recovers fix on lifted arrows) |
 | `∥` | ambient | `braid → Circuit arr t a b → Circuit arr t (t s a) (t s b)` | thread state wire alongside |
 | `↮` | knot | `arr (t a b) (t a c) → Circuit arr t b c` | feedback loop constructor |
 | `↘` | reify | `Circuit arr t x y → arr x y` | interpret to plain arrow |
@@ -67,13 +67,14 @@ Written as we mean them, not as GHC requires them:
 axiom 1   (f ⊙ g) ⊙ h  =  f ⊙ (g ⊙ h)               associativity
 axiom 2    f ⊙ ↑ id     =  f  =  ↑ id ⊙ f             identity
 axiom 3    ↑ (f . g)    =  ↑ f ⊙ ↑ g                  lift is a functor
-axiom 4    ⥁ (↑ f)       =  fix f                      run recovers fix
+axiom 4    ⥁ (↑ f)       =  fix f                      run recovers fix of base arrows
 axiom 5    ⊲ f ⊙ ⊲ g    =  ⊲ (f . g)                  push is a homomorphism
 axiom 6    ⥁ ((f ⊲ p) ⊙ q)  =  f (⥁ (q ⊙ p))          feedback / sliding
 ```
 
-Axioms 1–3 are the free category. Axiom 4 is the sanity check. Axiom 5
-says push respects composition. Axiom 6 is the one that isn't free.
+Axioms 1–3 are the free category. Axiom 4 is the sanity check on lifted arrows
+(run recovers classical fixed points for base arrows). Axiom 5 says push
+respects composition. Axiom 6 is the one that isn't free (it forces Knot).
 
 ---
 

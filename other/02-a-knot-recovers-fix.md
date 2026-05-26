@@ -1,9 +1,14 @@
 # A Knot Recovers Fix
 
-**Summary:** In which axiom 4 forces a third constructor with a type change,
-the lazy knot that GHC can tie, and a single pattern match keeps the trace
-honest.
-**Prev:** [01-marks-and-stacks.md](01-marks-and-stacks.md) | **Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*In which we learn to slide; try our hand at a GADT; tie a lazy knot that and find a single pattern match.*
+
+**[⟵ Prev: Marks and Stacks](01-marks-and-stacks.md)** · **[Next: Hyper Buries the Knot ⟶](03-hyper-buries-the-knot.md)**
+
+</div>
 
 ---
 
@@ -227,11 +232,9 @@ Three constructors. The roles:
 | `Compose` | 1 | Sequential composition |
 | `Knot` | 4, 6 | Feedback channel; the trace constructor |
 
-Axiom 4 forces `Knot` — the type change `(,)` that transfers fix to the
-initial side. Axiom 6 forces the Mendler case — the single pattern match
-that keeps the trace honest. Axiom 5 (centrality) introduces no new
-constructor; it constrains which tensors satisfy the axioms
-(see [04](04-holding-hands-or-taking-turns.md)).
+Axiom 4 (`⥁ (↑ f) = fix f`) shows that the final encoding can take fixed points of base arrows. The `Knot` constructor (together with the change of tensor) is what lets the *initial* encoding do the same thing: it gives us a canonical way to form fixed points of arrows `f : A ⊗ X → B ⊗ X` inside the free traced category.
+
+Axiom 6 forces the Mendler case — the single pattern match that keeps the trace honest. Axiom 5 (centrality) introduces no new constructor; it constrains which tensors satisfy the axioms (see [04](04-holding-hands-or-taking-turns.md)).
 
 The `Category` instance is immediate:
 

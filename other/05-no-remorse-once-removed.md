@@ -1,9 +1,14 @@
 # No Remorse, Once Removed
 
-**Summary:** In which the Mendler case turns out to be viewl by another
-name, left-nesting is a performance trap, and the hierarchy of free
-structures gains a new row.
-**Prev:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) | **Next:** [06-some-more-knots.md](06-some-more-knots.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*In which we attempt a remorse-free sliding; disarm a left-nesting performance trap, and the hierarchy of free structures gains a new row.*
+
+**[⟵ Prev: Holding Hands or Taking Turns](04-holding-hands-or-taking-turns.md)** · **[Next: Some More Knots ⟶](06-some-more-knots.md)**
+
+</div>
 
 ---
 

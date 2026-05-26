@@ -1,8 +1,14 @@
 # Some More Knots
 
-**Summary:** In which we stop proving and start making. Each section
-is a circuit type; each type is a use case.
-**Prev:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*Our adventure concludes and we plan our next one; the making starts.*
+
+**[⟵ Prev: No Remorse, Once Removed](05-no-remorse-once-removed.md)**
+
+</div>
 
 ---
 

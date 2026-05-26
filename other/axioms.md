@@ -83,17 +83,21 @@ feedback channel. The six axioms reduce to three structural roles:
 | LKS Axiom | JSV Axiom | Structural role |
 |-----------|-----------|-----------------|
 | 1–3 | — | Free category (`Lift` + `Compose`) |
-| 4 | — | `run (lift f) = fix f` (Hasegawa Theorem 3.1) |
+| 4 | — | `run (lift f) = fix f` — fixed points of base arrows (Hasegawa Thm 3.1) |
 | 5 | — | Push composition: `push f p . push g q = push (f . g) (p . q)`. Push distributes over composition — a homomorphism constraint on the primitive. |
 | 6 | Sliding | Feedback (forces `Knot` constructor) |
 
 LKS axioms 1–5 have no direct JSV counterpart — LKS 1–3 fall out of the free
-category structure, LKS 4 follows from the Hasegawa fixpoint correspondence,
+category structure, LKS 4 (`run (lift f) = fix f`) follows from the Hasegawa fixpoint correspondence for base arrows,
 and LKS 5 (push composition) constrains how push interacts with composition.
 Only LKS 6 (sliding/feedback) maps cleanly to a JSV axiom.
 
-Axioms 4 and 5 introduce no new constructors. Only axiom 6 forces one:
-`Knot`. See `02-a-knot-recovers-fix.md` for the full derivation.
+Axioms 4 and 5 introduce no new constructors on the final side. Axiom 4
+(`run (lift f) = fix f`) is the key property showing that fixed points of
+base arrows are available in the final encoding; it is part of the motivation
+for why the initial encoding needs the structure that `Knot` provides.
+Only axiom 6 (sliding) forces a new constructor on the initial side.
+See `02-a-knot-recovers-fix.md` for the derivation.
 
 ## The Mendler Case
 

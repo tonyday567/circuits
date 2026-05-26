@@ -1,8 +1,14 @@
 # Hyper Buries the Knot
 
-**Summary:** In which the knot dissolves into the type itself, sliding
-becomes structural, and we discover that Hyper was a Kan extension all along.
-**Prev:** [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md) | **Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*In which we dissolve knots into hyperfunctions; slide until yanked; and extend the Kan way.*
+
+**[⟵ Prev: A Knot Recovers Fix](02-a-knot-recovers-fix.md)** · **[Next: Holding Hands or Taking Turns ⟶](04-holding-hands-or-taking-turns.md)**
+
+</div>
 
 ---
 
@@ -49,7 +55,7 @@ push  :: (a -> b) -> Hyper a b -> Hyper a b
 
 - **lift** embeds a plain function: `lift f = push f (lift f)` — coinductive unrolling
 - **lower** observes a hyperfunction by supplying a constant continuation
-- **run** ties the knot on the diagonal: `run h = invoke h (Hyper run)`. For lifted functions, `run (lift f) = fix f`.
+- **run** ties the knot on the diagonal: `run h = invoke h (Hyper run)`. On the image of `lift`, this coincides with the classical fixed point: `run (lift f) = fix f`. For arbitrary elements of the final coalgebra, `run` is the primitive operation.
 - **push** prepends a function to the continuation stack.
 
 ---

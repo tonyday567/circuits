@@ -1,9 +1,14 @@
 # Marks and Stacks
 
-**Summary:** In which five marks and a stack language turn out to be an
-almost perfect description of functional programming, and we set out to
-make it a bit better.
-**Next:** [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md)
+<div align="center">
+
+✦ · ✧ · ✦
+
+*In which we discover a little stack language turn out to be an almost perfect description of functional programming; we embark on an axiom adventure.*
+
+**[Next: A Knot Recovers Fix ⟶](02-a-knot-recovers-fix.md)**
+
+</div>
 
 ---
 
@@ -136,14 +141,15 @@ This is the core of functional programming: function application and
 composition. GHC itself is a function stack interpreter built on these
 moves.
 
-### 4: Faithful Embedding
+### 4: Fixed points of base arrows
 
 ```
 ⥁ (↑ f)  =  fix f
 ```
 
-Running a lifted function yields its fixed point. Together with `↓ . ↑ = id` (observation recovers the embedding), this is the sanity check — `Hyper` doesn't add or remove
-behaviour, it only adds structure (the continuation channel).
+On arrows coming from the base category (i.e. in the image of `↑`), running the hyperfunction recovers the classical fixed point of the underlying function. This is the key property: `Hyper` internalises the fixed-point combinator of the base category on its generators.
+
+Together with `↓ . ↑ = id`, it shows that `Hyper` is faithful on the image of `↑` — it adds structure (the continuation channel) without changing the observable behaviour of lifted arrows.
 
 ### 5: Push composition
 
