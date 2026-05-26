@@ -1,3 +1,6 @@
+# PureQueue.Test — pipeline test (R&D)
+
+```haskell
 -- | Pure queueEnds pipeline test — mirror of the STM makeQueue test.
 --
 -- Two Unbounded queues (A and B), combined state threaded through.
@@ -31,3 +34,4 @@ pipeline = source >>> pushA >>> popA >>> pushB >>> popB
 -- | Run with empty buffers.
 test :: (Q2, Int)
 test = reify pipeline (([], []), ())
+```

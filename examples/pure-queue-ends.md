@@ -1,3 +1,6 @@
+# PureQueue.Ends — simpler queue ends with `[a]` state (R&D)
+
+```haskell
 -- | Pure, visible-state queue ends.  State is [a] for all strategies.
 --
 -- This is a pure, non-existential analogue of Circuit.IO.Queue.queueEnds
@@ -63,6 +66,4 @@ queueEnds = \case
         []   -> ([], Nothing)
         x:_  -> ([], Just x)
     )
-
--- $setup
--- >>> import PureQueue.Ends
+```

@@ -1,3 +1,6 @@
+# PureQueue — queue strategies (R&D)
+
+```haskell
 -- | Pure queue ends, parameterised by strategy.
 --
 -- The Queue type from Box.Queue, but with pure (non-STM) implementations.
@@ -93,3 +96,4 @@ ends = \case
     , eWrite = \_ x -> (Just x, True)
     , eRead  = \q -> (Nothing, q)
     }
+```
