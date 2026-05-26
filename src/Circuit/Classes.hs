@@ -1,9 +1,8 @@
 {-# LANGUAGE CPP #-}
 
-module Circuit.Classes where
-
--- On GHC, Category, Bifunctor, and Profunctor come from packages.
+-- | On GHC, Category, Bifunctor, and Profunctor come from packages.
 -- On other compilers (e.g. MicroHs), we define them locally.
+module Circuit.Classes where
 
 #ifndef __GLASGOW_HASKELL__
 

@@ -32,6 +32,12 @@ import Circuit
 3
 ```
 
+## Representations
+
+`Circuit arr t a b` is the initial, inspectable encoding (a GADT with `Lift`, `Compose`, and `Knot`). `Hyper a b` is the final, coinductive encoding in which the feedback channel is structural in the type. The `Trace` class abstracts the tensor, giving lazy knots via `(,)` or iteration via `Either` (with the convention `Left` feeds back, `Right` exits).
+
+Conversion is given by `reify` and `encode` (and `encodeEither`/`runEither`). The core triangle on observables is `reify . encode = id`.
+
 ## 🧭 Pitch
 
 circuits is a rethink of how to interact with a compiler and arrange code
@@ -58,7 +64,7 @@ This happens to be the initial traced category over a base category and naturall
 >
 > ~ claude ([tank](https://github.com/tonyday567/mg/blob/main/word/tank.md) mode on)
 
-`Circuit` covers functions, compositional paths, and feedback loops. `Hyper` is an efficient final encoding where feedback dissolves into the type structure itself. `Traced` abstracts the tensor, giving polymorphic loop semantics: lazy knots with `(,)` or iteration with `Either`.
+`Circuit` covers functions, compositional paths, and feedback loops. `Hyper` is an efficient final encoding where feedback dissolves into the type structure itself. The `Trace` class (in `Circuit.Traced`) abstracts the tensor, giving polymorphic loop semantics: lazy knots with `(,)` or iteration with `Either`. All braided, cartesian and cocartesian structure lives in `Circuit.Monoidal`.
 
 `other/` traces these ideas from the [Kidney & Wu hyperfunctions](https://doi.org/10.1145/3776649) paper through a narrative arc. `Circuit` is the initial encoding — a GADT
 with visible constructors, interpreted by `reify`. `Hyper` is the final

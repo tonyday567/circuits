@@ -129,7 +129,7 @@ lower (encode c)  =  reify c
 -- >>> reify c 5
 -- 11
 
--- >>> let k = Knot (\(\(xs, ()) -> (0 : xs, take 3 xs)) :: Circuit (->) (,) () [Int]
+-- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Circuit (->) (,) () [Int]
 -- >>> lower (encode k) ()
 -- [0,0,0]
 -- >>> reify k ()

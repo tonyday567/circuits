@@ -8,9 +8,28 @@
 --
 --   - `Lift`: embedding of a base arrow (strict monoidal functor)
 --   - `Compose`: sequential composition (category structure)
---   - `Knot`: feedback channel (trace structure)
+--   - `Knot`: introduces a feedback channel (trace structure)
 --
 -- For example, a `Circuit (->) (,)` is the initial traced monoidal cartesian category over Haskell functions.
+--
+-- == Core Concepts
+--
+-- * __Tensor__ (@t@): The bifunctor that pairs a feedback value with a payload
+--   inside a 'Knot'. The two tensors provided are @(,)@ (simultaneous / lazy
+--   sharing) and 'Either' (sequential / iteration).
+--
+-- * __Feedback value__: The component that travels around the loop (the first
+--   parameter of the tensor inside a 'Knot').
+--
+-- * __Payload__: The component that is transformed and emitted by the circuit
+--   (the second parameter of the tensor).
+--
+-- * __Feedback channel__: The path the feedback value takes when it is routed
+--   back into the next step of the computation. In a 'Knot' the channel type
+--   is carried by the tensor @t@.
+--
+-- These concepts are independent of any particular base arrow @arr@. They
+-- describe the structure of feedback itself.
 --
 -- The `reify` function interprets any `Circuit` to a plain arrow via
 -- the `Trace` instance on @t@. For encoding into 'Circuit.Hyper', see
@@ -25,7 +44,6 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
-    ambientBy,
   )
 where
 
@@ -41,6 +59,7 @@ import Circuit.Classes
 #endif
 
 -- $setup
+-- >>> import Control.Category ((>>>))
 -- >>> import Data.Profunctor (dimap)
 -- >>> import Prelude hiding (id, (.))
 
@@ -53,10 +72,19 @@ import Circuit.Classes
 --   * 'Knot' — feedback loop via the tensor.
 data Circuit arr t a b where
   -- | Lift embeds a base arrow (strict monoidal functor).
+  --
+  -- >>> reify (Lift (+1) :: Circuit (->) (,) Int Int) 5
+  -- 6
   Lift :: arr a b -> Circuit arr t a b
   -- | Compose performs sequential composition (category structure).
+  --
+  -- >>> reify (Lift (+1) >>> Lift (*2) :: Circuit (->) (,) Int Int) 5
+  -- 12
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-  -- | Knot ties a feedback loop. The tensor t carries the channel type.
+  -- | Knot ties a feedback loop. The tensor @t@ carries the channel type.
+  --
+  -- >>> reify (Knot (\(acc, x) -> (x, acc)) :: Circuit (->) (,) Int Int) 42
+  -- 42
   Knot :: arr (t a b) (t a c) -> Circuit arr t b c
 
 -- | A traced circuit over plain functions with the cartesian tensor.
@@ -64,17 +92,15 @@ data Circuit arr t a b where
 -- @Wire a b = Circuit (->) (,) a b@
 --
 -- The @(,)@ tensor ties a lazy knot: output and feedback are produced
--- simultaneously. State rides alongside the computation — ambient,
--- uninterrupted — via 'ambientBy'.
+-- simultaneously.
 type Wire = Circuit (->) (,)
 
--- | A traced circuit over plain functions with the Either tensor.
+-- | A traced circuit over plain functions with the cocartesian tensor.
 --
 -- @Step a b = Circuit (->) Either a b@
 --
 -- The @Either@ tensor iterates: @Left@ feeds back (continue),
--- @Right@ terminates (exit). Each step decides whether to loop
--- or stop.
+-- @Right@ terminates (exit).
 type Step = Circuit (->) Either
 
 instance (Category arr) => Category (Circuit arr t) where
@@ -88,8 +114,7 @@ instance Functor (Circuit (->) t a) where
 --
 -- Maps over both ends of the arrow. For @Compose@, the map is applied
 -- to the input of the left sub-circuit and the output of the right
--- sub-circuit, leaving the intermediate type aligned. For @Knot@, the
--- map is lifted through the tensor via 'bimap'.
+-- sub-circuit, leaving the intermediate type aligned.
 --
 -- >>> reify (dimap (+ 1) (+ 1) (Lift (* 2) :: Circuit (->) (,) Int Int)) 5
 -- 13
@@ -104,43 +129,12 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
   rmap g (Compose h k) = Compose (rmap g h) (rmap id k)
   rmap g (Knot k) = Knot (rmap (second g) k)
 
--- | Thread a state wire through a Circuit.
---
--- 'ambientBy' threads a state component @s@ through a circuit unchanged.
--- The circuit operates on the payload while the state rides alongside
--- via the tensor @t@ — ambient, unnoticed.
---
--- The @braid@ function swaps the state wire past the feedback channel:
--- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
--- @\\(x, (s, a)) -> (s, (x, a))@.
---
--- For 'Lift', the state tags along via 'untrace'.
--- For 'Compose', the state threads through both stages.
--- For 'Knot', the state slides past the feedback loop via braiding —
--- the sliding axiom made explicit.
---
--- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> reify (ambientBy braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
--- ("st",6)
---
--- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> reify (ambientBy braid (Knot step)) ("st", ())
--- ("st",[0,0,0])
-ambientBy ::
-  (Profunctor arr, Trace arr t) =>
-  (forall x y z. t x (t y z) -> t y (t x z)) ->
-  Circuit arr t a b ->
-  Circuit arr t (t s a) (t s b)
-ambientBy _braid (Lift f) = Lift (untrace f)
-ambientBy braid (Compose f g) = Compose (ambientBy braid f) (ambientBy braid g)
-ambientBy braid (Knot k) = Knot (dimap braid braid (untrace k))
-
 -- | Interpret a Circuit to a plain arrow.
 --
--- This is the unique traced functor from the initial object (Circuit)
--- to the target category. The Mendler case (when a Knot appears on the
--- left of Compose) enforces the sliding axiom of traced monoidal categories.
+-- This is the canonical map out of the free (initial) traced monoidal
+-- category.  The interesting case is when a @Knot@ appears on the left
+-- of a @Compose@: this is exactly where the sliding axiom of traced
+-- monoidal categories is enforced (the Mendler case).
 --
 -- >>> reify (Lift (+1) :: Circuit (->) (,) Int Int) 5
 -- 6

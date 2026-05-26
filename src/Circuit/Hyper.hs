@@ -3,9 +3,15 @@
 
 -- | Hyperfunctions: final encoding of traced monoidal categories.
 --
--- A 'Hyper' is a final encoding of a 'Circuit'. The feedback channel is
--- structural in the type rather than explicit, so the sliding axiom
--- is inherent to composition rather than enforced by pattern matching.
+-- A hyperfunction (following Kidney & Wu) is a value that is completely
+-- defined by its dual: to produce a result of type @b@ you must supply
+-- a continuation of type @Hyper b a@.
+--
+-- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
+-- category. Its dual, 'Circuit' (see "Circuit.Circuit"), is the
+-- corresponding /initial/ (inductive) encoding. The feedback channel
+-- is not represented by an extra constructor; it is structural in the
+-- type itself.
 module Circuit.Hyper
   ( -- * Hyper
     Hyper (..),
@@ -48,17 +54,20 @@ import Circuit.Classes
 -- >>> let f2 = (+3) :: Int -> Int
 -- >>> let g2 = (*100) :: Int -> Int
 
--- | Hyper a b is a hyperfunction from @a@ to @b@.
+-- | A hyperfunction from @a@ to @b@.
 --
--- A hyperfunction consumes a continuation ('Hyper' @b@ @a@) and produces
--- a value of type @b@. The continuation argument appears in contravariant
--- position; the result appears in covariant position.
+-- A 'Hyper' is completely determined by its dual. To get a @b@ you must
+-- provide a continuation that can itself produce an @a@.
 --
--- >>> let ask = Hyper (\k -> invoke k (Hyper (\_ -> 0)) + 1)
--- >>> ask `invoke` base 42
--- 43
+-- Two small examples:
+--
+-- >>> lower (lift (+1)) 41
+-- 42
+--
+-- >>> run (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
+-- 1
 newtype Hyper a b = Hyper
-  { -- | Invoke a hyperfunction with a continuation.
+  { -- | Feed a continuation of type @Hyper b a@ into the hyperfunction.
     invoke :: Hyper b a -> b
   }
 
@@ -66,8 +75,9 @@ newtype Hyper a b = Hyper
 
 -- | Embed a plain function into a hyperfunction.
 --
--- @lift f@ prepends @f@ to itself recursively, so the function can be
--- applied arbitrarily many times as the continuation chain unwinds.
+-- This is where the coinductive character of 'Hyper' lives:
+-- @lift f@ creates a hyperfunction by recursively pushing @f@ onto
+-- every future continuation that will ever be supplied.
 --
 -- >>> lower (lift (+1)) 5
 -- 6
@@ -94,22 +104,19 @@ base a = Hyper (const a)
 
 -- | Push a plain function onto a hyperfunction.
 --
--- The function @f@ is applied to the result produced by invoking the
--- continuation on @h@. In this way @f@ is threaded through the
--- continuation, enabling feedback-aware composition.
+-- The function @f@ is applied to whatever value the hyperfunction
+-- eventually produces. This threads @f@ through the continuation,
+-- enabling feedback-aware composition.
 --
 -- >>> lower (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push f h = Hyper (\k -> f (invoke k h))
 
--- | Close the self-referential loop. Applies a hyperfunction to its
--- own dual: @run h = invoke h (Hyper run)@.
+-- | Close the self-referential loop.
 --
--- For a hyperfunction @h :: a ↬ a@, @run h@ resolves the fixed point
--- by feeding the hyperfunction's dual back into itself. The recursive
--- knot is tied by applying the hyperfunction to its own continuation.
--- The value returned by @invoke h@ feeds into @h@'s dual.
+-- @run h@ feeds the hyperfunction back into itself, tying the knot.
+-- This is the fundamental way to eliminate a 'Hyper'.
 --
 -- >>> run (Hyper $ \_ -> 42 :: Int)
 -- 42

@@ -28,17 +28,21 @@ axioms                             equational proofs (appendix)
 
 ## module map
 
-Dependency order — read source in this sequence:
+Recommended reading order for the source (core concepts first):
 
 ```
-Circuit.Hyper    — Hyper a b, invoke, run, base/push/lift/lower.
-                   Profunctor/Category/Functor instances.
-                   encode, encodeEither, runEither, flatten.
+Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. reify.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
-Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. reify, push.
-Circuit           — umbrella re-export. Import this for casual use;
-                    import submodules directly for precision.
+                   cellIO helper.
+Circuit.Monoidal — Braided, Cartesian and Cocartesian structure over the
+                   standard tensors, plus ambient / ambientBy state threading.
+Circuit.Hyper    — Hyper a b (final encoding), invoke, run, base/push/lift/lower,
+                   encode/encodeEither, runEither, flatten.
+Circuit           — umbrella re-export. This is the recommended import
+                    (`import Circuit`) for almost all use. Submodules are
+                    available when you need to be very precise about what
+                    you are bringing into scope.
 ```
 
 Hyper imports Circuit for the GADT constructors. Traced depends only on

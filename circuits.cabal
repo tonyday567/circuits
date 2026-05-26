@@ -19,6 +19,13 @@ tested-with:
   ghc ==9.12.2
   ghc ==9.14.1
 
+extra-doc-files:
+    ChangeLog.md
+    readme.md
+    LICENSE
+    other/symbols.md
+    other/axioms.md
+
 source-repository head
   type: git
   location: https://github.com/tonyday567/circuits
@@ -48,11 +55,10 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Braided
-    Circuit.Cartesian
     Circuit.Circuit
     Circuit.Classes
     Circuit.Hyper
+    Circuit.Monoidal
     Circuit.Traced
 
   build-depends:

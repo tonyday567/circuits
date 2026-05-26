@@ -138,7 +138,7 @@ lazy knot.  The triangle `lower . encode = reify` holds.
 -- >>> lower (encode (Lift (+ 1) :: Circuit (->) (,) Int Int)) 5
 -- 6
 
--- >>> let k = Knot (\(\(xs, ()) -> (0 : xs, take 3 xs)) :: Circuit (->) (,) () [Int]
+-- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Circuit (->) (,) () [Int]
 -- >>> lower (encode k) ()
 -- [0,0,0]
 ```

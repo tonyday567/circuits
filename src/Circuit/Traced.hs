@@ -119,6 +119,9 @@ class Trace arr t where
 -- >>> trace powers () :: [Integer]
 -- [1,2,4,8,16]
 --
+-- >>> trace (\(acc, x) -> (acc, x + 1)) 5
+-- 6
+--
 -- Vanishing (a): tracing over the unit does nothing.
 --
 -- Note: using @()@ as the channel type hits a GHC black-hole detection
@@ -183,6 +186,17 @@ instance Trace (->) (,) where
 --
 -- >>> trace (either fac fac) (5, 1 :: Int)
 -- 120
+--
+-- >>> :{
+-- let countdown = \case
+--       Left n | n > 0 -> Left (n - 1)
+--              | otherwise -> Right n
+--       Right n | n > 0 -> Left (n - 1)
+--               | otherwise -> Right n
+-- :}
+--
+-- >>> trace countdown (3 :: Int)
+-- 0
 --
 -- Vanishing (a): tracing over the unit does nothing.
 --
