@@ -41,11 +41,23 @@ common ghc-options-stanza
     -Wpartial-fields
     -Wredundant-constraints
 
+common ghc2024-additions
+  default-extensions:
+    DataKinds
+    DerivingStrategies
+    DisambiguateRecordFields
+    ExplicitNamespaces
+    GADTs
+    LambdaCase
+    MonoLocalBinds
+    RoleAnnotations
+
 common ghc2024-stanza
   if impl(ghc >=9.10)
     default-language:
       GHC2024
   else
+    import: ghc2024-additions
     default-language:
       GHC2021
 
