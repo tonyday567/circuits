@@ -12,7 +12,7 @@ cabal repl circuits
 
 ## the circuit
 
-![circuit diagram](words-circuit.svg)
+<img src="words-circuit.svg" width="40%" alt="circuit diagram" />
 
 ```mermaid
 flowchart TD
@@ -166,17 +166,38 @@ wordCount path =
 -- she: 501
 ```
 
-`withFile` handles resource bracketing. In a circuits-io pipeline,
-`openFile` and `hClose` would be Lift stages with bracket semantics —
-the file open/close becomes part of the circuit rather than a wrapper
-around it. See [circuits-io](#queues-and-resources) below.
+`withFile` handles resource bracketing here. circuits-io lifts this pattern into the circuit itself — `openFile` and `hClose` become Lift stages with bracket semantics, so resource lifecycle is composed rather than wrapped.
 
 ## metering
 
 With circuits-meter, timing is a one-liner. Wrap each `Lift` stage with
 `meterIO` and the diagram gains a column:
 
-![metered diagram](words-metered.svg)
+<img src="words-metered.svg" width="40%" alt="metered diagram" />
+
+```mermaid
+flowchart TD
+    subgraph Loop["Knot (Either) — timed per-line"]
+        B["Right ()"] --> C["init Map.empty"]
+        C --> D{"hIsEOF ? ⏱ 0.1ms"}
+        D -->|"no"| E["hGetLine ⏱ 1.2ms"]
+        E --> F["words ⏱ 0.01ms"]
+        F --> G["map toLower ⏱ 0.02ms"]
+        G --> H["filter (not . null) ⏱ 0.01ms"]
+        H --> I["foldl' insertCount ⏱ 0.05ms"]
+        I --> J["Left"]
+        J -.->|"feedback"| D
+    end
+
+    D -->|"yes"| K["Map.toList ⏱ 0.01ms"]
+    K --> L["sortOn Down ⏱ 0.1ms"]
+    L --> M["take 5 "]
+    M --> N["fmtRow"]
+    N --> O["unlines"]
+    O --> P["putStr ⏱ total: 62ms"]
+
+    style Loop fill:#f0f4ff,stroke:#3b82f6
+```
 
 The code change is wrapping each component:
 
@@ -198,34 +219,6 @@ For wall-clock timing of the entire pipeline:
 
 Every component can be metered independently — the Circuit structure
 makes it obvious where to insert measurement.
-
-## queues and resources
-
-With circuits-io, the `withFile` bracket dissolves into the pipeline:
-
-```haskell
-filePipeline :: Circuit (Kleisli IO) Either FilePath ()
-filePipeline =
-  Lift (Kleisli (flip openFile ReadMode))   -- acquire
-    >>> wordPipeline                          -- use (via Knot)
-    >>> Lift (Kleisli hClose)                 -- release
-```
-
-Add a queue at the front for buffered reads:
-
-```haskell
-bufferedPipeline :: Circuit (Kleisli IO) Either FilePath ()
-bufferedPipeline =
-  Lift (Kleisli openFile)
-    >>> fromQueue fileQueue                   -- buffered line source
-    >>> wordPipeline
-    >>> toQueue outputQueue                   -- buffered output sink
-    >>> Lift (Kleisli hClose)
-```
-
-The queue stages are `Knot` constructors with `Either` — the same
-pattern as the read loop, applied to buffering. All three sibling
-libraries use the same three constructors.
 
 ## references
 
