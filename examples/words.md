@@ -16,8 +16,7 @@ cabal repl circuits
 
 ```mermaid
 flowchart TD
-    subgraph Loop["Knot (Either) — per-line read-count loop"]
-        B["Right ()"] --> C["init Map.empty"]
+    B["Right ()"] --> C["init Map.empty"]
         C --> D{"hIsEOF ?"}
         D -->|"no"| E["hGetLine\nString"]
         E --> F["words\n[String]"]
@@ -26,7 +25,6 @@ flowchart TD
         H --> I["foldl' insertCount\nMap String Int → Map String Int"]
         I --> J["Left (new Map)"]
         J -.->|"feedback"| D
-    end
 
     D -->|"yes"| K["Map.toList\n[(String, Int)]"]
     K --> L["sortOn (Down . snd)\n[(String, Int)]"]
@@ -34,8 +32,6 @@ flowchart TD
     M --> N["fmt: w ++ ': ' ++ show c\nString"]
     N --> O["unlines\nString"]
     O --> P["putStr\nIO ()"]
-
-    style Loop fill:#f0f4ff,stroke:#3b82f6
 ```
 
 Ten named functions. Each can be tested in isolation, rearranged, or replaced.
@@ -177,8 +173,7 @@ With circuits-meter, timing is a one-liner. Wrap each `Lift` stage with
 
 ```mermaid
 flowchart TD
-    subgraph Loop["Knot (Either) — timed per-line"]
-        B["Right ()"] --> C["init Map.empty"]
+    B["Right ()"] --> C["init Map.empty"]
         C --> D{"hIsEOF ? ⏱ 0.1ms"}
         D -->|"no"| E["hGetLine ⏱ 1.2ms"]
         E --> F["words ⏱ 0.01ms"]
@@ -187,7 +182,6 @@ flowchart TD
         H --> I["foldl' insertCount ⏱ 0.05ms"]
         I --> J["Left"]
         J -.->|"feedback"| D
-    end
 
     D -->|"yes"| K["Map.toList ⏱ 0.01ms"]
     K --> L["sortOn Down ⏱ 0.1ms"]
@@ -195,8 +189,6 @@ flowchart TD
     M --> N["fmtRow"]
     N --> O["unlines"]
     O --> P["putStr ⏱ total: 62ms"]
-
-    style Loop fill:#f0f4ff,stroke:#3b82f6
 ```
 
 The code change is wrapping each component:
