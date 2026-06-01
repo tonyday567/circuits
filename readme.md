@@ -87,6 +87,32 @@ fromList [("the",1523),("and",779),("to",720),("a",616),("she",501)]
 
 The Either tensor gives you iteration for free — `Left` continues, `Right` exits. Both the Handle and the accumulator ride the feedback channel as explicit state. For the full pipeline with isolated components, a mermaid diagram, and one-line metering, see [examples/words.md](examples/words.md).
 
+## 📊 why circuits
+
+With circuits-meter, timing is a one-liner. Here's the same word-count pipeline with wall-clock timings on every component:
+
+```mermaid
+flowchart TD
+    B["Right ()"] --> C["init Map.empty"]
+    C --> D{"hIsEOF ? ⏱ 0.1ms"}
+    D -->|"no"| E["hGetLine ⏱ 1.2ms"]
+    E --> F["words ⏱ 0.01ms"]
+    F --> G["map toLower ⏱ 0.02ms"]
+    G --> H["filter (not . null) ⏱ 0.01ms"]
+    H --> I["foldl' insertCount ⏱ 0.05ms"]
+    I --> J["Left"]
+    J -.->|"feedback"| D
+
+    D -->|"yes"| K["Map.toList ⏱ 0.01ms"]
+    K --> L["sortOn Down ⏱ 0.1ms"]
+    L --> M["take 5"]
+    M --> N["fmtRow"]
+    N --> O["unlines"]
+    O --> P["putStr ⏱ total: 62ms"]
+```
+
+Each component can be metered independently — the circuit structure makes the insertion points obvious. [examples/words.md](examples/words.md) has the full code.
+
 ## 📦 Application
 
 circuits is being developed alongside:

@@ -12,8 +12,6 @@ cabal repl circuits
 
 ## the circuit
 
-<img src="words-circuit.svg" width="40%" alt="circuit diagram" />
-
 ```mermaid
 flowchart TD
     B["Right ()"] --> C["init Map.empty"]
@@ -168,8 +166,6 @@ wordCount path =
 
 With circuits-meter, timing is a one-liner. Wrap each `Lift` stage with
 `meterIO` and the diagram gains a column:
-
-<img src="words-metered.svg" width="40%" alt="metered diagram" />
 
 ```mermaid
 flowchart TD
