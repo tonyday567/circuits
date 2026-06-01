@@ -6,3 +6,4 @@
 *.dyn_o
 .hie/
 dist-mcabal/
+.ghc.environment.*
