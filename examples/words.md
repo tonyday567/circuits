@@ -4,11 +4,34 @@ Counting word frequencies from a file, reporting the commons. A pipeline
 built from named components, composed with Circuit's three constructors,
 metered in one line.
 
+⧈ weaves
+  ⧈ ban do notation — rewrite loopBody, wordPipeline, wordCount using only
+     `>>=`, `>=>`, `>>>`, and point-free composition. no `do` blocks anywhere.
+  ⧈ missing imports — add `Data.Function (&)` and `Data.List (foldl')` to
+     the components import block. verify all imports are exactly what's needed.
+  ⧈ `foldl` → `foldl'` — line 75 uses lazy `foldl`, needs strict `foldl'`.
+  ⧈ compile — `cabal build circuits` must succeed with this file as a module
+     or with all definitions pasted into `cabal repl circuits`.
+  ⧈ run — execute against `other/alice.md`, verify output matches expected
+     top-5. if alice.md isn't in the repo, use any text file ≥100 lines.
+  ⧈ meter — add `circuits-meter` as a dependency (or cabal repl with both
+     packages). import `Circuit.Meter.Time (meterIO)`. wrap hGetLineIO and
+     the full pipeline. capture real wall-clock timings. replace the
+     placeholder numbers in the metered mermaid diagram with actual values.
+  ⧈ diagram sync — if component names or counts change during implementation,
+     update both mermaid diagrams to match.
+  ⧈ scratch circuits-parser and circuits-io from references if not used in
+     the final runnable example. keep only the deps actually needed.
+
 Copy code blocks into the repl:
 
 ```
 cabal repl circuits
 ```
+
+⧈ verify — after `cabal repl circuits`, paste each code block in order.
+  all definitions must load without error. the final `wordCount` invocation
+  must produce output.
 
 ## the circuit
 
@@ -45,7 +68,8 @@ input, check the output.
 import Control.Arrow (Kleisli (..), runKleisli)
 import Control.Category ((>>>))
 import Data.Char (toLower)
-import Data.List (sortOn)
+import Data.Function ((&))
+import Data.List (foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..))
@@ -72,7 +96,7 @@ insertCount acc w =
   Map.insertWith (+) w (1 :: Int) acc
 
 foldCounts :: [String] -> Map String Int -> Map String Int
-foldCounts = flip (foldl insertCount)
+foldCounts = flip (foldl' insertCount)  -- ⧈ was foldl, must be foldl'
 
 -- * output components
 
@@ -100,16 +124,17 @@ constructor wraps — it takes `Either state ()` and returns
 `Right` means "done".
 
 ```haskell
+-- ⧈ rewrite without do-notation: use >>= and point-free composition
 loopBody
   :: Handle
   -> Either (Map String Int) ()
   -> IO (Either (Map String Int) (Map String Int))
 loopBody h (Right ()) = loopBody h (Left Map.empty)
-loopBody h (Left acc) = do
+loopBody h (Left acc) = do  -- ⧈ kill this do
   eof <- hIsEOF h
   if eof
     then pure (Right acc)
-    else do
+    else do  -- ⧈ kill this do
       line <- hGetLineIO h
       let ws = line
             & splitWords
@@ -129,12 +154,13 @@ Three constructors. `Knot` holds the loop open. `Lift` bookends it
 with the format-and-print stage.
 
 ```haskell
+-- ⧈ rewrite without do-notation
 wordPipeline
   :: Handle
   -> Circuit (Kleisli IO) Either () ()
 wordPipeline h =
   Knot (Kleisli (loopBody h))
-    >>> Lift (Kleisli $ \acc -> do
+    >>> Lift (Kleisli $ \acc -> do  -- ⧈ kill this do, use point-free
         let out = acc
               & assocList
               & sortFreq
@@ -147,12 +173,13 @@ wordPipeline h =
 ## running it
 
 ```haskell
+-- ⧈ rewrite without do-notation
 wordCount :: FilePath -> IO ()
 wordCount path =
   withFile path ReadMode $ \h ->
     runKleisli (reify (wordPipeline h)) ()
 
--- >>> wordCount "other/alice.md"
+-- ⧈ expected output (run against other/alice.md or similar):
 -- the: 1523
 -- and: 779
 -- to: 720
@@ -190,17 +217,20 @@ flowchart TD
 The code change is wrapping each component:
 
 ```haskell
+-- ⧈ uncomment and verify against circuits-meter API
 -- import Circuit.Meter.Time (meterIO)
 
 meteredLine :: Kleisli IO Handle String
 meteredLine = meterIO (Kleisli hGetLineIO)
 
+-- ⧈ verify: does meterIO return (Word64, a)? adjust type signature if needed.
 -- then use meteredLine in place of hGetLineIO inside loopBody
 ```
 
 For wall-clock timing of the entire pipeline:
 
 ```haskell
+-- ⧈ uncomment and verify. replace placeholder ms with actual measurement.
 -- (wall, ()) <- runKleisli (reify (meterIO wordPipeline)) h
 -- putStrLn $ show (fromIntegral wall / 1e6) <> " ms"
 ```
