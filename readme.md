@@ -63,55 +63,52 @@ Compiles on MicroHS & GHC 9.10+ with `base` & `profunctors`
 
 ```haskell
 import Circuit
+import System.IO
+import Control.Arrow
 
 -- Fibonacci via knot-tying
 >>> take 5 (trace (\(fibs, ()) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs)) () :: [Integer])
 [0,1,1,2,3]
 
--- Word count from a file: see examples/words.md for the full pipeline
--- with diagram, isolated components, and one-line metering.
+-- Open, read, close as explicit circuit stages
 >>> :{
-let countStep (Right (h, acc)) = do
-      eof <- hIsEOF h
-      if eof then pure (Right acc)
-      else hGetLine h >>= \line ->
-        pure (Left (h, foldl' (\m w -> Map.insertWith (+) w (1::Int) m) acc (words line)))
-    countStep (Left s) = countStep (Right s)
+let step (Left (h, acc)) = hIsEOF h >>= \eof ->
+      if eof then pure (Right (h, acc))
+      else hGetLine h >>= \line -> pure (Left (h, line : acc))
+    step (Right h) = pure (Left (h, []))
+    pipeline = Lift (Kleisli (\fp -> openFile fp ReadMode))
+             >>> Knot (Kleisli step)
+             >>> Lift (Kleisli (\(h, ls) -> hClose h >> pure (length ls)))
 :}
 
->>> withFile "other/alice.md" ReadMode $ \h ->
-      runKleisli (trace (Kleisli countStep)) (h, Map.empty :: Map String Int)
-    & fmap (take 5 . sortOn (Down . snd) . Map.toList)
-fromList [("the",1523),("and",779),("to",720),("a",616),("she",501)]
+>>> runKleisli (reify pipeline) "readme.md"
+149
 ```
 
-The Either tensor gives you iteration for free — `Left` continues, `Right` exits. Both the Handle and the accumulator ride the feedback channel as explicit state. For the full pipeline with isolated components, a mermaid diagram, and one-line metering, see [examples/words.md](examples/words.md).
+The Either tensor gives you iteration for free — `Left` continues, `Right` exits. Both the Handle and the accumulator ride the feedback channel as explicit state. For the full word-count pipeline with frequency analysis, metering, and a mermaid diagram, see the **[words](https://github.com/tonyday567/words)** repo.
 
 ## 📊 why circuits
 
-With circuits-meter, timing is a one-liner. Here's the same word-count pipeline with wall-clock timings on every component:
+With circuits-meter, timing is a one-liner. Here's the word-count pipeline:
 
 ```mermaid
 flowchart TD
-    B["Right ()"] --> C["init Map.empty"]
-    C --> D{"hIsEOF ? ⏱ 0.1ms"}
-    D -->|"no"| E["hGetLine ⏱ 1.2ms"]
-    E --> F["words ⏱ 0.01ms"]
-    F --> G["map toLower ⏱ 0.02ms"]
-    G --> H["filter (not . null) ⏱ 0.01ms"]
-    H --> I["foldl' insertCount ⏱ 0.05ms"]
-    I --> J["Left"]
+    A["FilePath"] --> B["openf"]
+    B --> C["Handle"]
+    C --> D{"hIsEOF ?"}
+    D -->|"no"| E["hGetLine"]
+    E --> F["words"]
+    F --> G["map toLower"]
+    G --> H["filter (not . null)"]
+    H --> I["foldl' insertCount"]
+    I --> J["Left (acc, Handle)"]
     J -.->|"feedback"| D
-
-    D -->|"yes"| K["Map.toList ⏱ 0.01ms"]
-    K --> L["sortOn Down ⏱ 0.1ms"]
-    L --> M["take 5"]
-    M --> N["fmtRow"]
-    N --> O["unlines"]
-    O --> P["putStr ⏱ total: 62ms"]
+    D -->|"yes"| K["Right (Handle, Map)"]
+    K --> L["hClose + fmtTable"]
+    L --> M["String"]
 ```
 
-Each component can be metered independently — the circuit structure makes the insertion points obvious. [examples/words.md](examples/words.md) has the full code.
+Each component can be metered independently — the circuit structure makes the insertion points obvious. The full runnable source is in the **[words](https://github.com/tonyday567/words)** repo.
 
 ## 📦 Application
 
