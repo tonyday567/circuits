@@ -88,10 +88,12 @@ data Circuit arr t a b where
   -- 12
   Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
   -- | Knot ties a feedback loop. The tensor @t@ carries the channel type.
+  -- The body is a 'Circuit' so the loop wiring is inspectable before
+  -- 'reify' closes it.
   --
-  -- >>> reify (Knot (\(acc, x) -> (x, acc)) :: Circuit (->) (,) Int Int) 42
+  -- >>> reify (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (->) (,) Int Int) 42
   -- 42
-  Knot :: arr (t a b) (t a c) -> Circuit arr t b c
+  Knot :: Circuit arr t (t a b) (t a c) -> Circuit arr t b c
 
 -- | A traced circuit over plain functions with the cartesian tensor.
 --
@@ -146,9 +148,9 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 -- 6
 reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
 reify (Lift f) = f
-reify (Compose (Knot f) g) = trace (f . untrace (reify g))
+reify (Compose (Knot f) g) = trace (reify f . untrace (reify g))
 reify (Compose f g) = reify f . reify g
-reify (Knot k) = trace k
+reify (Knot k) = trace (reify k)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.

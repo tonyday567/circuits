@@ -186,7 +186,7 @@ instance Trace Hyper (,) where
 encode :: Circuit (->) (,) a b -> Hyper a b
 encode (Lift f) = lift f
 encode (Compose f g) = encode f . encode g
-encode (Knot f) = trace (lift f)
+encode (Knot k) = trace (encode k)
 
 -- | Encode an Either-loop as a self-referential Hyper.
 --

@@ -146,4 +146,4 @@ transpose tr = \case
 upgrade :: C.Circuit arr t a b -> Net arr t a b
 upgrade (C.Lift f) = Lift f
 upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
-upgrade (C.Knot f) = Knot (Lift f)
+upgrade (C.Knot f) = Knot (upgrade f)

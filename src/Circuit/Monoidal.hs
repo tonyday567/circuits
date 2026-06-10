@@ -28,13 +28,14 @@ module Circuit.Monoidal
 where
 
 #ifdef __GLASGOW_HASKELL__
+import Control.Category (Category)
 import Data.Profunctor (Profunctor, dimap)
 import Data.Bifunctor (Bifunctor (..))
 #else
-import Circuit.Classes (Profunctor, Bifunctor (..))
+import Circuit.Classes (Profunctor, Bifunctor (..), Category)
 #endif
 
-import Circuit.Circuit (Circuit (..))
+import Circuit.Circuit (Circuit (..), reify)
 import Circuit.Traced (Trace (..))
 
 -- ===========================================================================
@@ -71,7 +72,7 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the braid supplied by the 'Braided' instance.
 ambient ::
-  (Profunctor arr, Trace arr t, Braided t) =>
+  (Category arr, Profunctor arr, Trace arr t, Braided t) =>
   Circuit arr t a b -> Circuit arr t (t s a) (t s b)
 ambient = ambientBy braid
 
@@ -187,13 +188,13 @@ coreleaseR _ (Left a) = Left a
 -- ("st",6)
 --
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> Circuit.Circuit.reify (ambientBy braid (Knot step)) ("st", ())
+-- >>> Circuit.Circuit.reify (ambientBy braid (Knot (Lift step))) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Profunctor arr, Trace arr t) =>
+  (Category arr, Profunctor arr, Trace arr t) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
   Circuit arr t a b ->
   Circuit arr t (t s a) (t s b)
 ambientBy _br (Lift f) = Lift (untrace f)
 ambientBy br (Compose f g) = Compose (ambientBy br f) (ambientBy br g)
-ambientBy br (Knot k) = Knot (dimap br br (untrace k))
+ambientBy br (Knot k) = Knot (Lift (dimap br br (untrace (reify k))))

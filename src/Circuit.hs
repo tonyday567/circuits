@@ -31,7 +31,7 @@
 -- >>> lower (encode (Lift (+1) :: Circuit (->) (,) Int Int)) 41
 -- 42
 --
--- >>> reify (Knot (\(acc, x) -> (x, acc)) :: Circuit (->) (,) Int Int) 0
+-- >>> reify (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (->) (,) Int Int) 0
 -- 0
 --
 -- == Overview
