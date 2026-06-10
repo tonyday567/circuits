@@ -81,9 +81,6 @@ module Circuit
     Dup (..),
     Linear,
 
-    -- * Automatic differentiation
-    D (..),
-
     -- * Net
     Net,
     transpose,
@@ -164,9 +161,6 @@ import Circuit.Traced
   )
 import Circuit.Additive
   ( Additive (..),
-  )
-import Circuit.AD
-  ( D (..),
   )
 import Circuit.Dup
   ( Dup (..),
