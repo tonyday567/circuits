@@ -24,14 +24,14 @@
 --
 -- @transpose :: Net arr t a b -> Net arr t b a@ is structural recursion
 -- over the syntax: 'Compose' reverses, 'Copy' swaps with 'Add', 'Discard'
--- with 'Zero', 'Knot' with itself.  Only 'Lift' and 'Knot' require the
--- base arrow to be transposable; the spine is always reversible.
+-- with 'Zero', 'Knot' with itself (recurring into the body).  Only 'Lift'
+-- requires the base arrow to be transposable; the spine is always reversible.
 --
--- = Relationship to Circuit
+-- = Status
 --
--- @upgrade :: Circuit arr t a b -> Net arr t a b@ is constructor-to-constructor.
--- @forget :: Net arr t a b -> Circuit arr t a b@ dissolves structural rows
--- into opaque 'Lift' calls — lossy, like 'flatten' for 'Hyper'.
+-- Instances for 'Dup' @(->)@ and 'Additive' @(->)@ exist ('Circuit.Instances').
+-- Instances for @D@ exist ('Circuit.AD' in @circuits-ad@).  'forget' and
+-- 'reify' are not yet implemented — 'MonoidalP' is the prerequisite.
 module Circuit.Net
   ( -- * Net
     Net (..),
