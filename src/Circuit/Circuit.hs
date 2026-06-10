@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | The free traced monoidal category.
@@ -44,6 +45,11 @@ module Circuit.Circuit
 
     -- * Operators
     reify,
+
+    -- * Channel ends
+    Co (..),
+    Contra (..),
+    close,
   )
 where
 
@@ -143,3 +149,36 @@ reify (Lift f) = f
 reify (Compose (Knot f) g) = trace (f . untrace (reify g))
 reify (Compose f g) = reify f . reify g
 reify (Knot k) = trace k
+
+-- ---------------------------------------------------------------------------
+-- Channel ends — the companion and conjoint of the identity functor.
+
+-- | 'Co' is the companion of the identity functor in the proarrow equipment
+-- over 'Circuit'.  Covariant in @a@ (sits in the output position).
+--
+-- Given a 'Contra' (the other end), produce a circuit from any @x@ to @a@.
+-- The @x@ is universally quantified — 'Co' must either return a constant
+-- or call the other end.
+newtype Co arr t a = Co
+  { -- | Run the companion, supplying the other end.
+    runContra :: forall x. Contra arr t x -> Circuit arr t x a
+  }
+
+-- | 'Contra' is the conjoint of the identity functor.  Contravariant in
+-- @a@ (sits in the input position).
+--
+-- Given a 'Co' (the other end), produce a circuit from @a@ to any @x@.
+-- The @x@ is universally quantified — 'Contra' must call the other end
+-- to determine what to return.
+newtype Contra arr t a = Contra
+  { -- | Run the conjoint, supplying the other end.
+    runCo :: forall x. Co arr t x -> Circuit arr t a x
+  }
+
+-- | @ε@ — the counit of the companion/conjoint adjunction.
+--
+-- Plug two channel ends together, producing a circuit from @a@ to @a@.
+-- This is the yanking identity: eliminating the ends recovers the
+-- underlying profunctor on the diagonal.
+close :: Contra arr t a -> Co arr t a -> Circuit arr t a a
+close contra = runCo contra

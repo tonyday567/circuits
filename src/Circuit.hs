@@ -65,6 +65,9 @@ module Circuit
     Circuit (..),
     Wire,
     Step,
+    Co (..),
+    Contra (..),
+    close,
     reify,
 
     -- * Traced
@@ -106,6 +109,9 @@ import Circuit.Circuit
   ( Circuit (..),
     Step,
     Wire,
+    Co (..),
+    Contra (..),
+    close,
     reify,
   )
 import Circuit.Hyper
