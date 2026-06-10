@@ -77,8 +77,17 @@ module Circuit
     -- * Additive
     Additive (..),
 
+    -- * Dup
+    Dup (..),
+    Linear,
+
     -- * Automatic differentiation
     D (..),
+
+    -- * Net
+    Net,
+    transpose,
+    upgrade,
 
     -- * Hyper
     Hyper (..),
@@ -158,4 +167,13 @@ import Circuit.Additive
   )
 import Circuit.AD
   ( D (..),
+  )
+import Circuit.Dup
+  ( Dup (..),
+    Linear,
+  )
+import Circuit.Net
+  ( Net,
+    transpose,
+    upgrade,
   )

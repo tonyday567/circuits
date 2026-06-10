@@ -71,8 +71,10 @@ library
     Circuit.AD
     Circuit.Circuit
     Circuit.Classes
+    Circuit.Dup
     Circuit.Hyper
     Circuit.Monoidal
+    Circuit.Net
     Circuit.Traced
 
   build-depends:
