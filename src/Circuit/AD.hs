@@ -26,6 +26,9 @@
 module Circuit.AD
   ( -- * Differentiable arrow
     D (..),
+
+    -- * Trace variants
+    traceN,
   )
 where
 
@@ -35,6 +38,7 @@ import Control.Category
 import Circuit.Classes
 #endif
 
+import Circuit.Additive (Additive (..))
 import Circuit.Traced (Trace (..))
 import Prelude hiding (id, (.))
 
@@ -96,3 +100,39 @@ instance Trace D (,) where
   untrace (D f) = D $ \(a, b) ->
     let (c, back) = f b
      in ((a, c), \(da, dc) -> (da, back dc))
+
+-- | Iterated trace for strict carriers.
+--
+-- The lazy 'trace' diverges on strict cotangent types ('Double', etc.) when
+-- the feedback channel has nonzero self-coupling (@∂a_out\/∂a_in ≠ 0@).
+-- 'traceN' replaces the lazy knot with a truncated Neumann series:
+--
+--   * __Forward__ — fixed-point iteration from 'zero', N steps.
+--   * __Backward__ — path summation through N iterations, accumulating
+--     via 'plus'.  This is the particle-style execution formula made
+--     operational: @Σⁿ Jᵀⁿ b@ with an explicit truncation policy.
+--
+-- Lives beside the lawful-but-lazy instance, not replacing it.  Use when
+-- the cotangent carrier is strict; use 'trace' when it is lazy (streams,
+-- any type with a productive constructor to hide behind).
+traceN ::
+  (Additive (->) a, Additive (->) b) =>
+  Int ->
+  D (a, b) (a, c) ->
+  D b c
+traceN n (D body) = D $ \b ->
+  let -- Forward: fixed-point iteration from zero
+      a0 = zero ()
+      stepFwd x = let ((x', _), _) = body (x, b) in x'
+      a = iterate stepFwd a0 !! n
+      ((_, c), backward) = body (a, b)
+      pullback dc =
+        let das = take n $ iterate (\da -> fst (backward (da, dc))) (zero ())
+         in foldr
+              ( \da acc ->
+                  let (_, db) = backward (da, dc)
+                   in plus (db, acc)
+              )
+              (zero ())
+              das
+   in (c, pullback)
