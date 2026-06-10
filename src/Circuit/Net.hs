@@ -105,19 +105,21 @@ data Net arr t a b where
   -- | Zero: the neutral element.  Requires 'Linear'.
   Zero :: Linear arr a => Net arr t () a
 
-  -- | Feedback loop — unchanged from 'Circuit'.
-  Knot :: arr (t a b) (t a c) -> Net arr t b c
+  -- | Feedback loop.  The body is a 'Net', not an opaque base arrow —
+  -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Add' within
+  -- the loop.  Normal form: 'fuse' collects all feedback into a single
+  -- outermost 'Knot' around knot-free wiring.
+  Knot :: Net arr t (t a b) (t a c) -> Net arr t b c
 
 -- | Transpose a 'Net' — the backward circuit as inspectable syntax.
 --
 -- The structural rows are self-dual under transposition:
--- 'Compose' reverses, 'Copy' ↔ 'Add', 'Discard' ↔ 'Zero', 'Knot' ↔ 'Knot'.
--- 'Perm' flips its pair.
+-- 'Compose' reverses, 'Copy' ↔ 'Add', 'Discard' ↔ 'Zero',
+-- 'Knot' ↔ 'Knot' (recurring into the body).  'Perm' flips its pair.
 --
--- Only 'Lift' and 'Knot' require the base arrow to be transposable —
--- hence the explicit @tr@ argument.  On a linear base (where @tr f@ is
--- the honest adjoint), the 'Knot' clause is the implicit function theorem
--- as a constructor map: @tr(f)ᵀ = tr(fᵀ)@.
+-- Only 'Lift' requires the base arrow to be transposable — hence the
+-- explicit @tr@ argument.  'Knot' bodies are 'Net' wiring, so
+-- 'transpose' can reach inside loops.
 transpose ::
   (forall x y. arr x y -> arr y x) ->
   Net arr t a b ->
@@ -132,15 +134,16 @@ transpose tr = \case
   Add -> Copy
   Discard -> Zero
   Zero -> Discard
-  Knot f -> Knot (tr f)
+  Knot f -> Knot (transpose tr f)
 
 -- | Upgrade a 'Circuit' to a 'Net' — constructor-to-constructor.
 --
 -- The structural rows ('Par', 'Copy', 'Add', etc.) are absent from
 -- 'Circuit', so upgrading a lifted 'Circuit' produces a 'Net' with
 -- only 'Lift', 'Compose', and 'Knot' — the same information, now in
--- a GADT that can hold more.
+-- a GADT that can hold more.  'Circuit.Knot' lifts to 'Net.Lift' body
+-- inside 'Net.Knot'.
 upgrade :: C.Circuit arr t a b -> Net arr t a b
 upgrade (C.Lift f) = Lift f
 upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
-upgrade (C.Knot f) = Knot f
+upgrade (C.Knot f) = Knot (Lift f)

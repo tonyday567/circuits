@@ -28,7 +28,7 @@ module Circuit.AD
     D (..),
 
     -- * Trace variants
-    traceN,
+    traceNFrom,
   )
 where
 
@@ -105,34 +105,34 @@ instance Trace D (,) where
 --
 -- The lazy 'trace' diverges on strict cotangent types ('Double', etc.) when
 -- the feedback channel has nonzero self-coupling (@∂a_out\/∂a_in ≠ 0@).
--- 'traceN' replaces the lazy knot with a truncated Neumann series:
+-- 'traceNFrom' replaces the lazy knot with truncated fixed-point iteration.
 --
---   * __Forward__ — fixed-point iteration from 'zero', N steps.
---   * __Backward__ — path summation through N iterations, accumulating
---     via 'plus'.  This is the particle-style execution formula made
---     operational: @Σⁿ Jᵀⁿ b@ with an explicit truncation policy.
+--   * __Forward__ — iterate from caller-supplied seed @x0@, N steps.
+--     There is no canonical seed for the forward pass (the fixpoint is
+--     arbitrary nonlinear), so the caller provides one.
 --
--- Lives beside the lawful-but-lazy instance, not replacing it.  Use when
--- the cotangent carrier is strict; use 'trace' when it is lazy (streams,
--- any type with a productive constructor to hide behind).
-traceN ::
-  (Additive (->) a, Additive (->) b) =>
+--   * __Backward__ — iterate from 'zero', N steps, extract 'snd' once.
+--     The backward equation is guaranteed affine (calculus promises
+--     linearity in cotangents), so 'zero' is the principled seed.
+--     The Neumann summation happens /inside/ the iteration — no
+--     double-counting, and 'plus' retreats to where the theory says
+--     it lives: inside prims and 'Copy'.
+--
+-- Lives beside the lawful-but-lazy instance, not replacing it.
+traceNFrom ::
+  Additive (->) a =>
+  a ->
   Int ->
   D (a, b) (a, c) ->
   D b c
-traceN n (D body) = D $ \b ->
-  let -- Forward: fixed-point iteration from zero
-      a0 = zero ()
+traceNFrom x0 n (D body) = D $ \b ->
+  let -- Forward: iterate from caller-supplied seed
       stepFwd x = let ((x', _), _) = body (x, b) in x'
-      a = iterate stepFwd a0 !! n
+      a = iterate stepFwd x0 !! n
       ((_, c), backward) = body (a, b)
+      -- Backward: iterate from zero, extract result once
       pullback dc =
-        let das = take n $ iterate (\da -> fst (backward (da, dc))) (zero ())
-         in foldr
-              ( \da acc ->
-                  let (_, db) = backward (da, dc)
-                   in plus (db, acc)
-              )
-              (zero ())
-              das
+        let stepBwd da = fst (backward (da, dc))
+            da = iterate stepBwd (zero ()) !! n
+         in snd (backward (da, dc))
    in (c, pullback)
