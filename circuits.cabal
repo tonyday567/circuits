@@ -68,6 +68,7 @@ library
   exposed-modules:
     Circuit
     Circuit.Additive
+    Circuit.AD
     Circuit.Circuit
     Circuit.Classes
     Circuit.Hyper

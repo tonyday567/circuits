@@ -77,6 +77,9 @@ module Circuit
     -- * Additive
     Additive (..),
 
+    -- * Automatic differentiation
+    D (..),
+
     -- * Hyper
     Hyper (..),
     lift,
@@ -152,4 +155,7 @@ import Circuit.Traced
   )
 import Circuit.Additive
   ( Additive (..),
+  )
+import Circuit.AD
+  ( D (..),
   )
