@@ -72,6 +72,7 @@ library
     Circuit.Classes
     Circuit.Dup
     Circuit.Hyper
+    Circuit.Instances
     Circuit.Monoidal
     Circuit.Net
     Circuit.Traced

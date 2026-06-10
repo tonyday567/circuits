@@ -57,6 +57,8 @@ import Circuit.Dup (Dup (..), Linear)
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> 1 + 1 :: Int
+-- 2
 -- >>> import Circuit (Circuit(..))
 -- >>> import Circuit.Net
 -- >>> import Prelude hiding (id, (.))

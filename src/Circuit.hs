@@ -98,6 +98,9 @@ module Circuit
     runEither,
     flatten,
 
+    -- * Instances
+    MonoidalP (..),
+
     -- * Monoidal
     Braided (..),
     ambient,
@@ -137,6 +140,9 @@ import Circuit.Hyper
     push,
     run,
     runEither,
+  )
+import Circuit.Instances
+  ( MonoidalP (..),
   )
 import Circuit.Monoidal
   ( Braided (..),
