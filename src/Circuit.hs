@@ -74,6 +74,9 @@ module Circuit
     Trace (..),
     cellIO,
 
+    -- * Additive
+    Additive (..),
+
     -- * Hyper
     Hyper (..),
     lift,
@@ -146,4 +149,7 @@ import Circuit.Monoidal
 import Circuit.Traced
   ( Trace (..),
     cellIO,
+  )
+import Circuit.Additive
+  ( Additive (..),
   )

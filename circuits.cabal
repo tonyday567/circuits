@@ -67,6 +67,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Additive
     Circuit.Circuit
     Circuit.Classes
     Circuit.Hyper

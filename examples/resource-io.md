@@ -116,6 +116,50 @@ reach `Right ()` without releasing the resource.
 
 ---
 
+## Tier 4 — typed resource lifecycle with state
+
+The `Maybe Handle` pattern makes the resource lifecycle explicit in the
+type.  `Nothing` means not yet acquired; `Just h` means live.  The state
+carries an accumulator so the circuit returns a value on exit and can be
+bracketed with a meter.
+
+```haskell
+fileReaderState :: FilePath -> Circuit (Kleisli IO) Either (Maybe Handle, [String]) [String]
+fileReaderState path = loopIO \case
+  (Nothing, _) -> do                               -- acquire
+    h <- openFile path ReadMode
+    pure (Left (Just h, []))
+  (Just h, acc) -> do                              -- use + decide
+    eof <- hIsEOF h
+    if eof
+      then hClose h >> pure (Right (reverse acc))  -- release + exit
+      else do
+        line <- hGetLine h
+        pure (Left (Just h, line : acc))           -- continue
+
+-- >>> runKleisli (reify (fileReaderState "examples/resource-io.md")) (Nothing, [])
+```
+
+The state machine:
+
+```
+  (Nothing, _) → openFile → Left (Just h, []) ──┐
+                                                 │
+  ┌──────────────────────────────────────────────┘
+  │
+  ▼
+  (Just h, acc) → hIsEOF? ─── yes → hClose h → Right (reverse acc)
+            │
+            no → hGetLine → Left (Just h, line:acc) ──┘
+```
+
+The `Maybe` wrapper prevents use-before-acquire at the type level.  The
+accumulator turns the circuit into a producer of results, open for
+post-composition — bracket with `meterIO`, transform the output, or
+feed it into another circuit.
+
+---
+
 ## pattern
 
 | tier | state type | exit trigger | resource? |
@@ -123,12 +167,24 @@ reach `Right ()` without releasing the resource.
 | countdown | `Int` | `n <= 0` | none |
 | echo | `String` | `"quit"` in input | none |
 | file reader | `Handle` | EOF reached | yes |
+| file reader (typed) | `Maybe Handle` | EOF reached | yes, typed lifecycle |
 
 The guarantee: **the `Right` exit path is the single place where cleanup
 happens**.  For file handles this means `hClose` is always called.  For
 sockets, databases, or any other resource, the same structure applies:
 acquire on first call, carry the resource through `Left` feedback,
 release before returning `Right`.
+
+The `Maybe Handle` variant strengthens this: `Nothing` is unacquired,
+`Just h` is live.  The type prevents use-before-acquire.  The state
+slot makes the circuit composable — bracket with `meterIO`, map the
+output, or wire it downstream.
+
+🚩 **Prompt finalization on exception** is an open question.  The
+structural guarantee holds for normal exit through `Right`.  If an
+async exception strikes the `Kleisli IO` body mid-iteration, the handle
+may leak.  See `loom/ends-effectful.md` for the Bluefin/effectful
+comparison and the bracketing gap in `circuits-io`.
 
 ---
 
