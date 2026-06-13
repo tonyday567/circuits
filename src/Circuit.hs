@@ -74,17 +74,20 @@ module Circuit
     Trace (..),
     cellIO,
 
-    -- * Additive
+    -- * Dagger (bimonoid + duplex)
     Additive (..),
-
-    -- * Dup
     Dup (..),
+    Duplex (..),
     Linear,
+    ViaNum (..),
+    transposeDuplex,
 
     -- * Net
     Net,
     transpose,
     upgrade,
+    runNet,
+    forget,
 
     -- * Hyper
     Hyper (..),
@@ -97,9 +100,6 @@ module Circuit
     encodeEither,
     runEither,
     flatten,
-
-    -- * Instances
-    MonoidalP (..),
 
     -- * Monoidal
     Braided (..),
@@ -117,6 +117,9 @@ module Circuit
     coreleaseL,
     coreleaseR,
     ambientBy,
+
+    -- * Monoidal product
+    MonoidalP (..),
   )
 where
 
@@ -141,11 +144,9 @@ import Circuit.Hyper
     run,
     runEither,
   )
-import Circuit.Instances
-  ( MonoidalP (..),
-  )
 import Circuit.Monoidal
   ( Braided (..),
+    MonoidalP (..),
     absorb,
     ambient,
     ambientBy,
@@ -165,15 +166,18 @@ import Circuit.Traced
   ( Trace (..),
     cellIO,
   )
-import Circuit.Additive
+import Circuit.Dagger
   ( Additive (..),
-  )
-import Circuit.Dup
-  ( Dup (..),
+    Dup (..),
+    Duplex (..),
     Linear,
+    ViaNum (..),
+    transposeDuplex,
   )
 import Circuit.Net
   ( Net,
     transpose,
     upgrade,
+    runNet,
+    forget,
   )

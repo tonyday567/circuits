@@ -67,12 +67,10 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Additive
     Circuit.Circuit
     Circuit.Classes
-    Circuit.Dup
+    Circuit.Dagger
     Circuit.Hyper
-    Circuit.Instances
     Circuit.Monoidal
     Circuit.Net
     Circuit.Traced

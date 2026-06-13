@@ -29,9 +29,10 @@
 --
 -- = Status
 --
--- Instances for 'Dup' @(->)@ and 'Additive' @(->)@ exist ('Circuit.Instances').
--- Instances for @D@ exist ('Circuit.AD' in @circuits-ad@).  'forget' and
--- 'reify' are not yet implemented — 'MonoidalP' is the prerequisite.
+-- Instances for 'Dup' @(->)@ and 'Additive' @(->)@ exist.
+-- Instances for @D@ exist ('Circuit.AD' in @circuits-ad@).
+-- 'runNet' and 'forget' (netlist to circuit) are implemented; 'fuse' is
+-- conservative and does not achieve a single outermost 'Knot' in general.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -41,6 +42,13 @@ module Circuit.Net
 
     -- * Conversion
     upgrade,
+
+    -- * Normalization
+    fuse,
+
+    -- * Interpretation
+    runNet,
+    forget,
   )
 where
 
@@ -51,15 +59,16 @@ import Data.Profunctor
 import Circuit.Classes
 #endif
 
-import Circuit.Additive (Additive (..))
 import Circuit.Circuit qualified as C
-import Circuit.Dup (Dup (..), Linear)
+import Circuit.Dagger (Additive (..), Dup (..), Duplex (..), Linear)
+import Circuit.Monoidal (MonoidalP (..))
+import Circuit.Traced (Trace (..))
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> 1 + 1 :: Int
 -- 2
--- >>> import Circuit (Circuit(..))
+-- >>> import Circuit (Circuit(..), reify)
 -- >>> import Circuit.Net
 -- >>> import Prelude hiding (id, (.))
 
@@ -87,14 +96,6 @@ data Net arr t a b where
   -- | Symmetric braiding.
   Swap :: Net arr t (a, b) (b, a)
 
-  -- | Wire permutation (domain and codomain are the same multiset).
-  --
-  -- Bundles a permutation with its inverse so that transposition is
-  -- well-defined: @transpose (Perm f g) = Perm g f@.  Only sound
-  -- when @g . f = id@ and @f . g = id@ — orthogonal / permutation
-  -- maps.  The law is the caller's responsibility; document it.
-  Perm :: arr a b -> arr b a -> Net arr t a b
-
   -- | Copy: fan-out.  Requires both comonoid and monoid ('Linear').
   Copy :: Linear arr a => Net arr t a (a, a)
 
@@ -117,26 +118,24 @@ data Net arr t a b where
 --
 -- The structural rows are self-dual under transposition:
 -- 'Compose' reverses, 'Copy' ↔ 'Add', 'Discard' ↔ 'Zero',
--- 'Knot' ↔ 'Knot' (recurring into the body).  'Perm' flips its pair.
+-- 'Knot' ↔ 'Knot' (recurring into the body).
 --
--- Only 'Lift' requires the base arrow to be transposable — hence the
--- explicit @tr@ argument.  'Knot' bodies are 'Net' wiring, so
--- 'transpose' can reach inside loops.
+-- 'Lift' transposes via 'Duplex' field swap.  Only nets over
+-- 'Duplex' are transposable — the forward\/backward pairing is
+-- structural in the base arrow.
 transpose ::
-  (forall x y. arr x y -> arr y x) ->
-  Net arr t a b ->
-  Net arr t b a
-transpose tr = \case
-  Lift f -> Lift (tr f)
-  Compose f g -> Compose (transpose tr g) (transpose tr f)
-  Par f g -> Par (transpose tr f) (transpose tr g)
+  Net (Duplex arr) t a b ->
+  Net (Duplex arr) t b a
+transpose = \case
+  Lift (Duplex f g) -> Lift (Duplex g f)
+  Compose f g -> Compose (transpose g) (transpose f)
+  Par f g -> Par (transpose f) (transpose g)
   Swap -> Swap
-  Perm f g -> Perm g f
   Copy -> Add
   Add -> Copy
   Discard -> Zero
   Zero -> Discard
-  Knot f -> Knot (transpose tr f)
+  Knot f -> Knot (transpose f)
 
 -- | Upgrade a 'Circuit' to a 'Net' — constructor-to-constructor.
 --
@@ -149,3 +148,78 @@ upgrade :: C.Circuit arr t a b -> Net arr t a b
 upgrade (C.Lift f) = Lift f
 upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
 upgrade (C.Knot f) = Knot (upgrade f)
+
+-- | Interpret a 'Net' to a plain arrow.
+--
+-- The canonical map out of the free traced PROP with a bimonoid.
+-- Structural rows dispatch to their typeclass counterparts:
+-- 'Par' to 'parA', 'Copy' to 'dup', 'Add' to 'plus', etc.
+-- 'Knot' uses the 'Trace' instance on the base arrow.
+--
+-- >>> runNet (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int) 5
+-- 6
+runNet ::
+  (Trace arr t, MonoidalP arr) =>
+  Net arr t a b ->
+  arr a b
+runNet = \case
+  Lift f -> f
+  Compose (Knot f) g -> trace (runNet f . untrace (runNet g))
+  Compose g f -> runNet g . runNet f
+  Par f g -> parA (runNet f) (runNet g)
+  Swap -> swapA
+  Copy -> dup
+  Discard -> discard
+  Add -> plus
+  Zero -> zero
+  Knot f -> trace (runNet f)
+
+-- | Forget the structural rows of a 'Net', melting them into 'Lift' calls.
+--
+-- The forgetful map from the free traced PROP with bimonoid to the free
+-- traced monoidal category.  Structural rows become opaque base-arrow
+-- operations; sub-circuit structure is preserved where possible.
+--
+-- 'runNet' factors through 'forget': @runNet = reify . forget@.
+--
+-- >>> reify (forget (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int)) 5
+-- 6
+--
+-- | Collect all feedback into a single outermost 'Knot'.
+--
+-- Uses the sliding axiom to pull 'Knot' outward through 'Compose'.
+-- 'untraceNet' is semantic (structure is lost) — a syntactic
+-- untrace would require associators at the 'Net' level.
+fuse ::
+  (Trace arr t, MonoidalP arr) =>
+  Net arr t a b ->
+  Net arr t a b
+fuse = \case
+  Compose (Knot f) g
+    | not (isKnot g) -> Knot (Compose (fuse f) (untraceNet (fuse g)))
+  Compose f (Knot g)
+    | not (isKnot f) -> Knot (Compose (untraceNet (fuse f)) (fuse g))
+  Knot (Knot f) -> Knot (Knot (fuse f))
+  Knot f -> Knot (fuse f)
+  Compose f g -> Compose (fuse f) (fuse g)
+  Par f g -> Par (fuse f) (fuse g)
+  other -> other
+  where
+    isKnot (Knot _) = True
+    isKnot _ = False
+    untraceNet f = Lift (untrace (runNet f))
+
+forget ::
+  (Trace arr t, MonoidalP arr) =>
+  Net arr t a b ->
+  C.Circuit arr t a b
+forget = \case
+  Lift f -> C.Lift f
+  Compose g f -> C.Compose (forget g) (forget f)
+  Par f g -> C.Lift (parA (runNet f) (runNet g))
+  Swap -> C.Lift swapA
+  Copy -> C.Lift dup
+  Discard -> C.Lift discard
+  Add -> C.Lift plus
+  Zero -> C.Lift zero
+  Knot f -> C.Knot (forget f)

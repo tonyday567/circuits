@@ -24,6 +24,9 @@ module Circuit.Monoidal
     coreleaseL,
     coreleaseR,
     ambientBy,
+
+    -- * Monoidal product on base arrows
+    MonoidalP (..),
   )
 where
 
@@ -198,3 +201,30 @@ ambientBy ::
 ambientBy _br (Lift f) = Lift (untrace f)
 ambientBy br (Compose f g) = Compose (ambientBy br f) (ambientBy br g)
 ambientBy br (Knot k) = Knot (Lift (dimap br br (untrace (reify k))))
+
+-- ===========================================================================
+-- MonoidalP — parallel composition for product categories
+-- ===========================================================================
+
+-- | A monoidal product on base arrows.
+--
+-- 'parA' composes two arrows in parallel (disjoint wires — no interaction,
+-- so no 'Additive' constraint).  'swapA' is the symmetric braiding.
+class Category arr => MonoidalP arr where
+  -- | Parallel composition: run two arrows on disjoint wires.
+  --
+  -- >>> parA ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
+  -- (4,8)
+  parA :: arr a b -> arr c d -> arr (a, c) (b, d)
+
+  -- | Symmetric braiding.
+  --
+  -- >>> swapA (3, 4) :: (Int, Int)
+  -- (4,3)
+  swapA :: arr (a, b) (b, a)
+
+instance MonoidalP (->) where
+  parA f g (a, c) = (f a, g c)
+  {-# INLINE parA #-}
+  swapA (a, b) = (b, a)
+  {-# INLINE swapA #-}
