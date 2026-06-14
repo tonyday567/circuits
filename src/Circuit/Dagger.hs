@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -9,33 +8,30 @@
 -- This module collects the algebraic structure that every wire carries in a
 -- circuit category:
 --
--- * 'Additive' — the monoid on channel objects (fan-in of cotangents).
--- * 'Dup' — the comonoid on channel objects (fan-out of values).
--- * 'Linear' — both together, the precondition for 'Circuit.Net.transpose'.
--- * 'Duplex' — the free dagger category over a base arrow, pairing a forward
---   arrow with a backward arrow.
+-- * 'Monoid' — the monoid on channel objects (fan-in of cotangents).
+-- * 'Comonoid' — the comonoid on channel objects (fan-out of values).
+-- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
+-- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
+--   arrow with a backward arrow.  'transpose' is the dagger operation.
 --
 -- The four structural rows of 'Circuit.Net' ('Copy', 'Discard', 'Add',
 -- 'Zero') are exactly the generators of this bimonoid.  In a dagger setting,
--- copy and add are adjoint, as are discard and zero.  'Duplex' makes that
--- duality explicit: a duplex wire's forward direction copies while its
+-- copy and add are adjoint, as are discard and zero.  'Dagger' makes that
+-- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
 module Circuit.Dagger
-  ( -- * Additive (monoid)
-    Additive (..),
+  ( -- * Monoid
+    Monoid (..),
 
-    -- * DerivingVia newtypes
-    ViaNum (..),
+    -- * Comonoid
+    Comonoid (..),
 
-    -- * Dup (comonoid)
-    Dup (..),
+    -- * Bimonoid
+    Bimonoid,
 
-    -- * Linear (bimonoid)
-    Linear,
-
-    -- * Duplex (dagger)
-    Duplex (..),
-    transposeDuplex,
+    -- * Dagger
+    Dagger (..),
+    transpose,
   )
 where
 
@@ -47,19 +43,17 @@ import Circuit.Classes
 
 import Circuit.Monoidal (MonoidalP (..))
 import Circuit.Traced (Trace (..))
-import Prelude hiding (id, (.))
+import Prelude hiding (Monoid, id, (.))
 
 -- $setup
--- >>> 1 + 1 :: Int
--- 2
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Monoidal (MonoidalP (..))
 -- >>> import Circuit.Traced (Trace (..))
 -- >>> import Control.Category
--- >>> import Prelude hiding (id, (.))
+-- >>> import Prelude hiding (id, (.), Monoid)
 
 -- ---------------------------------------------------------------------------
--- Additive: monoid structure on channel objects
+-- Monoid: monoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
 -- | A commutative monoid on channel objects.
@@ -67,23 +61,26 @@ import Prelude hiding (id, (.))
 -- Not the same as arithmetic '+'; this is the operation by which parallel
 -- contributions to the same wire combine.  In reverse-mode AD, fan-out on
 -- the forward pass becomes fan-in (summation) on the backward pass.
-class Additive arr a where
+class Monoid arr a where
   -- | Combine two values of the channel type.
   plus :: arr (a, a) a
 
   -- | The neutral element.
   zero :: arr () a
 
--- | Newtype for deriving 'Additive' from 'Num'.
-newtype ViaNum a = ViaNum {unViaNum :: a}
-
-instance (Num a) => Additive (->) (ViaNum a) where
-  plus (x, y) = ViaNum (unViaNum x + unViaNum y)
+-- | The unit type carries the trivial monoid.
+--
+-- >>> plus ((), ()) :: ()
+-- ()
+-- >>> zero () :: ()
+-- ()
+instance Monoid (->) () where
+  plus _ = ()
   {-# INLINE plus #-}
-  zero _ = ViaNum 0
+  zero _ = ()
   {-# INLINE zero #-}
 
--- | Concrete numeric carriers via 'ViaNum'.
+-- | Numeric carriers.  'plus' is addition, 'zero' is 0.
 --
 -- >>> plus (1, 2) :: Int
 -- 3
@@ -93,26 +90,52 @@ instance (Num a) => Additive (->) (ViaNum a) where
 -- 3.0
 -- >>> zero () :: Double
 -- 0.0
-deriving via ViaNum Double instance Additive (->) Double
-deriving via ViaNum Int    instance Additive (->) Int
-
--- | The unit type carries the trivial monoid.
---
--- >>> plus ((), ()) :: ()
--- ()
--- >>> zero () :: ()
--- ()
-instance Additive (->) () where
-  plus _ = ()
+instance Monoid (->) Int where
+  plus = uncurry (+)
   {-# INLINE plus #-}
-  zero _ = ()
+  zero _ = 0
+  {-# INLINE zero #-}
+
+instance Monoid (->) Integer where
+  plus = uncurry (+)
+  {-# INLINE plus #-}
+  zero _ = 0
+  {-# INLINE zero #-}
+
+instance Monoid (->) Double where
+  plus = uncurry (+)
+  {-# INLINE plus #-}
+  zero _ = 0
+  {-# INLINE zero #-}
+
+instance Monoid (->) Float where
+  plus = uncurry (+)
+  {-# INLINE plus #-}
+  zero _ = 0
+  {-# INLINE zero #-}
+
+-- | Boolean monoid under disjunction.
+--
+-- Idempotent: @plus . copy = id@ — the relations/Boolean profile where
+-- @True || True = True@.  'Trace' 'Either' loops terminate without
+-- truncated iteration because countable sums in an idempotent monoid
+-- converge.
+--
+-- >>> plus (True, False) :: Bool
+-- True
+-- >>> zero () :: Bool
+-- False
+instance Monoid (->) Bool where
+  plus = uncurry (||)
+  {-# INLINE plus #-}
+  zero _ = False
   {-# INLINE zero #-}
 
 -- | Componentwise addition on pairs.  Vanishing depends on this.
 --
 -- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
-instance (Additive (->) a, Additive (->) b) => Additive (->) (a, b) where
+instance (Monoid (->) a, Monoid (->) b) => Monoid (->) (a, b) where
   plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
   {-# INLINE plus #-}
   zero u = (zero u, zero u)
@@ -127,7 +150,7 @@ instance (Additive (->) a, Additive (->) b) => Additive (->) (a, b) where
 -- [4,6,5]
 -- >>> plus ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
-instance Additive (->) a => Additive (->) [a] where
+instance (Monoid (->) a) => Monoid (->) [a] where
   plus (xs, ys) = go xs ys
     where
       go [] [] = []
@@ -139,7 +162,7 @@ instance Additive (->) a => Additive (->) [a] where
   {-# INLINE zero #-}
 
 -- ---------------------------------------------------------------------------
--- Dup: comonoid structure on channel objects
+-- Comonoid: comonoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
 -- | A cocommutative comonoid on channel objects.
@@ -147,95 +170,93 @@ instance Additive (->) a => Additive (->) [a] where
 -- Laws:
 --
 -- @
---   fst . dup = id              -- left unit
---   snd . dup = id              -- right unit
---   (dup × id) . dup = (id × dup) . dup  -- coassociativity
---   swap . dup = dup            -- cocommutativity
+--   fst . copy = id              -- left unit
+--   snd . copy = id              -- right unit
+--   (copy × id) . copy = (id × copy) . copy  -- coassociativity
+--   swap . copy = copy            -- cocommutativity
 -- @
-class Dup arr a where
+class Comonoid arr a where
   -- | Copy a value into a pair.
-  dup :: arr a (a, a)
+  copy :: arr a (a, a)
 
   -- | Discard a value.
   discard :: arr a ()
 
--- | Both the comonoid ('Dup') and monoid ('Additive') on a channel object.
+-- | Both the comonoid and monoid on a channel object.
 --
--- A constraint synonym — no instance required.  On a linear base arrow,
+-- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
 -- 'Circuit.Net.transpose' to be total.
-type Linear arr a = (Dup arr a, Additive arr a)
+type Bimonoid arr a = (Comonoid arr a, Monoid arr a)
 
 -- | Every type copies for free in a cartesian category (Fox's theorem).
 --
--- >>> dup (42 :: Int)
+-- >>> copy (42 :: Int)
 -- (42,42)
 -- >>> discard (42 :: Int)
 -- ()
-instance Dup (->) a where
-  dup a = (a, a)
-  {-# INLINE dup #-}
+instance Comonoid (->) a where
+  copy a = (a, a)
+  {-# INLINE copy #-}
   discard _ = ()
   {-# INLINE discard #-}
 
 -- ---------------------------------------------------------------------------
--- Duplex: the free dagger category over a base arrow
+-- Dagger: the free dagger category over a base arrow
 -- ---------------------------------------------------------------------------
 
--- | A full-duplex wire: an arrow paired with a designated arrow back.
+-- | The free dagger category over a base arrow.
 --
--- @Duplex arr a b@ is a pair of arrows @arr a b@ (forward) and
+-- @Dagger arr a b@ is a pair of arrows @arr a b@ (forward) and
 -- @arr b a@ (backward).  Composition is covariant forward, contravariant
--- backward: @Duplex f g . Duplex f' g' = Duplex (f . f') (g' . g)@.
+-- backward: @Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)@.
 --
--- Categorically: the free dagger category over @arr@.
---
--- >>> let d = Duplex (+1) (subtract 1) :: Duplex (->) Int Int
+-- >>> let d = Dagger (+1) (subtract 1) :: Dagger (->) Int Int
 -- >>> front d 5
 -- 6
 -- >>> back d 6
 -- 5
-data Duplex arr a b = Duplex
+data Dagger arr a b = Dagger
   { -- | The forward direction.
-    front :: arr a b
-  , -- | The backward direction.
+    front :: arr a b,
+    -- | The backward direction.
     back :: arr b a
   }
 
--- | The dagger: swap forward and backward.
+-- | The dagger operation: swap forward and backward.
 --
--- Involutive: @transposeDuplex . transposeDuplex = id@.
-transposeDuplex :: Duplex arr a b -> Duplex arr b a
-transposeDuplex (Duplex f g) = Duplex g f
+-- Involutive: @transpose . transpose = id@.
+transpose :: Dagger arr a b -> Dagger arr b a
+transpose (Dagger f g) = Dagger g f
 
-instance Category arr => Category (Duplex arr) where
-  id = Duplex id id
+instance (Category arr) => Category (Dagger arr) where
+  id = Dagger id id
   {-# INLINE id #-}
-  Duplex f g . Duplex f' g' = Duplex (f . f') (g' . g)
+  Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
 
-instance Trace arr t => Trace (Duplex arr) t where
-  trace (Duplex f g) = Duplex (trace f) (trace g)
+instance (Trace arr t) => Trace (Dagger arr) t where
+  trace (Dagger f g) = Dagger (trace f) (trace g)
   {-# INLINE trace #-}
-  untrace (Duplex f g) = Duplex (untrace f) (untrace g)
+  untrace (Dagger f g) = Dagger (untrace f) (untrace g)
   {-# INLINE untrace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
-instance (Dup arr a, Additive arr a) => Dup (Duplex arr) a where
-  dup = Duplex dup plus
-  {-# INLINE dup #-}
-  discard = Duplex discard zero
+instance (Comonoid arr a, Monoid arr a) => Comonoid (Dagger arr) a where
+  copy = Dagger copy plus
+  {-# INLINE copy #-}
+  discard = Dagger discard zero
   {-# INLINE discard #-}
 
 -- | Forward add, backward copy.
-instance (Dup arr a, Additive arr a) => Additive (Duplex arr) a where
-  plus = Duplex plus dup
+instance (Comonoid arr a, Monoid arr a) => Monoid (Dagger arr) a where
+  plus = Dagger plus copy
   {-# INLINE plus #-}
-  zero = Duplex zero discard
+  zero = Dagger zero discard
   {-# INLINE zero #-}
 
-instance MonoidalP arr => MonoidalP (Duplex arr) where
-  parA (Duplex f g) (Duplex f' g') = Duplex (parA f f') (parA g g')
-  {-# INLINE parA #-}
-  swapA = Duplex swapA swapA
-  {-# INLINE swapA #-}
+instance (MonoidalP arr) => MonoidalP (Dagger arr) where
+  par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
+  {-# INLINE par #-}
+  swap = Dagger swap swap
+  {-# INLINE swap #-}

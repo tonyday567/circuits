@@ -183,4 +183,5 @@ newtype Contra arr t a = Contra
 -- This is the yanking identity: eliminating the ends recovers the
 -- underlying profunctor on the diagonal.
 close :: Contra arr t a -> Co arr t a -> Circuit arr t a a
+{- HLINT ignore close "Eta reduce" -}
 close contra = runCo contra

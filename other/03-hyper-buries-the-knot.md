@@ -68,13 +68,14 @@ The map from initial to final:
 encode :: Circuit (->) (,) a b -> Hyper a b
 encode (Lift f)      = lift f
 encode (Compose f g) = encode f . encode g
-encode (Knot f)      = trace (lift f)            -- Hyper's Trace instance
+encode (Knot k)      = trace (encode k)            -- Hyper's Trace instance
 ```
 
-The `Knot` case uses `Hyper`'s own `Trace (,)` instance — a coinductive lazy
-knot that preserves the feedback structure inside `Hyper`. This is *not*
-flattening: the knot lives on in `Hyper`'s continuation structure rather than
-being eliminated to a plain function.
+The `Knot` case uses `encode k` (recursively, since the `Knot` body is now a
+`Circuit`, not a base arrow), then applies `Hyper`'s own `Trace (,)` instance —
+a coinductive lazy knot that preserves the feedback structure inside `Hyper`.
+This is *not* flattening: the knot lives on in `Hyper`'s continuation structure
+rather than being eliminated to a plain function.
 
 **Triangle:** `↓ . encode = reify` (on `Circuit`).
 
@@ -105,8 +106,13 @@ We prove each case.
   = reify (Compose f g) b
 ```
 
-**`Knot`:** This is the case the previous version skipped. Expand
-`trace (lift f)` using the `Trace Hyper (,)` instance:
+**`Knot`:** This is the case the previous version skipped. The `Knot` body
+is now a `Circuit`, not a base arrow. `encode k` recursively produces a
+`Hyper`, then `trace` ties the coinductive knot. The proof structure is
+identical — the induction goes through because `encode` on the body
+preserves the feedback semantics.
+
+Expand `trace (encode k)` using the `Trace Hyper (,)` instance:
 
 ```haskell
 trace body = Hyper $ \k ->
@@ -117,12 +123,12 @@ trace body = Hyper $ \k ->
    in snd pair
 ```
 
-Substituting `body = lift f = push f (lift f)`:
+Substituting `body = encode k` (the encoded Circuit body):
 
 ```
-pair = invoke (push f (lift f)) cont
-  = f (invoke cont (lift f))            -- push f h = Hyper (\k -> f (invoke k h))
-  = f (fst pair, a_val)                 -- cont ignores its argument (_ -> ...)
+pair = invoke (encode k) cont
+  = ...                                   -- encode k produces a Hyper value
+  = k_body (fst pair, a_val)              -- cont ignores its argument (_ -> ...)
 ```
 
 where `a_val = invoke k (Hyper (const (snd pair)))`.
@@ -134,20 +140,21 @@ a_val = invoke (Hyper (const b)) (Hyper (const (snd pair)))
   = b                                   -- Hyper (const b) ignores its argument
 ```
 
-So `pair = f (fst pair, b)`. Writing `(a, c) = pair`:
+So `pair = body (fst pair, b)` where `body = encode k :: Hyper (a, b) (a, c)`.
+Writing `(a, c) = pair`:
 
 ```
-(a, c) = f (a, b)                       -- the lazy knot: a feeds back
+(a, c) = body (a, b)                     -- the lazy knot: a feeds back
 ```
 
 And `snd pair = c`, so:
 
 ```
-↓ (encode (Knot f)) b
-  = ↓ (trace (lift f)) b
-  = let (a, c) = f (a, b) in c
-  = trace f b                           -- Trace (->) (,) instance
-  = reify (Knot f) b
+↓ (encode (Knot k)) b
+  = ↓ (trace (encode k)) b
+  = let (a, c) = body (a, b) in c       -- where body = invoke (encode k) ...
+  = trace (reify k) b                    -- the induction: encode k preserves semantics
+  = reify (Knot k) b
 ```
 
 The `Trace Hyper (,)` instance ties a coinductive knot through `pair` and

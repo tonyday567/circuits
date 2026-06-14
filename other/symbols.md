@@ -15,7 +15,7 @@ notation, used as mathematical notation — no apologies to GHC.
 | `⊲` | push | `(a → b) → Hyper a b → Hyper a b` | prepend a plain function |
 | `⥁` | run | `Hyper a a → a` | tie the self-referential knot (recovers fix on lifted arrows) |
 | `∥` | ambient | `braid → Circuit arr t a b → Circuit arr t (t s a) (t s b)` | thread state wire alongside |
-| `↮` | knot | `arr (t a b) (t a c) → Circuit arr t b c` | feedback loop constructor |
+| `↮` | knot | `Circuit arr t (t a b) (t a c) → Circuit arr t b c` | feedback loop constructor (body is a Circuit, not a base arrow) |
 | `↘` | reify | `Circuit arr t x y → arr x y` | interpret to plain arrow |
 | `↪` | trace | `arr (t a b) (t a c) → arr b c` | close the feedback channel |
 | `↩` | untrace | `arr b c → arr (t a b) (t a c)` | open the feedback channel |
@@ -193,7 +193,7 @@ fibs = ↮ (\(xs, ()) -> (0 : 1 : zipWith (+) xs (drop 1 xs), xs))
 
 -- Run via Hyper:
 ↓ (⇨ fibs) ()
-= ↓ (↪ (↑ step)) ()             -- encode (↮ f) = ↪ (↑ f)
+= ↓ (↪ (⇨ step)) ()             -- encode (↮ f) = ↪ (⇨ f)
 = ... same lazy knot ...         -- triangle: ↓ . ⇨ = ↘
 ```
 

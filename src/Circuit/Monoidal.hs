@@ -179,7 +179,7 @@ coreleaseR _ (Left a) = Left a
 --
 -- 'ambientBy' threads an additional state component alongside a circuit
 -- without the circuit having to mention it. The state wire is braided
--- past the feedback channel so it travels "ambiently".
+-- past the feedback channel so it travels \"ambiently\".
 --
 -- The @braid@ function swaps the state wire past the feedback channel:
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
@@ -208,23 +208,23 @@ ambientBy br (Knot k) = Knot (Lift (dimap br br (untrace (reify k))))
 
 -- | A monoidal product on base arrows.
 --
--- 'parA' composes two arrows in parallel (disjoint wires — no interaction,
--- so no 'Additive' constraint).  'swapA' is the symmetric braiding.
-class Category arr => MonoidalP arr where
+-- 'par' composes two arrows in parallel (disjoint wires — no interaction,
+-- so no 'Monoid' constraint).  'swap' is the symmetric braiding.
+class (Category arr) => MonoidalP arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
-  -- >>> parA ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
+  -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
-  parA :: arr a b -> arr c d -> arr (a, c) (b, d)
+  par :: arr a b -> arr c d -> arr (a, c) (b, d)
 
   -- | Symmetric braiding.
   --
-  -- >>> swapA (3, 4) :: (Int, Int)
+  -- >>> swap (3, 4) :: (Int, Int)
   -- (4,3)
-  swapA :: arr (a, b) (b, a)
+  swap :: arr (a, b) (b, a)
 
 instance MonoidalP (->) where
-  parA f g (a, c) = (f a, g c)
-  {-# INLINE parA #-}
-  swapA (a, b) = (b, a)
-  {-# INLINE swapA #-}
+  par f g (a, c) = (f a, g c)
+  {-# INLINE par #-}
+  swap (a, b) = (b, a)
+  {-# INLINE swap #-}

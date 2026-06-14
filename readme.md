@@ -8,7 +8,7 @@ circuits builds off of a simple premise; create a datatype, Circuit, with three 
 
 **Compose** ⟜ composes two lifted functions
 
-**Knot** ⟜ is Lift where input and output share a channel, and the sharing is made visible by the tensor.
+**Knot** ⟜ ties a feedback loop where the body is itself a Circuit, making loop wiring inspectable before closing.
 
 In every case, the tags delay a final closing of ordinary functions: Lift delays function application, Compose function composition, and Knot function feedback. A Circuit can then be rearranged, measured, substituted, annotated — or left open to further transformation before it runs.
 
@@ -36,7 +36,7 @@ There is another semantic interpretation — encode into a hyperfunction:
 ``` haskell
 encode (Lift f)      = lift f
 encode (Compose f g) = encode f . encode g
-encode (Knot f)      = trace (lift f)    -- Hyper's Trace instance, not the base arrow's
+encode (Knot f)      = trace (encode f)    -- Hyper's Trace instance, not the base arrow's
 ```
 
 The `trace` in the Knot case is Hyper's own `Trace` instance. Where `Trace (->) (,)` ties a lazy knot with a single `let` binding, `Trace Hyper (,)` ties a coinductive one: the feedback value cycles through Hyper continuations rather than a recursive thunk. The knot remains structural — it can still be composed, rearranged, encoded further — rather than collapsing to a plain function.

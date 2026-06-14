@@ -31,21 +31,18 @@
 -- >>> lower (encode (Lift (+1) :: Circuit (->) (,) Int Int)) 41
 -- 42
 --
--- >>> reify (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (->) (,) Int Int) 0
--- 0
---
 -- == Overview
 --
 -- This library provides two representations of feedback:
 --
--- * 'Circuit' (in "Circuit.Circuit") — the initial, inspectable GADT encoding.
--- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
+-- * 'Circuit' (in \"Circuit.Circuit\") — the initial, inspectable GADT encoding.
+-- * 'Hyper' (in \"Circuit.Hyper\") — the final, coinductive encoding.
 --
--- The 'Trace' class (in "Circuit.Traced") abstracts the choice of tensor,
+-- The 'Trace' class (in \"Circuit.Traced\") abstracts the choice of tensor,
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
--- 'ambientBy' state-threading combinator, lives in "Circuit.Monoidal".
+-- 'ambientBy' state-threading combinator, lives in \"Circuit.Monoidal\".
 --
 -- == Core Concepts
 --
@@ -74,20 +71,18 @@ module Circuit
     Trace (..),
     cellIO,
 
-    -- * Dagger (bimonoid + duplex)
-    Additive (..),
-    Dup (..),
-    Duplex (..),
-    Linear,
-    ViaNum (..),
-    transposeDuplex,
+    -- * Dagger (bimonoid + dagger)
+    Monoid (..),
+    Comonoid (..),
+    Dagger (..),
+    Bimonoid,
+    transpose,
 
     -- * Net
     Net,
-    transpose,
     upgrade,
-    runNet,
-    forget,
+    loom,
+    melt,
 
     -- * Hyper
     Hyper (..),
@@ -125,12 +120,19 @@ where
 
 import Circuit.Circuit
   ( Circuit (..),
-    Step,
-    Wire,
     Co (..),
     Contra (..),
+    Step,
+    Wire,
     close,
     reify,
+  )
+import Circuit.Dagger
+  ( Bimonoid,
+    Comonoid (..),
+    Dagger (..),
+    Monoid (..),
+    transpose,
   )
 import Circuit.Hyper
   ( Hyper (..),
@@ -162,22 +164,14 @@ import Circuit.Monoidal
     release,
     seed,
   )
+import Circuit.Net
+  ( Net,
+    loom,
+    melt,
+    upgrade,
+  )
 import Circuit.Traced
   ( Trace (..),
     cellIO,
   )
-import Circuit.Dagger
-  ( Additive (..),
-    Dup (..),
-    Duplex (..),
-    Linear,
-    ViaNum (..),
-    transposeDuplex,
-  )
-import Circuit.Net
-  ( Net,
-    transpose,
-    upgrade,
-    runNet,
-    forget,
-  )
+import Prelude hiding (Monoid)

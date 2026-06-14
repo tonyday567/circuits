@@ -1,9 +1,9 @@
 cabal-version: 3.0
 name: circuits
-version: 0.1.0.0
+version: 0.2.0.0
 license: BSD-3-Clause
 license-file: LICENSE
-copyright: Tony Day (c) 2025
+copyright: Tony Day (c) 2025-2026
 category: control
 author: Tony Day
 maintainer: tonyday567@gmail.com
@@ -15,16 +15,14 @@ description:
 
 build-type: Simple
 tested-with:
-  ghc ==9.10.1
-  ghc ==9.12.2
   ghc ==9.14.1
 
 extra-doc-files:
-    ChangeLog.md
-    readme.md
-    LICENSE
-    other/symbols.md
-    other/axioms.md
+  ChangeLog.md
+  LICENSE
+  other/axioms.md
+  other/symbols.md
+  readme.md
 
 source-repository head
   type: git
@@ -76,7 +74,7 @@ library
     Circuit.Traced
 
   build-depends:
-    base >=4.18 && <5,
+    base >=4.18 && <5
 
   if impl(ghc)
-    build-depends: profunctors >=5.0 && <6,
+    build-depends: profunctors >=5.0 && <6

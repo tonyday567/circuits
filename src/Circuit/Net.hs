@@ -1,5 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -13,26 +13,9 @@
 -- wiring you can read backwards and wiring that's been melted into the
 -- prims.
 --
--- = Normal form
---
--- Every 'Net' normalizes to a single outermost 'Knot' wrapped around
--- a knot-free core — combinational logic plus a register bank plus one
--- feedback bus.  Hardware calls this a netlist.  AD calls the bus the
--- tape.  The Mendler pattern match fires exactly once by construction.
---
--- = transposition
---
--- @transpose :: Net arr t a b -> Net arr t b a@ is structural recursion
--- over the syntax: 'Compose' reverses, 'Copy' swaps with 'Add', 'Discard'
--- with 'Zero', 'Knot' with itself (recurring into the body).  Only 'Lift'
--- requires the base arrow to be transposable; the spine is always reversible.
---
--- = Status
---
--- Instances for 'Dup' @(->)@ and 'Additive' @(->)@ exist.
--- Instances for @D@ exist ('Circuit.AD' in @circuits-ad@).
--- 'runNet' and 'forget' (netlist to circuit) are implemented; 'fuse' is
--- conservative and does not achieve a single outermost 'Knot' in general.
+-- 'loom' and 'melt' interpret a 'Net' to a plain arrow and a
+-- 'Circuit' respectively.  Instances for 'Comonoid' @(->)@ and
+-- 'Monoid' @(->)@ exist; @D@ instances live in @circuits-ad@.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -43,12 +26,9 @@ module Circuit.Net
     -- * Conversion
     upgrade,
 
-    -- * Normalization
-    fuse,
-
     -- * Interpretation
-    runNet,
-    forget,
+    loom,
+    melt,
   )
 where
 
@@ -60,90 +40,87 @@ import Circuit.Classes
 #endif
 
 import Circuit.Circuit qualified as C
-import Circuit.Dagger (Additive (..), Dup (..), Duplex (..), Linear)
+import Circuit.Dagger qualified as Dg
 import Circuit.Monoidal (MonoidalP (..))
 import Circuit.Traced (Trace (..))
-import Prelude hiding (id, (.))
+import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> 1 + 1 :: Int
 -- 2
 -- >>> import Circuit (Circuit(..), reify)
 -- >>> import Circuit.Net
--- >>> import Prelude hiding (id, (.))
+-- >>> import Prelude hiding (id, (.), Monoid)
 
 -- | The free traced PROP with a bimonoid.
 --
 -- Three families of constructor:
 --
 --   * __Circuit heritage__ — 'Lift', 'Compose', 'Knot' (unchanged).
---   * __Monoidal__ — 'Par', 'Swap', 'Perm' (parallel composition, braiding).
---   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Add', 'Zero' (monoid).
+--   * __Monoidal__ — 'Par', 'Swap' (parallel composition, braiding).
+--   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
 --
--- 'Dup' and 'Additive' constraints ride as dictionary arguments on the
+-- 'Comonoid' and 'Monoid' constraints ride as dictionary arguments on the
 -- constructors that need them — laws in the typeclass holes, evidence on
 -- the GADT rows.
 data Net arr t a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Net arr t a b
-
   -- | Sequential composition.
   Compose :: Net arr t b c -> Net arr t a b -> Net arr t a c
-
   -- | Parallel composition (monoidal product).
   Par :: Net arr t a b -> Net arr t c d -> Net arr t (a, c) (b, d)
-
   -- | Symmetric braiding.
   Swap :: Net arr t (a, b) (b, a)
-
-  -- | Copy: fan-out.  Requires both comonoid and monoid ('Linear').
-  Copy :: Linear arr a => Net arr t a (a, a)
-
-  -- | Discard: erase.  Requires 'Linear'.
-  Discard :: Linear arr a => Net arr t a ()
-
-  -- | Add: fan-in.  Requires 'Linear'.
-  Add :: Linear arr a => Net arr t (a, a) a
-
-  -- | Zero: the neutral element.  Requires 'Linear'.
-  Zero :: Linear arr a => Net arr t () a
-
+  -- | Copy: fan-out.  Requires both comonoid and monoid ('Bimonoid').
+  Copy :: (Dg.Bimonoid arr a) => Net arr t a (a, a)
+  -- | Discard: erase.  Requires 'Bimonoid'.
+  Discard :: (Dg.Bimonoid arr a) => Net arr t a ()
+  -- | Plus: fan-in.  Requires 'Bimonoid'.
+  Plus :: (Dg.Bimonoid arr a) => Net arr t (a, a) a
+  -- | Zero: the neutral element.  Requires 'Bimonoid'.
+  Zero :: (Dg.Bimonoid arr a) => Net arr t () a
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow —
-  -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Add' within
-  -- the loop.  Normal form: 'fuse' collects all feedback into a single
-  -- outermost 'Knot' around knot-free wiring.
+  -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Plus' within
+  -- the loop.
   Knot :: Net arr t (t a b) (t a c) -> Net arr t b c
 
 -- | Transpose a 'Net' — the backward circuit as inspectable syntax.
 --
 -- The structural rows are self-dual under transposition:
--- 'Compose' reverses, 'Copy' ↔ 'Add', 'Discard' ↔ 'Zero',
+-- 'Compose' reverses, 'Copy' ↔ 'Plus', 'Discard' ↔ 'Zero',
 -- 'Knot' ↔ 'Knot' (recurring into the body).
 --
--- 'Lift' transposes via 'Duplex' field swap.  Only nets over
--- 'Duplex' are transposable — the forward\/backward pairing is
+-- 'Lift' transposes via 'Dagger' field swap — only nets over
+-- 'Dagger' are transposable, since the forward\/backward pairing is
 -- structural in the base arrow.
+--
+-- Law: @transpose . transpose = id@.
+--
+-- >>> import Circuit.Dagger qualified as Dg
+-- >>> let n = Circuit.Net.Lift (Dg.Dagger (+1) (subtract 1)) :: Net (Dg.Dagger (->)) (,) Int Int
+-- >>> Dg.front (loom (transpose (transpose n))) 5
+-- 6
 transpose ::
-  Net (Duplex arr) t a b ->
-  Net (Duplex arr) t b a
+  Net (Dg.Dagger arr) t a b ->
+  Net (Dg.Dagger arr) t b a
 transpose = \case
-  Lift (Duplex f g) -> Lift (Duplex g f)
+  Lift (Dg.Dagger f g) -> Lift (Dg.Dagger g f)
   Compose f g -> Compose (transpose g) (transpose f)
   Par f g -> Par (transpose f) (transpose g)
   Swap -> Swap
-  Copy -> Add
-  Add -> Copy
+  Copy -> Plus
+  Plus -> Copy
   Discard -> Zero
   Zero -> Discard
   Knot f -> Knot (transpose f)
 
 -- | Upgrade a 'Circuit' to a 'Net' — constructor-to-constructor.
 --
--- The structural rows ('Par', 'Copy', 'Add', etc.) are absent from
+-- The structural rows ('Par', 'Copy', 'Plus', etc.) are absent from
 -- 'Circuit', so upgrading a lifted 'Circuit' produces a 'Net' with
 -- only 'Lift', 'Compose', and 'Knot' — the same information, now in
--- a GADT that can hold more.  'Circuit.Knot' lifts to 'Net.Lift' body
--- inside 'Net.Knot'.
+-- a GADT that can hold more.  'Circuit.Knot' lifts to 'Net.Knot'.
 upgrade :: C.Circuit arr t a b -> Net arr t a b
 upgrade (C.Lift f) = Lift f
 upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
@@ -153,73 +130,49 @@ upgrade (C.Knot f) = Knot (upgrade f)
 --
 -- The canonical map out of the free traced PROP with a bimonoid.
 -- Structural rows dispatch to their typeclass counterparts:
--- 'Par' to 'parA', 'Copy' to 'dup', 'Add' to 'plus', etc.
+-- 'Par' to 'par', 'Copy' to 'copy', 'Plus' to 'plus', etc.
 -- 'Knot' uses the 'Trace' instance on the base arrow.
 --
--- >>> runNet (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int) 5
+-- >>> loom (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int) 5
 -- 6
-runNet ::
+loom ::
   (Trace arr t, MonoidalP arr) =>
   Net arr t a b ->
   arr a b
-runNet = \case
+loom = \case
   Lift f -> f
-  Compose (Knot f) g -> trace (runNet f . untrace (runNet g))
-  Compose g f -> runNet g . runNet f
-  Par f g -> parA (runNet f) (runNet g)
-  Swap -> swapA
-  Copy -> dup
-  Discard -> discard
-  Add -> plus
-  Zero -> zero
-  Knot f -> trace (runNet f)
+  Compose (Knot f) g -> trace (loom f . untrace (loom g))
+  Compose g f -> loom g . loom f
+  Par f g -> par (loom f) (loom g)
+  Swap -> swap
+  Copy -> Dg.copy
+  Discard -> Dg.discard
+  Plus -> Dg.plus
+  Zero -> Dg.zero
+  Knot f -> trace (loom f)
 
--- | Forget the structural rows of a 'Net', melting them into 'Lift' calls.
+-- | Melt the structural rows of a 'Net' into opaque 'Lift' calls.
 --
 -- The forgetful map from the free traced PROP with bimonoid to the free
--- traced monoidal category.  Structural rows become opaque base-arrow
--- operations; sub-circuit structure is preserved where possible.
+-- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
+-- etc.) become opaque base-arrow operations; the 'Knot' and 'Compose'
+-- structure is preserved.
 --
--- 'runNet' factors through 'forget': @runNet = reify . forget@.
+-- 'loom' factors through 'melt': @loom = reify . melt@.
 --
--- >>> reify (forget (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int)) 5
+-- >>> reify (melt (Circuit.Net.Lift (+1) :: Net (->) (,) Int Int)) 5
 -- 6
---
--- | Collect all feedback into a single outermost 'Knot'.
---
--- Uses the sliding axiom to pull 'Knot' outward through 'Compose'.
--- 'untraceNet' is semantic (structure is lost) — a syntactic
--- untrace would require associators at the 'Net' level.
-fuse ::
-  (Trace arr t, MonoidalP arr) =>
-  Net arr t a b ->
-  Net arr t a b
-fuse = \case
-  Compose (Knot f) g
-    | not (isKnot g) -> Knot (Compose (fuse f) (untraceNet (fuse g)))
-  Compose f (Knot g)
-    | not (isKnot f) -> Knot (Compose (untraceNet (fuse f)) (fuse g))
-  Knot (Knot f) -> Knot (Knot (fuse f))
-  Knot f -> Knot (fuse f)
-  Compose f g -> Compose (fuse f) (fuse g)
-  Par f g -> Par (fuse f) (fuse g)
-  other -> other
-  where
-    isKnot (Knot _) = True
-    isKnot _ = False
-    untraceNet f = Lift (untrace (runNet f))
-
-forget ::
+melt ::
   (Trace arr t, MonoidalP arr) =>
   Net arr t a b ->
   C.Circuit arr t a b
-forget = \case
+melt = \case
   Lift f -> C.Lift f
-  Compose g f -> C.Compose (forget g) (forget f)
-  Par f g -> C.Lift (parA (runNet f) (runNet g))
-  Swap -> C.Lift swapA
-  Copy -> C.Lift dup
-  Discard -> C.Lift discard
-  Add -> C.Lift plus
-  Zero -> C.Lift zero
-  Knot f -> C.Knot (forget f)
+  Compose g f -> C.Compose (melt g) (melt f)
+  Par f g -> C.Lift (par (loom f) (loom g))
+  Swap -> C.Lift swap
+  Copy -> C.Lift Dg.copy
+  Discard -> C.Lift Dg.discard
+  Plus -> C.Lift Dg.plus
+  Zero -> C.Lift Dg.zero
+  Knot f -> C.Knot (melt f)
