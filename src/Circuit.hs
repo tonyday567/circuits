@@ -69,7 +69,6 @@ module Circuit
 
     -- * Traced
     Trace (..),
-    cellIO,
 
     -- * Dagger (bimonoid + dagger)
     Monoid (..),
@@ -172,6 +171,5 @@ import Circuit.Net
   )
 import Circuit.Traced
   ( Trace (..),
-    cellIO,
   )
 import Prelude hiding (Monoid)

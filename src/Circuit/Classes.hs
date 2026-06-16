@@ -31,9 +31,6 @@ instance Bifunctor Either where
   bimap f _ (Left a) = Left (f a)
   bimap _ g (Right b) = Right (g b)
 
-instance Functor ((,) a) where
-  fmap f (a, b) = (a, f b)
-
 class Profunctor p where
   dimap :: (a -> b) -> (c -> d) -> p b c -> p a d
   lmap :: (a -> b) -> p b c -> p a c

@@ -105,11 +105,6 @@ class Trace arr t where
 
 -- * Cartesian tensor — lazy knot
 
-#ifndef __GLASGOW_HASKELL__
-instance Functor ((,) a) where
-  fmap f (a, b) = (a, f b)
-#endif
-
 -- | The cartesian trace ties a lazy knot: the feedback value @a@ and
 -- output @c@ are produced simultaneously in a single recursive binding.
 --

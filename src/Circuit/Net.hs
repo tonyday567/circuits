@@ -104,6 +104,7 @@ data Net arr t a b where
 transpose ::
   Net (Dg.Dagger arr) t a b ->
   Net (Dg.Dagger arr) t b a
+#ifdef __GLASGOW_HASKELL__
 transpose = \case
   Lift (Dg.Dagger f g) -> Lift (Dg.Dagger g f)
   Compose f g -> Compose (transpose g) (transpose f)
@@ -114,6 +115,9 @@ transpose = \case
   Discard -> Zero
   Zero -> Discard
   Knot f -> Knot (transpose f)
+#else
+transpose = undefined
+#endif
 
 -- | Upgrade a 'Circuit' to a 'Net' — constructor-to-constructor.
 --
@@ -141,6 +145,7 @@ loom ::
   arr a b
 loom = \case
   Lift f -> f
+#ifdef __GLASGOW_HASKELL__
   Compose (Knot f) g -> trace (loom f . untrace (loom g))
   Compose g f -> loom g . loom f
   Par f g -> par (loom f) (loom g)
@@ -149,6 +154,12 @@ loom = \case
   Discard -> Dg.discard
   Plus -> Dg.plus
   Zero -> Dg.zero
+#else
+  Compose g f -> loom g . loom f
+  Par f g -> par (loom f) (loom g)
+  Swap -> swap
+  _ -> undefined
+#endif
   Knot f -> trace (loom f)
 
 -- | Melt the structural rows of a 'Net' into opaque 'Lift' calls.
@@ -171,8 +182,12 @@ melt = \case
   Compose g f -> C.Compose (melt g) (melt f)
   Par f g -> C.Lift (par (loom f) (loom g))
   Swap -> C.Lift swap
+#ifdef __GLASGOW_HASKELL__
   Copy -> C.Lift Dg.copy
   Discard -> C.Lift Dg.discard
   Plus -> C.Lift Dg.plus
   Zero -> C.Lift Dg.zero
+#else
+  _ -> undefined
+#endif
   Knot f -> C.Knot (melt f)
