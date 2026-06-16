@@ -141,7 +141,7 @@ scanlE f z (Event xs) = Event (go z xs)
 -- >>> occurrencesOf (accumE 0 (eventFromList [(1,(+1)),(2,(*10))]))
 -- [(1.0,1),(2.0,10)]
 accumE :: a -> Event (a -> a) -> Event a
-accumE z = scanlE (\acc f -> f acc) z
+accumE = scanlE (\acc f -> f acc)
 
 -- | Count how many times an event has fired so far.
 --
