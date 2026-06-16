@@ -75,7 +75,9 @@
 --   * Joyal, Street & Verity (1996) — traced monoidal categories.
 module Circuit.Traced
   ( Trace (..),
+#ifdef __GLASGOW_HASKELL__
     cellIO,
+#endif
   )
 where
 
@@ -103,13 +105,17 @@ class Trace arr t where
 
 -- * Cartesian tensor — lazy knot
 
+#ifndef __GLASGOW_HASKELL__
+instance Functor ((,) a) where
+  fmap f (a, b) = (a, f b)
+#endif
+
 -- | The cartesian trace ties a lazy knot: the feedback value @a@ and
 -- output @c@ are produced simultaneously in a single recursive binding.
 --
 -- Only works in a lazy setting — the feedback value is a self-referential
 -- thunk.  In a strict language this binding is circular and divergent.
 -- Haskell's lazy evaluation makes cyclic sharing possible without
--- mutation or explicit suspension primitives.
 --
 -- >>> :{
 -- let powers (ns, ()) =
@@ -372,6 +378,7 @@ instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
 -- the 'Trace' @(,)@ instance: the feedback value is stored in the
 -- mutable cell rather than being self-referential. Strict accumulators
 -- (counters, frequency tables, running sums) work without diverging.
+#ifdef __GLASGOW_HASKELL__
 cellIO
   :: s
   -- ^ initial state
@@ -386,5 +393,6 @@ cellIO s0 step = do
       (s', b) <- step s a
       writeIORef ref s'
       pure b
+#endif
 
 #endif

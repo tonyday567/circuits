@@ -1,147 +1,94 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-## first-class feedback
+A small Haskell library for wiring functions together. Three pieces — lift a function, compose two circuits, tie a feedback loop — and the rest falls out.
 
-circuits builds off of a simple premise; create a datatype, Circuit, with three tags or constructors:
+It's off the beaten track but absolutely core Haskell. A paean to some underappreciated infrastructure, built by an aging coder with perhaps too much time on his hands.
 
-**Lift** ⟜ embeds a plain function.
+## what can it do?
 
-**Compose** ⟜ composes two lifted functions
-
-**Knot** ⟜ ties a feedback loop where the body is itself a Circuit, making loop wiring inspectable before closing.
-
-In every case, the tags delay a final closing of ordinary functions: Lift delays function application, Compose function composition, and Knot function feedback. A Circuit can then be rearranged, measured, substituted, annotated — or left open to further transformation before it runs.
-
-This is the sense in which the library treats feedback as first-class.
-
-semantics
-##
-
-If you interpret these three tags carefully, Circuit comes with a very nice set of axioms that formally are captured by the notion of a traced category.
-
-The semantics of these constructors can be seen in reify:
-
-``` haskell
-↘ (↑ f)       =  f                   — a lifted function just runs
-↘ (↮ k)       =  ↪ k                 — a knot traces the channel closed
-↘ (↮ f ⊙ g)   =  ↪ (f . ↩ (↘ g))     — g slides inside the loop
-↘ (f ⊙ g)     =  ↘ f . ↘ g           — composition interprets both sides
-
-Where: ↑ = Lift, ↮ = Knot, ⊙ = Compose, ↘ = reify, ↪ = trace, ↩ = untrace.
-
-```
-
-There is another semantic interpretation — encode into a hyperfunction:
-
-``` haskell
-encode (Lift f)      = lift f
-encode (Compose f g) = encode f . encode g
-encode (Knot f)      = trace (encode f)    -- Hyper's Trace instance, not the base arrow's
-```
-
-The `trace` in the Knot case is Hyper's own `Trace` instance. Where `Trace (->) (,)` ties a lazy knot with a single `let` binding, `Trace Hyper (,)` ties a coinductive one: the feedback value cycles through Hyper continuations rather than a recursive thunk. The knot remains structural — it can still be composed, rearranged, encoded further — rather than collapsing to a plain function.
-
-``` haskell
-newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
-```
-
-Under encode, the tags dissolve. What remains is a single coinductive type where every value carries its own continuation — the feedback channel that Knot surfaced becomes structural in the type itself. The two interpretations meet at the triangle: `lower . encode = reify`.
-
-The final encoding seems to provide very strong guarantees: O(1) amortised composition with no left-nesting penalty; a structural guarantee that sliding holds; and efficient coinductive feedback. That's the hope at least.
-
-From another perspective, circuits is a paean to some underappreciated pearls in the Haskell infrastructure. The lazy-knot of loop and the engineering that caters for it kind of got buried in the arrows side-pocket. And applying delimited continuation primitives so readily and clearly is a reward of sticking with the boring nature of static typing. By doing nothing but delay stuff, and keeping arrow scheduling open, application space can encompass parsing, streaming, performance metering & process wiring. 
-
-## ⚙️ Install
-
-```
-(m)cabal build circuits
-```
-
-Compiles on MicroHS & GHC 9.10+ with `base` & `profunctors`
-
-## 📡 Usage
+Count the lines in a file. Every step is explicit — open, loop, close — and the handle is a visible wire, not a closure:
 
 ```haskell
 import Circuit
-import System.IO
-import Control.Arrow
+import Control.Arrow (Kleisli(..), runKleisli)
+import Control.Category ((>>>))
+import Data.Bool (bool)
+import System.IO (Handle, IOMode(ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
--- Fibonacci via knot-tying
->>> take 5 (trace (\(fibs, ()) -> (0 : 1 : zipWith (+) fibs (drop 1 fibs), fibs)) () :: [Integer])
-[0,1,1,2,3]
+openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
+       -- Circuit (Kleisli IO) t FilePath Handle
 
--- Open, read, close as explicit circuit stages
->>> :{
-let step (Left (h, acc)) = hIsEOF h >>= \eof ->
-      if eof then pure (Right (h, acc))
-      else hGetLine h >>= \line -> pure (Left (h, line : acc))
-    step (Right h) = pure (Left (h, []))
-    pipeline = Lift (Kleisli (\fp -> openFile fp ReadMode))
-             >>> Knot (Kleisli step)
-             >>> Lift (Kleisli (\(h, ls) -> hClose h >> pure (length ls)))
-:}
+countLines = Knot (Kleisli step)
+  where
+    step (Left (h, n)) = hIsEOF h >>= bool
+      (hGetLine h >> pure (Left (h, n + 1)))
+      (pure (Right (h, n)))
+    step (Right h) = pure (Left (h, 0))
+       -- Circuit (Kleisli IO) Either Handle (Handle, Int)
 
->>> runKleisli (reify pipeline) "readme.md"
-149
+pipeline = openf >>> countLines >>> Lift (Kleisli (\(h, n) -> hClose h >> pure n))
+         -- Circuit (Kleisli IO) Either FilePath Int
+
+-- paste into ghci:  runKleisli (reify pipeline) "readme.md"
 ```
 
-The Either tensor gives you iteration for free — `Left` continues, `Right` exits. Both the Handle and the accumulator ride the feedback channel as explicit state. For the full word-count pipeline with frequency analysis, metering, and a mermaid diagram, see the **[words](https://github.com/tonyday567/words)** repo.
+Three constructors. `Lift` wraps a plain function. `Compose` (written `>>>`) sequences them. `Knot` ties feedback — `Left` continues the loop, `Right` exits.
 
-## 📊 why circuits
+## two flavours of feedback
 
-With circuits-meter, timing is a one-liner. Here's the word-count pipeline:
+The magic is in the second type argument — the **tensor**:
 
-```mermaid
-flowchart TD
-    A["FilePath"] --> B["openf"]
-    B --> C["Handle"]
-    C --> D{"hIsEOF ?"}
-    D -->|"no"| E["hGetLine"]
-    E --> F["words"]
-    F --> G["map toLower"]
-    G --> H["filter (not . null)"]
-    H --> I["foldl' insertCount"]
-    I --> J["Left (acc, Handle)"]
-    J -.->|"feedback"| D
-    D -->|"yes"| K["Right (Handle, Map)"]
-    K --> L["hClose + fmtTable"]
-    L --> M["String"]
+| tensor | feedback | behaviour |
+|--------|----------|-----------|
+| `Either` | `Left` = continue, `Right` = exit | loops that terminate |
+| `(,)` | lazy self-reference | streams, sharing, coinduction |
+
+Same `Knot` constructor. Different tensor, different universe. The library treats both uniformly — the axioms that make feedback well-behaved hold for either choice.
+
+```haskell
+-- Lazy streaming with (,):
+powers = Knot (Lift (\(ns, ()) -> (1 : map (*2) ns, take 5 ns)))
+reify powers ()  -- [1,2,4,8,16]
+
+-- Iteration with Either:
+step n = if n < 5 then Left (n + 1) else Right n
+trace (either step step) 0  -- 5
 ```
 
-Each component can be metered independently — the circuit structure makes the insertion points obvious. The full runnable source is in the **[words](https://github.com/tonyday567/words)** repo.
+## what's new in 0.2
 
-## 📦 Application
+**Net** adds four structural rows: parallel composition, copy, discard, addition, and zero. Where `Circuit` dissolved these into opaque `Lift` calls, `Net` keeps them inspectable — wiring you can read backwards. The contravariant channel is what makes `transpose` (running a computation in reverse) structural rather than hand-rolled.
 
-circuits is being developed alongside:
+This is the piece that will eventually power circuits-ad's one-line backpropagation reveal. For now it's here to play with.
 
-**[circuits-parser](https://github.com/tonyday567/circuits-parser)** — presents a parser as `newtype Parser f a = Parser { circuit :: Circuit (->) Either f (These a f) }` for a wide variety of `f` and `a`, with `runParser` as `reify . circuit`.
+## install
 
-**[circuits-io](https://github.com/tonyday567/circuits-io)** — uses `Circuit (Kleisli m) Either` with `m` as `STM` and `IO` to orchestrate file I/O, sockets, queues, servers, timings and (a)synchronicity.
+```bash
+cabal build circuits
+```
 
-**[circuits-meter](https://github.com/tonyday567/circuits-meter)** — circuit measurement and performance, taking advantage of channel provision via `ambient`.
+Compiles on GHC 9.10+ and MicroHs. One dependency beyond base: `profunctors`.
 
-## 📖 Read
+## read more
 
-[Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — hyperfunctions as communicating continuations; the producer-consumer decomposition that Hyper unifies.
+The examples directory has walkthroughs: state management, parsers, streaming, resource handling, the word-count pipeline with metering. The `other/` directory is the narrative arc — six chapters from "marks and stacks" through to the Mendler identity and the triangle proof.
 
-["Coroutining Folds with Hyperfunctions"](https://doi.org/10.4204/eptcs.129.9) — Launchbury, Krstic & Sauerwein (2013). The original hyperfunction axiom system that circuits builds on.
+If you want to see what circuits looks like when compiled to a single combinator and rendered as a mandala: **[Tea-Leaf Fingerprints](https://tonyday567.github.io/posts/fingerprints/)**.
 
-`other/` — the narrative arc: notation, marks and stacks, the Knot derivation, the triangle proof, tensor choice, the Mendler case, and worked examples. The long version of what this readme sketches.
+## companion libraries
 
-`examples/` — cards: parsers, pipes, Elgot iteration, delimited continuations. Paste code blocks into `cabal repl`.
+| library | what it adds |
+|---------|-------------|
+| [circuits-parser](https://github.com/tonyday567/circuits-parser) | parsing as a circuit |
+| [circuits-io](https://github.com/tonyday567/circuits-io) | sockets, queues, servers |
+| [circuits-meter](https://github.com/tonyday567/circuits-meter) | one-line performance metering |
+| [circuits-ad](https://github.com/tonyday567/circuits-ad) | backpropagation as transpose |
 
-## Contributing
+## thanks
 
-We welcome contributions of any persuasion or fancy. New contributors should open an issue and say hi.
+Built on [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) and [Kidney & Wu (2026)](https://doi.org/10.1145/3776649). The `Hyper` type is theirs; the GADT that makes it inspectable is ours.
 
-LLM policy
-
-LLMs and agents have been used in the development of this library, including category theory, coding, generation, refactoring, documentation and narrative.
-
-what we prefer
-  ⟜ all code must compile, have and pass doctests, and be reviewable.
-  ⟜ do not submit code where intent is opaque, or that is difficult to read, understand, test and reason about.
-  ⟜ respects a library style of supplying comments, annotation and examples that form an integral whole together with the code submitted.
+LLMs and agents helped with category theory, coding, refactoring, and documentation.
 
 <br>
 

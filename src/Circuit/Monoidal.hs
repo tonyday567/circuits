@@ -35,7 +35,7 @@ import Control.Category (Category)
 import Data.Profunctor (Profunctor, dimap)
 import Data.Bifunctor (Bifunctor (..))
 #else
-import Circuit.Classes (Profunctor, Bifunctor (..), Category)
+import Circuit.Classes (Profunctor (..), Bifunctor (..), Category)
 #endif
 
 import Circuit.Circuit (Circuit (..), reify)
