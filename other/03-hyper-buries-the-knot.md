@@ -4,7 +4,7 @@
 
 ✦ · ✧ · ✦
 
-*In which we dissolve knots into hyperfunctions; slide until yanked; and extend the Kan way.*
+*In which Hyper is re-examined; the triangle identity is decomposed; and a lemma that held the proof together gets a name.*
 
 **[⟵ Prev: A Knot Recovers Fix](02-a-knot-recovers-fix.md)** · **[Next: Holding Hands or Taking Turns ⟶](04-holding-hands-or-taking-turns.md)**
 
@@ -12,7 +12,27 @@
 
 ---
 
-`Circuit` is the initial encoding — a syntax tree. `Hyper` is the final encoding — a coinductive type. They represent the same mathematical object via different encodings. The triangle identity connects them.
+`Circuit` is the initial encoding — a syntax tree with `Lift`, `Compose`,
+`Knot`. `Hyper` is the final encoding — a coinductive type where feedback
+is structural.
+
+The early narrative said "`encode` maps `Circuit` to `Hyper`, and `Knot`
+dissolves into the type." That was true of the code at the time:
+`encode (Knot k) = trace (encode k)` used Hyper's own `Trace` instance.
+But it was misleading about *where* the dissolution happens.
+
+With the discovery of `Free`, the picture sharpens. `Knot` dissolves in
+`freeze` — a `Circuit → Free` map that calls `trace` on the base arrow.
+`Hyper` never sees a `Knot`. `encode` factors:
+
+```haskell
+encode :: Circuit (->) (,) a b -> Hyper a b
+encode = encodeFree . freeze
+```
+
+where `encodeFree :: Free (->) (,) a b -> Hyper a b` is the unique
+functor from the free category to the final encoding. It handles only
+`Lift` and `Compose`.
 
 ---
 
@@ -22,268 +42,192 @@
 newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
 ```
 
-Unfolding the recursion, the type expands to an infinitely-nested structure:
+The self-referential duality is built in: to produce a `b`, you invoke
+the dual `Hyper b a`. This captures the essential pattern of
+continuations that communicate with their own continuations.
 
-```
-Hyper a b = (((...  → a) → b) → a) → b
-```
-
-The self-referential duality is built in: to produce a `b`, you invoke the dual `Hyper b a`. This captures the essential pattern of continuations that communicate with their own continuations.
-
----
-
-## Composition
+The key operations:
 
 ```haskell
-instance Category Hyper where
-  id    = lift id
-  f . g = Hyper $ \h -> invoke f (g . h)
+lift  :: (a -> b) -> Hyper a b        -- embed a plain function (coinductive)
+lower :: Hyper a b -> (a -> b)        -- observe by severing the feedback
+run   :: Hyper a a -> a               -- tie the self-referential knot
+push  :: (a -> b) -> Hyper a b -> Hyper a b  -- prepend to continuation
 ```
-
-The backwards channel `h :: Hyper b a` is where the feedback lives. In `Circuit`, a `Knot` explicitly opens a feedback channel. In `Hyper`, every morphism already has one — the continuation argument `Hyper b a` is structurally present in every value. **`Knot` does not go anywhere; it dissolves into the type.**
 
 ---
 
-## The Key Operations
+## The Triangle, Factorized
+
+The triangle identity connects initial and final encodings:
+
+```
+lower . encode = reify
+```
+
+With `Free`, this decomposes into two claims:
+
+```
+encode = encodeFree . freeze
+lower . encodeFree = runFree
+```
+
+`encodeFree` is the canonical fold:
 
 ```haskell
-lift  :: (a -> b) -> Hyper a b
-lower :: Hyper a b -> (a -> b)
-run   :: Hyper a a -> a
-push  :: (a -> b) -> Hyper a b -> Hyper a b
+encodeFree :: Free (->) (,) a b -> Hyper a b
+encodeFree (Lift f)       = lift f
+encodeFree (Compose f g)  = encodeFree f . encodeFree g
 ```
 
-- **lift** embeds a plain function: `lift f = push f (lift f)` — coinductive unrolling
-- **lower** observes a hyperfunction by supplying a constant continuation
-- **run** ties the knot on the diagonal: `run h = invoke h (Hyper run)`. On the image of `lift`, this coincides with the classical fixed point: `run (lift f) = fix f`. For arbitrary elements of the final coalgebra, `run` is the primitive operation.
-- **push** prepends a function to the continuation stack.
-
----
-
-## The Triangle Identity
-
-The map from initial to final:
+`runFree` is the same fold into `(->)`:
 
 ```haskell
-encode :: Circuit (->) (,) a b -> Hyper a b
-encode (Lift f)      = lift f
-encode (Compose f g) = encode f . encode g
-encode (Knot k)      = trace (encode k)            -- Hyper's Trace instance
+runFree :: Free arr t a b -> arr a b
+runFree (Lift f)       = f
+runFree (Compose f g)  = runFree f . runFree g
 ```
 
-The `Knot` case uses `encode k` (recursively, since the `Knot` body is now a
-`Circuit`, not a base arrow), then applies `Hyper`'s own `Trace (,)` instance —
-a coinductive lazy knot that preserves the feedback structure inside `Hyper`.
-This is *not* flattening: the knot lives on in `Hyper`'s continuation structure
-rather than being eliminated to a plain function.
+That `lower . encodeFree = runFree` is immediate from the definitions
+of `lower` and `lift`. Both are folds of the free category — one into
+`Hyper`, one into `(->)` — and `lower` is the natural transformation
+between the two targets.
 
-**Triangle:** `↓ . encode = reify` (on `Circuit`).
+---
 
-We prove each case.
+## The Lemma: `lift . trace = trace . lift`
 
-**`Lift`:**
+The factorization `encode = encodeFree . freeze` is sound only if the
+old `encode (Knot k) = trace_Hyper (encode k)` and the new
+`encodeFree (freeze (Knot k)) = lift (trace_arr (reify k))` produce
+the same `Hyper`.
 
-```
-↓ (encode (Lift f)) b
-  = ↓ (lift f) b
-  = invoke (lift f) (Hyper (const b))         -- definition of lower
-  = invoke (push f (lift f)) (Hyper (const b))  -- lift f = push f (lift f)
-  = f (invoke (Hyper (const b)) (lift f))       -- push f h = Hyper (\k -> f (invoke k h))
-  = f b                                          -- Hyper (const b) ignores argument
-  = reify (Lift f) b
-```
-
-**`Compose`:** By induction, `↓ (encode f) = reify f` and `↓ (encode g) = reify g`.
-
-```
-↓ (encode (Compose f g)) b
-  = ↓ (encode f . encode g) b
-  = invoke (encode f . encode g) (Hyper (const b))
-  = invoke (Hyper $ \h -> invoke (encode f) (encode g . h)) (Hyper (const b))
-  = invoke (encode f) (encode g . Hyper (const b))
-  = ↓ (encode f) (↓ (encode g) b)              -- lower threads through composition
-  = reify f (reify g b)
-  = reify (Compose f g) b
-```
-
-**`Knot`:** This is the case the previous version skipped. The `Knot` body
-is now a `Circuit`, not a base arrow. `encode k` recursively produces a
-`Hyper`, then `trace` ties the coinductive knot. The proof structure is
-identical — the induction goes through because `encode` on the body
-preserves the feedback semantics.
-
-Expand `trace (encode k)` using the `Trace Hyper (,)` instance:
+That equality is the statement:
 
 ```haskell
-trace body = Hyper $ \k ->
-  let pair = invoke body cont
-      cont = Hyper $ \_ ->
-        let a_val = invoke k (Hyper (const (snd pair)))
-         in (fst pair, a_val)
-   in snd pair
+lift . trace_arr = trace_Hyper . lift
 ```
 
-Substituting `body = encode k` (the encoded Circuit body):
+Where `trace_arr` is the `Trace (->) (,)` instance (lazy knot) and
+`trace_Hyper` is the `Trace Hyper (,)` instance (invoke/cont).
+
+This is the **traced functor** condition: a functor between traced
+monoidal categories that preserves the trace structure. It's not an
+axiom of a single traced category — it's a homomorphism between two
+of them.
+
+Proof: both sides reduce to the same lazy knot under `lower`.
 
 ```
-pair = invoke (encode k) cont
-  = ...                                   -- encode k produces a Hyper value
-  = k_body (fst pair, a_val)              -- cont ignores its argument (_ -> ...)
+lower (lift (trace f)) x
+  = trace f x
+  = let (a, c) = f (a, x) in c
+
+lower (trace (lift f)) x
+  -- expand trace_Hyper, substitute k = Hyper (const x)
+  = let pair = invoke (lift f) cont
+        cont = Hyper $ \_ -> (fst pair, x)
+     in snd pair
+  -- invoke (lift f) cont = f (fst pair, x)
+  = let pair = f (fst pair, x) in snd pair
+  = let (a, c) = f (a, x) in c
 ```
 
-where `a_val = invoke k (Hyper (const (snd pair)))`.
+For `Hyper`, behavioral equality (under `lower`) IS equality — that's
+what "final encoding" means. So `lift . trace = trace . lift` holds
+in `Hyper`.
 
-Now apply `lower` — i.e. supply `k = Hyper (const b)`:
-
-```
-a_val = invoke (Hyper (const b)) (Hyper (const (snd pair)))
-  = b                                   -- Hyper (const b) ignores its argument
-```
-
-So `pair = body (fst pair, b)` where `body = encode k :: Hyper (a, b) (a, c)`.
-Writing `(a, c) = pair`:
-
-```
-(a, c) = body (a, b)                     -- the lazy knot: a feeds back
-```
-
-And `snd pair = c`, so:
-
-```
-↓ (encode (Knot k)) b
-  = ↓ (trace (encode k)) b
-  = let (a, c) = body (a, b) in c       -- where body = invoke (encode k) ...
-  = trace (reify k) b                    -- the induction: encode k preserves semantics
-  = reify (Knot k) b
-```
-
-The `Trace Hyper (,)` instance ties a coinductive knot through `pair` and
-`cont`. When `lower` supplies `Hyper (const b)` as the outer continuation,
-`a_val` collapses to `b`, the `Hyper`-level self-reference dissolves, and
-what remains is exactly the lazy knot of `Trace (->) (,)`.
-
-**`Compose (Knot f) g`:** Follows from the `Compose` case by induction,
-using the `Knot` base case just proved. The Mendler case in `reify` and
-the `Compose` case in `encode` reach the same result via different paths —
-`reify` enforces sliding explicitly via the pattern match; `encode` gets
-it structurally from `Hyper`'s `Category` instance threading the continuation.
+This lemma is the load-bearing step in the triangle proof for the
+`Knot` case. It was proven in chapter 03's triangle proof — the
+expansion of `trace (encode k)` implicitly relied on it — but it was
+never extracted and named. It now has a home in
+`examples/lift-trace-commute.md`.
 
 ---
 
-## Sliding is Structural in Hyper
+## The Trace Hyper (,) Instance
 
-In `Circuit`, the sliding axiom must be enforced by the Mendler case — an explicit pattern match. In `Hyper` it is inherent in composition:
+The `Trace Hyper (,)` instance implements `trace_Hyper`:
 
 ```haskell
-f . g = Hyper $ \h -> invoke f (g . h)
+instance Trace Hyper (,) where
+  trace body = Hyper $ \k ->
+    let pair = invoke body cont
+        cont = Hyper $ \_ ->
+          let a_val = invoke k (Hyper (const (snd pair)))
+           in (fst pair, a_val)
+     in snd pair
 ```
 
-The continuation `h` is threaded through `g . h` before `invoke f` sees it, on every unfolding. This is exactly the work `untrace = fmap` does in `Circuit` — but structural rather than operational. **There is no degenerate model to fall into because the type itself encodes the feedback structure.**
+This is a hand-rolled implementation of `lift . trace_arr . lower` — the
+conjugation of the base arrow's trace by the adjunction. It exists to
+satisfy the typechecker and to prove the lemma above. It has no
+operational callers: `encode` no longer calls `trace_Hyper` directly,
+and no other code path uses `Trace Hyper (,)`.
+
+The instance is load-bearing for the categorical guarantee — without
+it, `lower . trace_Hyper = trace_arr . lower` doesn't hold, and the
+triangle can't be proved for the `Knot` case. It is a proof object,
+not dead code.
 
 ---
 
-## The Kan Extension Characterization
+## encodeEither
 
-There is an equivalent formulation via right Kan extensions (Icelandjack). For constant functors `Const a` and `Const b`:
-
-```
-Ran (Const a) (Const b) x  ≅  ∀c. (x → a) → b
-```
-
-Applying `Fix` to collapse this:
-
-```
-Fix (Ran (Const a) (Const b))
-  ≅ (x → Fix (Ran (Const a) (Const b))) → b
-  ≅ Hyper a b
-```
-
-So: **`Hyper a b  ≅  Fix (Ran (Const a) (Const b))`**
-
-This characterization explains *why* the self-duality emerges (from the continuation structure locked into the Ran form plus the fixpoint), while the direct definition shows the computational form. Both are final coalgebras with observably identical behaviour; they are observationally equivalent.
-
-Before the fixpoint, `Circuit a b` is related to the Ran of the free category:
-
-```
-Circuit a b  ~  Ran (Const a) (Const b)    (before Fix)
-```
-
-Adding the trace (`Knot`) requires tying the knot with `Fix`:
-
-```
-Hyper a b  =  Fix (Ran (Const a) (Const b))
-```
-
-`reify` is then a left Kan extension — the universal traced functor extending the embedding `arr → Circuit arr t` along the trace structure.
-
-Four consequences fall out of this characterization:
-
-- **Hyper is the codensity representation of Circuit** — it encodes the feedback channel structurally rather than as an explicit constructor.
-- **Sliding is free** — the axiom that traces slide across compositions holds automatically in Hyper because the continuation threads through every layer.
-- **The Mendler case enforces naturality** — without the pattern match `reify (Compose (Knot f) g) = trace (f . untrace (reify g))`, the universal property is violated and Knot collapses to the degenerate model.
-- **Coinductive semantics** — the recursive Hyper definition is guarded. We don't need strict proof that `Fix (Ran ...)` is isomorphic to Hyper — only that they observe the same.
-
----
-
-## Initial vs Final: A Comparison
-
-|                | `Circuit`                         | `Hyper`                       |
-|----------------|-----------------------------------|-------------------------------|
-| Encoding       | Initial (syntax)                  | Final (semantics)             |
-| Sliding        | Enforced by Mendler case          | Inherent in `(.)`             |
-| Feedback       | Explicit `Knot` constructor       | Structural in `Hyper` type    |
-| Degenerate model | Possible without Mendler case   | Not possible                  |
-| Elimination    | `reify` / `↘`                     | `lower` / `↓`                |
-| Map to other   | `encode` / `⇨` (Circuit → Hyper) | `flatten` / `⇦` (Hyper → Circuit) |
-| Inspection     | Constructors visible              | Opaque; only observable       |
-| Composition    | O(n²) left-nested                 | O(1) amortised                |
-
----
-
-## The Forgetful Map
-
-The reverse direction:
+For the `Either` tensor, Hyper encodes loops directly through its
+continuation structure:
 
 ```haskell
-flatten :: Hyper a b -> Circuit (->) (,) a b
-flatten h = Lift (lower h)
+encodeEither :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
+encodeEither f = h where
+  h = Hyper $ \k s -> case f s of
+    Right c -> c
+    Left a -> invoke k h (Left a)
 ```
 
-`lower` observes the hyperfunction against a constant continuation, collapsing it to a plain function. All feedback structure is lost. `flatten` is not an inverse to `encode` — it is the observation that `Hyper` can only be seen from the outside.
-
-This asymmetry is real: Circuit is intensional (constructors are inspectable), Hyper is extensional (only behaviour is accessible). The two encodings are not isomorphic on the nose. The triangle `↓ . encode = ↘` holds, but `⇨ . ⇦ ≠ id` in general.
+This is a hand-rolled Either loop inside Hyper's continuation
+structure. `runEither f b = run (encodeEither f) (Right b)` ties the
+knot. No `Trace` instance needed — the loop lives in `invoke`.
 
 ---
 
 ## When to Use Each
 
-**Use Circuit when:**
-- Building and inspecting structure
-- Static analysis of feedback topology
-- Composing sub-circuits before running
-- You need the constructors to be visible
+**Build in `Circuit`** when you need inspectable structure — static
+analysis, staged metering, transposition via `Net`.
 
-**Use Hyper when:**
-- Running / eliminating the circuit
-- Performance matters (left-nested composition)
-- The sliding axiom needs to be guaranteed structurally
-- You want the semantics without the syntax
+**Eliminate via `freeze >>> runFree`** when you want a plain function.
+This is the operational path.
 
-The typical pattern: **build in Circuit, run via Hyper**.
+**Build in `Hyper`** using Kidney-Wu's pattern: compose with `(.)`,
+thread with `push`, eliminate once with `run`. Don't `encode` a
+`Circuit` — build the `Hyper` directly. The performance holds for
+single-elimination patterns.
+
+**Use `Queue`** (from `free-category`) when you need O(1) cons, O(1)
+`viewl`, and O(n) elimination with no closure overhead. `Queue` is
+the inspectable, efficient alternative to both `Free` and `Hyper`.
 
 ---
 
 ## Summary
 
-`Hyper` is `Circuit` with the syntax erased. The feedback channel that `Knot` makes explicit in `Circuit` dissolves into the type of `Hyper`. The sliding axiom that the Mendler case enforces in `Circuit` holds structurally in `Hyper`. The triangle `↓ . encode = ↘` connects them.
+`Hyper` is the final encoding of the *free category*, not of `Circuit`.
+`encodeFree :: Free → Hyper` is the unique functor. `encode = encodeFree . freeze`
+factors through `Free`. `lift . trace = trace . lift` is the lemma that
+makes it work — the traced functor condition, proven in the Knot case
+of the triangle. `Trace Hyper (,)` exists to prove the lemma;
+operationally, it has no callers.
 
-**Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) — the tensor parameter `t`; `(,)` vs `Either`; holding hands vs taking turns.
+**Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) — the tensor parameter;
+`(,)` vs `Either`; holding hands vs taking turns.
 
 ---
 
 ## References
 
-- [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — hyperfunction definitions and operations
-- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — modern treatment; producer-consumer insight
-- Icelandjack — Ran characterization; `Fix (Ran (Const a) (Const b))`
-- [axioms.md](../other/axioms.md) — axioms and the commuting triangle
+- [Kidney & Wu (2026)](https://doi.org/10.1145/3776649) — hyperfunctions
+- [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
+- `src/Circuit/Hyper.hs` — the five marks and Trace instance
+- `examples/lift-trace-commute.md` — full proof of the traced functor lemma
+- `src/Circuit/Free.hs` — the free category GADT
