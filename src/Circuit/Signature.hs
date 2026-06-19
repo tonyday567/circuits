@@ -155,7 +155,7 @@ fold = foldInto id
 data SigCompose arr rec a b where
   SigCompose :: rec b c -> rec a b -> SigCompose arr rec a c
 
-instance Category arr' => Handler SigCompose arr arr' where
+instance (Category arr') => Handler SigCompose arr arr' where
   type HCtx SigCompose arr arr' = Category arr'
   handle _ eval (SigCompose g f) = eval g . eval f
 
@@ -163,7 +163,7 @@ instance Category arr' => Handler SigCompose arr arr' where
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
   SigKnot :: rec (t a b) (t a c) -> SigKnot t arr rec b c
 
-instance Traced arr' t => Handler (SigKnot t) arr arr' where
+instance (Traced arr' t) => Handler (SigKnot t) arr arr' where
   type HCtx (SigKnot t) arr arr' = Traced arr' t
   handle _ eval (SigKnot f) = trace (eval f)
 
@@ -171,7 +171,7 @@ instance Traced arr' t => Handler (SigKnot t) arr arr' where
 data SigPar arr rec a b where
   SigPar :: rec a b -> rec c d -> SigPar arr rec (a, c) (b, d)
 
-instance MonoidalP arr' => Handler SigPar arr arr' where
+instance (MonoidalP arr') => Handler SigPar arr arr' where
   type HCtx SigPar arr arr' = MonoidalP arr'
   handle _ eval (SigPar f g) = par (eval f) (eval g)
 
@@ -179,7 +179,7 @@ instance MonoidalP arr' => Handler SigPar arr arr' where
 data SigSwap arr rec a b where
   SigSwap :: SigSwap arr rec (a, b) (b, a)
 
-instance MonoidalP arr' => Handler SigSwap arr arr' where
+instance (MonoidalP arr') => Handler SigSwap arr arr' where
   type HCtx SigSwap arr arr' = MonoidalP arr'
   handle _ _ SigSwap = swap
 
@@ -226,11 +226,11 @@ type SigNet t arr = Free (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: Si
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
 
-instance Category arr => Category (SigFreeCat arr) where
+instance (Category arr) => Category (SigFreeCat arr) where
   id = Lift id
   f . g = Op (SigCompose f g)
 
-instance Category arr => Category (SigTrace t arr) where
+instance (Category arr) => Category (SigTrace t arr) where
   id = Lift id
   f . g = Op (L (SigCompose f g))
 

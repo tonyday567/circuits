@@ -32,8 +32,8 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Trace (Trace (..), freeze, realise)
 import Circuit.Free qualified as F
+import Circuit.Trace (Trace (..), freeze, realise)
 import Circuit.Traced
 import Prelude hiding (id, (.))
 

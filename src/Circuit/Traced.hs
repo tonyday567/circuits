@@ -73,13 +73,18 @@
 --   * Kidney & Wu (2026) — hyperfunctions, producer-consumer pattern.
 --
 --   * Joyal, Street & Verity (1996) — trace monoidal categories.
+#ifdef __GLASGOW_HASKELL__
 module Circuit.Traced
   ( Traced (..),
-#ifdef __GLASGOW_HASKELL__
     cellIO,
-#endif
   )
 where
+#else
+module Circuit.Traced
+  ( Traced (..),
+  )
+where
+#endif
 
 #ifdef __GLASGOW_HASKELL__
 import Control.Arrow (Kleisli (..))

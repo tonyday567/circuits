@@ -39,9 +39,9 @@ import Data.Profunctor
 import Circuit.Classes
 #endif
 
-import Circuit.Trace qualified as C
 import Circuit.Dagger qualified as Dg
 import Circuit.Monoidal (MonoidalP (..))
+import Circuit.Trace qualified as C
 import Circuit.Traced
 import Prelude hiding (Monoid, id, (.))
 
@@ -169,6 +169,7 @@ melt = \case
   Compose g f -> C.Compose (melt g) (melt f)
   Par f g -> C.Lift (par (weave f) (weave g))
   Swap -> C.Lift swap
+  Trace f -> C.Trace (melt f)
 #ifdef __GLASGOW_HASKELL__
   Copy -> C.Lift Dg.copy
   Discard -> C.Lift Dg.discard
@@ -177,4 +178,3 @@ melt = \case
 #else
   _ -> undefined
 #endif
-  Trace f -> C.Trace (melt f)

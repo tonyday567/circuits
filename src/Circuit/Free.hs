@@ -70,4 +70,4 @@ hoistFree h (Compose f g) = Compose (hoistFree h f) (hoistFree h g)
 -- A loop body in @Free arr@ is folded before calling the base 'trace'.
 instance (Category arr, Traced arr t) => Traced (Free arr) t where
   trace body = Lift (trace (runFree body))
-  untrace f  = Lift (untrace (runFree f))
+  untrace f = Lift (untrace (runFree f))

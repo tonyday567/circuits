@@ -181,7 +181,7 @@ realise = F.runFree . freeze
 -- A loop body in @Trace t arr@ is reified before calling the base 'trace'.
 instance (Category arr, Traced arr t) => Traced (Trace t arr) t where
   trace body = Lift (trace (realise body))
-  untrace f  = Lift (untrace (realise f))
+  untrace f = Lift (untrace (realise f))
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.

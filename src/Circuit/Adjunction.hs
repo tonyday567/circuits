@@ -31,10 +31,10 @@
 -- * 'realise' = 'runFree' . 'freeze'
 module Circuit.Adjunction where
 
-import Circuit.Trace qualified as T
 import Circuit.Free qualified as F
-import Circuit.Net (Net (..), melt)
 import Circuit.Monoidal (MonoidalP (..))
+import Circuit.Net (Net (..), melt)
+import Circuit.Trace qualified as T
 import Circuit.Traced qualified as Tr
 import Control.Category (Category, id, (.))
 import Data.Kind (Constraint, Type)
@@ -43,19 +43,22 @@ import Prelude hiding (id, (.))
 -- | Identity profunctor — wraps the base arrow as a profunctor endofunctor.
 newtype Id arr a b = Id {unId :: arr a b}
 
-instance Category arr => Category (Id arr) where
+instance (Category arr) => Category (Id arr) where
   id = Id id
   Id f . Id g = Id (f . g)
 
 -- | Adjunction class for profunctor endofunctors.
 -- @f arr@ is a category over base @arr@; unit/counit are natural transformations.
-class Adjunction (f :: (k -> k -> Type) -> k -> k -> Type)
-                 (u :: (k -> k -> Type) -> k -> k -> Type)
-                 | f -> u where
+class
+  Adjunction
+    (f :: (k -> k -> Type) -> k -> k -> Type)
+    (u :: (k -> k -> Type) -> k -> k -> Type)
+    | f -> u
+  where
   type AdjC f u (arr :: k -> k -> Type) :: Constraint
   type AdjC f u arr = ()
-  unit   :: AdjC f u arr => arr a b -> u (f arr) a b
-  counit :: AdjC f u arr => f (u arr) a b -> arr a b
+  unit :: (AdjC f u arr) => arr a b -> u (f arr) a b
+  counit :: (AdjC f u arr) => f (u arr) a b -> arr a b
 
 -- | Free ⊣ Id — free category, forgetful to base arrow.
 --

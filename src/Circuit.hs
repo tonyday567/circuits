@@ -58,7 +58,7 @@
 -- * __Feedback channel__: The path the feedback value takes when routed back
 --   into the next step.
 module Circuit
-  (    -- * Trace
+  ( -- * Trace
     Trace (..),
     Wire,
     Step,
@@ -122,16 +122,6 @@ module Circuit
   )
 where
 
-import Circuit.Trace
-  ( Trace (..),
-    Co (..),
-    Contra (..),
-    Step,
-    Wire,
-    close,
-    freeze,
-    realise,
-  )
 import Circuit.Dagger
   ( Bimonoid,
     Comonoid (..),
@@ -176,9 +166,19 @@ import Circuit.Monoidal
   )
 import Circuit.Net
   ( Net,
-    weave,
-    melt,
     enrich,
+    melt,
+    weave,
+  )
+import Circuit.Trace
+  ( Co (..),
+    Contra (..),
+    Step,
+    Trace (..),
+    Wire,
+    close,
+    freeze,
+    realise,
   )
 import Circuit.Traced (trace, untrace)
 import Circuit.Traced qualified as Traced
