@@ -32,7 +32,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Trace (Trace (..), freeze, reify)
+import Circuit.Trace (Trace (..), freeze, realise)
 import Circuit.Free qualified as F
 import Circuit.Traced
 import Prelude hiding (id, (.))
@@ -49,7 +49,7 @@ import Circuit.Classes
 -- >>> import Control.Category
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Traced (Traced (..))
--- >>> import Circuit.Trace (Trace (..), reify)
+-- >>> import Circuit.Trace (Trace (..), realise)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -192,13 +192,13 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 --
 -- This is the unique traced functor from the initial object (Trace)
 -- to the final object (Hyper), satisfying the commuting triangle
--- @'lower' . 'encode' = 'reify'@.
+-- @'lower' . 'encode' = 'realise'@.
 --
 -- Factors through 'Free': @'encode' = 'encodeFree' . 'freeze'@.
 -- 'freeze' dissolves knot constructors into 'Lift' via the base arrow's 'trace';
 -- 'encodeFree' lifts the two constructors into Hyper.
 --
--- >>> import Circuit.Trace (Trace (..), reify)
+-- >>> import Circuit.Trace (Trace (..), realise)
 -- >>> lower (encode (Lift (+1) :: Trace (,) (->) Int Int)) 5
 -- 6
 encode :: Trace (,) (->) a b -> Hyper a b
@@ -256,7 +256,7 @@ runEither f b = run (encodeEither f) (Right b)
 -- All feedback structure is lost; only the observable behaviour remains.
 --
 -- >>> let h = lift (+ 1)
--- >>> reify (flatten h) 5
+-- >>> realise (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:

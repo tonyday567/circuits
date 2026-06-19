@@ -13,7 +13,7 @@
 -- wiring you can read backwards and wiring that's been melted into the
 -- prims.
 --
--- 'loom' and 'melt' interpret a 'Net' to a plain arrow and a
+-- 'weave' and 'melt' interpret a 'Net' to a plain arrow and a
 -- 'Trace' respectively.  Instances for 'Comonoid' @(->)@ and
 -- 'Monoid' @(->)@ exist; @D@ instances live in @circuits-ad@.
 module Circuit.Net
@@ -24,10 +24,10 @@ module Circuit.Net
     transpose,
 
     -- * Conversion
-    upgrade,
+    enrich,
 
     -- * Interpretation
-    loom,
+    weave,
     melt,
   )
 where
@@ -48,7 +48,7 @@ import Prelude hiding (Monoid, id, (.))
 -- $setup
 -- >>> 1 + 1 :: Int
 -- 2
--- >>> import Trace (Trace(..), reify)
+-- >>> import Trace (Trace(..), realise)
 -- >>> import Circuit.Net
 -- >>> import Prelude hiding (id, (.), Monoid)
 
@@ -99,7 +99,7 @@ data Net t arr a b where
 --
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> let n = Circuit.Net.Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
--- >>> Dg.front (loom (transpose (transpose n))) 5
+-- >>> Dg.front (weave (transpose (transpose n))) 5
 -- 6
 transpose ::
   Net t (Dg.Dagger arr) a b ->
@@ -125,10 +125,10 @@ transpose = undefined
 -- 'Trace', so upgrading a lifted 'Trace' produces a 'Net' with
 -- only 'Lift', 'Compose', and 'Trace' — the same information, now in
 -- a GADT that can hold more.  'Circuit.Trace' lifts to 'Net.Trace'.
-upgrade :: C.Trace t arr a b -> Net t arr a b
-upgrade (C.Lift f) = Lift f
-upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
-upgrade (C.Trace f) = Trace (upgrade f)
+enrich :: C.Trace t arr a b -> Net t arr a b
+enrich (C.Lift f) = Lift f
+enrich (C.Compose f g) = Compose (enrich f) (enrich g)
+enrich (C.Trace f) = Trace (enrich f)
 
 -- | Interpret a 'Net' to a plain arrow.
 --
@@ -137,17 +137,17 @@ upgrade (C.Trace f) = Trace (upgrade f)
 -- 'Par' to 'par', 'Copy' to 'copy', 'Plus' to 'plus', etc.
 -- 'Trace' uses the 'Trace' instance on the base arrow.
 --
--- @'loom' = 'C.reify' . 'melt'@ — first melt structural rows into
--- 'Trace', then reify to a plain arrow.  The Mendler sliding case is
+-- @'weave' = 'C.realise' . 'melt'@ — first melt structural rows into
+-- 'Trace', then realise to a plain arrow.  The Mendler sliding case is
 -- handled once in 'Circuit.Trace.freeze'.
 --
--- >>> loom (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int) 5
+-- >>> weave (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int) 5
 -- 6
-loom ::
+weave ::
   (Traced arr t, MonoidalP arr) =>
   Net t arr a b ->
   arr a b
-loom = C.reify . melt
+weave = C.realise . melt
 
 -- | Melt the structural rows of a 'Net' into opaque 'Lift' calls.
 --
@@ -156,9 +156,9 @@ loom = C.reify . melt
 -- etc.) become opaque base-arrow operations; the 'Trace' and 'Compose'
 -- structure is preserved.
 --
--- 'loom' factors through 'melt': @loom = reify . melt@.
+-- 'weave' factors through 'melt': @weave = realise . melt@.
 --
--- >>> reify (melt (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int)) 5
+-- >>> realise (melt (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
   (Traced arr t, MonoidalP arr) =>
@@ -167,7 +167,7 @@ melt ::
 melt = \case
   Lift f -> C.Lift f
   Compose g f -> C.Compose (melt g) (melt f)
-  Par f g -> C.Lift (par (loom f) (loom g))
+  Par f g -> C.Lift (par (weave f) (weave g))
   Swap -> C.Lift swap
 #ifdef __GLASGOW_HASKELL__
   Copy -> C.Lift Dg.copy

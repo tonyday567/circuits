@@ -6,7 +6,7 @@
 -- over the standard tensors @(,)@ and 'Either', along with the general
 -- 'ambientBy' combinator for threading additional state wires.
 --
--- The goal is to keep the core 'Trace' GADT and 'reify' mechanism
+-- The goal is to keep the core 'Trace' GADT and 'realise' mechanism
 -- independent of these structural details.
 module Circuit.Monoidal
   ( Braided (..),
@@ -38,7 +38,7 @@ import Data.Bifunctor (Bifunctor (..))
 import Circuit.Classes (Profunctor (..), Bifunctor (..), Category)
 #endif
 
-import Circuit.Trace (Trace (..), reify)
+import Circuit.Trace (Trace (..), realise)
 import Circuit.Traced
 
 -- ===========================================================================
@@ -185,13 +185,13 @@ coreleaseR _ (Left a) = Left a
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
 -- @\(x, (s, a)) -> (s, (x, a))@.
 --
--- >>> import Circuit.Trace (Trace(..), reify)
+-- >>> import Circuit.Trace (Trace(..), realise)
 -- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> Circuit.Trace.reify (ambientBy braid (Lift (+1) :: Trace (,) (->) Int Int)) ("st", 5)
+-- >>> Circuit.Trace.realise (ambientBy braid (Lift (+1) :: Trace (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
 --
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> Circuit.Trace.reify (ambientBy braid (Trace (Lift step))) ("st", ())
+-- >>> Circuit.Trace.realise (ambientBy braid (Trace (Lift step))) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
   (Category arr, Profunctor arr, Traced arr t) =>
@@ -200,7 +200,7 @@ ambientBy ::
   Trace t arr (t s a) (t s b)
 ambientBy _br (Lift f) = Lift (untrace f)
 ambientBy br (Compose f g) = Compose (ambientBy br f) (ambientBy br g)
-ambientBy br (Trace k) = Trace (Lift (dimap br br (untrace (reify k))))
+ambientBy br (Trace k) = Trace (Lift (dimap br br (untrace (realise k))))
 
 -- ===========================================================================
 -- MonoidalP — parallel composition for product categories
@@ -235,5 +235,5 @@ instance MonoidalP (->) where
 -- base arrow, and lifts the result.  This forgets interior 'Trace'
 -- structure but preserves semantics.
 instance (MonoidalP arr, Traced arr t) => MonoidalP (Trace t arr) where
-  par f g = Lift (par (reify f) (reify g))
+  par f g = Lift (par (realise f) (realise g))
   swap = Lift swap

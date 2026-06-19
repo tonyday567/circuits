@@ -29,7 +29,7 @@ countLines = Trace (Kleisli step)
 pipeline = openf >>> countLines >>> Lift (Kleisli (\(h, n) -> hClose h >> pure n))
          -- Trace (Kleisli IO) Either FilePath Int
 
--- paste into ghci:  runKleisli (reify pipeline) "readme.md"
+-- paste into ghci:  runKleisli (realise pipeline) "readme.md"
 ```
 
 Three constructors. `Lift` wraps a plain function. `Compose` (written `>>>`) sequences them. `Trace` ties feedback — `Left` continues the loop, `Right` exits.
@@ -48,7 +48,7 @@ Same `Trace` constructor. Different tensor, different universe. The library trea
 ```haskell
 -- Lazy streaming with (,):
 powers = Trace (Lift (\(ns, ()) -> (1 : map (*2) ns, take 5 ns)))
-reify powers ()  -- [1,2,4,8,16]
+realise powers ()  -- [1,2,4,8,16]
 
 -- Iteration with Either:
 step n = if n < 5 then Left (n + 1) else Right n

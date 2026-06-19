@@ -27,8 +27,8 @@
 --
 -- Iconic equations:
 --
--- * 'loom'  = 'reify' . 'melt'      = 'runFree' . 'freeze' . 'melt'
--- * 'reify' = 'runFree' . 'freeze'
+-- * 'weave'  = 'realise' . 'melt'      = 'runFree' . 'freeze' . 'melt'
+-- * 'realise' = 'runFree' . 'freeze'
 module Circuit.Adjunction where
 
 import Circuit.Trace qualified as T
@@ -81,8 +81,8 @@ instance Adjunction (T.Trace t) F.Free where
 -- Unit: double lift — base arrow -> 'Net' -> 'Trace (Net t arr)'.
 -- Counit: collapse @Net t (Trace t arr)@ by melting to
 -- @Trace t (Trace t arr)@, then joining the nested 'Trace' layers
--- with 'reify'.
+-- with 'realise'.
 instance Adjunction (Net t) (T.Trace t) where
   type AdjC (Net t) (T.Trace t) arr = (Tr.Traced arr t, MonoidalP arr)
   unit x = T.Lift (Lift x)
-  counit = T.reify . T.reify . melt
+  counit = T.realise . T.realise . melt

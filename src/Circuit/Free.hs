@@ -6,7 +6,7 @@
 -- 'Free' is 'Trace' without the knot constructor.  Where 'Trace' is the free /traced/
 -- category, 'Free' is the free category.  The 'freeze' interpreter in
 -- "Circuit.Trace" dissolves 'Trace' into a 'Lift' by calling 'trace'
--- on the base arrow, making the decomposition 'reify' = 'runFree' . 'freeze'.
+-- on the base arrow, making the decomposition 'realise' = 'runFree' . 'freeze'.
 module Circuit.Free
   ( Free (..),
     runFree,

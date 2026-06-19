@@ -31,7 +31,7 @@ axioms                             equational proofs (appendix)
 Recommended reading order for the source (core concepts first):
 
 ```
-Circuit.Trace  — Trace GADT: Lift, Compose, Trace. reify.
+Circuit.Trace  — Trace GADT: Lift, Compose, Trace. realise.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
                    cellIO helper.
@@ -76,7 +76,7 @@ mathematical notation — not Haskell identifiers.  See
 [other/symbols.md](other/symbols.md) for the full table, axioms, and
 worked examples.
 
-The canonical API uses lowercase names: `lift`, `lower`, `reify`,
+The canonical API uses lowercase names: `lift`, `lower`, `realise`,
 `encode`, `push`, `run`, `trace`, `untrace`, etc.
 
 Symbols appear in two places only: the notation table (01/symbols.md)
@@ -91,18 +91,18 @@ type signatures, code — use names. This boundary prevents agent churn.
   instance ties a lazy knot.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
-- **Use `reify` for Trace, `run` for Hyper**. `reify :: Trace arr t x y -> arr x y`
+- **Use `realise` for Trace, `run` for Hyper**. `realise :: Trace arr t x y -> arr x y`
   interprets a Trace to a plain arrow. `run :: Hyper a a -> a` ties the
   self-referential knot. They are not interchangeable — calling `run` on a
   Trace is a type error. This is the most common bug in example cards.
 
 ## gotchas
 
-### run vs reify
+### run vs realise
 
-`run` takes a `Hyper`; `reify` takes a `Trace`. They are different
+`run` takes a `Hyper`; `realise` takes a `Trace`. They are different
 elimination forms on different types. If an example calls `run` on something
-built with `Trace` or `Lift`, it needs `reify` (or `encode` then `run`).
+built with `Trace` or `Lift`, it needs `realise` (or `encode` then `run`).
 
 ### .md cards cannot be loaded directly in cabal repl
 
@@ -130,7 +130,7 @@ returning. The convention is fixed by the class, not configurable.
 `Trace` is parametric in the tensor `t`. `(,)` and `Either` have
 different loop semantics but identical GADT constructors. The compiler
 won't stop you from using the wrong one — you'll get a puzzling type
-error deep inside a `Trace` or `reify`.
+error deep inside a `Trace` or `realise`.
 
 | if you wanted | but wrote | symptom |
 |-------------|----------|---------|
@@ -157,7 +157,7 @@ The dependency lives in the command, not in circuits.cabal.
 New example cards go in `examples/`. A good card:
 
 - **Repl-verifiable.** Paste code blocks into `cabal repl` and they work.
-  Verify before committing — `run` where `reify` belongs is a type error.
+  Verify before committing — `run` where `realise` belongs is a type error.
 - **Pleasant to read.** Not a wall of code. Break up large blocks with
   narrative sections.
 - **Pleasant to copy/paste.** The reader should want to grab a block and play.

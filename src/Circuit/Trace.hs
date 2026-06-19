@@ -32,7 +32,7 @@
 -- These concepts are independent of any particular base arrow @arr@. They
 -- describe the structure of feedback itself.
 --
--- The 'reify' function interprets any 'Trace' to a plain arrow via
+-- The 'realise' function interprets any 'Trace' to a plain arrow via
 -- the 'Trace' class instance on @t@. For encoding into 'Circuit.Hyper', see
 -- 'Circuit.Hyper.encode' and 'Circuit.Hyper.encodeEither'.
 module Circuit.Trace
@@ -44,7 +44,7 @@ module Circuit.Trace
     Step,
 
     -- * Interpreters
-    reify,
+    realise,
     freeze,
 
     -- * Channel ends
@@ -81,19 +81,19 @@ import Circuit.Classes
 data Trace t arr a b where
   -- | Lift embeds a base arrow (strict monoidal functor).
   --
-  -- >>> reify (Lift (+1) :: Trace (,) (->) Int Int) 5
+  -- >>> realise (Lift (+1) :: Trace (,) (->) Int Int) 5
   -- 6
   Lift :: arr a b -> Trace t arr a b
   -- | Compose performs sequential composition (category structure).
   --
-  -- >>> reify (Lift (+1) >>> Lift (*2) :: Trace (,) (->) Int Int) 5
+  -- >>> realise (Lift (+1) >>> Lift (*2) :: Trace (,) (->) Int Int) 5
   -- 12
   Compose :: Trace t arr b c -> Trace t arr a b -> Trace t arr a c
   -- | Trace ties a feedback loop. The tensor @t@ carries the channel type.
   -- The body is a 'Trace' so the loop wiring is inspectable before
-  -- 'reify' closes it.
+  -- 'realise' closes it.
   --
-  -- >>> reify (Trace (Lift (\(acc, x) -> (x, acc))) :: Trace (,) (->) Int Int) 42
+  -- >>> realise (Trace (Lift (\(acc, x) -> (x, acc))) :: Trace (,) (->) Int Int) 42
   -- 42
   Trace :: Trace t arr (t a b) (t a c) -> Trace t arr b c
 
@@ -126,7 +126,7 @@ instance Functor (Trace t (->) a) where
 -- to the input of the left sub-circuit and the output of the right
 -- sub-circuit, leaving the intermediate type aligned.
 --
--- >>> reify (dimap (+ 1) (+ 1) (Lift (* 2) :: Trace (,) (->) Int Int)) 5
+-- >>> realise (dimap (+ 1) (+ 1) (Lift (* 2) :: Trace (,) (->) Int Int)) 5
 -- 13
 instance (Profunctor arr, Bifunctor t) => Profunctor (Trace t arr) where
   dimap f g (Lift h) = Lift (dimap f g h)
@@ -145,7 +145,7 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Trace t arr) where
 -- case (@'Compose' ('Trace' f) g@) slides @g@ inside the trace, enforcing
 -- the sliding axiom of traced monoidal categories.
 --
--- 'reify' factors through 'freeze': @'reify' = 'F.runFree' . 'freeze'@.
+-- 'realise' factors through 'freeze': @'realise' = 'F.runFree' . 'freeze'@.
 --
 -- >>> F.runFree (freeze (Lift (+1) :: Trace (,) (->) Int Int)) 5
 -- 6
@@ -167,20 +167,20 @@ freeze = \case
 -- of a @Compose@: this is exactly where the sliding axiom of traced
 -- monoidal categories is enforced (the Mendler case).
 --
--- @'reify' = 'F.runFree' . 'freeze'@ — first dissolve 'Trace' into 'Free',
+-- @'realise' = 'F.runFree' . 'freeze'@ — first dissolve 'Trace' into 'Free',
 -- then fold to a plain arrow.
 --
--- >>> reify (Lift (+1) :: Trace (,) (->) Int Int) 5
+-- >>> realise (Lift (+1) :: Trace (,) (->) Int Int) 5
 -- 6
-reify :: (Category arr, Traced arr t) => Trace t arr x y -> arr x y
-reify = F.runFree . freeze
+realise :: (Category arr, Traced arr t) => Trace t arr x y -> arr x y
+realise = F.runFree . freeze
 
 -- | Lift the 'Trace' class through 'Trace t'.
 --
 -- A loop body in @Trace t arr@ is reified before calling the base 'trace'.
 instance (Category arr, Traced arr t) => Traced (Trace t arr) t where
-  trace body = Lift (trace (reify body))
-  untrace f  = Lift (untrace (reify f))
+  trace body = Lift (trace (realise body))
+  untrace f  = Lift (untrace (realise f))
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.

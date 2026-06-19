@@ -30,7 +30,7 @@ prop_circuit_direct_roundtrip :: Property
 prop_circuit_direct_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        C.reify (sigToTrace (traceToSig c)) x == C.reify c x
+        C.realise (sigToTrace (traceToSig c)) x == C.realise c x
       | c <- circuits
     ]
 
@@ -64,7 +64,7 @@ prop_net_direct_roundtrip :: Property
 prop_net_direct_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        N.loom (sigToNet (netToSig n)) x == N.loom n x
+        N.weave (sigToNet (netToSig n)) x == N.weave n x
       | n <- nets
     ]
 
@@ -72,7 +72,7 @@ prop_net_melt_via_signature :: Property
 prop_net_melt_via_signature =
   conjoin
     [ forAll arbitrary $ \x ->
-        fold (sigMelt (netToSig n)) x == N.loom n x
+        fold (sigMelt (netToSig n)) x == N.weave n x
       | n <- nets
     ]
 
@@ -83,7 +83,7 @@ prop_net_pair_roundtrip :: Property
 prop_net_pair_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        N.loom (sigToNet (netToSig n)) x == N.loom n x
+        N.weave (sigToNet (netToSig n)) x == N.weave n x
       | n <- netsPair
     ]
 

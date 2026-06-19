@@ -26,7 +26,7 @@
 -- === Switching between representations
 --
 -- 'Trace' is the inspectable GADT form. 'Hyper' is the efficient final
--- encoding. Convert with 'encode' and 'reify'.
+-- encoding. Convert with 'encode' and 'realise'.
 --
 -- >>> lower (encode (Lift (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
@@ -65,7 +65,7 @@ module Circuit
     Co (..),
     Contra (..),
     close,
-    reify,
+    realise,
     freeze,
 
     -- * Free
@@ -81,8 +81,8 @@ module Circuit
 
     -- * Net
     Net,
-    upgrade,
-    loom,
+    enrich,
+    weave,
     melt,
 
     -- * Hyper
@@ -128,7 +128,7 @@ import Circuit.Trace
     Wire,
     close,
     freeze,
-    reify,
+    realise,
   )
 import Circuit.Dagger
   ( Bimonoid,
@@ -174,9 +174,9 @@ import Circuit.Monoidal
   )
 import Circuit.Net
   ( Net,
-    loom,
+    weave,
     melt,
-    upgrade,
+    enrich,
   )
 import Circuit.Traced qualified as Traced
 import Prelude hiding (Monoid)
