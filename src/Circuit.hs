@@ -28,29 +28,29 @@
 -- 'Circuit' is the inspectable GADT form. 'Hyper' is the efficient final
 -- encoding. Convert with 'encode' and 'reify'.
 --
--- >>> lower (encode (Lift (+1) :: Circuit (->) (,) Int Int)) 41
+-- >>> lower (encode (Lift (+1) :: Circuit (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
 --
 -- This library provides two representations of feedback:
 --
--- * 'Circuit' (in \"Circuit.Circuit\") — the initial, inspectable GADT encoding.
--- * 'Hyper' (in \"Circuit.Hyper\") — the final, coinductive encoding.
+-- * 'Circuit' (in "Circuit.Trace") — the initial, inspectable GADT encoding.
+-- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
 --
--- The 'Trace' class (in \"Circuit.Traced\") abstracts the choice of tensor,
+-- The 'Trace' class (in "Circuit.Traced") abstracts the choice of tensor,
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
--- 'ambientBy' state-threading combinator, lives in \"Circuit.Monoidal\".
+-- 'ambientBy' state-threading combinator, lives in "Circuit.Monoidal".
 --
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a 'Knot' (currently @(,@) or 'Either').
+--   inside a 'Circuit' (currently @(,@) or 'Either').
 --
 -- * __Feedback value__: The component that travels around the loop (first
---   parameter of the tensor in a 'Knot').
+--   parameter of the tensor in a 'Circuit').
 --
 -- * __Payload__: The value being transformed and emitted (second parameter
 --   of the tensor).
@@ -58,7 +58,7 @@
 -- * __Feedback channel__: The path the feedback value takes when routed back
 --   into the next step.
 module Circuit
-  ( -- * Circuit
+  (    -- * Circuit
     Circuit (..),
     Wire,
     Step,
@@ -66,9 +66,11 @@ module Circuit
     Contra (..),
     close,
     reify,
+    freeze,
 
-    -- * Traced
-    Trace (..),
+    -- * Free
+    Free,
+    runFree,
 
     -- * Dagger (bimonoid + dagger)
     Monoid (..),
@@ -92,6 +94,7 @@ module Circuit
     run,
     encode,
     encodeEither,
+    encodeFree,
     runEither,
     flatten,
 
@@ -117,13 +120,14 @@ module Circuit
   )
 where
 
-import Circuit.Circuit
+import Circuit.Trace
   ( Circuit (..),
     Co (..),
     Contra (..),
     Step,
     Wire,
     close,
+    freeze,
     reify,
   )
 import Circuit.Dagger
@@ -133,11 +137,16 @@ import Circuit.Dagger
     Monoid (..),
     transpose,
   )
+import Circuit.Free
+  ( Free,
+    runFree,
+  )
 import Circuit.Hyper
   ( Hyper (..),
     base,
     encode,
     encodeEither,
+    encodeFree,
     flatten,
     lift,
     lower,
@@ -169,7 +178,5 @@ import Circuit.Net
     melt,
     upgrade,
   )
-import Circuit.Traced
-  ( Trace (..),
-  )
+import Circuit.Traced qualified as Traced
 import Prelude hiding (Monoid)

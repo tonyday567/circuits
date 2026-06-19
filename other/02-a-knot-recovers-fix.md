@@ -23,20 +23,19 @@ inspectable, and the axioms become operational.
 The free category over a base arrow `arr` needs two constructors:
 
 ```haskell
-data Free arr t a b where
-  Lift    :: arr a b -> Free arr t a b
-  Compose :: Free arr t b c -> Free arr t a b -> Free arr t a c
+data Free arr a b where
+  Lift    :: arr a b -> Free arr a b
+  Compose :: Free arr b c -> Free arr a b -> Free arr a c
 ```
 
-`↑` is `Lift`. `⊙` is `Compose`. Axioms 1–3 hold by construction. The
-tensor parameter `t` is phantom here — `Free` has no feedback, so `t`
-is unused. It's carried for compatibility with `Circuit`, where `t`
-becomes load-bearing.
+`↑` is `Lift`. `⊙` is `Compose`. Axioms 1–3 hold by construction. `Free`
+is the plain free category — no tensor, no feedback. The `t` parameter
+was removed because it was phantom once `Knot` was gone.
 
 The canonical interpreter folds to a plain arrow:
 
 ```haskell
-runFree :: (Category arr) => Free arr t a b -> arr a b
+runFree :: (Category arr) => Free arr a b -> arr a b
 runFree (Lift f)       = f
 runFree (Compose f g)  = runFree f . runFree g
 ```
@@ -140,7 +139,7 @@ pattern match, the same operational content.
 `Lift` by calling the base arrow's `trace`:
 
 ```haskell
-freeze :: (Category arr, Trace arr t) => Circuit arr t a b -> Free arr t a b
+freeze :: (Category arr, Trace arr t) => Circuit arr t a b -> Free arr a b
 freeze (Lift f)                = Lift f
 freeze (Compose (Knot f) g)    = Lift (trace (runFree (freeze f) . untrace (runFree (freeze g))))
 freeze (Compose f g)           = Compose (freeze f) (freeze g)

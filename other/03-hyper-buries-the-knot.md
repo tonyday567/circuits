@@ -30,7 +30,7 @@ encode :: Circuit (->) (,) a b -> Hyper a b
 encode = encodeFree . freeze
 ```
 
-where `encodeFree :: Free (->) (,) a b -> Hyper a b` is the unique
+where `encodeFree :: Free (->) a b -> Hyper a b` is the unique
 functor from the free category to the final encoding. It handles only
 `Lift` and `Compose`.
 
@@ -75,7 +75,7 @@ lower . encodeFree = runFree
 `encodeFree` is the canonical fold:
 
 ```haskell
-encodeFree :: Free (->) (,) a b -> Hyper a b
+encodeFree :: Free (->) a b -> Hyper a b
 encodeFree (Lift f)       = lift f
 encodeFree (Compose f g)  = encodeFree f . encodeFree g
 ```
@@ -83,7 +83,7 @@ encodeFree (Compose f g)  = encodeFree f . encodeFree g
 `runFree` is the same fold into `(->)`:
 
 ```haskell
-runFree :: Free arr t a b -> arr a b
+runFree :: Free arr a b -> arr a b
 runFree (Lift f)       = f
 runFree (Compose f g)  = runFree f . runFree g
 ```

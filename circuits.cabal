@@ -65,9 +65,11 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Circuit
+    Circuit.Adjunction
+    Circuit.Trace
     Circuit.Classes
     Circuit.Dagger
+    Circuit.Free
     Circuit.Hyper
     Circuit.Monoidal
     Circuit.Net

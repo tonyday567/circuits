@@ -17,11 +17,11 @@ notation, used as mathematical notation — no apologies to GHC.
 | `∥` | ambient | `braid → Circuit arr t a b → Circuit arr t (t s a) (t s b)` | thread state wire alongside |
 | `↮` | knot | `Circuit arr t (t a b) (t a c) → Circuit arr t b c` | feedback loop constructor (body is a Circuit, not a base arrow) |
 | `↘` | reify | `Circuit arr t x y → arr x y` | interpret Circuit to plain arrow |
-| `❄` | freeze | `Circuit arr t a b → Free arr t a b` | dissolve Knot into Lift via base-arrow trace |
+| `❄` | freeze | `Circuit arr t a b → Free arr a b` | dissolve Knot into Lift via base-arrow trace |
 | `↪` | trace | `arr (t a b) (t a c) → arr b c` | close the feedback channel |
 | `↩` | untrace | `arr b c → arr (t a b) (t a c)` | open the feedback channel |
 | `⇨` | encode | `Circuit (->) (,) a b → Hyper a b` | initial → final (= encodeFree . freeze) |
-| `⇨F` | encodeFree | `Free (->) (,) a b → Hyper a b` | free category → final encoding |
+| `⇨F` | encodeFree | `Free (->) a b → Hyper a b` | free category → final encoding |
 | `⇦` | flatten | `Hyper a b → Circuit (->) (,) a b` | final → initial (lossy) |
 | `⇸` | invoke | `Hyper a b → Hyper b a → b` | apply a hyperfunction to its dual |
 | `○` | base | `a → Hyper b a` | constant continuation |

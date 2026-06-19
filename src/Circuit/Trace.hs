@@ -4,19 +4,19 @@
 
 -- | The free traced monoidal category.
 --
--- @Circuit arr t a b@ is the initial encoding of a traced monoidal category
+-- @Circuit t arr a b@ is the initial encoding of a traced monoidal category
 -- over a base morphism @arr@ with a supplied tensor @t@ for the category. The three constructors encode:
 --
 --   - `Lift`: embedding of a base arrow (strict monoidal functor)
 --   - `Compose`: sequential composition (category structure)
 --   - `Knot`: introduces a feedback channel (trace structure)
 --
--- For example, a `Circuit (->) (,)` is the initial traced monoidal cartesian category over Haskell functions.
+-- For example, a `Circuit (,) (->)` is the initial traced monoidal cartesian category over Haskell functions.
 --
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor that pairs a feedback value with a payload
---   inside a 'Knot'. The two tensors provided are @(,)@ (simultaneous / lazy
+--   inside a 'Circuit'. The two tensors provided are @(,)@ (simultaneous / lazy
 --   sharing) and 'Either' (sequential / iteration).
 --
 -- * __Feedback value__: The component that travels around the loop (the first
@@ -32,10 +32,10 @@
 -- These concepts are independent of any particular base arrow @arr@. They
 -- describe the structure of feedback itself.
 --
--- The `reify` function interprets any `Circuit` to a plain arrow via
--- the `Trace` instance on @t@. For encoding into 'Circuit.Hyper', see
+-- The 'reify' function interprets any 'Circuit' to a plain arrow via
+-- the 'Trace' class instance on @t@. For encoding into 'Circuit.Hyper', see
 -- 'Circuit.Hyper.encode' and 'Circuit.Hyper.encodeEither'.
-module Circuit.Circuit
+module Circuit.Trace
   ( -- * Circuit
     Circuit (..),
 
@@ -43,8 +43,9 @@ module Circuit.Circuit
     Wire,
     Step,
 
-    -- * Operators
+    -- * Interpreters
     reify,
+    freeze,
 
     -- * Channel ends
     Co (..),
@@ -53,7 +54,8 @@ module Circuit.Circuit
   )
 where
 
-import Circuit.Traced (Trace (..))
+import Circuit.Free qualified as F
+import Circuit.Traced qualified as Traced
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -76,46 +78,46 @@ import Circuit.Classes
 --   * 'Lift' — embed a base arrow.
 --   * 'Compose' — sequential composition.
 --   * 'Knot' — feedback loop via the tensor.
-data Circuit arr t a b where
+data Circuit t arr a b where
   -- | Lift embeds a base arrow (strict monoidal functor).
   --
-  -- >>> reify (Lift (+1) :: Circuit (->) (,) Int Int) 5
+  -- >>> reify (Lift (+1) :: Circuit (,) (->) Int Int) 5
   -- 6
-  Lift :: arr a b -> Circuit arr t a b
+  Lift :: arr a b -> Circuit t arr a b
   -- | Compose performs sequential composition (category structure).
   --
-  -- >>> reify (Lift (+1) >>> Lift (*2) :: Circuit (->) (,) Int Int) 5
+  -- >>> reify (Lift (+1) >>> Lift (*2) :: Circuit (,) (->) Int Int) 5
   -- 12
-  Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
+  Compose :: Circuit t arr b c -> Circuit t arr a b -> Circuit t arr a c
   -- | Knot ties a feedback loop. The tensor @t@ carries the channel type.
   -- The body is a 'Circuit' so the loop wiring is inspectable before
   -- 'reify' closes it.
   --
-  -- >>> reify (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (->) (,) Int Int) 42
+  -- >>> reify (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (,) (->) Int Int) 42
   -- 42
-  Knot :: Circuit arr t (t a b) (t a c) -> Circuit arr t b c
+  Knot :: Circuit t arr (t a b) (t a c) -> Circuit t arr b c
 
 -- | A traced circuit over plain functions with the cartesian tensor.
 --
--- @Wire a b = Circuit (->) (,) a b@
+-- @Wire a b = Circuit (,) (->) a b@
 --
 -- The @(,)@ tensor ties a lazy knot: output and feedback are produced
 -- simultaneously.
-type Wire = Circuit (->) (,)
+type Wire = Circuit (,) (->)
 
 -- | A traced circuit over plain functions with the cocartesian tensor.
 --
--- @Step a b = Circuit (->) Either a b@
+-- @Step a b = Circuit Either (->) a b@
 --
 -- The @Either@ tensor iterates: @Left@ feeds back (continue),
 -- @Right@ terminates (exit).
-type Step = Circuit (->) Either
+type Step = Circuit Either (->)
 
-instance (Category arr) => Category (Circuit arr t) where
+instance (Category arr) => Category (Circuit t arr) where
   id = Lift id
   (.) = Compose
 
-instance Functor (Circuit (->) t a) where
+instance Functor (Circuit t (->) a) where
   fmap f = Compose (Lift f)
 
 -- | Profunctor instance for Circuit.
@@ -124,9 +126,9 @@ instance Functor (Circuit (->) t a) where
 -- to the input of the left sub-circuit and the output of the right
 -- sub-circuit, leaving the intermediate type aligned.
 --
--- >>> reify (dimap (+ 1) (+ 1) (Lift (* 2) :: Circuit (->) (,) Int Int)) 5
+-- >>> reify (dimap (+ 1) (+ 1) (Lift (* 2) :: Circuit (,) (->) Int Int)) 5
 -- 13
-instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
+instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit t arr) where
   dimap f g (Lift h) = Lift (dimap f g h)
   dimap f g (Compose h k) = Compose (dimap id g h) (dimap f id k)
   dimap f g (Knot k) = Knot (dimap (second f) (second g) k)
@@ -137,6 +139,27 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
   rmap g (Compose h k) = Compose (rmap g h) (rmap id k)
   rmap g (Knot k) = Knot (rmap (second g) k)
 
+-- | Dissolve 'Circuit' into 'Lift' by calling 'trace' on the base arrow.
+--
+-- This is the first-stage interpreter: 'Circuit' → 'Free'.  The Mendler
+-- case (@'Compose' ('Knot' f) g@) slides @g@ inside the trace, enforcing
+-- the sliding axiom of traced monoidal categories.
+--
+-- 'reify' factors through 'freeze': @'reify' = 'F.runFree' . 'freeze'@.
+--
+-- >>> F.runFree (freeze (Lift (+1) :: Circuit (,) (->) Int Int)) 5
+-- 6
+--
+-- >>> F.runFree (freeze (Knot (Lift (\(acc, x) -> (x, acc))) :: Circuit (,) (->) Int Int)) 42
+-- 42
+freeze :: (Category arr, Traced.Trace arr t) => Circuit t arr a b -> F.Free arr a b
+freeze = \case
+  Lift f -> F.Lift f
+  Compose (Knot f) g ->
+    F.Lift (Traced.trace (F.runFree (freeze f) . Traced.untrace (F.runFree (freeze g))))
+  Compose f g -> F.Compose (freeze f) (freeze g)
+  Knot k -> F.Lift (Traced.trace (F.runFree (freeze k)))
+
 -- | Interpret a Circuit to a plain arrow.
 --
 -- This is the canonical map out of the free (initial) traced monoidal
@@ -144,13 +167,20 @@ instance (Profunctor arr, Bifunctor t) => Profunctor (Circuit arr t) where
 -- of a @Compose@: this is exactly where the sliding axiom of traced
 -- monoidal categories is enforced (the Mendler case).
 --
--- >>> reify (Lift (+1) :: Circuit (->) (,) Int Int) 5
+-- @'reify' = 'F.runFree' . 'freeze'@ — first dissolve 'Circuit' into 'Free',
+-- then fold to a plain arrow.
+--
+-- >>> reify (Lift (+1) :: Circuit (,) (->) Int Int) 5
 -- 6
-reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-reify (Lift f) = f
-reify (Compose (Knot f) g) = trace (reify f . untrace (reify g))
-reify (Compose f g) = reify f . reify g
-reify (Knot k) = trace (reify k)
+reify :: (Category arr, Traced.Trace arr t) => Circuit t arr x y -> arr x y
+reify = F.runFree . freeze
+
+-- | Lift the 'Trace' class through 'Circuit t'.
+--
+-- A loop body in @Circuit t arr@ is reified before calling the base 'trace'.
+instance (Category arr, Traced.Trace arr t) => Traced.Trace (Circuit t arr) t where
+  trace body = Lift (Traced.trace (reify body))
+  untrace f  = Lift (Traced.untrace (reify f))
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
@@ -163,7 +193,7 @@ reify (Knot k) = trace (reify k)
 -- or call the other end.
 newtype Co arr t a = Co
   { -- | Run the companion, supplying the other end.
-    runContra :: forall x. Contra arr t x -> Circuit arr t x a
+    runContra :: forall x. Contra arr t x -> Circuit t arr x a
   }
 
 -- | 'Contra' is the conjoint of the identity functor.  Contravariant in
@@ -174,7 +204,7 @@ newtype Co arr t a = Co
 -- to determine what to return.
 newtype Contra arr t a = Contra
   { -- | Run the conjoint, supplying the other end.
-    runCo :: forall x. Co arr t x -> Circuit arr t a x
+    runCo :: forall x. Co arr t x -> Circuit t arr a x
   }
 
 -- | @ε@ — the counit of the companion/conjoint adjunction.
@@ -182,6 +212,6 @@ newtype Contra arr t a = Contra
 -- Plug two channel ends together, producing a circuit from @a@ to @a@.
 -- This is the yanking identity: eliminating the ends recovers the
 -- underlying profunctor on the diagonal.
-close :: Contra arr t a -> Co arr t a -> Circuit arr t a a
+close :: Contra arr t a -> Co arr t a -> Circuit t arr a a
 {- HLINT ignore close "Eta reduce" -}
 close contra = runCo contra

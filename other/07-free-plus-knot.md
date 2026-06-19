@@ -6,7 +6,7 @@ An exploration.  Can Circuit wrap Free rather than duplicate Lift/Compose?
 
 ```haskell
 data Circuit arr t a b where
-  FreeC :: Free arr t a b -> Circuit arr t a b
+  FreeC :: Free arr a b -> Circuit arr t a b
   KnotC :: Circuit arr t (t a b) (t a c) -> Circuit arr t b c
 ```
 
@@ -33,7 +33,7 @@ A `Circuit`-level `(.)` is needed for `Circuit` nodes, not just `Free` nodes.
 
 ```haskell
 data Circuit arr t a b where
-  FreeC    :: Free arr t a b -> Circuit arr t a b
+  FreeC    :: Free arr a b -> Circuit arr t a b
   ComposeC :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
   KnotC    :: Circuit arr t (t a b) (t a c) -> Circuit arr t b c
 ```

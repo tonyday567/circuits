@@ -38,8 +38,8 @@ import Data.Bifunctor (Bifunctor (..))
 import Circuit.Classes (Profunctor (..), Bifunctor (..), Category)
 #endif
 
-import Circuit.Circuit (Circuit (..), reify)
-import Circuit.Traced (Trace (..))
+import Circuit.Trace (Circuit (..), reify)
+import Circuit.Traced qualified as Traced
 
 -- ===========================================================================
 -- BRAIDING
@@ -75,8 +75,8 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the braid supplied by the 'Braided' instance.
 ambient ::
-  (Category arr, Profunctor arr, Trace arr t, Braided t) =>
-  Circuit arr t a b -> Circuit arr t (t s a) (t s b)
+  (Category arr, Profunctor arr, Traced.Trace arr t, Braided t) =>
+  Circuit t arr a b -> Circuit t arr (t s a) (t s b)
 ambient = ambientBy braid
 
 -- ===========================================================================
@@ -179,28 +179,28 @@ coreleaseR _ (Left a) = Left a
 --
 -- 'ambientBy' threads an additional state component alongside a circuit
 -- without the circuit having to mention it. The state wire is braided
--- past the feedback channel so it travels \"ambiently\".
+-- past the feedback channel so it travels "ambiently".
 --
 -- The @braid@ function swaps the state wire past the feedback channel:
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
--- @\\(x, (s, a)) -> (s, (x, a))@.
+-- @\(x, (s, a)) -> (s, (x, a))@.
 --
--- >>> import Circuit.Circuit (Circuit(..), reify)
+-- >>> import Circuit.Trace (Circuit(..), reify)
 -- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> Circuit.Circuit.reify (ambientBy braid (Lift (+1) :: Circuit (->) (,) Int Int)) ("st", 5)
+-- >>> Circuit.Trace.reify (ambientBy braid (Lift (+1) :: Circuit (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
 --
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> Circuit.Circuit.reify (ambientBy braid (Knot (Lift step))) ("st", ())
+-- >>> Circuit.Trace.reify (ambientBy braid (Knot (Lift step))) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Category arr, Profunctor arr, Trace arr t) =>
+  (Category arr, Profunctor arr, Traced.Trace arr t) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
-  Circuit arr t a b ->
-  Circuit arr t (t s a) (t s b)
-ambientBy _br (Lift f) = Lift (untrace f)
+  Circuit t arr a b ->
+  Circuit t arr (t s a) (t s b)
+ambientBy _br (Lift f) = Lift (Traced.untrace f)
 ambientBy br (Compose f g) = Compose (ambientBy br f) (ambientBy br g)
-ambientBy br (Knot k) = Knot (Lift (dimap br br (untrace (reify k))))
+ambientBy br (Knot k) = Knot (Lift (dimap br br (Traced.untrace (reify k))))
 
 -- ===========================================================================
 -- MonoidalP — parallel composition for product categories
@@ -228,3 +228,12 @@ instance MonoidalP (->) where
   {-# INLINE par #-}
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
+
+-- | Lift 'MonoidalP' through 'Circuit t'.
+--
+-- Parallel composition reifies both sides, runs them in parallel at the
+-- base arrow, and lifts the result.  This forgets interior 'Circuit'
+-- structure but preserves semantics.
+instance (MonoidalP arr, Traced.Trace arr t) => MonoidalP (Circuit t arr) where
+  par f g = Lift (par (reify f) (reify g))
+  swap = Lift swap

@@ -8,7 +8,7 @@
 -- a continuation of type @Hyper b a@.
 --
 -- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
--- category. Its dual, 'Circuit' (see "Circuit.Circuit"), is the
+-- category. Its dual, 'Circuit' (see "Circuit.Trace"), is the
 -- corresponding /initial/ (inductive) encoding. The feedback channel
 -- is not represented by an extra constructor; it is structural in the
 -- type itself.
@@ -25,14 +25,16 @@ module Circuit.Hyper
 
     -- * Encoding
     encode,
+    encodeFree,
     encodeEither,
     runEither,
     flatten,
   )
 where
 
-import Circuit.Circuit (Circuit (..), reify)
-import Circuit.Traced (Trace (..))
+import Circuit.Trace (Circuit (..), freeze, reify)
+import Circuit.Free qualified as F
+import Circuit.Traced qualified as Traced
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -47,7 +49,7 @@ import Circuit.Classes
 -- >>> import Control.Category
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Traced (Trace (..))
--- >>> import Circuit.Circuit (Circuit (..), reify)
+-- >>> import Circuit.Trace (Circuit (..), reify)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -141,7 +143,7 @@ run h = invoke h (Hyper run)
 -- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
 --
 -- Transcribes the lazy-knot trace from @(->)@ into Hyper's continuation
--- language. Where @Trace (->) (,)@ can write @let (a, c) = f (a, b) in c@
+-- language. Where @Circuit (->) (,)@ can write @let (a, c) = f (a, b) in c@
 -- directly, Hyper must route the self-reference through explicit 'Hyper'
 -- values:
 --
@@ -159,7 +161,7 @@ run h = invoke h (Hyper run)
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> lower (trace body) ()
 -- [0,0,0]
-instance Trace Hyper (,) where
+instance Traced.Trace Hyper (,) where
   trace body = Hyper $ \k ->
     let pair = invoke body cont
         cont = Hyper $ \_ ->
@@ -170,23 +172,37 @@ instance Trace Hyper (,) where
 
 -- * Encoding Circuit into Hyper
 
+-- | Encode a 'Free' into a 'Hyper'.
+--
+-- The lift of the canonical fold 'runFree' into the final encoding.
+-- Only needs 'Lift' and 'Compose' — trace structure is handled by 'freeze'.
+--
+-- Law: @'lower' . 'encodeFree' = 'F.runFree'@ — the two interpreters
+-- from 'Free' agree.
+--
+-- >>> import Circuit.Free qualified as F
+-- >>> import Circuit.Trace (freeze)
+-- >>> lower (encodeFree (F.Lift (+1))) 5
+-- 6
+encodeFree :: F.Free (->) a b -> Hyper a b
+encodeFree (F.Lift f) = lift f
+encodeFree (F.Compose f g) = encodeFree f . encodeFree g
+
 -- | Encode a Circuit into a Hyper. Symbol: @(⇨)@.
 --
 -- This is the unique traced functor from the initial object (Circuit)
 -- to the final object (Hyper), satisfying the commuting triangle
--- @lower . encode = reify@.
+-- @'lower' . 'encode' = 'reify'@.
 --
--- The @Knot@ case uses Hyper's own @Trace (,)@ instance — a coinductive
--- lazy knot that preserves the feedback structure inside Hyper.
--- For an Either-loop encoding, see 'encodeEither'.
+-- Factors through 'Free': @'encode' = 'encodeFree' . 'freeze'@.
+-- 'freeze' dissolves knot constructors into 'Lift' via the base arrow's 'trace';
+-- 'encodeFree' lifts the two constructors into Hyper.
 --
--- >>> import Circuit.Circuit (Circuit (..), reify)
--- >>> lower (encode (Lift (+1) :: Circuit (->) (,) Int Int)) 5
+-- >>> import Circuit.Trace (Circuit (..), reify)
+-- >>> lower (encode (Lift (+1) :: Circuit (,) (->) Int Int)) 5
 -- 6
-encode :: Circuit (->) (,) a b -> Hyper a b
-encode (Lift f) = lift f
-encode (Compose f g) = encode f . encode g
-encode (Knot k) = trace (encode k)
+encode :: Circuit (,) (->) a b -> Hyper a b
+encode = encodeFree . freeze
 
 -- | Encode an Either-loop as a self-referential Hyper.
 --
@@ -248,7 +264,7 @@ runEither f b = run (encodeEither f) (Right b)
 -- >>> let h = lift (+ 1)
 -- >>> lower (encode (flatten h)) 5
 -- 6
-flatten :: Hyper a b -> Circuit (->) (,) a b
+flatten :: Hyper a b -> Circuit (,) (->) a b
 flatten h = Lift (lower h)
 
 -- * Instances
