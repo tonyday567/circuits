@@ -1,6 +1,6 @@
-# Circuit Parsing
+# Parser parsing with Trace
 
-Parser combinators on Circuit. A parser consumes elements from a stream,
+Parser combinators on `Trace`. A parser consumes elements from a stream,
 producing a result with remaining input, or signalling progress-aware
 failure. The actual module is `Circuit.Parser` in `src/`.
 
@@ -8,7 +8,7 @@ failure. The actual module is `Circuit.Parser` in `src/`.
 
 ```haskell
 newtype Parser s a = Parser
-  { unParser :: Circuit (->) Either [s] (These a [s])
+  { unParser :: Trace Either (->) [s] (These a [s])
   }
 ```
 
@@ -28,7 +28,7 @@ cases:
 `That s` is the key innovation over `Maybe (a, s)` — it explicitly
 signals "touched nothing, safe to backtrack" vs "consumed and failed"
 (which `Maybe` can't express). The mtok refactor confirmed this:
-`tokenizeKnot` uses all three arms naturally.
+`tokenizeTrace` uses all three arms naturally.
 
 `These(..)` is re-exported from the module so consumers don't need
 a direct `these` dependency.
@@ -37,12 +37,12 @@ a direct `these` dependency.
 
 ```haskell
 runParser :: Parser s a -> [s] -> These a [s]
-runParser = reify . unParser
+runParser = realise . unParser
 ```
 
 ## Primitives via Lift
 
-`Lift` embeds a function into Circuit. Character-level primitives:
+`Lift` embeds a function into Trace. Character-level primitives:
 
 ```haskell
 -- | Consume one element satisfying a predicate.
@@ -86,7 +86,7 @@ Every successful parse reduces to some number of `uncons` calls.
 ## Repetition: many / some
 
 The mtok refactor established: `many` is `Lift` + plain recursion,
-not `Knot`. Three pattern matches on `These` are sufficient:
+not `Trace`. Three pattern matches on `These` are sufficient:
 
 ```haskell
 many :: Parser s a -> Parser s [a]
@@ -101,28 +101,28 @@ some :: Parser s a -> Parser s [a]
 some p = (:) <$> p <*> many p
 ```
 
-`Knot` is for choice (below), not repetition. The `These` pattern
+`Trace` is for choice (below), not repetition. The `These` pattern
 match carries all the control flow `many` needs — accumulate on
 `These`, finalise on `This`, stop on `That`.
 
-## Choice via Either tensor + Knot
+## Choice via Either tensor + Trace
 
-`<|>` is where `Knot` pulls its weight. The `Either` tensor's two
+`<|>` is where `Trace` pulls its weight. The `Either` tensor's two
 phases map to the two branches of alternation:
 
 ```haskell
 (<|>) :: Parser s a -> Parser s a -> Parser s a
-Parser p1 <|> Parser p2 = Parser $ Knot body
+Parser p1 <|> Parser p2 = Parser $ Trace body
   where
-    body (Right s) = case reify p1 s of
+    body (Right s) = case realise p1 s of
       This a     -> Right (This a)      -- p1 consumed all, done
       That s'    -> Left s'             -- p1 failed, try p2
       These a s' -> Right (These a s')  -- p1 succeeded, done
-    body (Left s) = case reify p2 s of
+    body (Left s) = case realise p2 s of
       result -> Right result            -- p2 result, win or lose
 ```
 
-The `Knot` defunctionalises the two-phase alternation: `Right`
+The `Trace` constructor defunctionalises the two-phase alternation: `Right`
 = try p1, `Left` = try p2. The `Either` tensor provides the
 feedback channel that switches phases.
 
@@ -144,10 +144,10 @@ The tokenizer loop changed from `Maybe (tok, rest)` to a three-arm
 `These` match:
 
 ```haskell
-tokenizeKnot s acc = case runParser token s of
-  These tok rest -> tokenizeKnot rest (tok : acc)  -- got one, continue
+tokenizeTrace s acc = case runParser token s of
+  These tok rest -> tokenizeTrace rest (tok : acc)  -- got one, continue
   This tok       -> reverse (tok : acc)             -- final token
-  That _         -> case s of (_:rest) -> tokenizeKnot rest acc  -- skip char
+  That _         -> case s of (_:rest) -> tokenizeTrace rest acc  -- skip char
 ```
 
 The `This` arm was new — the original `findFirstPrefix` never
@@ -184,10 +184,10 @@ structural.
 
 ## regex-applicative bridge
 
-The `RE s a` GADT maps to Circuit constructors. The mtok port
+The `RE s a` GADT maps to Trace constructors. The mtok port
 validated this mapping:
 
-| `RE s a` constructor       | Circuit equivalent            | status    |
+| `RE s a` constructor       | Trace equivalent            | status    |
 |---------------------------|------------------------------|-----------|
 | `Symbol i (s -> Maybe a)` | `Lift` (satisfy/char)        | 🟢 tested |
 | `Alt a b`                 | `Either` tensor (`<|>`)      | 🟢 tested |
@@ -206,7 +206,7 @@ returns `These ss a` (remainder + result).
 
 | tensor   | use in parsers            | semantic                      |
 |---------|--------------------------|-------------------------------|
-| `Either`| `<|>`, backtracking     | two-phase alternation via Knot|
+| `Either`| `<|>`, backtracking     | two-phase alternation via Trace|
 | `These` | output, uncons           | progress-aware result/input   |
 
 The `(,)` tensor from earlier sketches was replaced by `Either` —
@@ -215,6 +215,6 @@ not the degenerate `either step step` pattern from I/O loops.
 
 ## What's next
 
-- `Trace arr These` instance — native three-way control flow
+- `Trace Either These` instance — native three-way control flow
 - `choice :: [Parser s a] -> Parser s a` — generalised `<|>`
 - huihua port — absorbed (Huihua.Parse.Parser replaced with circuits-parser)

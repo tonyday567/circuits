@@ -1,7 +1,7 @@
 # words — a worked example
 
 Counting word frequencies from a file, reporting the top 5. A pipeline built
-from named components, composed with Circuit's three constructors, metered in
+from named components, composed with Trace's three constructors, metered in
 one line.
 
 The full runnable source is in
@@ -72,21 +72,21 @@ fmtTable = unlines . map fmt . take 5 . sortOn (Down . snd) . Map.toList
 
 -- * circuit primitives — payload-neutral, no closures
 
-openf :: Circuit (Kleisli IO) t FilePath Handle
+openf :: Trace t (Kleisli IO) FilePath Handle
 openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
 
-closef :: Circuit (Kleisli IO) t Handle ()
+closef :: Trace t (Kleisli IO) Handle ()
 closef = Lift (Kleisli hClose)
 ```
 
 ## the loop body
 
-`Knot` wraps a Kleisli that iterates until `Right`. The Handle rides the
+`Trace` wraps a Kleisli that iterates until `Right`. The Handle rides the
 feedback wire alongside the accumulator.
 
 ```haskell
-readAndCount :: Circuit (Kleisli IO) Either Handle (Handle, Map String Int)
-readAndCount = Knot (Kleisli step)
+readAndCount :: Trace Either (Kleisli IO) Handle (Handle, Map String Int)
+readAndCount = Trace (Kleisli step)
   where
     step (Left (h, acc)) =
       hIsEOF h >>= bool
@@ -99,7 +99,7 @@ readAndCount = Knot (Kleisli step)
 ## the pipeline
 
 ```haskell
-wordPipeline :: Circuit (Kleisli IO) Either FilePath String
+wordPipeline :: Trace Either (Kleisli IO) FilePath String
 wordPipeline =
   openf
     >>> readAndCount
@@ -110,7 +110,7 @@ wordPipeline =
 
 ```haskell
 wordCount :: FilePath -> IO ()
-wordCount path = putStr =<< runKleisli (reify wordPipeline) path
+wordCount path = putStr =<< runKleisli (realise wordPipeline) path
 ```
 
 Expected output (run against `other/alice.md`):
@@ -133,7 +133,7 @@ the Kleisli using the cartesian tensor:
 ```haskell
 perfTest :: FilePath -> IO ()
 perfTest path = do
-  (t, output) <- runKleisli (reifyC (meterAction timeM (reify wordPipeline))) path
+  (t, output) <- runKleisli (reifyC (meterAction timeM (realise wordPipeline))) path
   let ms = fromIntegral t / 1_000_000 :: Double
   putStrLn $ " wall: " <> show ms <> " ms"
   putStr output
@@ -149,7 +149,7 @@ knowing about it. Here we thread a `String` tag through the entire pipeline:
 ```haskell
 demoSecond :: FilePath -> IO ()
 demoSecond path = do
-  (tag, output) <- runKleisli (second (reify wordPipeline)) ("tag-value", path)
+  (tag, output) <- runKleisli (second (realise wordPipeline)) ("tag-value", path)
   putStrLn $ "tag: " <> tag
   putStr output
 ```
@@ -170,9 +170,9 @@ fmtMs n =
 
 timedRun :: FilePath -> IO ()
 timedRun path = do
-  (tOpen, h) <- runKleisli (reifyC (meterAction timeM (reify (openf :: Circuit (Kleisli IO) (,) FilePath Handle)))) path
+  (tOpen, h) <- runKleisli (reifyC (meterAction timeM (realise (openf :: Trace (,) (Kleisli IO) FilePath Handle)))) path
 
-  (tRead, (h', m)) <- runKleisli (reifyC (meterAction timeM (reify readAndCount))) h
+  (tRead, (h', m)) <- runKleisli (reifyC (meterAction timeM (realise readAndCount))) h
 
   let output = fmtTable m
   (tPrint, ()) <- runKleisli (reifyC (meterAction timeM (Kleisli (\s -> hClose h' >> putStr s)))) output

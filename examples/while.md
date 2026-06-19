@@ -1,12 +1,12 @@
-# While, Until, For — Circuit loops
+# While, Until, For — Trace loops
 
-The three canonical loop patterns using Circuit's `Knot` constructor
-and the `Trace (->) Either` instance.  One fundamental pattern, three
+The three canonical loop patterns using Trace's `Trace` constructor
+and the `Traced (->) Either` instance.  One fundamental pattern, three
 specialisations.
 
 ```haskell
 -- $setup
--- >>> import Circuit (Circuit (..), Trace (..), reify)
+-- >>> import Circuit (Trace (..), Traced (..), realise)
 -- >>> import Control.Category (id, (.))
 -- >>> import Prelude hiding (id, (.))
 ```
@@ -15,24 +15,24 @@ specialisations.
 
 ## The convention
 
-`Trace (->) Either` uses `Left = feedback` (iterate) and `Right = exit`
+`Traced (->) Either` uses `Left = feedback` (iterate) and `Right = exit`
 (done).  We adopt the same convention for user-facing step functions:
 
 ```haskell
 type Step s r = s -> Either s r   -- Left s = continue, Right r = done
 ```
 
-No bridge needed — the step function speaks the same language as `Knot`.
+No bridge needed — the step function speaks the same language as `Trace`.
 
 ---
 
 ## loop
 
-The fundamental form.  A `Knot` wraps the step function directly.
+The fundamental form.  A `Trace` wraps the step function directly.
 
 ```haskell
 loop :: Step s r -> s -> r
-loop step s0 = reify (Knot step') s0
+loop step s0 = realise (Trace step') s0
   where
     step' (Left s) = step s
     step' (Right s) = step s
@@ -55,7 +55,7 @@ Check `cond` before each step.  When `cond` fails, exit with `done s`.
 
 ```haskell
 whileC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
-whileC cond done step s0 = reify (Knot step') s0
+whileC cond done step s0 = realise (Trace step') s0
   where
     step' (Left s)  = if cond s then step s else Right (done s)
     step' (Right s) = step' (Left s)
@@ -79,7 +79,7 @@ state.  When `cond` becomes true, exit with `done`.
 
 ```haskell
 untilC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
-untilC cond done step s0 = reify (Knot step') s0
+untilC cond done step s0 = realise (Trace step') s0
   where
     step' (Left s)  = case step s of
                         Right r -> Right r
@@ -123,11 +123,11 @@ forC n body s0 = loop step' (0, s0)
 
 ## Convention
 
-All loops use the same convention as `Trace (->) Either`:
+All loops use the same convention as `Traced (->) Either`:
 
 | branch | meaning |
 |--------|---------|
 | `Left s`  | **feedback** — continue with new state `s` |
 | `Right r` | **exit** — done, produce result `r` |
 
-No bridge, no swap.  The step function speaks the same language as `Knot`.
+No bridge, no swap.  The step function speaks the same language as `Trace`.
