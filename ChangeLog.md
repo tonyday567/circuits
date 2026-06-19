@@ -1,10 +1,14 @@
 # Revision history for circuits
 
-## 0.2.0.0 — 2026-06-13
+## 0.2.0.0 — 2026-06-19
 
-*BREAKING: **Trace takes a Trace body.** `Trace :: Trace arr t (t a b) (t a c) -> Trace arr t b c`. Previously `Trace :: arr (t a b) (t a c) -> Trace arr t b c`. The body is now a full `Trace`, making loop wiring inspectable — transpose can recurse into knot bodies, the encode case is `trace (encode k)` (uniform recursion, no special `lift`), and the Mendler case in reify works uniformly. JSV's trace is an operation on all morphisms, not just generators, so recursive bodies are the correct presentation of the free traced category.*
+*BREAKING: **The GADT is now `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructor `Knot` is now also `Trace`. The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*
+
+*BREAKING: **Trace takes a Trace body.** `Trace :: Trace t arr (t a b) (t a c) -> Trace t arr b c`. Previously the body was a plain arrow. The body is now a full `Trace`, making loop wiring inspectable — transpose can recurse into trace bodies, the encode case is `trace (encode k)` (uniform recursion, no special `lift`), and the Mendler case in reify works uniformly. JSV's trace is an operation on all morphisms, not just generators, so recursive bodies are the correct presentation of the free traced category.*
 
 *New: **Circuit.Net** — the free traced PROP with a bimonoid. Structural rows: Par, Swap (monoidal), Copy, Discard (comonoid), Add, Zero (monoid), all inspectable before reify. Transposition (`transpose`) is structural recursion: Compose reverses, Copy↔Add, Discard↔Zero, Trace↔Trace.*
+
+*New: **Circuit.Signature** and **Circuit.Adjunction** — design-lab modules for the feature lattice and the free/forgetful adjunction tower. Direct GADTs remain the canonical implementation.*
 
 *New: **Circuit.Dagger** — consolidated module for 'Monoid', 'Comonoid', 'Dagger', and 'Bimonoid'. 'Monoid' (was 'Additive') provides channel-object addition; 'Comonoid' (was 'Dup') provides 'copy' and 'discard'; 'Dagger' (was 'Duplex') is the free dagger category with 'transpose' (was 'transposeDuplex'); 'Bimonoid' (was 'Linear') is the constraint synonym.*
 
