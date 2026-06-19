@@ -6,15 +6,15 @@
 
 -- | The free traced PROP with a bimonoid over a primitive set.
 --
--- 'Net' extends 'Circuit' with structural rows for the monoidal and
+-- 'Net' extends 'Trace' with structural rows for the monoidal and
 -- bimonoid operations: parallel composition, copy, discard, addition,
--- and zero.  Where 'Circuit' dissolved these into opaque 'Lift' calls,
+-- and zero.  Where 'Trace' dissolved these into opaque 'Lift' calls,
 -- 'Net' keeps them as inspectable constructors — the difference between
 -- wiring you can read backwards and wiring that's been melted into the
 -- prims.
 --
 -- 'loom' and 'melt' interpret a 'Net' to a plain arrow and a
--- 'Circuit' respectively.  Instances for 'Comonoid' @(->)@ and
+-- 'Trace' respectively.  Instances for 'Comonoid' @(->)@ and
 -- 'Monoid' @(->)@ exist; @D@ instances live in @circuits-ad@.
 module Circuit.Net
   ( -- * Net
@@ -42,13 +42,13 @@ import Circuit.Classes
 import Circuit.Trace qualified as C
 import Circuit.Dagger qualified as Dg
 import Circuit.Monoidal (MonoidalP (..))
-import Circuit.Traced qualified as Traced
+import Circuit.Traced
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> 1 + 1 :: Int
 -- 2
--- >>> import Circuit (Circuit(..), reify)
+-- >>> import Trace (Trace(..), reify)
 -- >>> import Circuit.Net
 -- >>> import Prelude hiding (id, (.), Monoid)
 
@@ -56,7 +56,7 @@ import Prelude hiding (Monoid, id, (.))
 --
 -- Three families of constructor:
 --
---   * __Circuit heritage__ — 'Lift', 'Compose', 'Knot' (unchanged).
+--   * __Circuit heritage__ — 'Lift', 'Compose', 'Trace' (unchanged).
 --   * __Monoidal__ — 'Par', 'Swap' (parallel composition, braiding).
 --   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
 --
@@ -83,13 +83,13 @@ data Net t arr a b where
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow —
   -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Plus' within
   -- the loop.
-  Knot :: Net t arr (t a b) (t a c) -> Net t arr b c
+  Trace :: Net t arr (t a b) (t a c) -> Net t arr b c
 
 -- | Transpose a 'Net' — the backward circuit as inspectable syntax.
 --
 -- The structural rows are self-dual under transposition:
 -- 'Compose' reverses, 'Copy' ↔ 'Plus', 'Discard' ↔ 'Zero',
--- 'Knot' ↔ 'Knot' (recurring into the body).
+-- 'Trace' ↔ 'Trace' (recurring into the body).
 --
 -- 'Lift' transposes via 'Dagger' field swap — only nets over
 -- 'Dagger' are transposable, since the forward\/backward pairing is
@@ -114,37 +114,37 @@ transpose = \case
   Plus -> Copy
   Discard -> Zero
   Zero -> Discard
-  Knot f -> Knot (transpose f)
+  Trace f -> Trace (transpose f)
 #else
 transpose = undefined
 #endif
 
--- | Upgrade a 'Circuit' to a 'Net' — constructor-to-constructor.
+-- | Upgrade a 'Trace' to a 'Net' — constructor-to-constructor.
 --
 -- The structural rows ('Par', 'Copy', 'Plus', etc.) are absent from
--- 'Circuit', so upgrading a lifted 'Circuit' produces a 'Net' with
--- only 'Lift', 'Compose', and 'Knot' — the same information, now in
--- a GADT that can hold more.  'Circuit.Knot' lifts to 'Net.Knot'.
-upgrade :: C.Circuit t arr a b -> Net t arr a b
+-- 'Trace', so upgrading a lifted 'Trace' produces a 'Net' with
+-- only 'Lift', 'Compose', and 'Trace' — the same information, now in
+-- a GADT that can hold more.  'Circuit.Trace' lifts to 'Net.Trace'.
+upgrade :: C.Trace t arr a b -> Net t arr a b
 upgrade (C.Lift f) = Lift f
 upgrade (C.Compose f g) = Compose (upgrade f) (upgrade g)
-upgrade (C.Knot f) = Knot (upgrade f)
+upgrade (C.Trace f) = Trace (upgrade f)
 
 -- | Interpret a 'Net' to a plain arrow.
 --
 -- The canonical map out of the free traced PROP with a bimonoid.
 -- Structural rows dispatch to their typeclass counterparts:
 -- 'Par' to 'par', 'Copy' to 'copy', 'Plus' to 'plus', etc.
--- 'Knot' uses the 'Trace' instance on the base arrow.
+-- 'Trace' uses the 'Trace' instance on the base arrow.
 --
 -- @'loom' = 'C.reify' . 'melt'@ — first melt structural rows into
--- 'Circuit', then reify to a plain arrow.  The Mendler sliding case is
+-- 'Trace', then reify to a plain arrow.  The Mendler sliding case is
 -- handled once in 'Circuit.Trace.freeze'.
 --
 -- >>> loom (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int) 5
 -- 6
 loom ::
-  (Traced.Trace arr t, MonoidalP arr) =>
+  (Traced arr t, MonoidalP arr) =>
   Net t arr a b ->
   arr a b
 loom = C.reify . melt
@@ -153,7 +153,7 @@ loom = C.reify . melt
 --
 -- The forgetful map from the free traced PROP with bimonoid to the free
 -- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
--- etc.) become opaque base-arrow operations; the 'Knot' and 'Compose'
+-- etc.) become opaque base-arrow operations; the 'Trace' and 'Compose'
 -- structure is preserved.
 --
 -- 'loom' factors through 'melt': @loom = reify . melt@.
@@ -161,9 +161,9 @@ loom = C.reify . melt
 -- >>> reify (melt (Circuit.Net.Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
-  (Traced.Trace arr t, MonoidalP arr) =>
+  (Traced arr t, MonoidalP arr) =>
   Net t arr a b ->
-  C.Circuit t arr a b
+  C.Trace t arr a b
 melt = \case
   Lift f -> C.Lift f
   Compose g f -> C.Compose (melt g) (melt f)
@@ -177,4 +177,4 @@ melt = \case
 #else
   _ -> undefined
 #endif
-  Knot f -> C.Knot (melt f)
+  Trace f -> C.Trace (melt f)

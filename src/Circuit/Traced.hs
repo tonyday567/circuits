@@ -7,7 +7,7 @@
 
 -- | Close and open feedback loops in a monoidal category.
 --
--- A 'Trace' instance for a tensor @t@ specifies how to thread a value
+-- A 'Traced' instance for a tensor @t@ specifies how to thread a value
 -- through a feedback channel:
 --
 --   * 'trace' closes the channel — eliminates the tensor and produces
@@ -16,14 +16,14 @@
 --   * 'untrace' opens the channel — lifts a plain morphism into the
 --     tensor, leaving the feedback value untouched.
 --
--- The trace laws (traced monoidal category axioms):
+-- The trace laws (trace monoidal category axioms):
 --
--- 1. __Naturality (tightening)__. Morphisms that don't touch the traced
+-- 1. __Naturality (tightening)__. Morphisms that don't touch the trace
 --    wire pass through freely.
 --
 --      @trace (untrace f . g . untrace h) = f . trace g . h@
 --
--- 2. __Dinaturality (sliding)__. A morphism on the traced wire can slide
+-- 2. __Dinaturality (sliding)__. A morphism on the trace wire can slide
 --    from one side of the trace to the other.
 --
 --      @trace (g . untrace f) = trace (untrace f . g)@
@@ -43,7 +43,7 @@
 -- form @'untrace' f@.
 --
 -- Two tensor semantics are provided, corresponding to the standard
--- traced monoidal structures:
+-- trace monoidal structures:
 --
 -- [@(,)@] A single lazy recursive binding.  @trace f b@ produces
 -- @let (a, c) = f (a, b) in c@ — the feedback value @a@ and the
@@ -57,10 +57,10 @@
 --
 -- For effectful arrows, both tensors lift to 'Kleisli' @m@:
 --
---   * @'MonadFix' m => 'Trace' ('Kleisli' m) (,)@ ties the lazy knot
+--   * @'MonadFix' m => 'Traced' ('Kleisli' m) (,)@ ties the lazy knot
 --     via 'mfix'.
 --
---   * @'Monad' m => 'Trace' ('Kleisli' m) 'Either'@ iterates via
+--   * @'Monad' m => 'Traced' ('Kleisli' m) 'Either'@ iterates via
 --     plain recursion.  For 'IO' specifically, an overlapping instance
 --     uses GHC's delimited-continuation primops ('prompt#', 'control0#')
 --     for constant stack space.
@@ -72,9 +72,9 @@
 --
 --   * Kidney & Wu (2026) — hyperfunctions, producer-consumer pattern.
 --
---   * Joyal, Street & Verity (1996) — traced monoidal categories.
+--   * Joyal, Street & Verity (1996) — trace monoidal categories.
 module Circuit.Traced
-  ( Trace (..),
+  ( Traced (..),
 #ifdef __GLASGOW_HASKELL__
     cellIO,
 #endif
@@ -99,7 +99,7 @@ import GHC.IO (IO (..))
 --
 -- @trace@ closes the feedback loop, eliminating the tensor channel.
 -- @untrace@ opens the loop, lifting a plain morphism into the tensor.
-class Trace arr t where
+class Traced arr t where
   trace :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
 
@@ -171,7 +171,7 @@ class Trace arr t where
 -- (6,6)
 --
 -- prop> \a c -> trace ((\(x, (p, q)) -> (x, (p + a, q + 1))) :: ((Int, (Int, Int)) -> (Int, (Int, Int)))) (0 :: Int, c :: Int) == (a :: Int, c + 1)
-instance Trace (->) (,) where
+instance Traced (->) (,) where
   trace f b = let (a, c) = f (a, b) in c
   untrace = fmap
 
@@ -226,7 +226,7 @@ instance Trace (->) (,) where
 -- 11
 --
 -- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either () Int -> Either () Int) (x :: Int) == x * 2 + 1
-instance Trace (->) Either where
+instance Traced (->) Either where
   trace f b = go (Right b)
     where
       go x = case f x of
@@ -238,7 +238,7 @@ instance Trace (->) Either where
 
 -- * Kleisli m (,) — lazy knot via MonadFix
 
--- | Trace for 'Kleisli' @m@ with the cartesian tensor, requiring @'MonadFix' m@.
+-- | Traced for 'Kleisli' @m@ with the cartesian tensor, requiring @'MonadFix' m@.
 --
 -- The lazy knot is tied via 'mfix'. The feedback channel is lazy in the
 -- recursive binding — the body must not force the feedback value before
@@ -252,7 +252,7 @@ instance Trace (->) Either where
 --
 -- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
-instance MonadFix m => Trace (Kleisli m) (,) where
+instance MonadFix m => Traced (Kleisli m) (,) where
   trace (Kleisli f) =
     Kleisli
       ( \b -> do
@@ -269,7 +269,7 @@ instance MonadFix m => Trace (Kleisli m) (,) where
 
 -- * Kleisli m Either — iteration for any Monad
 
--- | Trace for 'Kleisli' @m@ with the 'Either' tensor, for any @'Monad' m@.
+-- | Traced for 'Kleisli' @m@ with the 'Either' tensor, for any @'Monad' m@.
 --
 -- Iterates by feeding 'Left' back into the step function until a 'Right'
 -- is produced. Uses plain recursion — builds stack proportional to
@@ -288,7 +288,7 @@ instance MonadFix m => Trace (Kleisli m) (,) where
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
 -- priority for 'IO', providing constant-stack iteration via delimited
 -- continuations.
-instance {-# OVERLAPPABLE #-} Monad m => Trace (Kleisli m) Either where
+instance {-# OVERLAPPABLE #-} Monad m => Traced (Kleisli m) Either where
   trace (Kleisli f) =
     Kleisli $ \b -> go (Right b)
       where
@@ -325,7 +325,7 @@ control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- | Trace for 'Kleisli' 'IO' with 'Either' tensor.
+-- | Traced for 'Kleisli' 'IO' with 'Either' tensor.
 --
 -- Each iteration re-establishes the prompt boundary. When @control0@
 -- fires on @Left a@, it captures the continuation, wraps it around
@@ -338,7 +338,7 @@ control0 (PromptTag t) f = IO (control0# t arg)
 --
 -- >>> runKleisli (trace exit42) ()
 -- 42
-instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
+instance {-# OVERLAPPING #-} Traced (Kleisli IO) Either where
   trace (Kleisli body) =
     Kleisli
       ( \initial -> do
@@ -370,7 +370,7 @@ instance {-# OVERLAPPING #-} Trace (Kleisli IO) Either where
 -- arrow — callers see a pure @Kleisli IO a b@.
 --
 -- This breaks the circular dependency that 'MonadFix' requires for
--- the 'Trace' @(,)@ instance: the feedback value is stored in the
+-- the 'Traced' @(,)@ instance: the feedback value is stored in the
 -- mutable cell rather than being self-referential. Strict accumulators
 -- (counters, frequency tables, running sums) work without diverging.
 #ifdef __GLASGOW_HASKELL__

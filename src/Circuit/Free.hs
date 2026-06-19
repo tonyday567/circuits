@@ -3,9 +3,9 @@
 
 -- | The free category over a base arrow — just 'Lift' and 'Compose'.
 --
--- 'Free' is 'Circuit' without the knot constructor.  Where 'Circuit' is the free /traced/
+-- 'Free' is 'Trace' without the knot constructor.  Where 'Trace' is the free /traced/
 -- category, 'Free' is the free category.  The 'freeze' interpreter in
--- "Circuit.Trace" dissolves 'Circuit' into a 'Lift' by calling 'trace'
+-- "Circuit.Trace" dissolves 'Trace' into a 'Lift' by calling 'trace'
 -- on the base arrow, making the decomposition 'reify' = 'runFree' . 'freeze'.
 module Circuit.Free
   ( Free (..),
@@ -14,7 +14,7 @@ module Circuit.Free
   )
 where
 
-import Circuit.Traced qualified as Traced
+import Circuit.Traced
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -65,9 +65,9 @@ hoistFree :: (Category arr, Category arr') => (forall x y. arr x y -> arr' x y) 
 hoistFree h (Lift f) = Lift (h f)
 hoistFree h (Compose f g) = Compose (hoistFree h f) (hoistFree h g)
 
--- | Lift the 'Trace' class through 'Free'.
+-- | Lift the 'Traced' class through 'Free'.
 --
 -- A loop body in @Free arr@ is folded before calling the base 'trace'.
-instance (Category arr, Traced.Trace arr t) => Traced.Trace (Free arr) t where
-  trace body = Lift (Traced.trace (runFree body))
-  untrace f  = Lift (Traced.untrace (runFree f))
+instance (Category arr, Traced arr t) => Traced (Free arr) t where
+  trace body = Lift (trace (runFree body))
+  untrace f  = Lift (untrace (runFree f))

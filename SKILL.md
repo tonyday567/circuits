@@ -1,12 +1,12 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Circuit GADT, Hyper (final encoding), Trace, and Channel (bidirectional communication on Hyper). For reading, building, extending, and debugging.
+description: Free traced monoidal categories. Trace GADT, Hyper (final encoding), Trace, and Channel (bidirectional communication on Hyper). For reading, building, extending, and debugging.
 ---
 
 # circuits — agent field guide
 
 A free traced monoidal category over any base arrow. Two representations:
-Circuit (initial, inspectable) and Hyper (final, coinductive). Plus
+Trace (initial, inspectable) and Hyper (final, coinductive). Plus
 bidirectional channel structure on Hyper via self-dual continuation.
 
 Start here: `other/01-marks-and-stacks.md` (five marks, six axioms, one Fibonacci),
@@ -31,7 +31,7 @@ axioms                             equational proofs (appendix)
 Recommended reading order for the source (core concepts first):
 
 ```
-Circuit.Circuit  — Circuit GADT: Lift, Compose, Knot. reify.
+Circuit.Trace  — Trace GADT: Lift, Compose, Trace. reify.
 Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
                    Kleisli IO via delimited continuations (GHC primops).
                    cellIO helper.
@@ -39,13 +39,13 @@ Circuit.Monoidal — Braided, Cartesian and Cocartesian structure over the
                    standard tensors, plus ambient / ambientBy state threading.
 Circuit.Hyper    — Hyper a b (final encoding), invoke, run, base/push/lift/lower,
                    encode/encodeEither, runEither, flatten.
-Circuit           — umbrella re-export. This is the recommended import
-                    (`import Circuit`) for almost all use. Submodules are
+Trace           — umbrella re-export. This is the recommended import
+                    (`import Trace`) for almost all use. Submodules are
                     available when you need to be very precise about what
                     you are bringing into scope.
 ```
 
-Hyper imports Circuit for the GADT constructors. Traced depends only on
+Hyper imports Trace for the GADT constructors. Traced depends only on
 `GHC.Exts` (prompt#/control0#).
 
 ## build and test
@@ -91,18 +91,18 @@ type signatures, code — use names. This boundary prevents agent churn.
   instance ties a lazy knot.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
-- **Use `reify` for Circuit, `run` for Hyper**. `reify :: Circuit arr t x y -> arr x y`
-  interprets a Circuit to a plain arrow. `run :: Hyper a a -> a` ties the
+- **Use `reify` for Trace, `run` for Hyper**. `reify :: Trace arr t x y -> arr x y`
+  interprets a Trace to a plain arrow. `run :: Hyper a a -> a` ties the
   self-referential knot. They are not interchangeable — calling `run` on a
-  Circuit is a type error. This is the most common bug in example cards.
+  Trace is a type error. This is the most common bug in example cards.
 
 ## gotchas
 
 ### run vs reify
 
-`run` takes a `Hyper`; `reify` takes a `Circuit`. They are different
+`run` takes a `Hyper`; `reify` takes a `Trace`. They are different
 elimination forms on different types. If an example calls `run` on something
-built with `Knot` or `Lift`, it needs `reify` (or `encode` then `run`).
+built with `Trace` or `Lift`, it needs `reify` (or `encode` then `run`).
 
 ### .md cards cannot be loaded directly in cabal repl
 
@@ -121,24 +121,24 @@ User-facing code often uses the opposite convention — `Left` = result
 (done), `Right` = continue (next state). See `examples/while.md`'s
 `Step s r` type and the `swapRL` bridge.
 
-When a Knot body behaves strangely — exiting immediately when it should
+When a Trace body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
 returning. The convention is fixed by the class, not configurable.
 
 ### wrong tensor
 
-`Circuit` is parametric in the tensor `t`. `(,)` and `Either` have
+`Trace` is parametric in the tensor `t`. `(,)` and `Either` have
 different loop semantics but identical GADT constructors. The compiler
 won't stop you from using the wrong one — you'll get a puzzling type
-error deep inside a `Knot` or `reify`.
+error deep inside a `Trace` or `reify`.
 
 | if you wanted | but wrote | symptom |
 |-------------|----------|---------|
-| iteration loop | `Circuit (->) (,)` | `Left`/`Right` not in scope inside Knot body |
-| lazy knot | `Circuit (->) Either` | lazy knot needs pair pattern `(a, b)`, got `Either` |
+| iteration loop | `Trace (->) (,)` | `Left`/`Right` not in scope inside Trace body |
+| lazy knot | `Trace (->) Either` | lazy knot needs pair pattern `(a, b)`, got `Either` |
 
 Pin the tensor explicitly with a type annotation:
-`:: Circuit (->) (,) Int Int` or `:: Circuit (->) Either Int Int`.
+`:: Trace (->) (,) Int Int` or `:: Trace (->) Either Int Int`.
 The annotation also resolves overlapping `Trace (->)` instances.
 
 ### extra dependencies for example cards
@@ -169,8 +169,8 @@ Solid examples to learn from: `parser.md`, `while.md`, `elgot-abacus.md`,
 
 ## sibling libraries
 
-- **circuits-parser** — `Circuit (->) Either` with `These` output for
+- **circuits-parser** — `Trace (->) Either` with `These` output for
   backtracking parsers. Working, fast, a dependency of `chart-svg`.
-- **circuits-io** — `Circuit (Kleisli IO) Either` with delimited
+- **circuits-io** — `Trace (Kleisli IO) Either` with delimited
   continuations for resource-bracketed IO loops, producer/consumer
   channels, and the circuits-io frontier.

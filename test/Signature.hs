@@ -6,7 +6,7 @@ module Main where
 import Circuit.Signature
 import Circuit.Net qualified as N
 import Circuit.Trace qualified as C
-import Circuit.Traced (Trace (..))
+import Circuit.Traced (Traced (..))
 import Control.Category
 import Test.QuickCheck
 import Prelude hiding (id, (.))
@@ -16,25 +16,25 @@ type Arr = (->)
 type T = (,)
 
 -- ---------------------------------------------------------------------------
--- Circuit round trips
+-- Trace round trips
 
-circuits :: [C.Circuit T Arr Int Int]
+circuits :: [C.Trace T Arr Int Int]
 circuits =
   [ C.Lift (+1),
     C.Lift (*2),
     C.Compose (C.Lift (*2)) (C.Lift (+1)),
-    C.Knot (C.Lift (\(acc, x) -> (x, acc + x)))
+    C.Trace (C.Lift (\(acc, x) -> (x, acc + x)))
   ]
 
 prop_circuit_direct_roundtrip :: Property
 prop_circuit_direct_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        C.reify (sigToCircuit (circuitToSig c)) x == C.reify c x
+        C.reify (sigToTrace (traceToSig c)) x == C.reify c x
       | c <- circuits
     ]
 
-sigCircuits :: [SigCircuit T Arr Int Int]
+sigCircuits :: [SigTrace T Arr Int Int]
 sigCircuits =
   [ Lift (+1),
     Op (L (SigCompose (Lift (*2)) (Lift (+1)))),
@@ -45,7 +45,7 @@ prop_circuit_sig_roundtrip :: Property
 prop_circuit_sig_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        fold (circuitToSig (sigToCircuit s)) x == fold s x
+        fold (traceToSig (sigToTrace s)) x == fold s x
       | s <- sigCircuits
     ]
 
@@ -57,7 +57,7 @@ nets =
   [ N.Lift (+1),
     N.Compose (N.Lift (*2)) (N.Lift (+1)),
     N.Compose N.Plus (N.Compose (N.Par (N.Lift (*2)) (N.Lift (+3))) N.Copy),
-    N.Knot (N.Lift (\(acc, x) -> (x, acc + x)))
+    N.Trace (N.Lift (\(acc, x) -> (x, acc + x)))
   ]
 
 prop_net_direct_roundtrip :: Property

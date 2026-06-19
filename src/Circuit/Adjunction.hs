@@ -10,14 +10,14 @@
 -- The tower of free/forgetful functors:
 --
 -- @
--- Net t  ⊣  Circuit t  ⊣  Free  ⊣  Id
+-- Net t  ⊣  Trace t  ⊣  Free  ⊣  Id
 -- @
 --
 -- Each left adjoint adds structure; each right adjoint forgets it:
 --
 -- * 'Id'       — base arrow (no structure)
 -- * 'Free'     — adds sequential composition
--- * 'Circuit t'— adds feedback loops over tensor @t@
+-- * 'Trace t'— adds feedback loops over tensor @t@
 -- * 'Net t'    — adds monoidal and bimonoid wiring
 --
 -- The units are the canonical inclusions ("lift . lift" patterns are
@@ -66,23 +66,23 @@ instance Adjunction F.Free Id where
   unit x = Id (F.Lift x)
   counit c = F.runFree (F.hoistFree unId c)
 
--- | Circuit t ⊣ Free.
+-- | Trace t ⊣ Free.
 --
--- Unit: double lift — base arrow -> 'Circuit' -> 'Free (Circuit t arr)'.
--- Counit: collapse @Circuit t (Free arr)@ by freezing to @Free (Free arr)@,
+-- Unit: double lift — base arrow -> 'Trace' -> 'Free (Trace t arr)'.
+-- Counit: collapse @Trace t (Free arr)@ by freezing to @Free (Free arr)@,
 -- then joining the nested 'Free' layers with 'runFree'.
-instance Adjunction (T.Circuit t) F.Free where
-  type AdjC (T.Circuit t) F.Free arr = (Category arr, Tr.Trace arr t)
+instance Adjunction (T.Trace t) F.Free where
+  type AdjC (T.Trace t) F.Free arr = (Category arr, Tr.Traced arr t)
   unit x = F.Lift (T.Lift x)
   counit = F.runFree . F.runFree . T.freeze
 
--- | Net t ⊣ Circuit t.
+-- | Net t ⊣ Trace t.
 --
--- Unit: double lift — base arrow -> 'Net' -> 'Circuit (Net t arr)'.
--- Counit: collapse @Net t (Circuit t arr)@ by melting to
--- @Circuit t (Circuit t arr)@, then joining the nested 'Circuit' layers
+-- Unit: double lift — base arrow -> 'Net' -> 'Trace (Net t arr)'.
+-- Counit: collapse @Net t (Trace t arr)@ by melting to
+-- @Trace t (Trace t arr)@, then joining the nested 'Trace' layers
 -- with 'reify'.
-instance Adjunction (Net t) (T.Circuit t) where
-  type AdjC (Net t) (T.Circuit t) arr = (Tr.Trace arr t, MonoidalP arr)
+instance Adjunction (Net t) (T.Trace t) where
+  type AdjC (Net t) (T.Trace t) arr = (Tr.Traced arr t, MonoidalP arr)
   unit x = T.Lift (Lift x)
   counit = T.reify . T.reify . melt

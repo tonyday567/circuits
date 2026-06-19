@@ -16,23 +16,23 @@ import Data.Bool (bool)
 import System.IO (Handle, IOMode(ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
 openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
-       -- Circuit (Kleisli IO) t FilePath Handle
+       -- Trace (Kleisli IO) t FilePath Handle
 
-countLines = Knot (Kleisli step)
+countLines = Trace (Kleisli step)
   where
     step (Left (h, n)) = hIsEOF h >>= bool
       (hGetLine h >> pure (Left (h, n + 1)))
       (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
-       -- Circuit (Kleisli IO) Either Handle (Handle, Int)
+       -- Trace (Kleisli IO) Either Handle (Handle, Int)
 
 pipeline = openf >>> countLines >>> Lift (Kleisli (\(h, n) -> hClose h >> pure n))
-         -- Circuit (Kleisli IO) Either FilePath Int
+         -- Trace (Kleisli IO) Either FilePath Int
 
 -- paste into ghci:  runKleisli (reify pipeline) "readme.md"
 ```
 
-Three constructors. `Lift` wraps a plain function. `Compose` (written `>>>`) sequences them. `Knot` ties feedback — `Left` continues the loop, `Right` exits.
+Three constructors. `Lift` wraps a plain function. `Compose` (written `>>>`) sequences them. `Trace` ties feedback — `Left` continues the loop, `Right` exits.
 
 ## two flavours of feedback
 
@@ -43,11 +43,11 @@ The magic is in the second type argument — the **tensor**:
 | `Either` | `Left` = continue, `Right` = exit | loops that terminate |
 | `(,)` | lazy self-reference | streams, sharing, coinduction |
 
-Same `Knot` constructor. Different tensor, different universe. The library treats both uniformly — the axioms that make feedback well-behaved hold for either choice.
+Same `Trace` constructor. Different tensor, different universe. The library treats both uniformly — the axioms that make feedback well-behaved hold for either choice.
 
 ```haskell
 -- Lazy streaming with (,):
-powers = Knot (Lift (\(ns, ()) -> (1 : map (*2) ns, take 5 ns)))
+powers = Trace (Lift (\(ns, ()) -> (1 : map (*2) ns, take 5 ns)))
 reify powers ()  -- [1,2,4,8,16]
 
 -- Iteration with Either:
@@ -57,7 +57,7 @@ trace (either step step) 0  -- 5
 
 ## what's new in 0.2
 
-**Net** adds four structural rows: parallel composition, copy, discard, addition, and zero. Where `Circuit` dissolved these into opaque `Lift` calls, `Net` keeps them inspectable — wiring you can read backwards. The contravariant channel is what makes `transpose` (running a computation in reverse) structural rather than hand-rolled.
+**Net** adds four structural rows: parallel composition, copy, discard, addition, and zero. Where `Trace` dissolved these into opaque `Lift` calls, `Net` keeps them inspectable — wiring you can read backwards. The contravariant channel is what makes `transpose` (running a computation in reverse) structural rather than hand-rolled.
 
 This is the piece that will eventually power circuits-ad's one-line backpropagation reveal. For now it's here to play with.
 

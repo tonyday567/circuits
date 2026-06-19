@@ -42,13 +42,13 @@ import Circuit.Classes
 #endif
 
 import Circuit.Monoidal (MonoidalP (..))
-import Circuit.Traced qualified as Traced
+import Circuit.Traced
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Monoidal (MonoidalP (..))
--- >>> import Circuit.Traced qualified as Traced
+-- >>> import Circuit.Traced
 -- >>> import Control.Category
 -- >>> import Prelude hiding (id, (.), Monoid)
 
@@ -235,10 +235,10 @@ instance (Category arr) => Category (Dagger arr) where
   Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
 
-instance (Traced.Trace arr t) => Traced.Trace (Dagger arr) t where
-  trace (Dagger f g) = Dagger (Traced.trace f) (Traced.trace g)
+instance (Traced arr t) => Traced (Dagger arr) t where
+  trace (Dagger f g) = Dagger (trace f) (trace g)
   {-# INLINE trace #-}
-  untrace (Dagger f g) = Dagger (Traced.untrace f) (Traced.untrace g)
+  untrace (Dagger f g) = Dagger (untrace f) (untrace g)
   {-# INLINE untrace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.

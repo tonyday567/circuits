@@ -57,7 +57,7 @@ module Circuit.Signature
 
     -- * Common syntax combinations
     SigFreeCat,
-    SigCircuit,
+    SigTrace,
     SigMonoidal,
     SigBimonoidal,
     SigNet,
@@ -67,8 +67,8 @@ module Circuit.Signature
     sigMelt,
 
     -- * Direct <-> signature isomorphisms
-    circuitToSig,
-    sigToCircuit,
+    traceToSig,
+    sigToTrace,
     netToSig,
     sigToNet,
   )
@@ -78,7 +78,7 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Monoidal (MonoidalP (..))
 import Circuit.Net qualified as N
 import Circuit.Trace qualified as C
-import Circuit.Traced qualified as Traced
+import Circuit.Traced
 import Control.Category (Category (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
@@ -163,9 +163,9 @@ instance Category arr' => Handler SigCompose arr arr' where
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
   SigKnot :: rec (t a b) (t a c) -> SigKnot t arr rec b c
 
-instance Traced.Trace arr' t => Handler (SigKnot t) arr arr' where
-  type HCtx (SigKnot t) arr arr' = Traced.Trace arr' t
-  handle _ eval (SigKnot f) = Traced.trace (eval f)
+instance Traced arr' t => Handler (SigKnot t) arr arr' where
+  type HCtx (SigKnot t) arr arr' = Traced arr' t
+  handle _ eval (SigKnot f) = trace (eval f)
 
 -- | Parallel composition.
 data SigPar arr rec a b where
@@ -212,7 +212,7 @@ instance Handler SigBimonoid arr arr' where
 type SigFreeCat arr = Free SigCompose arr
 
 -- | Free traced monoidal category over tensor @t@.
-type SigCircuit t arr = Free (SigCompose :+: SigKnot t) arr
+type SigTrace t arr = Free (SigCompose :+: SigKnot t) arr
 
 -- | Free monoidal category.
 type SigMonoidal arr = Free (SigCompose :+: SigPar :+: SigSwap) arr
@@ -230,21 +230,21 @@ instance Category arr => Category (SigFreeCat arr) where
   id = Lift id
   f . g = Op (SigCompose f g)
 
-instance Category arr => Category (SigCircuit t arr) where
+instance Category arr => Category (SigTrace t arr) where
   id = Lift id
   f . g = Op (L (SigCompose f g))
 
-instance (Category arr, Traced.Trace arr t) => Traced.Trace (SigCircuit t arr) t where
+instance (Category arr, Traced arr t) => Traced (SigTrace t arr) t where
   trace body = Op (R (SigKnot body))
-  untrace f = Lift (Traced.untrace (fold f))
+  untrace f = Lift (untrace (fold f))
 
-instance (Category arr, Traced.Trace arr t, MonoidalP arr) => MonoidalP (SigCircuit t arr) where
+instance (Category arr, Traced arr t, MonoidalP arr) => MonoidalP (SigTrace t arr) where
   par f g = Lift (par (fold f) (fold g))
   swap = Lift swap
 
-instance (Category arr, Traced.Trace arr t) => Traced.Trace (SigFreeCat arr) t where
-  trace body = Lift (Traced.trace (fold body))
-  untrace f = Lift (Traced.untrace (fold f))
+instance (Category arr, Traced arr t) => Traced (SigFreeCat arr) t where
+  trace body = Lift (trace (fold body))
+  untrace f = Lift (untrace (fold f))
 
 -- ---------------------------------------------------------------------------
 -- Forgetful handlers
@@ -253,41 +253,41 @@ instance (Category arr, Traced.Trace arr t) => Traced.Trace (SigFreeCat arr) t w
 -- free category.  This is the forgetful map from the free traced
 -- category to the free category.
 sigFreeze ::
-  (Category arr, Traced.Trace arr t) =>
-  SigCircuit t arr a b ->
+  (Category arr, Traced arr t) =>
+  SigTrace t arr a b ->
   SigFreeCat arr a b
 sigFreeze = foldInto Lift
 
 -- | Melt structural rows ('SigPar', 'SigSwap', 'SigBimonoid') into 'Lift'
--- calls.  This is the forgetful map from 'SigNet' to 'SigCircuit'.
+-- calls.  This is the forgetful map from 'SigNet' to 'SigTrace'.
 sigMelt ::
-  (Traced.Trace arr t, MonoidalP arr) =>
+  (Traced arr t, MonoidalP arr) =>
   SigNet t arr a b ->
-  SigCircuit t arr a b
+  SigTrace t arr a b
 sigMelt = foldInto Lift
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> signature isomorphisms
 
--- | Embed the direct 'C.Circuit' GADT into the signature-based form.
-circuitToSig :: forall t arr a b. C.Circuit t arr a b -> SigCircuit t arr a b
-circuitToSig (C.Lift f) = Lift f
-circuitToSig (C.Compose g f) = Op (L (SigCompose (circuitToSig g) (circuitToSig f)))
-circuitToSig (C.Knot f) = Op (R (SigKnot (circuitToSig f)))
+-- | Embed the direct 'C.Trace' GADT into the signature-based form.
+traceToSig :: forall t arr a b. C.Trace t arr a b -> SigTrace t arr a b
+traceToSig (C.Lift f) = Lift f
+traceToSig (C.Compose g f) = Op (L (SigCompose (traceToSig g) (traceToSig f)))
+traceToSig (C.Trace f) = Op (R (SigKnot (traceToSig f)))
 
 -- | Project the signature-based circuit back to the direct GADT.
-sigToCircuit :: forall t arr a b. SigCircuit t arr a b -> C.Circuit t arr a b
-sigToCircuit = go
+sigToTrace :: forall t arr a b. SigTrace t arr a b -> C.Trace t arr a b
+sigToTrace = go
   where
-    go :: forall x y. SigCircuit t arr x y -> C.Circuit t arr x y
+    go :: forall x y. SigTrace t arr x y -> C.Trace t arr x y
     go (Lift f) = C.Lift f
     go (Op op) = goOp op
 
-    goOp :: forall x y. (SigCompose :+: SigKnot t) arr (SigCircuit t arr) x y -> C.Circuit t arr x y
+    goOp :: forall x y. (SigCompose :+: SigKnot t) arr (SigTrace t arr) x y -> C.Trace t arr x y
     goOp (L sc) = case sc of
       SigCompose g f -> C.Compose (go g) (go f)
     goOp (R sk) = case sk of
-      SigKnot f -> C.Knot (go f)
+      SigKnot f -> C.Trace (go f)
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 netToSig :: forall t arr a b. N.Net t arr a b -> SigNet t arr a b
@@ -299,7 +299,7 @@ netToSig N.Copy = Op (R (R (R (R SigCopy))))
 netToSig N.Discard = Op (R (R (R (R SigDiscard))))
 netToSig N.Plus = Op (R (R (R (R SigPlus))))
 netToSig N.Zero = Op (R (R (R (R SigZero))))
-netToSig (N.Knot f) = Op (R (L (SigKnot (netToSig f))))
+netToSig (N.Trace f) = Op (R (L (SigKnot (netToSig f))))
 
 -- | Project the signature-based Net back to the direct GADT.
 sigToNet :: forall t arr a b. SigNet t arr a b -> N.Net t arr a b
@@ -321,7 +321,7 @@ sigToNet = goTop
     goKnotOrMore (R rest) = goParOrMore rest
 
     goKnot :: forall x y. SigKnot t arr (SigNet t arr) x y -> N.Net t arr x y
-    goKnot (SigKnot f) = N.Knot (goTop f)
+    goKnot (SigKnot f) = N.Trace (goTop f)
 
     goParOrMore :: forall x y. (SigPar :+: SigSwap :+: SigBimonoid) arr (SigNet t arr) x y -> N.Net t arr x y
     goParOrMore (L sp) = goPar sp

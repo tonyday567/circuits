@@ -8,7 +8,7 @@
 -- a continuation of type @Hyper b a@.
 --
 -- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
--- category. Its dual, 'Circuit' (see "Circuit.Trace"), is the
+-- category. Its dual, 'Trace' (see "Circuit.Trace"), is the
 -- corresponding /initial/ (inductive) encoding. The feedback channel
 -- is not represented by an extra constructor; it is structural in the
 -- type itself.
@@ -32,9 +32,9 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Trace (Circuit (..), freeze, reify)
+import Circuit.Trace (Trace (..), freeze, reify)
 import Circuit.Free qualified as F
-import Circuit.Traced qualified as Traced
+import Circuit.Traced
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -48,8 +48,8 @@ import Circuit.Classes
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
 -- >>> import Data.Profunctor
--- >>> import Circuit.Traced (Trace (..))
--- >>> import Circuit.Trace (Circuit (..), reify)
+-- >>> import Circuit.Traced (Traced (..))
+-- >>> import Circuit.Trace (Trace (..), reify)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -143,7 +143,7 @@ run h = invoke h (Hyper run)
 -- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
 --
 -- Transcribes the lazy-knot trace from @(->)@ into Hyper's continuation
--- language. Where @Circuit (->) (,)@ can write @let (a, c) = f (a, b) in c@
+-- language. Where @Trace (->) (,)@ can write @let (a, c) = f (a, b) in c@
 -- directly, Hyper must route the self-reference through explicit 'Hyper'
 -- values:
 --
@@ -157,11 +157,11 @@ run h = invoke h (Hyper run)
 --
 -- Law: @lower (trace (lift f)) x = trace \@ (->) f x@
 --
--- >>> import Circuit.Traced (Trace (..))
+-- >>> import Circuit.Traced (Traced (..))
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> lower (trace body) ()
 -- [0,0,0]
-instance Traced.Trace Hyper (,) where
+instance Traced Hyper (,) where
   trace body = Hyper $ \k ->
     let pair = invoke body cont
         cont = Hyper $ \_ ->
@@ -170,7 +170,7 @@ instance Traced.Trace Hyper (,) where
      in snd pair
   untrace = lift . fmap . lower
 
--- * Encoding Circuit into Hyper
+-- * Encoding Trace into Hyper
 
 -- | Encode a 'Free' into a 'Hyper'.
 --
@@ -188,9 +188,9 @@ encodeFree :: F.Free (->) a b -> Hyper a b
 encodeFree (F.Lift f) = lift f
 encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 
--- | Encode a Circuit into a Hyper. Symbol: @(⇨)@.
+-- | Encode a Trace into a Hyper. Symbol: @(⇨)@.
 --
--- This is the unique traced functor from the initial object (Circuit)
+-- This is the unique traced functor from the initial object (Trace)
 -- to the final object (Hyper), satisfying the commuting triangle
 -- @'lower' . 'encode' = 'reify'@.
 --
@@ -198,10 +198,10 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 -- 'freeze' dissolves knot constructors into 'Lift' via the base arrow's 'trace';
 -- 'encodeFree' lifts the two constructors into Hyper.
 --
--- >>> import Circuit.Trace (Circuit (..), reify)
--- >>> lower (encode (Lift (+1) :: Circuit (,) (->) Int Int)) 5
+-- >>> import Circuit.Trace (Trace (..), reify)
+-- >>> lower (encode (Lift (+1) :: Trace (,) (->) Int Int)) 5
 -- 6
-encode :: Circuit (,) (->) a b -> Hyper a b
+encode :: Trace (,) (->) a b -> Hyper a b
 encode = encodeFree . freeze
 
 -- | Encode an Either-loop as a self-referential Hyper.
@@ -250,7 +250,7 @@ encodeEither f = h
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = run (encodeEither f) (Right b)
 
--- | Flatten a Hyper to a Circuit by observing it.
+-- | Flatten a Hyper to a Trace by observing it.
 --
 -- This is the forgetful map from the final encoding to the initial encoding.
 -- All feedback structure is lost; only the observable behaviour remains.
@@ -264,7 +264,7 @@ runEither f b = run (encodeEither f) (Right b)
 -- >>> let h = lift (+ 1)
 -- >>> lower (encode (flatten h)) 5
 -- 6
-flatten :: Hyper a b -> Circuit (,) (->) a b
+flatten :: Hyper a b -> Trace (,) (->) a b
 flatten h = Lift (lower h)
 
 -- * Instances
