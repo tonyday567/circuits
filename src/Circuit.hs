@@ -3,7 +3,7 @@
 -- == Usage
 --
 -- @
--- import Trace
+-- import Circuit
 -- @
 --
 -- === Lazy feedback (knot-tying)
@@ -67,6 +67,8 @@ module Circuit
     close,
     realise,
     freeze,
+    trace,
+    untrace,
 
     -- * Free
     Free,
@@ -178,5 +180,6 @@ import Circuit.Net
     melt,
     enrich,
   )
+import Circuit.Traced (trace, untrace)
 import Circuit.Traced qualified as Traced
 import Prelude hiding (Monoid)

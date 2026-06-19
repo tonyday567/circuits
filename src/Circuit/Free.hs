@@ -51,7 +51,7 @@ instance (Category arr) => Category (Free arr) where
 -- This is the canonical fold — no 'Trace' needed, just 'Category'.
 --
 -- >>> runFree (Lift (+1) `Compose` Lift (*2) :: Free (->) Int Int) 5
--- 12
+-- 11
 runFree :: (Category arr) => Free arr a b -> arr a b
 runFree (Lift f) = f
 runFree (Compose f g) = runFree f . runFree g

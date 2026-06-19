@@ -48,7 +48,7 @@ import Prelude hiding (Monoid, id, (.))
 -- $setup
 -- >>> 1 + 1 :: Int
 -- 2
--- >>> import Trace (Trace(..), realise)
+-- >>> import Circuit.Trace (Trace(..), realise)
 -- >>> import Circuit.Net
 -- >>> import Prelude hiding (id, (.), Monoid)
 

@@ -67,6 +67,7 @@ import Circuit.Classes
 #endif
 
 -- $setup
+-- >>> import Circuit.Free qualified as F
 -- >>> import Control.Category ((>>>))
 -- >>> import Data.Profunctor (dimap)
 -- >>> import Prelude hiding (id, (.))
