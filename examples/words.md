@@ -1,7 +1,7 @@
 # words — a worked example
 
 Counting word frequencies from a file, reporting the top 5. A pipeline built
-from named components, composed with Trace's three constructors, metered in
+from named components, composed with Trace's two constructors and `(>>>)`, metered in
 one line.
 
 The full runnable source is in
@@ -73,20 +73,20 @@ fmtTable = unlines . map fmt . take 5 . sortOn (Down . snd) . Map.toList
 -- * circuit primitives — payload-neutral, no closures
 
 openf :: Trace t (Kleisli IO) FilePath Handle
-openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
+openf = Arr (Kleisli (\fp -> openFile fp ReadMode))
 
 closef :: Trace t (Kleisli IO) Handle ()
-closef = Lift (Kleisli hClose)
+closef = Arr (Kleisli hClose)
 ```
 
 ## the loop body
 
-`Trace` wraps a Kleisli that iterates until `Right`. The Handle rides the
+`Knot` wraps a Kleisli that iterates until `Right`. The Handle rides the
 feedback wire alongside the accumulator.
 
 ```haskell
 readAndCount :: Trace Either (Kleisli IO) Handle (Handle, Map String Int)
-readAndCount = Trace (Kleisli step)
+readAndCount = Knot (Kleisli step)
   where
     step (Left (h, acc)) =
       hIsEOF h >>= bool
@@ -103,14 +103,14 @@ wordPipeline :: Trace Either (Kleisli IO) FilePath String
 wordPipeline =
   openf
     >>> readAndCount
-    >>> Lift (Kleisli (\(h, m) -> hClose h >> pure (fmtTable m)))
+    >>> Arr (Kleisli (\(h, m) -> hClose h >> pure (fmtTable m)))
 ```
 
 ## running it
 
 ```haskell
 wordCount :: FilePath -> IO ()
-wordCount path = putStr =<< runKleisli (realise wordPipeline) path
+wordCount path = putStr =<< runKleisli (run wordPipeline) path
 ```
 
 Expected output (run against `other/alice.md`):
@@ -133,7 +133,7 @@ the Kleisli using the cartesian tensor:
 ```haskell
 perfTest :: FilePath -> IO ()
 perfTest path = do
-  (t, output) <- runKleisli (reifyC (meterAction timeM (realise wordPipeline))) path
+  (t, output) <- runKleisli (reifyC (meterAction timeM (run wordPipeline))) path
   let ms = fromIntegral t / 1_000_000 :: Double
   putStrLn $ " wall: " <> show ms <> " ms"
   putStr output
@@ -149,12 +149,12 @@ knowing about it. Here we thread a `String` tag through the entire pipeline:
 ```haskell
 demoSecond :: FilePath -> IO ()
 demoSecond path = do
-  (tag, output) <- runKleisli (second (realise wordPipeline)) ("tag-value", path)
+  (tag, output) <- runKleisli (second (run wordPipeline)) ("tag-value", path)
   putStrLn $ "tag: " <> tag
   putStr output
 ```
 
-For `(,)` tensor pipelines, `ambient (Lift k)` is exactly `Lift (second k)`.
+For `(,)` tensor pipelines, `ambient (Arr k)` is exactly `Arr (second k)`.
 The only work is a swap to get state into the right slot.
 
 ### instrumented run
@@ -170,9 +170,9 @@ fmtMs n =
 
 timedRun :: FilePath -> IO ()
 timedRun path = do
-  (tOpen, h) <- runKleisli (reifyC (meterAction timeM (realise (openf :: Trace (,) (Kleisli IO) FilePath Handle)))) path
+  (tOpen, h) <- runKleisli (reifyC (meterAction timeM (run (openf :: Trace (,) (Kleisli IO) FilePath Handle)))) path
 
-  (tRead, (h', m)) <- runKleisli (reifyC (meterAction timeM (realise readAndCount))) h
+  (tRead, (h', m)) <- runKleisli (reifyC (meterAction timeM (run readAndCount))) h
 
   let output = fmtTable m
   (tPrint, ()) <- runKleisli (reifyC (meterAction timeM (Kleisli (\s -> hClose h' >> putStr s)))) output

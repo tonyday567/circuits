@@ -1,13 +1,13 @@
 # Resource IO
 
-Safe I/O and resource handling with `Circuit (Kleisli IO) Either`.
+Safe I/O and resource handling with `Trace Either (Kleisli IO)`.
 The pattern: acquire, loop, release — all enforced by the feedback
 channel.
 
 ```haskell
 -- $setup
 -- >>> import Control.Arrow (Kleisli (..), runKleisli)
--- >>> import Circuit
+-- >>> import Circuit (Trace(..), run)
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -23,7 +23,7 @@ through the same step function.  `Left = continue`, `Right = done`
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 
-loopIO :: (a -> IO (Either a b)) -> Circuit (Kleisli IO) Either a b
+loopIO :: (a -> IO (Either a b)) -> Trace Either (Kleisli IO) a b
 loopIO step = Knot (Kleisli \case
   Right x -> step x
   Left  x -> step x)
@@ -36,7 +36,7 @@ loopIO step = Knot (Kleisli \case
 A numeric countdown with an IO effect.
 
 ```haskell
-countdown :: Circuit (Kleisli IO) Either Int ()
+countdown :: Trace Either (Kleisli IO) Int ()
 countdown = loopIO \n ->
   if n <= 0
   then pure (Right ())
@@ -44,7 +44,7 @@ countdown = loopIO \n ->
     putStrLn $ "tick " <> show n
     pure (Left (n - 1))
 
--- >>> runKleisli (reify countdown) 3
+-- >>> runKleisli (run countdown) 3
 -- tick 3
 -- tick 2
 -- tick 1
@@ -57,7 +57,7 @@ countdown = loopIO \n ->
 Same structure, state is `String`, exit triggered by input.
 
 ```haskell
-echo :: Circuit (Kleisli IO) Either String ()
+echo :: Trace Either (Kleisli IO) String ()
 echo = loopIO \line ->
   if line `elem` ["quit", "exit", ":q"]
   then pure (Right ())
@@ -65,7 +65,7 @@ echo = loopIO \line ->
     putStrLn $ "echo: " <> line
     pure (Left "next>")
 
--- >>> runKleisli (reify echo) "hello"
+-- >>> runKleisli (run echo) "hello"
 -- echo: hello
 ```
 
@@ -80,7 +80,7 @@ cleanup guaranteed without try/finally boilerplate.
 ```haskell
 import System.IO (Handle, IOMode (..), hClose, hGetLine, hIsEOF, openFile)
 
-fileReader :: FilePath -> Circuit (Kleisli IO) Either Handle ()
+fileReader :: FilePath -> Trace Either (Kleisli IO) Handle ()
 fileReader path = loopIO \case
   () -> do                                       -- acquire
     h <- openFile path ReadMode
@@ -94,7 +94,7 @@ fileReader path = loopIO \case
         putStrLn line
         pure (Left h)                            -- continue
 
--- >>> runKleisli (reify (fileReader "examples/resource-io.md")) ()
+-- >>> runKleisli (run (fileReader "examples/resource-io.md")) ()
 ```
 
 The state machine:
@@ -124,7 +124,7 @@ carries an accumulator so the circuit returns a value on exit and can be
 bracketed with a meter.
 
 ```haskell
-fileReaderState :: FilePath -> Circuit (Kleisli IO) Either (Maybe Handle, [String]) [String]
+fileReaderState :: FilePath -> Trace Either (Kleisli IO) (Maybe Handle, [String]) [String]
 fileReaderState path = loopIO \case
   (Nothing, _) -> do                               -- acquire
     h <- openFile path ReadMode
@@ -137,7 +137,7 @@ fileReaderState path = loopIO \case
         line <- hGetLine h
         pure (Left (Just h, line : acc))           -- continue
 
--- >>> runKleisli (reify (fileReaderState "examples/resource-io.md")) (Nothing, [])
+-- >>> runKleisli (run (fileReaderState "examples/resource-io.md")) (Nothing, [])
 ```
 
 The state machine:
@@ -191,6 +191,6 @@ comparison and the bracketing gap in `circuits-io`.
 ## mechanism
 
 Under the hood, `loopIO` creates a `Knot (Kleisli body)` executed by
-the `Trace (Kleisli IO) Either` instance using GHC's delimited
+the `Trace Either (Kleisli IO)` instance using GHC's delimited
 continuation primops (`prompt` / `control0`).  Constant stack usage —
 the loop body is re-entered at the `prompt` boundary every iteration.

@@ -1,16 +1,16 @@
 # Hyper — the final encoding
 
-`Hyper` is the coinductive / final encoding.  Where `Circuit` makes
+`Hyper` is the coinductive / final encoding.  Where `Trace` makes
 feedback explicit with a `Knot` constructor, `Hyper` dissolves the
 feedback channel into the type itself.  Every `Hyper a b` already
 carries a continuation `Hyper b a` — the feedback is structural.
 
 ```haskell
 -- $setup
+-- >>> import Control.Category ((.))
 -- >>> import Data.Profunctor (dimap)
+-- >>> import Circuit (Trace(..), run, trace, untrace)
 -- >>> import Circuit.Hyper
--- >>> import Circuit.Circuit (Circuit(..), reify)
--- >>> import Circuit.Traced (Trace(..))
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -42,7 +42,7 @@ The dual arrow is always present — it's the argument to `invoke`.
 | `lower` / `↓` | `Hyper a b -> a -> b` | observe with constant continuation |
 | `base` / `○` | `a -> Hyper b a` | ignore feedback, return constant |
 | `push` / `⊲` | `(b -> c) -> Hyper a b -> Hyper a c` | prepend function to output |
-| `run` / `⥁` | `Hyper a a -> a` | tie the self-referential knot |
+| `runHyper` / `⥁` | `Hyper a a -> a` | tie the self-referential knot |
 
 ```haskell
 -- >>> lower (lift (+ 1)) 5
@@ -54,11 +54,11 @@ The dual arrow is always present — it's the argument to `invoke`.
 -- >>> lower (push (+ 1) (lift (* 2))) 5
 -- 6
 
--- >>> run (Hyper $ \_ -> (42 :: Int))
+-- >>> runHyper (Hyper $ \_ -> (42 :: Int))
 -- 42
 ```
 
-`run` is `invoke h (Hyper run)` — the hyperfunction is fed its own dual.
+`runHyper` is `invoke h (Hyper runHyper)` — the hyperfunction is fed its own dual.
 `lift` is `push f (lift f)` — infinite coinductive unrolling that works
 because each layer unwraps on demand.
 
@@ -66,7 +66,7 @@ because each layer unwraps on demand.
 
 ## the Either gap
 
-`Trace Hyper (,)` exists.  `Trace Hyper Either` does not.  The reason is
+`Traced Hyper (,)` exists.  `Traced Hyper Either` does not.  The reason is
 in how each tensor's loop resolves:
 
 | tensor | loop mechanism | fits Hyper? |
@@ -82,7 +82,7 @@ Hyper's type doesn't expose) or delimited continuations (which are
 Kleisli's domain, not Hyper's).
 
 So `encodeEither` and `runEither` exist as separate combinators rather
-than a `Trace` instance.  They encode the Either state machine into Hyper's
+than a `Traced` instance.  They encode the Either state machine into Hyper's
 function domain — the state `Either a b` becomes an explicit argument
 passed through `invoke`:
 
@@ -97,7 +97,7 @@ encodeEither f = h
         Left a  -> invoke k h (Left a))
 ```
 
-`runEither f b = run (encodeEither f) (Right b)` ties the knot and
+`runEither f b = runHyper (encodeEither f) (Right b)` ties the knot and
 injects the initial state.  The Either loop lives *inside* Hyper's
 function argument rather than being eliminated to a plain function.
 
@@ -110,48 +110,48 @@ function argument rather than being eliminated to a plain function.
 
 ## the encoding triangle
 
-`encode` maps Circuit into Hyper.  The triangle identity says observing
-after encoding gives the same result as running Circuit directly:
+`encode` maps `Trace` into `Hyper`.  The triangle identity says observing
+after encoding gives the same result as running `Trace` directly:
 
 ```
-lower (encode c)  =  reify c
+lower (encode t)  =  run t
 ```
 
 ```haskell
--- >>> lower (encode (Lift (+ 1))) 5
+-- >>> lower (encode (Arr (+ 1))) 5
 -- 6
--- >>> reify (Lift (+ 1) :: Circuit (->) (,) Int Int) 5
+-- >>> run (Arr (+ 1) :: Trace (,) (->) Int Int) 5
 -- 6
 
--- >>> let c = Compose (Lift (+ 1)) (Lift (* 2)) :: Circuit (->) (,) Int Int
--- >>> lower (encode c) 5
+-- >>> let t = Arr (+ 1) . Arr (* 2) :: Trace (,) (->) Int Int
+-- >>> lower (encode t) 5
 -- 11
--- >>> reify c 5
+-- >>> run t 5
 -- 11
 
--- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Circuit (->) (,) () [Int]
+-- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Trace (,) (->) () [Int]
 -- >>> lower (encode k) ()
 -- [0,0,0]
--- >>> reify k ()
+-- >>> run k ()
 -- [0,0,0]
 ```
 
 The `Knot` case is where the triangle earns its keep.  `encode (Knot f)`
-uses Hyper's own `Trace (,)` instance — a coinductive lazy knot.  The
+uses Hyper's own `Traced Hyper (,)` instance — a coinductive lazy knot.  The
 sliding axiom guarantees `lower (encode (Knot f)) = trace f`.
 
-Compare `encode` vs `reify` on a `Compose (Knot f) g`:
+Compare `encode` vs `run` on `Knot f . g`:
 
 ```
 -- encode: composition threads the continuation structurally
-encode (Compose (Knot f) g)
-  = encode (Knot f) . encode g              -- general Compose case
-  = trace (lift f) . encode g               -- Hyper's Trace (,) knot
+encode (Knot f . g)
+  = encode (Knot f) . encode g              -- Hyper Category composition
+  = trace (lift f) . encode g               -- Hyper's Traced (,) knot
   -- No Mendler case needed.
 
--- reify: must inject g into the feedback channel
-reify (Compose (Knot f) g)
-  = trace (f . untrace (reify g))  -- explicit Mendler case
+-- run: the Category instance has already fused g into the body
+run (Knot f . g)
+  = trace (f . untrace (run g))    -- g routed through the feedback channel
 ```
 
 Hyper composition doesn't need a Mendler case because every `Category`
@@ -175,7 +175,7 @@ would require observing via `lower` on every step, collapsing the
 continuation structure back to plain functions.
 
 The `Profunctor` instance is coinductive: `dimap` calls itself.  Under
-lazy evaluation, any finite observation (via `lower` or `run`) only
+lazy evaluation, any finite observation (via `lower` or `runHyper`) only
 unfolds finitely many layers, never reaching bottom.
 
 ```haskell
@@ -189,36 +189,36 @@ unfolds finitely many layers, never reaching bottom.
 
 Hyper's continuation barrier limits what can be built directly:
 
-| capability | Circuit | Hyper |
+| capability | Trace | Hyper |
 |-----------|---------|-------|
 | `first` / thread a pair | yes — pattern-match constructors | no — continuation grabs everything |
 | fanout / `(&&&)` | yes — lower both branches | no — can't route one input to two places |
 | Kleisli arrows / effects | yes — parametric in `arr` | no — `invoke` returns `b`, not `m b` |
 | inspect structure | yes — GADT constructors | no — opaque |
 
-The pattern: **build in Circuit, encode to Hyper** when you want the
-final encoding.  `encode` preserves observable behaviour, so Circuit's
+The pattern: **build in `Trace`, encode to `Hyper`** when you want the
+final encoding.  `encode` preserves observable behaviour, so `Trace`'s
 expressive power flows through to Hyper's structural guarantees.
 
 ---
 
-## Circuit ↔ Hyper
+## Trace ↔ Hyper
 
-| aspect | Circuit | Hyper |
+| aspect | Trace | Hyper |
 |--------|---------|-------|
 | encoding | initial (syntax) | final (semantics) |
 | feedback | explicit `Knot` | structural in type |
-| sliding | Mendler case | inherent in `(.)` |
-| degeneration possible? | yes (without Mendler) | no |
-| elimination | `reify` | `lower` |
-| map to other | `encode` (→ Hyper) | `flatten` (→ Circuit) |
+| sliding | handled by the `Category` instance | inherent in `(.)` |
+| degeneration possible? | no — already in normal form | no |
+| elimination | `run` | `lower` |
+| map to other | `encode` (→ Hyper) | `flatten` (→ Trace) |
 | inspection | constructors visible | opaque |
-| composition cost | O(n²) left-nested | O(1) amortised |
-| Either loops | `Trace (->) Either` | `encodeEither` / `runEither` |
+| composition cost | O(1) (normal form) | O(1) amortised |
+| Either loops | `Traced (->) Either` | `encodeEither` / `runEither` |
 | Kleisli | parametric in `arr` | pure only |
 
-The two encodings are not isomorphic on the nose.  `lower . encode = reify`
-holds, but `encode . flatten ≠ id` — flattening a Hyper to Circuit
+The two encodings are not isomorphic on the nose.  `lower . encode = run`
+holds, but `encode . flatten ≠ id` — flattening a Hyper to `Trace`
 observes it against a constant continuation, losing all feedback
-structure.  `flatten h = Lift (lower h)` is the forgetful map, not an
+structure.  `flatten h = Arr (lower h)` is the forgetful map, not an
 inverse.

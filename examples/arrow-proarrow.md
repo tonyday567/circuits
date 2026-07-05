@@ -45,8 +45,12 @@ A proarrow equipment has:
 
 So `Trace` and `Net` are **free 2-cells** over the horizontal arrow `arr`.
 
-The `Trace` constructor, for example, is the 2-cell that closes a vertical
-feedback loop:
+The `Trace` datatype, for example, provides the 2-cell that closes a vertical
+feedback loop via its `Knot` constructor:
+
+```haskell
+Knot :: arr (t a x) (t a y) -> Trace t arr x y
+```
 
 ```
     t a x ----arr----> t a y
@@ -56,7 +60,8 @@ feedback loop:
       x ------arr------> y
 ```
 
-A `Trace` value is syntax; `freeze` / `realise` interpret it into the base
+`Trace` also has an `Arr` constructor that embeds a base arrow.
+A `Trace` value is already in normal form; `run` interprets it into the base
 arrow using the `Costrong` / `Strong` instances.
 
 ## Arrow vs. proarrow
@@ -139,10 +144,10 @@ arrow's `strength`/`costrength` to thread or close it.  So the free traced
 category over lens diagrams folds back into `SomeLens arr`:
 
 ```haskell
-type SigLensTrace arr = SigTrace (,) (SomeLens arr)
-type SigPrismTrace arr = SigTrace Either (SomePrism arr)
+type SigLensTrace arr = Trace (,) (SomeLens arr)
+type SigPrismTrace arr = Trace Either (SomePrism arr)
 
-fold :: SigLensTrace arr a b -> SomeLens arr a b
+foldTrace :: SigLensTrace arr a b -> SomeLens arr a b
 ```
 
 This is an example of the general pattern: the equipment structure (here,

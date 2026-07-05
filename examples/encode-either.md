@@ -1,6 +1,6 @@
-# encode-either ⟜ why Trace Hyper Either does not exist
+# encode-either ⟜ why Traced Hyper Either does not exist
 
-`Hyper` has `Trace Hyper (,)` but no `Trace Hyper Either`. This card explains
+`Hyper` has `Traced Hyper (,)` but no `Traced Hyper Either`. This card explains
 why — and why `encodeEither` is the correct workaround, not a missing
 instance waiting to be written.
 
@@ -18,7 +18,7 @@ The two tensors give fundamentally different loop mechanics:
 `trace` for `(,)` ties a single lazy knot:
 
 ```haskell
-instance Trace Hyper (,) where
+instance Traced Hyper (,) where
   trace body = Hyper $ \k ->
     let pair = invoke body cont
         cont = Hyper $ \_ ->
@@ -33,7 +33,7 @@ same tuple. One `let-rec` ties them.
 
 ## Why Either fails
 
-`Trace (->) Either` is a while-loop:
+`Traced (->) Either` is a while-loop:
 
 ```haskell
 trace f b = go (Right b)
@@ -116,7 +116,7 @@ channel travel together in a single tuple. `Either` fits only when the
 iteration is reified as an explicit state machine — which is exactly what
 `encodeEither` does.
 
-To get `Trace Hyper Either` natively would require one of:
+To get `Traced Hyper Either` natively would require one of:
 
 - Stateful `Hyper` (e.g. `Hyper s a b` with an explicit state parameter)
 - Delimited continuations (the `Kleisli IO Either` approach)

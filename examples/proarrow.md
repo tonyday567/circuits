@@ -1,6 +1,6 @@
 ⟝ proarrow
 
-# Trace ≅ Strong + Costrong on Hom k — The proarrow Bridge
+# Traced ≅ Strong + Costrong on Hom k — The proarrow Bridge
 
 For background on Circuit see [01-marks-and-stacks.md](../other/01-marks-and-stacks.md)
 and [02-a-knot-recovers-fix.md](../other/02-a-knot-recovers-fix.md).
@@ -11,7 +11,7 @@ and Bartosz Milewski's
 (May 2026). This card proves the correspondence conjectured in
 [examples/proequip.md](../examples/proequip.md):
 
-> **`Trace arr t  ≅  Strong k (Hom arr)  +  Costrong k (Hom arr)`**
+> **`Traced arr t  ≅  Strong k (Hom arr)  +  Costrong k (Hom arr)`**
 > under the self-action where `Act a x = t a x`.
 
 ---
@@ -31,10 +31,10 @@ bridge is thin precisely because of this coincidence.
 
 ## The Two Typeclasses
 
-**Circuit's `Trace`** (from `Circuit.Traced`):
+**Circuit's `Traced`** (from `Circuit.Traced`):
 
 ```haskell
-class Trace arr t where
+class Traced arr t where
   trace   :: arr (t a b) (t a c) -> arr b c   -- close the channel
   untrace :: arr b c -> arr (t a b) (t a c)   -- open the channel
 ```
@@ -67,12 +67,11 @@ Then `SelfAction Hask` holds with `(**) = t`.
 
 | Circuit | proarrow | Role |
 |---------|----------|------|
-| `Trace arr t` | `Strong k (Hom arr)` + `Costrong k (Hom arr)` | Both directions bundled |
+| `Traced arr t` | `Strong k (Hom arr)` + `Costrong k (Hom arr)` | Both directions bundled |
 | `trace` | `coact` on `Hom arr` | Close the channel |
 | `untrace` | `act (obj @a)` on `Hom arr` | Open the channel |
 | tensor `t` | `Act` under `SelfAction k` | The feedback channel |
 | `Knot` constructor | 2-cell in `Prof(Hask)` | Trace cell |
-| Mendler case in `reify` | naturality of the trace cell | Sliding axiom |
 
 **`trace` corresponds to `coact`.** Specialising Visscher's `trace` to
 `p = (->)` and `(**) = (,)`:
@@ -117,12 +116,12 @@ Same function under the `Bifunctor (,)` instance.
 -- 'toStrong'   extracts the injection direction.
 
 toCostrong
-  :: Trace arr t
+  :: Traced arr t
   => (forall a b c. arr (t a b) (t a c) -> arr b c)
 toCostrong = trace
 
 toStrong
-  :: Trace arr t
+  :: Traced arr t
   => (forall a b c. arr b c -> arr (t a b) (t a c))
 toStrong = untrace
 ```
@@ -142,11 +141,11 @@ without being `Strong` (injection may not exist), or vice versa.
 
 Circuit always needs both:
 
-- `trace` (`coact`) closes the feedback loop in `reify` and the Mendler case.
-- `untrace` (`act`) opens the loop in `ambient` — threading state past a
-  `Knot` via braiding.
+- `trace` (`coact`) closes the feedback loop in `run`.
+- `untrace` (`act`) opens the loop — threading state past a `Knot` via
+  braiding.
 
-Bundling them in a single `Trace` typeclass is a design choice that reflects
+Bundling them in a single `Traced` typeclass is a design choice that reflects
 Circuit's use pattern: you never close a loop without also being able to open
 one. The self-action constraint (`m = k`) makes both directions available
 for free from the symmetric monoidal structure, so there is no cost to
@@ -157,7 +156,7 @@ requiring both.
 ## The `(,)` Instance
 
 ```haskell
-instance Trace (->) (,) where
+instance Traced (->) (,) where
   trace f b = let (a, c) = f (a, b) in c
   untrace = fmap   -- i.e. second
 ```
@@ -176,7 +175,7 @@ The self-action is `SelfAction Hask` with `(**) = (,)`.
 ## The `Either` Instance
 
 ```haskell
-instance Trace (->) Either where
+instance Traced (->) Either where
   trace f b = go (Right b)
     where go x = case f x of { Right c -> c; Left a -> go (Left a) }
   untrace = fmap   -- i.e. right
@@ -194,7 +193,7 @@ The self-action is `SelfAction Hask` with `(**) = Either`.
 ## The `Kleisli IO Either` Instance
 
 ```haskell
-instance Trace (Kleisli IO) Either where
+instance Traced (Kleisli IO) Either where
   trace  = ... -- delimited continuations: prompt / control0
   untrace = ... -- inject into Right
 ```
@@ -212,19 +211,23 @@ ground. It is the piece of Circuit that earns "first to market."
 
 ## The Mendler Case as Naturality
 
-The pattern match in `reify`:
+The old `reify` interpreter contained a Mendler-style pattern match:
 
 ```haskell
-reify (Compose (Knot f) g) = trace (f . untrace (reify g))
+-- TODO: This example used the deleted `Compose` constructor of the old
+-- `Circuit` GADT. The new inspectable `Trace` GADT has no `Compose`
+-- constructor; sequential composition is `(.)` or `(>>>)`. Update this
+-- section once the corresponding `run` equation is known.
 ```
 
-is the naturality condition for the trace 2-cell. In Visscher's language,
-this is the requirement that `coact` commute with profunctor composition —
-that the `Costrong` structure is natural in its boundary types.
+That pattern was the naturality condition for the trace 2-cell. In
+Visscher's language, this is the requirement that `coact` commute with
+profunctor composition — that the `Costrong` structure is natural in its
+boundary types.
 
-Without the Mendler case, `Knot` collapses to `Lift (trace f)` — the
+Without that Mendler case, `Knot` collapses to `Arr (trace f)` — the
 degenerate model where `coact` closes immediately, discarding the boundary
-morphism `g`. The Mendler case is `coact` done right: `g` participates
+morphism `g`. The Mendler case was `coact` done right: `g` participated
 inside the loop, not just at the exit.
 
 ---
@@ -236,7 +239,7 @@ conceptual vocabulary:
 
 - `Knot` is a **2-cell** in `Prof(Hask)` in the sense of Bartosz's
   `Cell f g h j = forall a c. h a c -> j (f a) (g c)`.
-  With `f = g = id`, `h = arr (t a _)`, `j = Circuit arr t`:
+  With `f = g = id`, `h = arr (t a _)`, `j = Trace t arr`:
   the `Knot` constructor **is** a `Cell`.
 
 - `dimap` on `Knot` is **vertical composition** of the trace 2-cell.
@@ -244,8 +247,8 @@ conceptual vocabulary:
   `dimap f g (Knot k) = Knot (dimap (second f) (second g) k)`
   is vertical composition sliding through the channel.
 
-- `ambient` is **horizontal sliding** — a vertical transform (the state
-  wire) sliding past a horizontal boundary (the `Knot`) via braiding.
+- Threading a state wire past a `Knot` is **horizontal sliding** — a
+  vertical transform sliding past a horizontal boundary via braiding.
   This is the yanking identity in the double-category language.
 
 - The proof obligation from [examples/proequip.md](../examples/proequip.md) — that Circuit
@@ -263,7 +266,7 @@ conceptual vocabulary:
 The narrative ([examples/proequip.md](../examples/proequip.md)) identifies `Knot` as a 2-cell and the
 Mendler case as naturality, but presents these as conclusions reached by
 following the `foldH` example. This card provides the direct categorical
-anchor: `Trace` is `Strong + Costrong` on the hom-profunctor, the
+anchor: `Traced` is `Strong + Costrong` on the hom-profunctor, the
 self-action collapses `m = k`, and the Mendler case is the naturality
 condition for `coact`.
 
@@ -277,7 +280,7 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 ## Summary
 
 1. Circuit is always self-acting: `m = k`, `Act a x = t a x`
-2. `Trace arr t` = `Strong k (Hom arr)` + `Costrong k (Hom arr)` under `SelfAction k`
+2. `Traced arr t` = `Strong k (Hom arr)` + `Costrong k (Hom arr)` under `SelfAction k`
 3. `trace` = `coact`; `untrace` = `act (obj @a)` — the bridge is a recognition, not a construction
 4. Both `(,)` and `Either` instances correspond to standard proarrow instances on `Hom (->)`
 5. `Kleisli IO Either` is new: `Costrong Either (Kleisli IO)` via delimited continuations
@@ -294,5 +297,5 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 - [nLab: equipment](https://ncatlab.org/nlab/show/equipment) — proarrow equipment axioms
 - [examples/proequip.md](../examples/proequip.md) — double category framing; open lemma
 - [axioms.md](../other/axioms.md) — JSV axioms proved for both tensors
-- `src/Circuit/Traced.hs` — `Trace` instances
-- `src/Circuit/Circuit.hs` — `Knot`, `reify`, `ambient`
+- `src/Circuit/Traced.hs` — `Traced` instances
+- `Circuit` — `Trace(..)`, `run`, `weave`, `melt`

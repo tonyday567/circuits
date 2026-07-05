@@ -14,34 +14,32 @@ notation, used as mathematical notation — no apologies to GHC.
 | `⊙` | compose | `cat b c → cat a b → cat a c` | sequential composition |
 | `⊲` | push | `(a → b) → Hyper a b → Hyper a b` | prepend to the continuation |
 | `⥁` | run | `Hyper a a → a` | tie the self-referential knot |
-| `∥` | ambient | `braid → Circuit arr t a b → Circuit arr t (t s a) (t s b)` | thread state wire alongside |
-| `↮` | knot | `Circuit arr t (t a b) (t a c) → Circuit arr t b c` | feedback loop constructor (body is a Circuit, not a base arrow) |
-| `↘` | reify | `Circuit arr t x y → arr x y` | interpret Circuit to plain arrow |
-| `❄` | freeze | `Circuit arr t a b → Free arr a b` | dissolve Knot into Lift via base-arrow trace |
+| `∥` | ambient | `braid → Trace t arr a b → Trace t arr (t s a) (t s b)` | thread state wire alongside |
+| `↮` | knot | `Trace t arr (t a b) (t a c) → Trace t arr b c` | feedback loop constructor (body is a base arrow) |
+| `↘` | run | `Trace t arr x y → arr x y` | interpret Trace to plain arrow |
 | `↪` | trace | `arr (t a b) (t a c) → arr b c` | close the feedback channel |
 | `↩` | untrace | `arr b c → arr (t a b) (t a c)` | open the feedback channel |
-| `⇨` | encode | `Circuit (->) (,) a b → Hyper a b` | initial → final (= encodeFree . freeze) |
+| `⇨` | encode | `Trace (,) (->) a b → Hyper a b` | initial → final |
 | `⇨F` | encodeFree | `Free (->) a b → Hyper a b` | free category → final encoding |
-| `⇦` | flatten | `Hyper a b → Circuit (->) (,) a b` | final → initial (lossy) |
+| `⇦` | flatten | `Hyper a b → Trace (,) (->) a b` | final → initial (lossy) |
 | `⇸` | invoke | `Hyper a b → Hyper b a → b` | apply a hyperfunction to its dual |
 | `○` | base | `a → Hyper b a` | constant continuation |
 
-Free and encodeFree are the post-0.2 additions. `❄` (freeze) is the
-load-bearing one — the Mendler case lives here.
+Free and encodeFree are the post-0.2 additions. `Trace` is now the
+normal-form initial encoding, with `Arr` and `Knot` as its only constructors.
 
 ---
 
 ## Two Registers
 
-**The initial encoding** (`Free`, `Circuit`, `Net`) has visible
+**The initial encoding** (`Free`, `Trace`, `Net`) has visible
 constructors. Its symbols are construction and elimination:
 
 ```
-↑ f          — Lift f (embed arr into Free/Circuit/Net)
-↮ k          — Knot k (feedback loop, body is a Circuit)
-f ⊙ g        — Compose f g
-❄ c          — freeze: Circuit → Free (eliminates Knot)
-↘ c          — reify: Circuit → arr (runFree . freeze)
+↑ f          — Arr f (embed arr into Trace) / Lift f (embed arr into Free/Net)
+↮ k          — Knot k (feedback loop; body is a base arrow in Trace, a diagram in Free/Net)
+f ⊙ g        — sequential composition via (.) or (>>>) in Trace; Compose f g in Free/Net
+↘ c          — run: Trace → arr / runFree: Free → arr
 ```
 
 **The final encoding** (`Hyper`, `Queue`) has no visible constructors.
@@ -89,38 +87,31 @@ load-bearing step in the triangle proof for the `Knot` case.
 ## The Triangle
 
 ```
-         ⇨ (= ⇨F . ❄)
-Circuit ──────────────▶ Hyper
+         ⇨
+Trace ──────────────▶ Hyper
     \                     │
      \                    │ ↓
       \                   ▼
-       ↘────────────────▶ arr
-          (= runFree . ❄)
+       run──────────────▶ arr
 ```
 
 ```
-↓ . ⇨  =  ↘
+↓ . ⇨  =  run
 ```
 
-Mapping a `Circuit` to `Hyper` then observing gives the same result
-as running the `Circuit` directly. Factorized: `⇨ = ⇨F . ❄` and
-`↘ = runFree . ❄`.
+Mapping a `Trace` to `Hyper` then observing gives the same result
+as running the `Trace` directly.
 
 ---
 
-## The Mendler Identity (in freeze)
+## The Mendler Identity
 
-```
-❄ (↑ f)         =  ↑ f                  identity arrows have no Knot
-❄ (↮ k)         =  ↑ (↪ (↘ k))          dissolve Knot into base-arrow trace
-❄ (↮ f ⊙ g)     =  ↑ (↪ (↘ f . ↩ (↘ g)))  Mendler case: g participates inside
-❄ (f ⊙ g)       =  ❄ f ⊙ ❄ g            functoriality through Compose
-```
-
-The third line is the load-bearing one. Without it, `❄ (↮ f ⊙ g)` would
-reduce to `↑ (↪ (↘ f)) ⊙ ❄ g` — the naive form that closes the channel
-before `g` participates. One equation separates the free traced monoidal
-category from the degenerate model.
+TODO: Rederive for the normal-form `Trace` GADT. `Trace` has no `Compose`
+constructor, so the old `freeze`-based Mendler case (`❄ (↮ f ⊙ g)`) no
+longer applies literally. The corresponding interaction between `Knot`
+and sequential composition is now encoded in the `Trace` `Category`
+instance / `run` interpreter. Preserve the narrative intent: the knot
+must not close its feedback channel before surrounding wiring participates.
 
 ---
 
@@ -142,11 +133,11 @@ continuation. Same shape, flipped polarity.
 Fibonacci stream via the triangle:
 
 ```
-fibs :: Circuit (->) (,) () [Int]
+fibs :: Trace (,) (->) () [Int]
 fibs = ↮ (\(xs, ()) -> (0 : 1 : zipWith (+) xs (drop 1 xs), xs))
 
-↘ fibs ()     = let (xs, ys) = ... in ys      -- lazy knot
-↓ (⇨ fibs) () = same result                     -- triangle: ↓ . ⇨ = ↘
+run fibs ()   = let (xs, ys) = ... in ys      -- lazy knot
+↓ (⇨ fibs) () = same result                     -- triangle: ↓ . ⇨ = run
 ```
 
 ---

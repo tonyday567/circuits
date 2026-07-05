@@ -14,24 +14,24 @@ import PureQueue.Ends
 -- Two queues share combined state: (bufA, bufB)
 type Q2 = ([Int], [Int])
 
-pipeline :: Circuit (->) (,) (Q2, ()) (Q2, Int)
+pipeline :: Trace (,) (->) (Q2, ()) (Q2, Int)
 pipeline = source >>> pushA >>> popA >>> pushB >>> popB
   where
     (writeA, readA) = queueEnds Unbounded
     (writeB, readB) = queueEnds Unbounded
 
-    source = Lift $ \(qs, ()) -> (qs, 7)
+    source = Arr $ \(qs, ()) -> (qs, 7)
 
-    pushA = Lift $ \((bufA, bufB), x) ->
+    pushA = Arr $ \((bufA, bufB), x) ->
       let (bufA', _) = writeA x bufA in ((bufA', bufB), ())
-    popA  = Lift $ \((bufA, bufB), ()) ->
+    popA  = Arr $ \((bufA, bufB), ()) ->
       let (bufA', Just x) = readA bufA in ((bufA', bufB), x)
-    pushB = Lift $ \((bufA, bufB), x) ->
+    pushB = Arr $ \((bufA, bufB), x) ->
       let (bufB', _) = writeB x bufB in ((bufA, bufB'), ())
-    popB  = Lift $ \((bufA, bufB), ()) ->
+    popB  = Arr $ \((bufA, bufB), ()) ->
       let (bufB', Just x) = readB bufB in ((bufA, bufB'), x)
 
 -- | Run with empty buffers.
 test :: (Q2, Int)
-test = reify pipeline (([], []), ())
+test = run pipeline (([], []), ())
 ```

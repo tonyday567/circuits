@@ -12,17 +12,17 @@
 
 ---
 
-`Circuit arr t a b` is generic over the tensor `t`. The two primary
+`Trace t arr a b` is generic over the tensor `t`. The two primary
 tensors `(,)` and `Either` give fundamentally different semantics for
 feedback, and choosing between them is a design decision about how
 processes communicate.
 
 ---
 
-## The Trace Typeclass
+## The `Traced` Typeclass
 
 ```haskell
-class Trace arr t where
+class Traced arr t where
   trace   :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
 ```
@@ -36,7 +36,7 @@ For `arr = (->)`:
 
 The `Knot` constructor syntax is the same in both cases. What changes is
 how the feedback channel behaves when `trace` closes it — the semantics
-differ via the `Trace` instance.
+differ via the `Traced` instance.
 
 ---
 
@@ -59,7 +59,7 @@ productively.
 **When it fails:** When the computation requires strict evaluation and
 the feedback forms a cycle that cannot be unrolled productively.
 
-Hyper's `encode` is `(,)`-only — it embeds into `Trace Hyper (,)`.
+Hyper's `encode` is `(,)`-only — it embeds into `Traced Hyper (,)`.
 
 ---
 
@@ -100,7 +100,7 @@ channel.
 | Character | Simultaneous / holding hands | Sequential / taking turns |
 | `trace` | Lazy knot | While-loop |
 | `untrace` | `fmap` | `fmap` |
-| Hyper encoding | `encode` via `Trace Hyper (,)` | `encodeEither` via hand-rolled loop |
+| Hyper encoding | `encode` via `Traced Hyper (,)` | `encodeEither` via hand-rolled loop |
 
 **Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md) — Reflection Without Remorse; the
 Mendler case as `viewl`; the GADT hierarchy.

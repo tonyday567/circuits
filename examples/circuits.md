@@ -6,7 +6,7 @@ Imports for using circuits.  The umbrella module `Circuit` re-exports everything
 import Circuit
 ```
 
-That's it.  `Circuit` brings in `Circuit(..)`, `Wire`, `Step`, `Co(..)`, `Contra(..)`, `close`, `reify`, `Trace(..)`, `cellIO`, `Monoid(..)`, `Comonoid(..)`, `Dagger(..)`, `Bimonoid`, `transpose`, `Net`, `upgrade`, `loom`, `melt`, `Hyper(..)`, `lift`, `lower`, `base`, `push`, `run`, `encode`, `encodeEither`, `runEither`, `flatten`, `Braided(..)`, `ambient`, `assoc`, `seed`, `absorb`, `release`, `coassoc`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`, `ambientBy`, `MonoidalP(..)`.
+That's it.  `Circuit` brings in `Trace(..)`, `Wire`, `Step`, `Co(..)`, `Contra(..)`, `close`, `run`, `foldTrace`, `Channelled(..)`, `trace`, `untrace`, `Free`, `runFree`, `FreeLayer(..)`, `Cat2`, `(:~>)`, `leftAdjunct`, `realise`, `hoist`, `join`, `Monoid(..)`, `Comonoid(..)`, `Dagger(..)`, `Bimonoid`, `transpose`, `Net`, `enrich`, `weave`, `melt`, `Hyper(..)`, `lift`, `lower`, `base`, `push`, `runHyper`, `encode`, `encodeEither`, `encodeFree`, `runEither`, `flatten`, `Braided(..)`, `ambient`, `assoc`, `assoc'`, `seed`, `absorb`, `release`, `coassoc`, `coassoc'`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`, `ambientBy`, `MonoidalP(..)`.
 
 LANGUAGE pragmas used internally: `CPP`, `RankNTypes`, `UndecidableInstances`, `ConstraintKinds`, `GADTs`, `FlexibleInstances`.
 
@@ -14,9 +14,9 @@ For user code: `GHC2021` covers most, add `BlockArguments` if you want `\\case` 
 
 `>>>` and `Kleisli` come from `Control.Arrow` and `Control.Category` — not re-exported by Circuit.
 
-## three tags
+## two tags
 
-`Lift` embeds a base arrow. `Compose` sequences circuits. `Knot` introduces a feedback channel.
+`Arr` embeds a base arrow. `Knot` introduces a feedback channel. Sequential composition is `(.)` or `(>>>)`.
 
 The tensor choice lives in the type argument: `(,)` for lazy coinductive sharing, `Either` for iteration (`Left` = continue, `Right` = exit).
 
@@ -29,10 +29,10 @@ import Control.Category ((>>>))
 import Data.Bool (bool)
 import System.IO (Handle, IOMode(ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
-openf :: Circuit (Kleisli IO) t FilePath Handle
-openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
+openf :: Trace t (Kleisli IO) FilePath Handle
+openf = Arr (Kleisli (\fp -> openFile fp ReadMode))
 
-countLines :: Circuit (Kleisli IO) Either Handle (Handle, Int)
+countLines :: Trace Either (Kleisli IO) Handle (Handle, Int)
 countLines = Knot (Kleisli step)
   where
     step (Left (h, n)) =
@@ -41,9 +41,9 @@ countLines = Knot (Kleisli step)
         (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
 
-pipeline :: Circuit (Kleisli IO) Either FilePath Int
-pipeline = openf >>> countLines >>> Lift (Kleisli (\(h, n) -> hClose h >> pure n))
+pipeline :: Trace Either (Kleisli IO) FilePath Int
+pipeline = openf >>> countLines >>> Arr (Kleisli (\(h, n) -> hClose h >> pure n))
 
 -- paste into ghci:
--- runKleisli (reify pipeline) "readme.md"
+-- runKleisli (run pipeline) "readme.md"
 ```

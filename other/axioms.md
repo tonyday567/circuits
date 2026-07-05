@@ -3,7 +3,7 @@
 **Summary:** Equational proofs for all five axioms, both tensors. For when
 you need to be sure.
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
-**See also:** `02-a-knot-recovers-fix.md` (GADT derivation), `src/Circuit/Traced.hs` (Trace instances)
+**See also:** `02-a-knot-recovers-fix.md` (GADT derivation), `src/Circuit/Traced.hs` (`Traced` instances)
 
 The five Joyal–Street–Verity axioms proved for tensors `(,)` and `Either`
 over the base arrow `(->)`. Narrative motivation lives in the arc docs (01–07).
@@ -11,7 +11,7 @@ over the base arrow `(->)`. Narrative motivation lives in the arc docs (01–07)
 ## Preliminaries
 
 ```haskell
-class Trace arr t where
+class Traced arr t where
   trace   :: arr (t a b) (t a c) -> arr b c   -- close the channel
   untrace :: arr b c -> arr (t a b) (t a c)   -- inject into channel
 ```
@@ -83,17 +83,17 @@ feedback channel. The six axioms reduce to three structural roles:
 | LKS Axiom | JSV Axiom | Structural role |
 |-----------|-----------|-----------------|
 | 1–3 | — | Free category (`Lift` + `Compose`) |
-| 4 | — | `run (lift f) = fix f` — fixed points of base arrows (Hasegawa Thm 3.1) |
+| 4 | — | `runHyper (lift f) = fix f` — fixed points of base arrows (Hasegawa Thm 3.1) |
 | 5 | — | Push composition: `push f p . push g q = push (f . g) (p . q)`. Push distributes over composition — a homomorphism constraint on the primitive. |
 | 6 | Sliding | Feedback (forces `Knot` constructor) |
 
 LKS axioms 1–5 have no direct JSV counterpart — LKS 1–3 fall out of the free
-category structure, LKS 4 (`run (lift f) = fix f`) follows from the Hasegawa fixpoint correspondence for base arrows,
+category structure, LKS 4 (`runHyper (lift f) = fix f`) follows from the Hasegawa fixpoint correspondence for base arrows,
 and LKS 5 (push composition) constrains how push interacts with composition.
 Only LKS 6 (sliding/feedback) maps cleanly to a JSV axiom.
 
 Axioms 4 and 5 introduce no new constructors on the final side. Axiom 4
-(`run (lift f) = fix f`) is the key property showing that fixed points of
+(`runHyper (lift f) = fix f`) is the key property showing that fixed points of
 base arrows are available in the final encoding; it is part of the motivation
 for why the initial encoding needs the structure that `Knot` provides.
 Only axiom 6 (sliding) forces a new constructor on the initial side.
@@ -101,22 +101,22 @@ See `02-a-knot-recovers-fix.md` for the derivation.
 
 ## The Mendler Case
 
-In `Circuit`, the sliding axiom is reified as a pattern match in `reify`:
+In the `Trace` datatype, the sliding axiom is enforced by the `Category`
+instance rather than by a special interpreter case. `Trace` values are already
+in existential normal form — at most one `Knot` at the top, over a base-arrow
+body — so `run` is a direct fold:
 
 ```haskell
-reify :: (Category arr, Trace arr t) => Circuit arr t x y -> arr x y
-reify (Lift f)             = f
-reify (Compose (Knot f) g) = ↪ (f . ↩ (reify g))   -- Mendler
-reify (Compose f g)        = reify f . reify g
-reify (Knot k)             = ↪ k
+run :: Traced arr t => Trace t arr a b -> arr a b
+run (Arr f)  = f
+run (Knot f) = trace f
 ```
 
-The Mendler case must appear before the general `Compose` case. Without
-it, `Compose (Knot f) g` falls through to `trace f . reify g` — the
-naive form that closes the channel immediately, losing the feedback
-structure. One pattern match separates a free traced monoidal category
-from the degenerate model. For the full story see `02-a-knot-recovers-fix.md` and
-`05-no-remorse-once-removed.md`.
+The old `Circuit` interpreter needed a Mendler case for `Compose (Knot f) g`
+to avoid closing the channel too early. In the normal-form `Trace`, sequential
+composition of `Knot`s is normalized by the `Category` instance before `run`
+ever sees it, so there is no `Compose` constructor and no Mendler case. For the
+full story see `02-a-knot-recovers-fix.md` and `05-no-remorse-once-removed.md`.
 
 ## Proofs
 
@@ -131,11 +131,11 @@ A morphism `f :: ((), a) -> ((), b)` is, under the unit isomorphism,
 
 ```haskell
 trace f b
-  = let (a, c) = f (a, b) in c       -- Trace (->) (,) definition
+  = let (a, c) = f (a, b) in c       -- Traced (->) (,) definition
   = let ((), c) = f ((), b) in c     -- a :: ()
   = let ((), c) = ((), g b) in c     -- definition of f
   = g b
-  = trace (Lift g) b                  -- same as a plain Lift
+  = run (Arr g) b                     -- same as a plain Arr
 ```
 
 The lazy knot has nothing to tie — `()` is determined immediately.

@@ -29,7 +29,7 @@ a performance trap:
 ```
 
 Each `(.)` traverses the left spine. For a list this is O(n²). For a
-free monad it is the same. For `Circuit` with `Compose`, `runFree` on
+free monad it is the same. For `Free` with `Compose`, `runFree` on
 a left-nested chain pays the same tax.
 
 RwR establishes a hierarchy:
@@ -39,7 +39,7 @@ RwR establishes a hierarchy:
 | Monoid | list | difference list | head/tail |
 | Monad | free monad | codensity monad | `viewl` |
 | Category | `Free`/`ListTr` | `Queue` | `viewl` on type-aligned queue |
-| **Traced category** | **`Circuit`** | **`freeze` + `runFree`** | **Mendler case in `freeze`** |
+| **Traced category** | **`Free`** | **`Trace`** | **Mendler case in `runFree`** |
 
 ---
 
@@ -49,10 +49,11 @@ In RwR, `viewl` inspects the head of a type-aligned sequence before
 recursing. Without it, the interpreter falls through to a general case
 that buries the structure.
 
-In `freeze`:
+In `runFree`:
 
 ```haskell
-freeze (Compose (Knot f) g) = Lift (trace (runFree (freeze f) . untrace (runFree (freeze g))))
+-- TODO: verify exact new API names and return types
+runFree (Compose (Knot f) g) = Arr (trace (run (runFree f) . untrace (run (runFree g))))
 ```
 
 When a `Knot` appears at the head of a composition, inspect it before
@@ -63,9 +64,9 @@ The mapping:
 
 | RwR | circuits |
 |-----|----------|
-| `PMonad` | `Trace` typeclass |
+| `PMonad` | `Traced` class |
 | Type-aligned queue | Explicit tensor `t` in `Knot` |
-| `viewl` | Mendler case in `freeze` |
+| `viewl` | Mendler case in `runFree` |
 | `tsingleton` | `untrace` |
 | `val` | `trace` |
 
@@ -73,19 +74,19 @@ The mapping:
 
 ## The GADT Hierarchy, Corrected
 
-The original narrative said "Circuit + viewl = Hyper." With `Free`, the
+The original narrative said "Trace + viewl = Hyper." With `Free`, the
 analogy refines:
 
 ```
 Free     + viewl  =  Queue       (type-aligned queue, O(1) elimination)
 Free     + encodeFree  =  Hyper  (final encoding, O(1) composition)
-Circuit  + freeze  =  Free       (eliminate Knot via base-arrow trace)
-Circuit  + freeze + viewl  =  Queue  (full elimination chain)
+Free     + runFree  =  Trace      (normal form: Arr and Knot only)
+Trace    + run  =  arr           (base-arrow interpretation)
 ```
 
-`freeze` is the `viewl` for `Circuit` — the one pattern match that
-keeps `Knot` from collapsing. `Queue` is the `viewl` for `Free` — the
-type-aligned queue that makes elimination O(n) with no closure overhead.
+`runFree` carries the `viewl` for `Free` — the one pattern match that
+keeps `Knot` from collapsing. `Queue` is the type-aligned queue that
+makes elimination O(n) with no closure overhead.
 
 Hyper is not the efficient elimination path. It is the coinductive
 dual — fast to compose, slow to eliminate. Use it for Kidney-Wu
@@ -120,7 +121,7 @@ dominates before O(n²) does.
 ## Summary
 
 The Mendler case is `viewl` for traced categories. The GADT hierarchy
-is `Circuit → Free → arr` via `freeze` then `runFree`. `Queue` is the
+is `Free → Trace → arr` via `runFree` then `run`. `Queue` is the
 efficient inspectable encoding of `Free`. `Hyper` is the coinductive
 dual — fast to compose, not to eliminate.
 

@@ -1,9 +1,9 @@
 # lift . trace = trace . lift
 
-The identity that makes `encode` factor through `freeze`.  If `lift :: (->) → Hyper`
-commutes with `trace`, then dissolving `Knot` into `Lift (trace_arr ...)` (via `freeze`)
-and lifting into Hyper (`encodeFree`) produces the same Hyper as encoding the `Knot`
-directly via `trace_Hyper`.
+The identity that makes `encode` on `Trace` agree with the base-arrow route.  If
+`lift :: (->) → Hyper` commutes with `trace`, then interpreting `Knot` through the
+base arrow (`run`) and lifting into Hyper produces the same Hyper as encoding the
+`Knot` directly via `trace_Hyper`.
 
 ```haskell
 lift . trace_arr = trace_Hyper . lift
@@ -85,20 +85,25 @@ the final encoding, behavioral equality IS equality.
 
 ## why it matters
 
-`encode` can factor through `freeze` because of this identity:
+`encode` on `Trace` is direct because `Trace` is already in normal form:
 
 ```
-old encode (Knot k) = trace_Hyper (encode k)           -- Hyper's trace
-new encode (Knot k) = encodeFree (freeze (Knot k))     -- freeze dissolves Knot
-                    = encodeFree (Lift (trace_arr (reify k)))
-                    = lift (trace_arr (reify k))
-                    = trace_Hyper (lift (reify k))     -- by lift.trace=trace.lift
-                    = trace_Hyper (encodeFree (freeze ...))
-                    = trace_Hyper (encode k)           -- by induction
+encode (Arr f)        = lift f
+encode (Knot k)       = trace_Hyper (encode k)          -- Hyper's trace
 ```
 
-`freeze` pushes `trace` into the base arrow; `lift` lifts it into Hyper.
-The commutation ensures the round-trip agrees with calling `trace` directly in Hyper.
+Alternatively, via the base-arrow interpreter `run`:
+
+```
+run (Knot k)          = trace_arr (run k)
+encode (Knot k)       = lift (run (Knot k))
+                      = lift (trace_arr (run k))
+                      = trace_Hyper (lift (run k))      -- by lift.trace=trace.lift
+                      = trace_Hyper (encode k)          -- by induction
+```
+
+`run` pushes `trace` into the base arrow; `lift` lifts it into Hyper.
+The commutation ensures the base-arrow route agrees with calling `trace` directly in Hyper.
 
 ## categorical name
 

@@ -18,8 +18,8 @@ repositories. Status legends:
 | file | type | status | notes |
 |------|------|--------|-------|
 | `examples/cabal-repl.hs` | executable | 🟢 | Cabal target `cabal-repl-example`. Builds and runs. Uses only `Circuit.Repl`, unaffected by rename. |
-| `examples/box-core.hs` | example module | 🟢 | Updated to `Trace`, `realise`, and `Identity` to avoid overlapping `Traced (Kleisli m) Either` instances. Compiles cleanly. |
-| `examples/box-api-audit.md` | design doc | 🟡 | A migration design doc from the old `Circuit`/`Knot`/`reify` names. Useful historical context but should be updated or archived once the migration is final. |
+| `examples/box-core.hs` | example module | 🟢 | Updated to `Trace`, `run`, and `Identity` to avoid overlapping `Traced (Kleisli m) Either` instances. Compiles cleanly. |
+| `examples/box-api-audit.md` | design doc | 🟡 | A migration design doc from the old `Circuit` names to the current `Trace`/`run` API. Useful historical context but should be updated or archived once the migration is final. |
 | `examples/box-concurrent.md` | design doc | 🟡 | Likely references old names; needs a pass. |
 | `examples/box-socket.md` | design doc | 🟡 | Likely references old names; needs a pass. |
 | `examples/channel-ends.md` | design doc | 🟡 | Likely references old names; needs a pass. |
@@ -45,7 +45,7 @@ repositories. Status legends:
 | file | type | status | notes |
 |------|------|--------|-------|
 | `examples/ProducerConsumer.hs` | example module | 🟡 | Code aligns with current API, but it is not a Cabal target, so `import Data.Mealy` fails when compiled standalone. Add as an executable/example stanza or move to `test/` if it should be guaranteed to build. |
-| `examples/circuits-mealy.md` | design doc | 🟢 | Updated `reify` → `realise` and `Trace` class → `Traced`. Conceptual/code snippets still need manual checking if promoted to a runnable example. |
+| `examples/circuits-mealy.md` | design doc | 🟢 | Updated interpreter calls to `run` and the `Trace` class to `Traced`. Conceptual/code snippets still need manual checking if promoted to a runnable example. |
 
 ---
 
@@ -57,11 +57,11 @@ ones that were updated or are known to be high-impact.
 
 | file | type | status | notes |
 |------|------|--------|-------|
-| `examples/words.md` | worked example | 🟢 | Updated to `Trace t (Kleisli IO)`, `Trace` constructor, `realise`, `Traced`. |
-| `examples/parser.md` | design doc | 🟢 | Updated `Circuit` → `Trace`, `Knot` → `Trace`, `reify` → `realise`. |
-| `examples/while.md` | design doc | 🟢 | Updated `Knot` → `Trace`, `reify` → `realise`, `Trace` class → `Traced`. |
-| `examples/pure-queue-circuit.md` | design doc | 🟡 | Contains `reify pipe ()` and likely old type order. Needs a pass. |
-| `examples/reader-monad.md` | design doc | 🟡 | References `reify`, `Circuit`, old module paths. |
+| `examples/words.md` | worked example | 🟢 | Updated to `Trace t (Kleisli IO)`, `Arr`/`Knot` constructors, `run`, `Traced`. |
+| `examples/parser.md` | design doc | 🟢 | Updated `Circuit` → `Trace`, `Knot` → `Trace`, interpreter calls → `run`. |
+| `examples/while.md` | design doc | 🟢 | Updated `Knot` → `Trace`, interpreter calls → `run`, `Trace` class → `Traced`. |
+| `examples/pure-queue-circuit.md` | design doc | 🟡 | Still uses old interpreter calls (now `run`) and likely old type order. Needs a pass. |
+| `examples/reader-monad.md` | design doc | 🟡 | References old interpreter calls, old `Circuit` GADT name, and deleted `Circuit.Circuit` module. Needs update to `run`, `Trace`, and top-level `Circuit`. |
 | `examples/pure-queue*.md` | design docs | 🟡 | Queue design sketches; likely use old names. |
 | `examples/hyper*.md` | design docs | 🟡 | Hyper examples; check `encode`, `lower`, `run` naming. |
 | `examples/effects.md` | design doc | 🟡 | Likely outdated. |
@@ -99,7 +99,7 @@ and leave only the maintained worked examples and a small set of current
 
 | file | type | status | notes |
 |------|------|--------|-------|
-| `examples/core-analysis.md` | design doc | 🔴 | Deeply tied to the old `Circuit` GADT, `Knot`, and `reify` implementation. It is a core-dump style analysis of the *old* code. Retain as historical archive if useful, but do not present as current documentation. |
+| `examples/core-analysis.md` | design doc | 🔴 | Deeply tied to the old `Circuit` GADT, `Knot` constructor, and pre-`run` interpreter implementation. It is a core-dump style analysis of the *old* code. Retain as historical archive if useful, but do not present as current documentation. |
 | `examples/nub.md` | design doc | 🟡 | Needs checking against current `Circuit.Meter` API. |
 | `examples/scaling.md` | design doc | 🟡 | Needs checking against current `Circuit.Meter` API. |
 | `examples/seismo.md` | design doc | 🟡 | Needs checking against current `Circuit.Meter` API. |
@@ -111,7 +111,7 @@ and leave only the maintained worked examples and a small set of current
 1. **Overlapping `Traced (Kleisli m) Either` instances.** The generic
    `Monad m => Traced (Kleisli m) Either` instance overlaps with the
    `Traced (Kleisli IO) Either` instance. This makes polymorphic
-   `realise` over `Kleisli m Either` unusable (e.g. `box-core.hs` had to be
+   `run` over `Kleisli m Either` unusable (e.g. `box-core.hs` had to be
    specialised to `Identity`). Consider removing the `IO`-specific instance
    or making it opt-in via a newtype.
 

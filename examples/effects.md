@@ -37,22 +37,22 @@ See also `reader-monad.md` for the explicit "when you need a monad" escape hatch
 
 ## Circuits as initial construction for feedback
 
-`Circuit arr t a b` (the GADT with `Lift`, `Compose`, `Knot`) is the *initial* object in the category of traced monoidal categories over the base arrow `arr`. `Hyper` is the corresponding *final* (coinductive) encoding.
+`Trace t arr a b` (the GADT with `Arr` and `Knot`) is the *initial* object in the category of traced monoidal categories over the base arrow `arr`. `Hyper` is the corresponding *final* (coinductive) encoding.
 
 This is a deliberate design choice visible from the narrative arc (the knot forcing the GADT in `02-a-knot-recovers-fix`).
 
 Contrast with final tagless style (the Layer 2 mtl classes):
 
 - Final tagless: the "program" *is* the host-language term using the class methods. Different instances supply different interpretations. There is no separate data value representing the program between writing it and running it.
-- Circuits: you build an explicit value (`Circuit` or `Hyper`). You can inspect it, transform Knot bodies, bracket it with meters, choose the tensor, rewrite it, or partially evaluate it *before* the single interpretation step (`reify` or `run`).
+- Circuits: you build an explicit value (`Trace` or `Hyper`). You can inspect it, transform Knot bodies, bracket it with meters, choose the tensor, rewrite it, or partially evaluate it *before* the single interpretation step (`run`).
 
-The price is the explicit `Lift` / `reify` (or `lift` / `lower`) boundary when you cross into or out of full monadic composition. See `reader-monad.md` for the exact pattern and the rationale (a `Monad` instance would erase the internal feedback distinctions).
+The price is the explicit `Arr` / `run` (or `lift` / `lower`) boundary when you cross into or out of full monadic composition. See `reader-monad.md` for the exact pattern and the rationale (a `Monad` instance would erase the internal feedback distinctions).
 
 ---
 
 ## Opt-in service in an existing pipeline
 
-The claim under test: can a ReaderT (or Bluefin/effectful) codebase treat circuits as a *service* for selected stretches — "Lift this bit, do the feedback / channel / measurement work, lower back out" — without dragging the rest of the architecture along?
+The claim under test: can a ReaderT (or Bluefin/effectful) codebase treat circuits as a *service* for selected stretches — "Arr this bit, do the feedback / channel / measurement work, lower back out" — without dragging the rest of the architecture along?
 
 The evidence from the existing machinery:
 
@@ -65,11 +65,11 @@ type App = ReaderT Env IO
 type AppArrow = Kleisli App
 
 -- You can therefore write:
-someStretch :: Circuit AppArrow Either (Either s a) (Either s b)
+someStretch :: Trace Either AppArrow (Either s a) (Either s b)
 someStretch = ...
 ```
 
-`Trace (Kleisli m) Either` exists for any `Monad m`. `Trace (Kleisli m) (,)` exists when `m` has `MonadFix`. Your `App` monad (ReaderT + whatever) works as long as those constraints are satisfied at the use site.
+`Trace Either (Kleisli m)` exists for any `Monad m`. `Trace (,) (Kleisli m)` exists when `m` has `MonadFix`. Your `App` monad (ReaderT + whatever) works as long as those constraints are satisfied at the use site.
 
 ### 2. Ambient state threading (invisible context)
 
@@ -79,31 +79,31 @@ someStretch = ...
 import Circuit.Monoidal (ambient)
 
 -- A pure increment that knows nothing about logging context
-increment :: Circuit (->) (,) Int Int
-increment = Lift (+1)
+increment :: Trace (,) (->) Int Int
+increment = Arr (+1)
 
 -- Thread a log accumulator alongside without touching the payload logic
-metered :: Circuit (->) (,) ([String], Int) ([String], Int)
+metered :: Trace (,) (->) ([String], Int) ([String], Int)
 metered = ambient increment
 ```
 
 This is the "plugin layer" pattern. The same mechanism is used by `circuits-meter` to bracket existing arrows with timing or space measurement without forcing the measured code to be aware of the meter.
 
-See `Circuit.Meter` (`withMeter`, `meterA`, `meterAction`, `◅` / `▻`, `ambient` usage) for the full instrumentation design. The meter state rides on the `(,)` tensor via `ambient`; the original payload logic is wrapped with `Lift` and `reify` recovers an ordinary arrow.
+See `Circuit.Meter` (`withMeter`, `meterA`, `meterAction`, `◅` / `▻`, `ambient` usage) for the full instrumentation design. The meter state rides on the `(,)` tensor via `ambient`; the original payload logic is wrapped with `Arr` and `run` recovers an ordinary arrow.
 
 ### 3. Explicit escape hatch when you need the monad
 
 From `reader-monad.md`:
 
 ```haskell
-stepC :: Circuit (->) (,) Int Int
-stepC = Lift $ \n ->
-  let n'  = reify incC n
-      n'' = reify doubleC n'
+stepC :: Trace (,) (->) Int Int
+stepC = Arr $ \n ->
+  let n'  = run incC n
+      n'' = run doubleC n'
   in n''
 ```
 
-You pay the `reify` / `lower` cost only on the stretches that need full `do` notation, `local`, `catch`, or your Layer 2 classes. The rest of the circuit stays in the algebraic form.
+You pay the `run` / `lower` cost only on the stretches that need full `do` notation, `local`, `catch`, or your Layer 2 classes. The rest of the circuit stays in the algebraic form.
 
 ### 4. Resource lifecycles as structure
 
@@ -125,13 +125,13 @@ In a classic three-layer ReaderT app, Layer 2 is where you pay the "swappable im
 
 With circuits you can move some of that concern *into* the construction phase:
 
-- A complex feedback or channel topology can be assembled, inspected, metered, or rewritten as a `Circuit` value in Layer 3 (or a thin Layer 2) *before* any IO or ReaderT action runs.
-- The "handler" for that fragment can be a `reify` or a custom interpreter that only touches the Knot bodies it cares about.
+- A complex feedback or channel topology can be assembled, inspected, metered, or rewritten as a `Trace` value in Layer 3 (or a thin Layer 2) *before* any IO or ReaderT action runs.
+- The "handler" for that fragment can be a `run` or a custom interpreter that only touches the Knot bodies it cares about.
 - Concerns that would have required a new mtl class (or a capability record) can instead be expressed as combinators over the explicit representation (`withMeter`, `ambient`, queue strategies, `Step` processors, etc.).
 
 This does not eliminate Layer 2. It gives you an additional place to locate concerns that benefit from having a data structure to operate on. The rest of the app (the parts where live dispatch against a class dictionary is the right granularity) can stay exactly as before.
 
-"Por que no los dos?" is the practical answer. The functional core stays pure. The orchestration shell can remain a ReaderT `AppT` with whatever mtl or capability surface you already maintain. Selected stretches inside that shell become more structured and inspectable by opting into the traced algebra for as long as they need it, then returning to the normal flow via `reify`.
+"Por que no los dos?" is the practical answer. The functional core stays pure. The orchestration shell can remain a ReaderT `AppT` with whatever mtl or capability surface you already maintain. Selected stretches inside that shell become more structured and inspectable by opting into the traced algebra for as long as they need it, then returning to the normal flow via `run`.
 
 ---
 
@@ -139,13 +139,13 @@ This does not eliminate Layer 2. It gives you an additional place to locate conc
 
 | Aspect                        | ReaderT + 3-layer                  | Bluefin                          | effectful                          | circuits + circuits-io                  |
 |-------------------------------|------------------------------------|----------------------------------|------------------------------------|-----------------------------------------|
-| Primary effect style          | Env + mutable refs in ReaderT      | Coroutines as functions          | Env + IORefs + GADT ops + unlift   | Explicit traced values (Knot / Ends)    |
-| Program representation        | Host terms (final tagless)         | Host terms + coroutine fns       | Host terms + GADT ops              | GADT (initial) or Hyper (final)         |
+| Primary effect style          | Env + mutable refs in ReaderT      | Coroutines as functions          | Env + IORefs + GADT ops + unlift   | Explicit traced values (Knot / Trace)   |
+| Program representation        | Host terms (final tagless)         | Host terms + coroutine fns       | Host terms + GADT ops              | Trace (initial) or Hyper (final)        |
 | Feedback / loops              | Manual recursion or StateT         | Coroutine yield/await            | Handled via unlift continuations   | First-class (Knot + Trace)              |
 | Bidirectional channels        | MVar/TQueue + async                | Coroutine pairs + connect        | Dynamic effects + Env cells        | Producer/Consumer + endsQueue           |
 | Resource safety               | bracket / ResourceT in Layer 1     | Prompt finalisation in streams   | Handler-managed                    | Structural (Right exit path on Either)  |
 | Instrumentation / metering    | Manual wrappers                    | Effect composition               | Handler wrapping                   | meterA / withMeter / ambient (plugin)   |
-| Escape to full monad          | You're already there               | `Eff` is the monad               | `Eff` is the monad                 | Explicit lower/reify (reader-monad.md)  |
+| Escape to full monad          | You're already there               | `Eff` is the monad               | `Eff` is the monad                 | Explicit lower/run (reader-monad.md)    |
 | Can host the others           | Yes (base for everything)          | Limited                          | Limited                            | Yes (Kleisli AppM as base arrow)        |
 | Can be hosted inside the others | N/A                              | Via bridge (e.g. endsQueue)      | Via bridge                         | Yes — opt-in stretches                  |
 
@@ -155,9 +155,9 @@ This does not eliminate Layer 2. It gives you an additional place to locate conc
 
 The quadratic slowdown that affects `pipes` and `streaming` (see issues [#234](https://github.com/Gabriella439/pipes/issues/234) and [#109](https://github.com/haskell-streaming/streaming/issues/109)) is a pathology of free-monad interpretation: left-associated `>>=` chains force each bind to traverse the accumulated structure, giving O(n²) total cost.
 
-The question for circuits: does the free-category `Compose` chain have the same problem?
+The question for circuits: does sequential composition have the same problem?
 
-**Answer: no.** `reify` is a structural fold (catamorphism), not a search. Each `Compose` adds one function composition `(.)` in the base arrow — O(1). The quadratic slowdown is specific to free *monads* where `>>=` must find the next constructor by traversing the chain. Circuit's `(.)` just appends.
+**Answer: no.** `run` (and `runFree`) are structural folds (catamorphisms), not searches. Each sequential composition becomes one function composition `(.)` in the base arrow — O(1). For `Free`/`Net`, the `Compose` constructor maps directly to that `(.)`; for `Trace`, the constructor is absent and `(.)` is used directly. The quadratic slowdown is specific to free *monads* where `>>=` must find the next constructor by traversing the chain. Circuit's `(.)` just appends.
 
 The `circuits-effects` project (`~/haskell/circuits-effects/`) contains a cross-library benchmark that builds left-skewed and right-skewed pipelines of N stages and measures execution time. Reproduced 2026-05-29, GHC 9.14.1, Apple M-series:
 
@@ -184,7 +184,7 @@ At 10,000 stages: circuits 440µs, pipes 370,000µs — **840x difference**. Blu
 
 The Bluefin @1000 left figure (630µs) is likely a warmup/GC artefact from the `unsafePerformIO` inside `runPureEff`; the @10000 numbers (180µs left, 95µs right) are more representative. Rerunning warms the allocation path and the ratio drops to ~2x.
 
-**Why circuits is immune:** `reify (Compose f g) = reify f . reify g`. The `(.)` here is function composition in the base arrow `(->)` — O(1). No search, no traversal of accumulated structure. The Hyper path (`lower . encode`) is 2–3x faster still because it avoids building intermediate function compositions, but `reify` is already O(n).
+**Why circuits is immune:** for the free encodings, `runFree (Compose f g) = runFree f . runFree g`. The `Trace` encoding has no `Compose` constructor at all; `run` interprets the already-composed base-arrow term. No search, no traversal of accumulated structure. The Hyper path (`lower . encode`) is 2–3x faster still because it avoids building intermediate function compositions, but `run` is already O(n).
 
 The benchmark code lives in `Circuit.Effects.CrossBench.{Circuits,Bluefin,Effectful,Pipes}` and is driven by `Circuit.Effects.CrossBench.benchAll`. It uses `circuits-meter` for the circuits-internal benchmarks and a simple `nanos`-based `timeIO` for the cross-library comparison so each library is measured the same way.
 
@@ -192,7 +192,7 @@ The benchmark code lives in `Circuit.Effects.CrossBench.{Circuits,Bluefin,Effect
 
 ## Open questions (not conclusions)
 
-- When is the `Lift`/`reify` tax worth paying versus just writing the stretch in your native ReaderT/Bluefin/effectful style?
+- When is the `Arr`/`run` tax worth paying versus just writing the stretch in your native ReaderT/Bluefin/effectful style?
 - Can a richer "effectful tensor" (carrying type-indexed Env-like state through the feedback channel) reduce the boundary cost for dynamic effects? (See the sketch in `ends-effectful.md`.)
 - How much of a typical Layer 2 interface (`MonadFoo`) can be mechanically re-expressed as a small family of circuit combinators over a `Producer`/`Consumer` pair?
 

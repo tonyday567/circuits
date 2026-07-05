@@ -9,8 +9,7 @@ not containment in a human ground-truth path.
 ```haskell
 -- $setup
 -- >>> import Control.Category
--- >>> import Circuit
--- >>> import Circuit.Traced (Trace(..))
+-- >>> import Circuit (Trace(..), run)
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -32,8 +31,8 @@ Drop the human. Both routes are just agents. The question is not "does
 agent A match the human?" but "do agent A and agent B behave the same?"
 
 In `Rel`, behavioral equivalence is **bisimulation**: two relations are
-the same if they relate the same inputs to the same outputs, regardless
-of internal structure.
+the same if they relate the same inputs to the same outputs, regardless of
+internal structure.
 
 ---
 
@@ -55,7 +54,7 @@ The cap and cup are diagonal relations:
 -- Both are {(x, x) | x ∈ X} in appropriate direction
 ```
 
-This means `Trace Rel (,)` is uniform — no `MonadFix`, no `prompt`/`control0`.
+This means `Traced Rel (,)` is uniform — no `MonadFix`, no `prompt`/`control0`.
 The trace of `R : X × A → X × B` is:
 
 ```
@@ -66,21 +65,21 @@ Feedback is: *find a self-consistent context `x` such that the relation holds.*
 
 ---
 
-## Circuit Rel t a b
+## Trace t Rel a b
 
-`Circuit` is parametric in `arr`. Instantiating to `Rel`:
+`Trace` is parametric in `arr`. Instantiating to `Rel`:
 
 ```haskell
--- Lift embeds a relation
--- Compose is relational composition
+-- Arr embeds a relation
+-- Sequential composition is (.) or (>>>)
 -- Knot creates feedback over relations
 ```
 
-**`Circuit Rel (,) a b`** — non-deterministic feedback.
-The `Knot` body is a relation `(X × A) → (X × B)`. `reify` finds a
+**`Trace (,) Rel a b`** — non-deterministic feedback.
+The `Knot` body is a relation `(X × A) → (X × B)`. `run` finds a
 self-consistent `x`. The same input can relate to many outputs.
 
-**`Circuit Rel Either a b`** — iterative branching.
+**`Trace Either Rel a b`** — iterative branching.
 `Left` carries state forward, `Right` terminates. The agent iterates
 until it finds a response it is satisfied with.
 
@@ -111,9 +110,9 @@ Drift is structural.
 
 ## what we do not know
 
-- Does `reify :: Circuit Rel t a b -> Rel a b` have a clean Haskell
-  implementation? The `Trace Rel (,)` instance is geometric, but the
-  `Knot` GADT expects `arr (t a b) (t a c)` — a relation, not a function.
+- Does `run :: Trace t Rel a b -> Rel a b` have a clean Haskell
+  implementation? The `Traced Rel (,)` instance is geometric, but the
+  `Knot` GADT expects `arr (t s a) (t s b)` — a relation, not a function.
 
 - How do `Producer`/`Consumer` behave when `arr = Rel`? The companion
   and conjoint in `Rel` are relation converse. The `forall x` quantification
@@ -123,7 +122,7 @@ Drift is structural.
   A `Hyper` over `Rel` would need to encode the self-dual continuation
   as a relation, not a function.
 
-- Can we define a *metric* on `Circuit Rel t a b` that measures distance
+- Can we define a *metric* on `Trace t Rel a b` that measures distance
   from behavioral equivalence? This would give us a notion of "almost
   the same agent" rather than exact bisimulation.
 

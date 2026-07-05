@@ -12,13 +12,12 @@ and asks what structural extensions are natural next moves for Circuit.
 
 ## The Gap: Traced Monoidal ≠ Cartesian Closed
 
-Circuit is a **free traced monoidal category**. Its three constructors:
+Circuit is a **free traced monoidal category**, represented by the `Trace` datatype. Its two constructors:
 
 ```haskell
-data Circuit arr t a b where
-  Lift    :: arr a b -> Circuit arr t a b
-  Compose :: Circuit arr t b c -> Circuit arr t a b -> Circuit arr t a c
-  Knot    :: arr (t a b) (t a c) -> Circuit arr t b c
+data Trace t arr a b where
+  Arr     :: arr a b -> Trace t arr a b
+  Knot    :: arr (t a b) (t a c) -> Trace t arr b c
 ```
 
 Lawvere's evaluator implements a **cartesian closed category**. Its `Expr`
@@ -38,7 +37,7 @@ the most natural structural extension.
 
 Lawvere is *ahead* of Circuit in one dimension: it has exponentials.
 Circuit is *ahead* of Lawvere in another: it has a proper trace constraint
-(`Trace arr t`) and the Mendler case that enforces the sliding axiom — see
+(`Traced arr t`) and the Mendler case that enforces the sliding axiom — see
 [proarrow.md](proarrow.md). Lawvere's `Fix` uses Haskell's `mfix`, which
 assumes recursion without constraining it.
 
@@ -50,42 +49,42 @@ and what does Lawvere's design tell us about what those look like?**
 ## Structural 2-Cells: Knot and Curry
 
 From [proarrow.md](proarrow.md): `Knot` is a 2-cell in `Prof(Hask)` —
-a `Cell f g h j` where `f = g = id`, `h = arr ∘ (t a)`, `j = Circuit arr t`.
-It transforms tensor-wrapped arrows into circuit arrows, modifying the
+a `Cell f g h j` where `f = g = id`, `h = arr ∘ (t a)`, `j = Trace t arr`.
+It transforms tensor-wrapped arrows into `Trace` arrows, modifying the
 wiring by adding a feedback loop.
 
 ```haskell
 -- Knot as a Cell (specialised):
---   Cell id id (arr ∘ (t a)) (Circuit arr t)
-Knot :: arr (t a b) (t a c) -> Circuit arr t b c
+--   Cell id id (arr ∘ (t a)) (Trace t arr)
+Knot :: arr (t a b) (t a c) -> Trace t arr b c
 ```
 
-The Mendler case in `reify` is the naturality condition for this 2-cell —
+The Mendler case in `run` is the naturality condition for this 2-cell —
 `coact` commuting with profunctor composition.
 
 **What about `Curry`?**
 
 `Curry` is also a 2-cell, but of a different kind. Where `Knot`
-transforms `arr → Circuit` (changing the target category), `Curry`
-transforms `Circuit → Circuit` while changing the object structure:
+transforms `arr → Trace` (changing the target category), `Curry`
+transforms `Trace → Trace` while changing the object structure:
 
 ```haskell
 -- Curry as a Cell candidate:
---   Cell (t a) (Exp a) (Circuit arr t) (Circuit arr t)
-Curry :: Circuit arr t (t a b) c -> Circuit arr t b (Exp a c)
+--   Cell (t a) (Exp a) (Trace t arr) (Trace t arr)
+Curry :: Trace t arr (t a b) c -> Trace t arr b (Exp a c)
 ```
 
 The domains differ:
-- `Knot`: takes an `arr` morphism, returns a `Circuit` morphism.
+- `Knot`: takes an `arr` morphism, returns a `Trace` morphism.
   Introduces a new wiring primitive (feedback).
-- `Curry`: takes a `Circuit` morphism, returns a `Circuit` morphism.
+- `Curry`: takes a `Trace` morphism, returns a `Trace` morphism.
   Introduces a new *object* constructor (`Exp`) and reshapes the
   domain/codomain.
 
 `Knot` adds a **structural combinator** (trace). `Curry` adds both a
 **structural combinator** (curry/uncurry) and a **new type constructor**
 (`a ⇒ b`). The exponential object doesn't exist in the base category —
-it's constructed by the free category, just as `Circuit arr t a b` is a
+it's constructed by the free category, just as `Trace t arr a b` is a
 new type of arrow not present in `arr`.
 
 ### What Adding Exponentials Would Look Like
@@ -94,12 +93,10 @@ A cartesian closed extension of Circuit:
 
 ```haskell
 data ExpCircuit arr t a b where
-  ELift     :: arr a b -> ExpCircuit arr t a b
-  ECompose  :: ExpCircuit arr t b c
-            -> ExpCircuit arr t a b
-            -> ExpCircuit arr t a c
+  EArr      :: arr a b -> ExpCircuit arr t a b
   EKnot     :: arr (t a b) (t a c)
             -> ExpCircuit arr t b c
+  -- sequential composition is (.) or (>>>)
   -- NEW: exponential adjunction
   ECurry    :: ExpCircuit arr t (t a b) c
             -> ExpCircuit arr t a (Exp b c)
@@ -110,18 +107,18 @@ data ExpCircuit arr t a b where
 data Exp a b    -- internal hom, constructed by the free category
 ```
 
-Or equivalently, keep `Circuit` unchanged and add `Curry`/`Uncurry` as
-a property of the `Trace` constraint or a new typeclass:
+Or equivalently, keep `Trace` unchanged and add `Curry`/`Uncurry` as
+a property of the `Traced` constraint or a new typeclass:
 
 ```haskell
-class (Trace arr t) => Closed arr t where
+class (Traced arr t) => Closed arr t where
   type Exp arr t a b
-  curry   :: Circuit arr t (t a b) c -> Circuit arr t a (Exp arr t b c)
-  uncurry :: Circuit arr t a (Exp arr t b c) -> Circuit arr t (t a b) c
+  curry   :: Trace t arr (t a b) c -> Trace t arr a (Exp arr t b c)
+  uncurry :: Trace t arr a (Exp arr t b c) -> Trace t arr (t a b) c
 ```
 
-The `reify` function would need a `Closed` constraint in addition to
-`Trace` — expanding the typeclass footprint of Circuit's runtime.
+The `run` function would need a `Closed` constraint in addition to
+`Traced` — expanding the typeclass footprint of Circuit's runtime.
 
 ### Lawvere's Curry/UnCurry in Practice
 
@@ -162,22 +159,21 @@ typeclass rather than by pattern-matching on `VFun`.
 
 | Lawvere constructor | Circuit equivalent | What it is |
 |---|---|---|
-| `BinComp` | `Compose` | 1-cell composition |
-| `Cone`, `Proj`, `Distr` | `dimap`, `rmap` on `Circuit` | Product structure (via Profunctor) |
+| `BinComp` | `(.)` / `(>>>)` | 1-cell composition |
+| `Cone`, `Proj`, `Distr` | `dimap`, `rmap` on `Trace` | Product structure (via Profunctor) |
 | `CoCone`, `Inj`, `Distr` | `dimap` on `Knot` with `Either` | Coproduct structure |
 | `Fix` | `Knot` | **2-cell: trace** |
 | `Curry`, `UnCurry` | *missing* | **2-cell: exponential** |
-| `Lit`, `Top`, `EPrim` | `Lift` | Embed base arrow |
-| CAM bytecode | `reify` | Runtime / reification |
-| `bill` REPL | GHCi + `reify` | Interactive use |
+| `Lit`, `Top`, `EPrim` | `Arr` | Embed base arrow |
+| CAM bytecode | `run` | Runtime / reification |
+| `bill` REPL | GHCi + `run` | Interactive use |
 
 ---
 
 ## What's Ahead, What's Behind
 
-**Circuit is ahead on trace.** The `Trace` constraint, the Mendler case,
-and `ambient` (state sliding past `Knot` via braiding) are properly
-axiomatised. Lawvere's `Fix` uses `mfix` — it assumes recursion works,
+**Circuit is ahead on trace.** The `Traced` constraint and the Mendler case
+in `run` are properly axiomatised. Lawvere's `Fix` uses `mfix` — it assumes recursion works,
 doesn't constrain it. Lawvere identified the need (Haydon's issue #16).
 Circuit provides the mechanism.
 
@@ -202,10 +198,10 @@ beyond the Circuit-Lawvere pair, see [sysl examples](https://github.com/tonyday5
 1. Circuit is **traced monoidal**; Lawvere is **cartesian closed**. The gap is
    `Curry`/`UnCurry` — exponential adjunction.
 2. `Knot` is a **2-cell** (trace cell), proven in [proarrow.md](proarrow.md).
-   `Curry` is also a 2-cell candidate — Cell (t a) (Exp a) on Circuit.
+   `Curry` is also a 2-cell candidate — `Cell (t a) (Exp a)` on `Trace`.
 3. Adding exponentials to Circuit means either a new GADT (`ExpCircuit`)
    or a new typeclass (`Closed arr t`) with `type Exp` and `curry`/`uncurry`.
-4. Circuit's `Trace` constraint is ahead of Lawvere's ad-hoc `mfix` recursion.
+4. Circuit's `Traced` constraint is ahead of Lawvere's ad-hoc `mfix` recursion.
    Lawvere's `Curry`/`UnCurry` is ahead of Circuit — it has no equivalent.
 5. The design direction: Circuit as a **free category with accumulating
    structural 2-cells** — trace, exponential, distribution, linear logic.
@@ -224,12 +220,12 @@ beyond the Circuit-Lawvere pair, see [sysl examples](https://github.com/tonyday5
   `Strong`/`Costrong` on profunctors; `SelfAction`.
 - [Milewski, Profunctor Equipment](https://bartoszmilewski.com/2026/05/16/profunctor-equipment-in-haskell/) —
   `Cell f g h j` encoding for proarrow equipments.
-- [proarrow.md](proarrow.md) — `Trace` ≅ `Strong + Costrong` under self-action;
+- [proarrow.md](proarrow.md) — `Traced` ≅ `Strong + Costrong` under self-action;
   Knot as 2-cell.
 - [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) —
   traced monoidal categories.
-- `src/Circuit/Circuit.hs` — `Knot`, `reify`, `ambient`.
-- `src/Circuit/Traced.hs` — `Trace` typeclass and instances.
+- `src/Circuit.hs` — `Arr`, `Knot`, `run`.
+- `src/Circuit/Traced.hs` — `Traced` typeclass and instances.
 - `~/other/lawvere/src/Lawvere/Expr.hs` — `Curry`, `UnCurry` constructors.
 - `~/other/lawvere/src/Lawvere/Eval.hs` — `evalAr` on `Curry`/`UnCurry`.
 - [nLab: cartesian closed category](https://ncatlab.org/nlab/show/cartesian+closed+category)

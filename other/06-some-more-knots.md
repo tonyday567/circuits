@@ -14,8 +14,8 @@
 
 ## Where We Are
 
-The library has three GADT layers (`Free`, `Circuit`, `Net`), three
-interpreters (`runFree`, `freeze`, `melt`), and two final encodings
+The library has three GADT layers (`Free`, `Trace`, `Net`), five
+interpreters (`runFree`, `run`, `foldTrace`, `weave`, `melt`), and two final encodings
 (`Hyper` and `Queue`). The pieces fit.
 
 The `other/` chapters trace the arc: from the five marks on `Hyper`
@@ -36,30 +36,30 @@ Two folds share a continuation, interleaving element-by-element.
 `(:)` attaches to the outside, `push` threads inside through the
 continuation channel. Full derivation in `examples/proequip.md`.
 
-### Parsers — `Circuit (->) Either [s] (These a [s])`
+### Parsers — `Trace Either (->) [s] (These a [s])`
 
 A state-based parser on the `Either` tensor. `These` distinguishes
 three outcomes: consumed-some, consumed-everything, no-progress.
 `<|>` uses `Knot` for alternation. Validated against `regex-applicative`.
 
-### While-loops — `Circuit (->) Either a b`
+### While-loops — `Trace Either (->) a b`
 
-`loop`, `while`, `until`, `for` — all `reify (Knot step') s0` with
+`loop`, `while`, `until`, `for` — all `run (Knot step' . Arr (const s0))` with
 different `step'` bodies. Four patterns, one constructor.
 
-### Effectful loops — `Circuit (Kleisli IO) Either a b`
+### Effectful loops — `Trace Either (Kleisli IO) a b`
 
-`Trace (Kleisli IO) Either` uses GHC's `prompt#`/`control0#` for
+`Trace Either (Kleisli IO)` uses GHC's `prompt#`/`control0#` for
 delimited continuations — constant stack regardless of iteration count.
 
-### Pipes — `Circuit (Kleisli m) Either ~ Pipe m`
+### Pipes — `Trace Either (Kleisli m) ~ Pipe m`
 
 Await is `Left`, yield is `Right`. The `Either` tensor's handoff
 matches `Proxy`'s `Request`/`Respond` alternation.
 
 ### Metering — `circuits-meter`
 
-Performance measurement as a `Circuit`. A `Meter` introduces a state
+Performance measurement as a `Trace`. A `Meter` introduces a state
 wire before a computation and reads it after. Calibrated against
 criterion — `ticksN` reproduces criterion's numbers within 10%.
 
@@ -79,7 +79,7 @@ criterion — `ticksN` reproduces criterion's numbers within 10%.
 | `lift-trace-commute.md` | `lift . trace = trace . lift` — the traced functor lemma |
 | `circuits.md` | imports, three tags, minimal example |
 | `words.md` | word-count pipeline with metering |
-| `circuit.md` | `Circuit` GADT, `reify` |
+| `circuit.md` | `Trace` GADT, `run` |
 | `hyper.md` | `Hyper` construction and elimination |
 | `while.md` | loop/while/until/for on `Either` |
 | `parser.md` | `Either`+`These` parser combinators |
@@ -89,7 +89,7 @@ criterion — `ticksN` reproduces criterion's numbers within 10%.
 | `encode-either.md` | `encodeEither`, `runEither` |
 | `elgot-abacus.md` | Elgot iteration |
 | `proequip.md` | coroutining folds, double category framing |
-| `optics.md` | profunctor optics on Circuit |
+| `optics.md` | profunctor optics on `Trace` |
 | `lawvere.md` | comparative engineering with Lawvere |
 
 ---

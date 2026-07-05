@@ -11,7 +11,8 @@ alone cannot express.
 
 ```haskell
 -- $setup
--- >>> import Circuit.Hyper
+-- >>> import Circuit
+-- >>> import Data.These
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
 ```
@@ -26,17 +27,17 @@ foldH []     c n = base n
 foldH (x:xs) c n = Hyper (\k -> c x (invoke k (foldH xs c n)))
 ```
 
-Each element `c x` suspends inside the continuation `k`.  The `run`
+Each element `c x` suspends inside the continuation `k`.  The `runHyper`
 collapses the Hyper to `foldr`:
 
 ```haskell
--- >>> run (foldH [1,2,3] (+) 0)
+-- >>> runHyper (foldH [1,2,3] (+) 0)
 -- 6
--- >>> run (foldH [1,2,3] (:) [])
+-- >>> runHyper (foldH [1,2,3] (:) [])
 -- [1,2,3]
 ```
 
-Equivalence: `foldr c n xs = run (foldH xs c n)`.
+Equivalence: `foldr c n xs = runHyper (foldH xs c n)`.
 
 Using `push` to build the chain:
 
@@ -66,8 +67,8 @@ of a Hyper, through the continuation channel.  Same shape, flipped
 polarity.
 
 `push` is the Hyper-level primitive for threading a function through the
-feedback channel.  The GADT has no direct counterpart; `Compose (Lift f) h`
-(post-composition on `reify`) is the closest analogue but not equivalent.
+feedback channel.  The `Trace` GADT has no direct counterpart; `Arr f . h`
+(post-composition on `run`) is the closest analogue but not equivalent.
 `push f h` applies `f` to the value the continuation feeds back,
 before `h` sees it — a structural dual of `(:)` which attaches
 to the outside.
@@ -86,7 +87,7 @@ foldr'  (f:fs) = (:) f . foldr' fs
 
 foldh'  :: [a -> b] -> Hyper a b -> Hyper a b
 foldh'  []      = id
-foldh'  (f : fs) = (lift f ⊙) . foldh' fs
+foldh'  (f : fs) = push f . foldh' fs
 ```
 
 `foldH` is `foldh'` with the `c x` pre-applied and `base n` as seed:
@@ -96,7 +97,7 @@ foldH xs c n = foldh' (map c xs) (base n)
 ```
 
 Both folds build an endofunction chain.  `foldr'` builds `[a] -> [a]`
-via cons.  `foldh'` builds `Hyper a b -> Hyper a b` via lift.  The
+via cons.  `foldh'` builds `Hyper a b -> Hyper a b` via push.  The
 λ-term is identical — the generator is the only difference.
 
 At `Hyper a a` the types align perfectly:
@@ -107,7 +108,7 @@ foldh'  :: [a -> a] -> Hyper a a  -> Hyper a a
 ```
 
 Both are `[τ] -> M -> M` — a list of endofunctions folded into an
-endofunction carrier.  `(:)` and `lift` are dual representations of
+endofunction carrier.  `(:)` and `push` are dual representations of
 the same endofunction stack.
 
 ---
@@ -120,7 +121,7 @@ the other fold and carries the tail forward.
 
 ```haskell
 zipH :: [a] -> [b] -> [(a, b)]
-zipH xs ys = run (foldH xs first [] ⊙ foldH ys second Nothing)
+zipH xs ys = runHyper (foldH xs first [] . foldH ys second Nothing)
   where
     first x Nothing          = []
     first x (Just (y, xys))  = (x, y) : xys
@@ -136,7 +137,7 @@ zipH xs ys = run (foldH xs first [] ⊙ foldH ys second Nothing)
 -- [(1,10)]
 ```
 
-The two folds coroutine through `(⊙)`.  `first` needs a `y` before it
+The two folds coroutine through `(.)`.  `first` needs a `y` before it
 can emit — `second` provides it.  `second` just uncons-es and passes
 the token.  The zip output spine is lazy: forcing the first pair does
 not force the rest of either input list.
@@ -159,7 +160,7 @@ carries the token.  `This` handles the final element with no remainder.
 
 ```haskell
 zipHThese :: [a] -> [b] -> [(a, b)]
-zipHThese xs ys = run (foldH xs first (That []) ⊙ foldH ys second (That []))
+zipHThese xs ys = runHyper (foldH xs first (That []) . foldH ys second (That []))
   where
     first x (This y)      = [(x, y)]
     first x (These y ys)  = (x, y) : ys
@@ -179,7 +180,7 @@ explicit rather than collapsing it into `These` with an empty remainder.
 
 The zip has two independent composition layers.
 
-**Horizontal** — the coroutine pipeline.  `foldH xs _ ⊙ foldH ys _`
+**Horizontal** — the coroutine pipeline.  `foldH xs _ . foldH ys _`
 is composition in the category of profunctors.  The channel token
 (`These b [(a,b)]`) is the profunctor that carries elements between
 the two folds.
@@ -199,13 +200,13 @@ In the language of double categories and profunctor equipment
 | vertical arrow (functor) | `first`, `combine`, `id` |
 | 2-cell (square) | the per-element step `(x,y) : ys` |
 
-`foldH ys id _` is the **conjoint** (`Star` in Bartosz's encoding):
+`foldH ys These _` is the **conjoint** (`Star` in Bartosz's encoding):
 pure supply — elements pass through unmodified.  This leaves the vertical
 slot open, so we can swap `(,)` for `bin` without touching the pipeline:
 
 ```haskell
 zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
-zipWith bin xs ys = run (foldH xs combine (That []) ⊙ foldH ys id (That []))
+zipWith bin xs ys = runHyper (foldH xs combine (That []) . foldH ys These (That []))
   where
     combine x (This y)      = [bin x y]
     combine x (These y ys)  = bin x y : ys
@@ -234,16 +235,16 @@ via coroutining.
 
 ## Knot is a 2-cell
 
-The GADT constructor `Knot` has the same shape as `Cell`:
+The `Trace` constructor `Knot` has the same shape as `Cell`:
 
 ```haskell
-Knot :: arr (t a b) (t a c) -> Circuit arr t b c
+Knot :: arr (t a b) (t a c) -> Trace t arr b c
 ```
 
-With `f = g = id`, `h = arr ∘ (t a)`, `j = Circuit arr t`:
+With `f = g = id`, `h = arr ∘ (t a)`, `j = Trace t arr`:
 
 ```haskell
--- Cell id id (arr ∘ (t a)) (Circuit arr t)
+-- Cell id id (arr ∘ (t a)) (Trace t arr)
 ```
 
 `Knot` is a natural 2-cell in its boundary types.  The `dimap` instance
@@ -254,14 +255,16 @@ channel:
 dimap f g (Knot k) = Knot (dimap (second f) (second g) k)
 ```
 
-The Mendler case in `reify` is the naturality condition for this 2-cell:
+The `Category` instance on `Trace` supplies the horizontal-composition
+cases for `Knot`:
 
 ```haskell
-reify (Compose (Knot f) g) = trace (f . untrace (reify g))
+Knot f . Arr g = Knot (f . untrace g)
+Arr f . Knot g = Knot (untrace f . g)
 ```
 
-Without it, `Knot` collapses to `Lift (trace f)` — the degenerate model
-where the trace closes immediately.  The Mendler case guarantees that
+Without them, `Knot` would collapse to `Arr (trace f)` — the degenerate
+model where the trace closes immediately.  These cases guarantee that
 vertical transforms (`g`) participate *inside* the loop, not just at
 the exit.
 
@@ -272,16 +275,16 @@ tr((g ⊗ id) ∘ f ∘ (h ⊗ id)) = g ∘ tr(f) ∘ h
 ```
 
 Vertical transforms on the payload commute with the trace.  The
-Mendler case is the operational form of tightening — and the
+`Category` cases are the operational form of tightening — and the
 `dimap` instance on Knot is the type-level form.
 
 ### The `ambient` combinator
 
-`ambient` threads a state wire alongside a circuit, sliding past
-`Knot` via braiding:
+`ambient` is `ambientBy braid`.  It threads a state wire alongside a
+circuit, sliding past `Knot` via braiding:
 
 ```haskell
-ambient braid (Knot k) = Knot (dimap braid braid (untrace k))
+ambientBy braid (Knot k) = Knot (dimap braid braid (untrace k))
 ```
 
 State slides past Knot via braiding — vertical composition across
@@ -291,34 +294,35 @@ double-category clothes.
 ## The breadcrumb trail
 
 1. **foldH** — looked like foldr with push instead of (:).
-2. **push** — the generator in Hyper-space. Hyper-specific; no direct GADT equivalent.
+2. **push** — the generator in Hyper-space. Hyper-specific; no direct Trace equivalent.
 3. **foldr' / foldh'** — identical λ-term, different Endo monoids.
 4. **zip** — two orthogonal composition layers, independent.
-5. **zipWith** — `foldH ys id _` as conjoint, vertical slot open.
+5. **zipWith** — `foldH ys These _` as conjoint, vertical slot open.
 6. **These** — the channel type as a profunctor between folds.
 7. **Cell f g h j** — Bartosz's encoding of 2-cells in Prof.
 8. **Knot as 2-cell** — same shape, dimap = vertical composition.
-9. **Mendler as naturality** — the pattern match enforces Cell structure.
-10. **The GADT is a double category** — not layered on; the constructors enforce it.
+9. **Category cases as naturality** — the equations enforce Cell structure.
+10. **The Trace GADT is a double category** — not layered on; the constructors enforce it.
 
 ## Open lemmas
 
-**Proarrow equipment.** Prove that Circuit with the Mendler case forms a
-proarrow equipment over its base category.  The nLab entry on
+**Proarrow equipment.** Prove that `Trace` with its `Category` and
+`Traced` instances forms a proarrow equipment over its base category.
+The nLab entry on
 [equipment](https://ncatlab.org/nlab/show/equipment) has the axioms; the
 `Cell` encoding above has the Haskell form.  From
-[proarrow.md](proarrow.md): `Trace arr t ≅ Strong k (Hom arr) + Costrong k (Hom arr)`
+[proarrow.md](proarrow.md): `Trace t arr ≅ Strong k (Hom arr) + Costrong k (Hom arr)`
 under `SelfAction k`.  The bridge is established — the formal lemma is
 next.
 
-**The Either 2-cell.** `reify` already has a Mendler case for `Either`;
-does `dimap` on Knot extend cleanly?  The parser's `<|>` is composition
-of 2-cells in the Either equipment — a worked example for the Either
-tensor would make the connection concrete.
+**The Either 2-cell.** `Trace` already supports the `Either` tensor via
+the `Traced` instance; does `dimap` on `Knot` extend cleanly?  The
+parser's `<|>` is composition of 2-cells in the Either equipment — a
+worked example for the Either tensor would make the connection concrete.
 
 **The Kleisli equipment.** The `ambient` combinator already threads state;
 does the vertical structure lift through `Kleisli m`?  The
-delimited-continuation `Trace` instance for `Kleisli IO` should form a
+delimited-continuation `Traced` instance for `Kleisli IO` should form a
 2-cell — a worked example showing the Cell structure in effectful
 circuits.
 
@@ -341,5 +345,5 @@ nLab: [double category](https://ncatlab.org/nlab/show/double+category),
 [profunctor](https://ncatlab.org/nlab/show/profunctor),
 [equipment](https://ncatlab.org/nlab/show/equipment)
 
-[proarrow.md](proarrow.md) — `Trace` ≅ `Strong + Costrong` under self-action
+[proarrow.md](proarrow.md) — `Trace t arr ≅ Strong + Costrong` under self-action
 [lawvere.md](lawvere.md) — comparative engineering; structural 2-cells

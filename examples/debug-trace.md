@@ -32,7 +32,6 @@ You can thread a log alongside a computation or loop without the main logic havi
 {-# LANGUAGE BlockArguments #-}
 
 import Circuit
-import Circuit.Circuit (ambient)
 import Control.Category (id, (.))
 import Prelude hiding (id, (.))
 ```
@@ -46,7 +45,7 @@ step (n, log) =
     then Left  (n + 1, n : log)
     else Right (n,     n : log)
 
-counter :: Circuit (->) Either () (Int, [Int])
+counter :: Trace Either (->) () (Int, [Int])
 counter = Knot step
 ```
 
@@ -56,7 +55,7 @@ Thread an extra label through the loop using `ambient`:
 braidE (Left (s, a))  = (s, Left a)
 braidE (Right (s, c)) = (s, Right c)
 
--- >>> reify (ambient braidE counter) ("run-1", ())
+-- >>> run (ambient braidE counter) ("run-1", ())
 -- ("run-1",(3,[2,1,0]))
 ```
 

@@ -3,31 +3,31 @@
 Circuits offer three mechanisms for managing state, corresponding to three
 different relationships between the state and the computation.
 
-## 1. Visible state — threaded by `Compose`
+## 1. Visible state — threaded by composition
 
 The state appears explicitly in the type. Composition threads it through.
 
 ```haskell
--- StateC s a b = Circuit (->) (,) (s, a) (s, b)
+-- StateC s a b = Trace (,) (->) (s, a) (s, b)
 -- This is the state monad in arrow form.
 
-push :: Circuit (->) (,) ([a], a) ([a], ())
-push = Lift $ \(buf, a) -> (buf ++ [a], ())
+push :: Trace (,) (->) ([a], a) ([a], ())
+push = Arr $ \(buf, a) -> (buf ++ [a], ())
 
-pop :: Circuit (->) (,) ([a], ()) ([a], a)
-pop = Lift $ \(buf, ()) -> case uncons buf of
+pop :: Trace (,) (->) ([a], ()) ([a], a)
+pop = Arr $ \(buf, ()) -> case uncons buf of
   These x xs -> (xs, x)
   That _     -> (buf, error "Queue.pop: empty buffer")
   This x     -> ([], x)
 
--- Compose threads state
-queue :: Circuit (->) (,) ([a], a) ([a], a)
-queue = Compose pop push
+-- Composition threads state
+queue :: Trace (,) (->) ([a], a) ([a], a)
+queue = pop . push
 ```
 
 State is **visible**, **mutable**, and **persistent across composition**.
 You can inspect it, meter it, branch on it. Composition merges state
-wires automatically via the trace axioms.
+wires automatically.
 
 This is the everyday mechanism. It corresponds to `StateT s m a` in
 monadic code — but in arrow form, the state is the first component of
@@ -41,13 +41,13 @@ State rides alongside the computation, invisible to the circuit itself.
 
 ```haskell
 -- A circuit that operates on the payload only
-increment :: Circuit (->) (,) Int Int
-increment = Lift (+1)
+increment :: Trace (,) (->) Int Int
+increment = Arr (+1)
 
 -- Thread a log through ambiently
-metered :: Circuit (->) (,) ([String], Int) ([String], Int)
+metered :: Trace (,) (->) ([String], Int) ([String], Int)
 metered = ambient increment
--- reify metered (["start"], 5) = (["start"], 6)
+-- run metered (["start"], 5) = (["start"], 6)
 ```
 
 The ambient state `s` passes through **unchanged**. The circuit can't
@@ -59,7 +59,7 @@ circuit CAN read and write the state, using it as an accumulator.
 
 ```haskell
 meteredAmbient :: (s -> t -> s) -> Meter s t -> Kleisli IO a b
-               -> Circuit (Kleisli IO) (,) (s, a) (s, b)
+               -> Trace (,) (Kleisli IO) (s, a) (s, b)
 ```
 
 Trade: state is threaded automatically, but the circuit is unaware
@@ -81,7 +81,7 @@ a self-referential channel.
 
 ```haskell
 -- powers = [1, 2, 4, 8, 16, ...] via lazy knot
-powers :: Circuit (->) (,) () [Integer]
+powers :: Trace (,) (->) () [Integer]
 powers = Knot $ \(ns, ()) -> (1 : map (*2) ns, take 5 ns)
 ```
 
@@ -99,13 +99,13 @@ trace f b = go (Right b)
 `Left a` continues with updated state, `Right c` exits with result.
 
 ```haskell
-fac :: Circuit (->) Either (Int, Int) Int  -- input: (n, acc)
+fac :: Trace Either (->) (Int, Int) Int  -- input: (n, acc)
 fac = Knot $ either step step
   where step (n, acc) | n <= 1    = Right acc
                       | otherwise = Left (n - 1, n * acc)
 ```
 
-Constraint: each `reify` call starts a fresh trace. State doesn't
+Constraint: each `run` call starts a fresh trace. State doesn't
 persist across calls. You get one iteration's worth of mutation per
 invocation.
 
@@ -113,7 +113,7 @@ invocation.
 
 | Need | Mechanism |
 |------|-----------|
-| State modified by computation, persists across composition | Visible state (`Compose`) |
+| State modified by computation, persists across composition | Visible state (composition, e.g. `(.)`/`(>>>)`) |
 | Read-only context (logging, metrics) | Ambient state (`ambient`) |
 | Accumulator updated by computation (metering) | `meteredAmbient` |
 | Self-referential lazy structure (powers, fibs) | `Knot` + `(,)` trace |
@@ -122,6 +122,6 @@ invocation.
 
 ## No `StateT`
 
-Circuits don't need a separate `StateT` because `Circuit (->) (,) (s, a) (s, b)`
-already IS the state monad in arrow form. `Compose` binds. The `(,)` tensor
+Circuits don't need a separate `StateT` because `Trace (,) (->) (s, a) (s, b)`
+already IS the state monad in arrow form. Composition binds. The `(,)` tensor
 carries the state. There's nothing to add.

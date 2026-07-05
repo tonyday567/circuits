@@ -4,14 +4,14 @@ Proof-of-concept that the `circuits` free traced monoidal category framework is 
 
 ## What it adds
 
-- `RecordTrace` — a record-category class with feedback via `knotR` on a named field.
+- `RecordTraced` — a record-category class with feedback via `knotR` on a named field.
 - `FreeTraced op` — a free GADT over operations, extending WireCat's `Free` with a `KnotR` constructor.
 - A `KleisliRec` instance that ties the lazy knot with `mfix`.
 
 ## Key combinators
 
 ```haskell
-class (RecordCategory cat) => RecordTrace cat where
+class (RecordCategory cat) => RecordTraced cat where
   knotR
     :: (KnownSymbol fb, Typeable a)
     => Proxy a
@@ -30,7 +30,7 @@ data FreeTraced op r s where
     -> FreeTraced op r s
 
 foldFreeTraced
-  :: (RecordTrace cat)
+  :: (RecordTraced cat)
   => (forall x y. op (Rec x) (Rec y) -> cat x y)
   -> FreeTraced op r s
   -> cat r s

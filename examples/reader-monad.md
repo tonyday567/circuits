@@ -1,6 +1,6 @@
 # reader-monad ⟜ when you need monadic composition
 
-`Circuit` and `Hyper` do not provide `Applicative` or `Monad` instances.
+`Trace` and `Hyper` do not provide `Applicative` or `Monad` instances.
 These would collapse feedback structure on every step, reducing circuits
 to plain functions. If you need monadic composition, the path is explicit:
 observe, work in `Reader`, re-encode.
@@ -33,24 +33,24 @@ step = lift $ \n ->
 -- 12
 ```
 
-The same pattern works for `Circuit` via `reify`:
+The same pattern works for `Trace` via `run`:
 
 ```haskell
-import Circuit.Circuit
+import Circuit
 
-incC :: Circuit (->) (,) Int Int
-incC = Lift (+ 1)
+incC :: Trace (,) (->) Int Int
+incC = Arr (+ 1)
 
-doubleC :: Circuit (->) (,) Int Int
-doubleC = Lift (* 2)
+doubleC :: Trace (,) (->) Int Int
+doubleC = Arr (* 2)
 
-stepC :: Circuit (->) (,) Int Int
-stepC = Lift $ \n ->
-  let n'  = reify incC n
-      n'' = reify doubleC n'
+stepC :: Trace (,) (->) Int Int
+stepC = Arr $ \n ->
+  let n'  = run incC n
+      n'' = run doubleC n'
   in n''
 
--- >>> stepC ↘ 5
+-- >>> run stepC 5
 -- 12
 ```
 
@@ -79,7 +79,7 @@ this:
 
 ```haskell
 newtype Parser f s a = Parser
-  { unParser :: Circuit (->) Either f (These a f) }
+  { unParser :: Trace Either (->) f (These a f) }
 ```
 
 `Parser` defines its own `Applicative`, `Monad`, and `Alternative`
@@ -92,4 +92,4 @@ is real — but it lives at the application layer, not in the substrate.
 
 - `examples/parser.md` — `Parser` newtype with lawful `Applicative`/`Monad`
 - `src/Circuit/Hyper.hs` — `lower`, `lift`
-- `src/Circuit/Circuit.hs` — `reify`, `Lift`
+- `src/Circuit.hs` — `run`, `Arr`

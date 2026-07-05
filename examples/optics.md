@@ -9,8 +9,8 @@ data LensC arr t s t' a b = forall c. LensC
   }
 ```
 
-`Circuit arr t` is the free traced monoidal category. `Knot` hides the
-residual; `untrace` introduces it.
+`Trace t arr a b` is the inspectable GADT for traced monoidal categories.
+`Knot` hides the residual; `untrace` introduces it.
 
 For `(,)` the residual is a product:
 
@@ -36,13 +36,13 @@ feedback loop. For `(,)` it is a lazy knot; for `Either` it is iteration until
 
 ```haskell
 -- | Hide the residual with Knot.
--- >>> reify (Knot biased) 5
+-- >>> run (Knot biased) 5
 -- 20
 biased :: (Int, Int) -> (Int, Int)
 biased (s, x) = (x + 10, s + x)
 ```
 
-The `Trace` instance for `(->)` and `(,)`:
+The `Traced` instance for `(->)` and `(,)`:
 
 ```haskell
 trace biased 5 = let (s, c) = (5 + 10, s + 5) in c
@@ -65,7 +65,7 @@ circuit is equivalent to a single `Knot` over a merged residual.
 -- | Compose two knotted circuits.
 -- >>> let c1 = Knot (\(s, x) -> (x + 10, s + x))
 -- >>>     c2 = Knot (\(t, y) -> (y * 2, t + y))
--- >>> in reify (c2 ⊙ c1) 5
+-- >>> in run (c1 >>> c2) 5
 -- 60
 ```
 
@@ -101,7 +101,7 @@ the wiring for any *chosen* residual — but it does not quantify over the famil
 of all possible residuals. That universal quantification is what the coend adds.
 
 In a compact closed category the coend collapses because the residual can be
-constructed explicitly (it is an internal hom). The `Trace` class is strictly
+constructed explicitly (it is an internal hom). The `Traced` class is strictly
 weaker: it eliminates residuals but does not construct new ones. The gap between
 trace and coend is precisely the gap between traced monoidal and compact closed.
 

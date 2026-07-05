@@ -1,12 +1,12 @@
 # While, Until, For — Trace loops
 
-The three canonical loop patterns using Trace's `Trace` constructor
+The three canonical loop patterns using `Trace`'s `Knot` constructor
 and the `Traced (->) Either` instance.  One fundamental pattern, three
 specialisations.
 
 ```haskell
 -- $setup
--- >>> import Circuit (Trace (..), Traced (..), realise)
+-- >>> import Circuit (Trace (..), run)
 -- >>> import Control.Category (id, (.))
 -- >>> import Prelude hiding (id, (.))
 ```
@@ -32,7 +32,7 @@ The fundamental form.  A `Trace` wraps the step function directly.
 
 ```haskell
 loop :: Step s r -> s -> r
-loop step s0 = realise (Trace step') s0
+loop step s0 = run (Knot step') s0
   where
     step' (Left s) = step s
     step' (Right s) = step s
@@ -55,7 +55,7 @@ Check `cond` before each step.  When `cond` fails, exit with `done s`.
 
 ```haskell
 whileC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
-whileC cond done step s0 = realise (Trace step') s0
+whileC cond done step s0 = run (Knot step') s0
   where
     step' (Left s)  = if cond s then step s else Right (done s)
     step' (Right s) = step' (Left s)
@@ -79,7 +79,7 @@ state.  When `cond` becomes true, exit with `done`.
 
 ```haskell
 untilC :: (s -> Bool) -> (s -> r) -> Step s r -> s -> r
-untilC cond done step s0 = realise (Trace step') s0
+untilC cond done step s0 = run (Knot step') s0
   where
     step' (Left s)  = case step s of
                         Right r -> Right r

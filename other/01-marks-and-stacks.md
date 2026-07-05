@@ -18,7 +18,7 @@ were the API. They satisfied six axioms. They worked.
 
 Only later did we build the initial encoding — a GADT with explicit constructors —
 and prove the two encodings were the same traced monoidal category. Still later
-we discovered that between `Circuit` and `arr` sits `Free` — the free category
+we discovered that between `Trace` and `arr` sits `Free` — the free category
 without feedback — and that much of what we'd attributed to `Hyper` was actually
 `Free`'s work.
 
@@ -87,9 +87,9 @@ These five marks were our starting point. They came from Kidney-Wu. They
 worked — you could write programs with them. The next chapters build outward:
 an initial encoding (a GADT) that makes the structure inspectable, a tensor
 parameter that chooses between lazy sharing and iteration, and the discovery
-that `Circuit` minus `Knot` is the free category.
+that `Trace` minus `Knot` is the free category.
 
-But the marks remain. Every construct in the library — `Circuit`, `Free`,
+But the marks remain. Every construct in the library — `Trace`, `Free`,
 `Net`, `Queue` — must eventually answer to them.
 
 ---

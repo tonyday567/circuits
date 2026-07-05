@@ -314,11 +314,11 @@ Hyper a b  ≅  Fix (Ran (Const a) (Const b))
            ≅  Fix (HyperF a b)
 ```
 
-- **Before Fix:** `Circuit a b ~ Ran (Const a) (Const b)` (the free category)
+- **Before Fix:** `Trace ~ Ran (Const a) (Const b)` (the free category)
 - **After Fix:** `Hyper a b = Fix (Ran (Const a) (Const b))` (the traced category)
 
-The Mendler case in `lower` on `Circuit` makes the catamorphism valid.
-`encode` maps `Circuit → Hyper` as the unique traced functor from the initial
+The Mendler case in `lower` on `Trace` makes the catamorphism valid.
+`encode` maps `Trace → Hyper` as the unique `Traced` functor from the initial
 to the final encoding. The bridge in this card shows the converse:
 `Hyper` **is** the fixpoint of the Ran functor, and standard recursion
 schemes work directly on it through `toFix`/`fromFix`.

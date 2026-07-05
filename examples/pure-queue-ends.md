@@ -6,7 +6,7 @@
 -- This is a pure, non-existential analogue of Circuit.IO.Queue.queueEnds
 -- that returns write/read functions operating on an explicit [a] buffer.
 --
--- The caller threads the buffer through 'Compose' when lifted into circuits.
+-- The caller threads the buffer through sequential composition (@>>>@) when lifted into circuits.
 module PureQueue.Ends where
 
 -- | Queue strategy.

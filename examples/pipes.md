@@ -55,7 +55,7 @@ Each branch is a `(,)` of `(payload, continuation_slot)`. The outer
 ```haskell
 -- the Proxy pattern as a Circuit tensor structure
 type ProxyCircuit a' a b' b r =
-    Circuit (->) Either (a', a → r) (b, b' → r)
+    Trace Either (->) (a', a → r) (b, b' → r)
 ```
 
 Where:
@@ -67,8 +67,8 @@ With monadic effects:
 
 ```haskell
 type ProxyCircuitM m a' a b' b r =
-    Circuit (Kleisli m) Either (a', a) (b, b')
+    Trace Either (Kleisli m) (a', a → r) (b, b' → r)
 ```
 
 The `r` parameter is the exit type — what `Pure` returns. The `M`
-constructor is `Lift` in the `Kleisli m` arrow.
+constructor is `Arr` in the `Kleisli m` arrow.

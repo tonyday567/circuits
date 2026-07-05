@@ -37,17 +37,17 @@ a direct `these` dependency.
 
 ```haskell
 runParser :: Parser s a -> [s] -> These a [s]
-runParser = realise . unParser
+runParser = run . unParser
 ```
 
-## Primitives via Lift
+## Primitives via Arr
 
-`Lift` embeds a function into Trace. Character-level primitives:
+`Arr` embeds a base arrow into Trace. Character-level primitives:
 
 ```haskell
 -- | Consume one element satisfying a predicate.
 satisfy :: (s -> Bool) -> Parser s s
-satisfy p = Parser $ Lift $ \case
+satisfy p = Parser $ Arr $ \case
   (x : []) | p x -> This x
   (x : xs) | p x -> These x xs
   xs              -> That xs
@@ -62,7 +62,7 @@ string = traverse char
 
 -- | Consume any single element.
 anyToken :: Parser s s
-anyToken = Parser $ Lift $ \case
+anyToken = Parser $ Arr $ \case
   (x : []) -> This x
   (x : xs) -> These x xs
   []       -> That []
@@ -85,12 +85,12 @@ Every successful parse reduces to some number of `uncons` calls.
 
 ## Repetition: many / some
 
-The mtok refactor established: `many` is `Lift` + plain recursion,
+The mtok refactor established: `many` is `Arr` + plain recursion,
 not `Trace`. Three pattern matches on `These` are sufficient:
 
 ```haskell
 many :: Parser s a -> Parser s [a]
-many p = Parser $ Lift $ \s -> go s []
+many p = Parser $ Arr $ \s -> go s []
   where
     go s acc = case runParser p s of
       This a     -> This (reverse (a : acc))
@@ -112,17 +112,17 @@ phases map to the two branches of alternation:
 
 ```haskell
 (<|>) :: Parser s a -> Parser s a -> Parser s a
-Parser p1 <|> Parser p2 = Parser $ Trace body
+Parser p1 <|> Parser p2 = Parser $ Knot body
   where
-    body (Right s) = case realise p1 s of
+    body (Right s) = case run p1 s of
       This a     -> Right (This a)      -- p1 consumed all, done
       That s'    -> Left s'             -- p1 failed, try p2
       These a s' -> Right (These a s')  -- p1 succeeded, done
-    body (Left s) = case realise p2 s of
+    body (Left s) = case run p2 s of
       result -> Right result            -- p2 result, win or lose
 ```
 
-The `Trace` constructor defunctionalises the two-phase alternation: `Right`
+The `Knot` constructor defunctionalises the two-phase alternation: `Right`
 = try p1, `Left` = try p2. The `Either` tensor provides the
 feedback channel that switches phases.
 
@@ -189,10 +189,10 @@ validated this mapping:
 
 | `RE s a` constructor       | Trace equivalent            | status    |
 |---------------------------|------------------------------|-----------|
-| `Symbol i (s -> Maybe a)` | `Lift` (satisfy/char)        | 🟢 tested |
+| `Symbol i (s -> Maybe a)` | `Arr` (satisfy/char)         | 🟢 tested |
 | `Alt a b`                 | `Either` tensor (`<|>`)      | 🟢 tested |
-| `App a b`                 | `Compose` (Applicative `*>`) | 🟢 tested |
-| `Rep greed f b a`         | `many`/`some` (Lift+recursion)| 🟢 tested |
+| `App a b`                 | sequential composition (`(.)` / `(>>>)`) | 🟢 tested |
+| `Rep greed f b a`         | `many`/`some` (Arr+recursion)| 🟢 tested |
 | `Fmap f a`                | `fmap`                       | 🟢 tested |
 | `Fail`                    | `empty`                      | 🟢        |
 | `Eps`                     | `pure`                       | 🟢        |

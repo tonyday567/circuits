@@ -1,6 +1,6 @@
 # Trace — reading the feedback boundary
 
-`Trace` is a two-method class: `trace` closes a feedback loop, `untrace`
+`Traced` is a two-method class: `trace` closes a feedback loop, `untrace`
 opens one.  The tensor (`(,)` or `Either`) chooses what "feedback" means.
 This card walks through the structure: the bracket pattern in `trace`,
 the uniformity of `untrace`, and what changes between pure and effectful
@@ -9,7 +9,7 @@ arrows.
 ```haskell
 -- $setup
 -- >>> import Control.Arrow (Kleisli(..), right)
--- >>> import Circuit.Traced
+-- >>> import Circuit.Traced (Traced(..))
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -49,12 +49,12 @@ constant stack space regardless of iteration count.
 
 ### tensor conventions
 
-| branch | `Trace (->) Either` | user-facing `Step s r` |
+| branch | `Traced (->) Either` | user-facing `Step s r` |
 |--------|---------------------|------------------------|
 | `Left` | feedback — iterate again | result — done |
 | `Right` | output — done | continue — next state |
 
-The convention is fixed by the `Trace` class.  User code with the opposite
+The convention is fixed by the `Traced` class.  User code with the opposite
 convention (like `while.md`'s `Step s r`) bridges the gap with a swap
 function.  The convention itself is arbitrary — what matters is that the
 class picks one and sticks with it.
@@ -75,9 +75,9 @@ For coproduct: `id +++ f` = `right f`.
 
 | instance | `untrace` | formulation |
 |----------|-----------|-------------|
-| `Trace (->) (,)` | `fmap` | `second` on a pure arrow |
-| `Trace (->) Either` | `fmap` | `right` on a pure arrow |
-| `Trace (Kleisli IO) Either` | hand-written `\case` | `right` on an effectful arrow |
+| `Traced (->) (,)` | `fmap` | `second` on a pure arrow |
+| `Traced (->) Either` | `fmap` | `right` on a pure arrow |
+| `Traced (Kleisli IO) Either` | hand-written `\case` | `right` on an effectful arrow |
 
 The pure cases collapse to `fmap` because `Functor (,) a` and
 `Functor (Either a)` both map the second argument.  The Kleisli case
@@ -156,7 +156,7 @@ one of the two methods is wrong.
   per-bracket by design — each `trace` call seals its own delimited
   scope.
 
-- **`Trace` has no `Arrow` superclass.** The instances spell out what
+- **`Traced` has no `Arrow` superclass.** The instances spell out what
   `ArrowChoice` would provide, which keeps the dependency footprint
   minimal.  The structural intent (`untrace` is `right`) lives in
   comments and this card rather than in the class hierarchy.
