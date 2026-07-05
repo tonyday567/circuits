@@ -6,7 +6,7 @@
 -- over the standard tensors @(,)@ and 'Either', along with the general
 -- 'ambientBy' combinator for threading additional state wires.
 --
--- The goal is to keep the core 'Trace' GADT and 'realise' mechanism
+-- The goal is to keep the core 'Trace' GADT and 'run' mechanism
 -- independent of these structural details.
 module Circuit.Monoidal
   ( Braided (..),
@@ -38,7 +38,7 @@ import Data.Bifunctor (Bifunctor (..))
 import Circuit.Classes (Profunctor (..), Bifunctor (..), Category)
 #endif
 
-import Circuit.Trace (Trace (..), realise)
+import Circuit.Trace (Channelled (..), Trace (..), run)
 import Circuit.Traced
 
 -- ===========================================================================
@@ -75,7 +75,7 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the braid supplied by the 'Braided' instance.
 ambient ::
-  (Category arr, Profunctor arr, Traced arr t, Braided t) =>
+  (Profunctor arr, Traced arr t, Braided t) =>
   Trace t arr a b -> Trace t arr (t s a) (t s b)
 ambient = ambientBy braid
 
@@ -185,22 +185,21 @@ coreleaseR _ (Left a) = Left a
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
 -- @\(x, (s, a)) -> (s, (x, a))@.
 --
--- >>> import Circuit.Trace (Trace(..), realise)
+-- >>> import Circuit.Trace (Trace(..), run)
 -- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> Circuit.Trace.realise (ambientBy braid (Lift (+1) :: Trace (,) (->) Int Int)) ("st", 5)
+-- >>> Circuit.Trace.run (ambientBy braid (Arr (+1) :: Trace (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
 --
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> Circuit.Trace.realise (ambientBy braid (Trace (Lift step))) ("st", ())
+-- >>> Circuit.Trace.run (ambientBy braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Category arr, Profunctor arr, Traced arr t) =>
+  (Profunctor arr, Traced arr t) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
   Trace t arr a b ->
   Trace t arr (t s a) (t s b)
-ambientBy _br (Lift f) = Lift (untrace f)
-ambientBy br (Compose f g) = Compose (ambientBy br f) (ambientBy br g)
-ambientBy br (Trace k) = Trace (Lift (dimap br br (untrace (realise k))))
+ambientBy _br (Arr f) = Arr (untrace f)
+ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 
 -- ===========================================================================
 -- MonoidalP — parallel composition for product categories
@@ -231,9 +230,8 @@ instance MonoidalP (->) where
 
 -- | Lift 'MonoidalP' through 'Trace t'.
 --
--- Parallel composition reifies both sides, runs them in parallel at the
--- base arrow, and lifts the result.  This forgets interior 'Trace'
--- structure but preserves semantics.
-instance (MonoidalP arr, Traced arr t) => MonoidalP (Trace t arr) where
-  par f g = Lift (par (realise f) (realise g))
-  swap = Lift swap
+-- Parallel composition runs both sides at the base arrow and lifts the
+-- result. This forgets interior 'Trace' structure but preserves semantics.
+instance (MonoidalP arr, Traced arr t, Channelled arr t) => MonoidalP (Trace t arr) where
+  par f g = Arr (par (run f) (run g))
+  swap = Arr swap

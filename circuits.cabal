@@ -65,9 +65,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Action
     Circuit.Adjunction
-    Circuit.Channel
     Circuit.Trace
     Circuit.Signature
     Circuit.Classes

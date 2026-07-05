@@ -2,50 +2,50 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | The free traced monoidal category.
+-- | The free traced monoidal category, in existential normal form.
 --
--- @Trace t arr a b@ is the initial encoding of a traced monoidal category
--- over a base morphism @arr@ with a supplied tensor @t@ for the category. The three constructors encode:
+-- @Trace t arr a b@ is the free traced monoidal category over a base
+-- morphism @arr@ with tensor @t@. The two constructors encode:
 --
---   - `Lift`: embedding of a base arrow (strict monoidal functor)
---   - `Compose`: sequential composition (category structure)
---   - `Trace`: introduces a feedback channel (trace structure)
+--   * 'Arr' — a plain base arrow.
+--   * 'Knot' — a feedback loop with a hidden feedback channel.
 --
--- For example, a `Trace (,) (->)` is the initial traced monoidal cartesian category over Haskell functions.
+-- The laws of traced monoidal categories are performed by the 'Category'
+-- and 'Traced' instances, so every value is already in normal form: at most
+-- one 'Knot' at the top, over a base-arrow body. There is no separate
+-- quotient step and no "Mendler case" in an interpreter.
+--
+-- For example, a @Trace (,) (->)@ is the initial traced monoidal cartesian
+-- category over Haskell functions.
 --
 -- == Core Concepts
 --
--- * __Tensor__ (@t@): The bifunctor that pairs a feedback value with a payload
---   inside a 'Trace'. The two tensors provided are @(,)@ (simultaneous / lazy
---   sharing) and 'Either' (sequential / iteration).
+-- * __Tensor__ (@t@): The bifunctor that pairs a feedback value with a payload.
+--   The two tensors provided are @(,)@ (simultaneous / lazy sharing) and
+--   'Either' (sequential / iteration).
 --
 -- * __Feedback value__: The component that travels around the loop (the first
---   parameter of the tensor inside a 'Trace').
+--   parameter of the tensor inside a 'Knot' body).
 --
--- * __Payload__: The component that is transformed and emitted by the circuit
---   (the second parameter of the tensor).
+-- * __Payload__: The component that is transformed and emitted (the second
+--   parameter of the tensor inside a 'Knot' body).
 --
--- * __Feedback channel__: The path the feedback value takes when it is routed
---   back into the next step of the computation. In a 'Trace' the channel type
---   is carried by the tensor @t@.
---
--- These concepts are independent of any particular base arrow @arr@. They
--- describe the structure of feedback itself.
---
--- The 'realise' function interprets any 'Trace' to a plain arrow via
--- the 'Trace' class instance on @t@. For encoding into 'Circuit.Hyper', see
--- 'Circuit.Hyper.encode' and 'Circuit.Hyper.encodeEither'.
+-- * __Feedback channel__: The hidden type @s@ in a 'Knot'. It is the value
+--   the abstraction hides.
 module Circuit.Trace
   ( -- * Trace
     Trace (..),
+
+    -- * Channel plumbing
+    Channelled (..),
 
     -- * Type aliases
     Wire,
     Step,
 
     -- * Interpreters
-    realise,
-    freeze,
+    run,
+    foldTrace,
 
     -- * Channel ends
     Co (..),
@@ -54,7 +54,6 @@ module Circuit.Trace
   )
 where
 
-import Circuit.Free qualified as F
 import Circuit.Traced
 import Prelude hiding (id, (.))
 
@@ -67,131 +66,131 @@ import Circuit.Classes
 #endif
 
 -- $setup
--- >>> import Circuit.Free qualified as F
 -- >>> import Control.Category ((>>>))
 -- >>> import Data.Profunctor (dimap)
 -- >>> import Prelude hiding (id, (.))
 
--- | The free traced monoidal category over base morphism @arr@ and tensor @t@.
+-- | The free traced monoidal category over base morphism @arr@ and tensor @t@,
+-- in existential normal form.
 --
--- Three constructors:
+-- Two constructors:
 --
---   * 'Lift' — embed a base arrow.
---   * 'Compose' — sequential composition.
---   * 'Trace' — feedback loop via the tensor.
+--   * 'Arr' — a plain base arrow.
+--   * 'Knot' — a feedback loop with hidden channel @s@.
 data Trace t arr a b where
-  -- | Lift embeds a base arrow (strict monoidal functor).
+  -- | A plain base arrow.
   --
-  -- >>> realise (Lift (+1) :: Trace (,) (->) Int Int) 5
+  -- >>> run (Arr (+1) :: Trace (,) (->) Int Int) 5
   -- 6
-  Lift :: arr a b -> Trace t arr a b
-  -- | Compose performs sequential composition (category structure).
+  Arr :: arr a b -> Trace t arr a b
+  -- | Tie a feedback loop. The tensor @t@ carries the hidden channel type @s@.
   --
-  -- >>> realise (Lift (+1) >>> Lift (*2) :: Trace (,) (->) Int Int) 5
-  -- 12
-  Compose :: Trace t arr b c -> Trace t arr a b -> Trace t arr a c
-  -- | Trace ties a feedback loop. The tensor @t@ carries the channel type.
-  -- The body is a 'Trace' so the loop wiring is inspectable before
-  -- 'realise' closes it.
-  --
-  -- >>> realise (Trace (Lift (\(acc, x) -> (x, acc))) :: Trace (,) (->) Int Int) 42
+  -- >>> run (Knot (\(acc, x) -> (x, acc)) :: Trace (,) (->) Int Int) 42
   -- 42
-  Trace :: Trace t arr (t a b) (t a c) -> Trace t arr b c
+  Knot :: arr (t s a) (t s b) -> Trace t arr a b
+
+-- | Channel plumbing for feedback fusion. Provides associativity and braiding
+-- of the tensor @t@ at the arrow level.
+class (Bifunctor t) => Channelled arr t where
+  -- | Reassociate a nested channel to the right: @t (t s s') x -> t s (t s' x)@.
+  assocC :: arr (t (t s s') x) (t s (t s' x))
+  -- | Inverse reassociation: @t s (t s' x) -> t (t s s') x@.
+  assocC' :: arr (t s (t s' x)) (t (t s s') x)
+  -- | Swap the two channel positions, leaving the payload in place:
+  -- @t s (t s' x) -> t s' (t s x)@.
+  braidC :: arr (t s (t s' x)) (t s' (t s x))
+
+-- | Cartesian channel plumbing.
+instance Channelled (->) (,) where
+  assocC ((s, s'), x) = (s, (s', x))
+  assocC' (s, (s', x)) = ((s, s'), x)
+  braidC (s, (s', x)) = (s', (s, x))
+
+-- | Cocartesian channel plumbing.
+instance Channelled (->) Either where
+  assocC = coassoc'
+  assocC' = coassoc
+  braidC = braid
+    where
+      braid (Left x) = Right (Left x)
+      braid (Right (Left y)) = Left y
+      braid (Right (Right z)) = Right (Right z)
+
+-- | Coassociativity for sums: @Either s (Either s' x) -> Either (Either s s') x@.
+coassoc :: Either s (Either s' x) -> Either (Either s s') x
+coassoc (Left s) = Left (Left s)
+coassoc (Right (Left s')) = Left (Right s')
+coassoc (Right (Right x)) = Right x
+
+-- | Inverse coassociativity for sums.
+coassoc' :: Either (Either s s') x -> Either s (Either s' x)
+coassoc' (Left (Left s)) = Left s
+coassoc' (Left (Right s')) = Right (Left s')
+coassoc' (Right x) = Right (Right x)
 
 -- | A traced circuit over plain functions with the cartesian tensor.
---
--- @Wire a b = Trace (,) (->) a b@
---
--- The @(,)@ tensor ties a lazy knot: output and feedback are produced
--- simultaneously.
 type Wire = Trace (,) (->)
 
 -- | A traced circuit over plain functions with the cocartesian tensor.
---
--- @Step a b = Trace Either (->) a b@
---
--- The @Either@ tensor iterates: @Left@ feeds back (continue),
--- @Right@ terminates (exit).
 type Step = Trace Either (->)
 
-instance (Category arr) => Category (Trace t arr) where
-  id = Lift id
-  (.) = Compose
+instance (Category arr, Traced arr t, Channelled arr t) => Category (Trace t arr) where
+  id = Arr id
+  Arr f . Arr g = Arr (f . g)
+  Knot f . Arr g = Knot (f . untrace g)
+  Arr f . Knot g = Knot (untrace f . g)
+  Knot f . Knot g =
+    Knot (assocC' . braidC . untrace f . braidC . untrace g . assocC)
 
-instance Functor (Trace t (->) a) where
-  fmap f = Compose (Lift f)
-
--- | Profunctor instance for Circuit.
---
--- Maps over both ends of the arrow. For @Compose@, the map is applied
--- to the input of the left sub-circuit and the output of the right
--- sub-circuit, leaving the intermediate type aligned.
---
--- >>> realise (dimap (+ 1) (+ 1) (Lift (* 2) :: Trace (,) (->) Int Int)) 5
--- 13
 instance (Profunctor arr, Bifunctor t) => Profunctor (Trace t arr) where
-  dimap f g (Lift h) = Lift (dimap f g h)
-  dimap f g (Compose h k) = Compose (dimap id g h) (dimap f id k)
-  dimap f g (Trace k) = Trace (dimap (second f) (second g) k)
-  lmap f (Lift h) = Lift (lmap f h)
-  lmap f (Compose h k) = Compose (lmap id h) (lmap f k)
-  lmap f (Trace k) = Trace (lmap (second f) k)
-  rmap g (Lift h) = Lift (rmap g h)
-  rmap g (Compose h k) = Compose (rmap g h) (rmap id k)
-  rmap g (Trace k) = Trace (rmap (second g) k)
+  dimap f g (Arr h) = Arr (dimap f g h)
+  dimap f g (Knot h) = Knot (dimap (second f) (second g) h)
+  lmap f (Arr h) = Arr (lmap f h)
+  lmap f (Knot h) = Knot (lmap (second f) h)
+  rmap g (Arr h) = Arr (rmap g h)
+  rmap g (Knot h) = Knot (rmap (second g) h)
 
--- | Dissolve 'Trace' into 'Lift' by calling 'trace' on the base arrow.
+instance (Bifunctor t) => Functor (Trace t (->) a) where
+  fmap f (Arr g) = Arr (f . g)
+  fmap f (Knot g) = Knot (second f . g)
+
+-- | Lift the 'Traced' class through 'Trace t'.
 --
--- This is the first-stage interpreter: 'Trace' → 'Free'.  The Mendler
--- case (@'Compose' ('Trace' f) g@) slides @g@ inside the trace, enforcing
--- the sliding axiom of traced monoidal categories.
+-- 'trace' hides a wire as a 'Knot'; 'untrace' exposes it.
+instance (Category arr, Traced arr t, Channelled arr t) => Traced (Trace t arr) t where
+  trace (Arr f) = Knot f
+  trace (Knot f) = Knot (assocC' . f . assocC)
+  untrace (Arr f) = Arr (untrace f)
+  untrace (Knot f) = Knot (braidC . untrace f . braidC)
+
+-- | Interpret a 'Trace' to a plain arrow.
 --
--- 'realise' factors through 'freeze': @'realise' = 'F.runFree' . 'freeze'@.
+-- This is the canonical fold out of the free traced monoidal category.
+-- It calls the base arrow's 'trace' exactly once, in the 'Knot' case.
 --
--- >>> F.runFree (freeze (Lift (+1) :: Trace (,) (->) Int Int)) 5
+-- >>> run (Arr (+1) :: Trace (,) (->) Int Int) 5
 -- 6
---
--- >>> F.runFree (freeze (Trace (Lift (\(acc, x) -> (x, acc))) :: Trace (,) (->) Int Int)) 42
--- 42
-freeze :: (Category arr, Traced arr t) => Trace t arr a b -> F.Free arr a b
-freeze = \case
-  Lift f -> F.Lift f
-  Compose (Trace f) g ->
-    F.Lift (trace (F.runFree (freeze f) . untrace (F.runFree (freeze g))))
-  Compose f g -> F.Compose (freeze f) (freeze g)
-  Trace k -> F.Lift (trace (F.runFree (freeze k)))
+run :: Traced arr t => Trace t arr a b -> arr a b
+run (Arr f) = f
+run (Knot f) = trace f
 
--- | Interpret a Trace to a plain arrow.
+-- | Universal fold from the free traced monoidal category.
 --
--- This is the canonical map out of the free (initial) traced monoidal
--- category.  The interesting case is when a @Trace@ appears on the left
--- of a @Compose@: this is exactly where the sliding axiom of traced
--- monoidal categories is enforced (the Mendler case).
---
--- @'realise' = 'F.runFree' . 'freeze'@ — first dissolve 'Trace' into 'Free',
--- then fold to a plain arrow.
---
--- >>> realise (Lift (+1) :: Trace (,) (->) Int Int) 5
--- 6
-realise :: (Category arr, Traced arr t) => Trace t arr x y -> arr x y
-realise = F.runFree . freeze
-
--- | Lift the 'Trace' class through 'Trace t'.
---
--- A loop body in @Trace t arr@ is reified before calling the base 'trace'.
-instance (Category arr, Traced arr t) => Traced (Trace t arr) t where
-  trace body = Lift (trace (realise body))
-  untrace f = Lift (untrace (realise f))
+-- Every interpreter out of 'Trace' is an instance of this fold.
+-- 'run' is @foldTrace id@.
+foldTrace ::
+  (Traced arr' t) =>
+  (forall x y. arr x y -> arr' x y) ->
+  Trace t arr a b ->
+  arr' a b
+foldTrace h (Arr f) = h f
+foldTrace h (Knot f) = trace (h f)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
 
 -- | 'Co' is the companion of the identity functor in the proarrow equipment
 -- over 'Trace'.  Covariant in @a@ (sits in the output position).
---
--- Given a 'Contra' (the other end), produce a circuit from any @x@ to @a@.
--- The @x@ is universally quantified — 'Co' must either return a constant
--- or call the other end.
 newtype Co arr t a = Co
   { -- | Run the companion, supplying the other end.
     runContra :: forall x. Contra arr t x -> Trace t arr x a
@@ -199,20 +198,11 @@ newtype Co arr t a = Co
 
 -- | 'Contra' is the conjoint of the identity functor.  Contravariant in
 -- @a@ (sits in the input position).
---
--- Given a 'Co' (the other end), produce a circuit from @a@ to any @x@.
--- The @x@ is universally quantified — 'Contra' must call the other end
--- to determine what to return.
 newtype Contra arr t a = Contra
   { -- | Run the conjoint, supplying the other end.
     runCo :: forall x. Co arr t x -> Trace t arr a x
   }
 
--- | @ε@ — the counit of the companion/conjoint adjunction.
---
--- Plug two channel ends together, producing a circuit from @a@ to @a@.
--- This is the yanking identity: eliminating the ends recovers the
--- underlying profunctor on the diagonal.
+-- | Plug two channel ends together, producing a circuit from @a@ to @a@.
 close :: Contra arr t a -> Co arr t a -> Trace t arr a a
-{- HLINT ignore close "Eta reduce" -}
 close contra = runCo contra

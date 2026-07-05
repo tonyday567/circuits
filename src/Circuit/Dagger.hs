@@ -35,13 +35,14 @@ module Circuit.Dagger
   )
 where
 
-#if __GLASGOW_HASKELL__ >= 910
+#ifdef __GLASGOW_HASKELL__
 import Control.Category
 #else
 import Circuit.Classes
 #endif
 
 import Circuit.Monoidal (MonoidalP (..))
+import Circuit.Trace (Channelled (..))
 import Circuit.Traced
 import Prelude hiding (Monoid, id, (.))
 
@@ -141,10 +142,11 @@ instance (Monoid (->) a, Monoid (->) b) => Monoid (->) (a, b) where
   zero u = (zero u, zero u)
   {-# INLINE zero #-}
 
--- | Lists via elementwise 'plus', padded with 'zero'.  Stream cotangents.
+-- | Lists via elementwise 'plus', padded with 'zero'.
 --
 -- For lists of unequal length, the shorter list is implicitly extended
--- with 'zero' — the cotangent of an absent value makes no contribution.
+-- with the element 'zero' — the cotangent of an absent value makes no
+-- contribution. The unit is the empty list.
 --
 -- >>> plus ([1, 2], [3, 4, 5]) :: [Int]
 -- [4,6,5]
@@ -158,7 +160,7 @@ instance (Monoid (->) a) => Monoid (->) [a] where
       go (x : xs') [] = plus (x, zero ()) : go xs' []
       go (x : xs') (y : ys') = plus (x, y) : go xs' ys'
   {-# INLINE plus #-}
-  zero _ = repeat (zero ())
+  zero _ = []
   {-# INLINE zero #-}
 
 -- ---------------------------------------------------------------------------
@@ -260,3 +262,9 @@ instance (MonoidalP arr) => MonoidalP (Dagger arr) where
   {-# INLINE par #-}
   swap = Dagger swap swap
   {-# INLINE swap #-}
+
+-- | Lift cartesian channel plumbing through 'Dagger'.
+instance (Channelled arr (,)) => Channelled (Dagger arr) (,) where
+  assocC = Dagger assocC assocC'
+  assocC' = Dagger assocC' assocC
+  braidC = Dagger braidC braidC

@@ -4,9 +4,9 @@
 -- | The free category over a base arrow — just 'Lift' and 'Compose'.
 --
 -- 'Free' is 'Trace' without the knot constructor.  Where 'Trace' is the free /traced/
--- category, 'Free' is the free category.  The 'freeze' interpreter in
--- "Circuit.Trace" dissolves 'Trace' into a 'Lift' by calling 'trace'
--- on the base arrow, making the decomposition 'realise' = 'runFree' . 'freeze'.
+-- category, 'Free' is the free category.  The universal fold out of 'Free'
+-- is 'runFree'; it is also the 'rightAdjunct' of the 'FreeLayer' instance
+-- in "Circuit.Adjunction".
 module Circuit.Free
   ( Free (..),
     runFree,

@@ -21,7 +21,7 @@ module Circuit.Hyper
     lower,
     base,
     push,
-    run,
+    runHyper,
 
     -- * Encoding
     encode,
@@ -33,7 +33,7 @@ module Circuit.Hyper
 where
 
 import Circuit.Free qualified as F
-import Circuit.Trace (Trace (..), freeze, realise)
+import Circuit.Trace (Trace (..))
 import Circuit.Traced
 import Prelude hiding (id, (.))
 
@@ -49,7 +49,7 @@ import Circuit.Classes
 -- >>> import Control.Category
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Traced (Traced (..))
--- >>> import Circuit.Trace (Trace (..), realise)
+-- >>> import Circuit.Trace (Trace (..), run)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -66,7 +66,7 @@ import Circuit.Classes
 -- >>> lower (lift (+1)) 41
 -- 42
 --
--- >>> run (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
+-- >>> runHyper (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
 -- 1
 newtype Hyper a b = Hyper
   { -- | Feed a continuation of type @Hyper b a@ into the hyperfunction.
@@ -117,16 +117,16 @@ push f h = Hyper (\k -> f (invoke k h))
 
 -- | Close the self-referential loop.
 --
--- @run h@ feeds the hyperfunction back into itself, tying the knot.
+-- @runHyper h@ feeds the hyperfunction back into itself, tying the knot.
 -- This is the fundamental way to eliminate a 'Hyper'.
 --
--- >>> run (Hyper $ \_ -> 42 :: Int)
+-- >>> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
 --
--- >>> run (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
+-- >>> runHyper (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
 -- 1
-run :: Hyper a a -> a
-run h = invoke h (Hyper run)
+runHyper :: Hyper a a -> a
+runHyper h = invoke h (Hyper runHyper)
 
 -- * Properties
 
@@ -175,13 +175,11 @@ instance Traced Hyper (,) where
 -- | Encode a 'Free' into a 'Hyper'.
 --
 -- The lift of the canonical fold 'runFree' into the final encoding.
--- Only needs 'Lift' and 'Compose' — trace structure is handled by 'freeze'.
 --
 -- Law: @'lower' . 'encodeFree' = 'F.runFree'@ — the two interpreters
 -- from 'Free' agree.
 --
 -- >>> import Circuit.Free qualified as F
--- >>> import Circuit.Trace (freeze)
 -- >>> lower (encodeFree (F.Lift (+1))) 5
 -- 6
 encodeFree :: F.Free (->) a b -> Hyper a b
@@ -192,17 +190,14 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 --
 -- This is the unique traced functor from the initial object (Trace)
 -- to the final object (Hyper), satisfying the commuting triangle
--- @'lower' . 'encode' = 'realise'@.
+-- @'lower' . 'encode' = 'run'@.
 --
--- Factors through 'Free': @'encode' = 'encodeFree' . 'freeze'@.
--- 'freeze' dissolves knot constructors into 'Lift' via the base arrow's 'trace';
--- 'encodeFree' lifts the two constructors into Hyper.
---
--- >>> import Circuit.Trace (Trace (..), realise)
--- >>> lower (encode (Lift (+1) :: Trace (,) (->) Int Int)) 5
+-- >>> import Circuit.Trace (Trace (..), run)
+-- >>> lower (encode (Arr (+1) :: Trace (,) (->) Int Int)) 5
 -- 6
 encode :: Trace (,) (->) a b -> Hyper a b
-encode = encodeFree . freeze
+encode (Arr f) = lift f
+encode (Knot f) = trace (lift f)
 
 -- | Encode an Either-loop as a self-referential Hyper.
 --
@@ -233,8 +228,8 @@ encodeEither f = h
 
 -- | Run an 'encodeEither'-encoded circuit from initial input @b@.
 --
--- @runEither@ is to @encodeEither@ what @run . lift@ is to plain functions:
--- 'encodeEither' embeds the Either state machine into Hyper, @run@ ties the
+-- @runEither@ is to @encodeEither@ what @runHyper . lift@ is to plain functions:
+-- 'encodeEither' embeds the Either state machine into Hyper, @runHyper@ ties the
 -- self-referential knot, and @Right b@ injects the initial state.
 --
 -- >>> :{
@@ -248,7 +243,7 @@ encodeEither f = h
 -- >>> runEither step (0 :: Int)
 -- 3
 runEither :: (Either a b -> Either a c) -> b -> c
-runEither f b = run (encodeEither f) (Right b)
+runEither f b = runHyper (encodeEither f) (Right b)
 
 -- | Flatten a Hyper to a Trace by observing it.
 --
@@ -256,7 +251,7 @@ runEither f b = run (encodeEither f) (Right b)
 -- All feedback structure is lost; only the observable behaviour remains.
 --
 -- >>> let h = lift (+ 1)
--- >>> realise (flatten h) 5
+-- >>> run (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:
@@ -265,7 +260,7 @@ runEither f b = run (encodeEither f) (Right b)
 -- >>> lower (encode (flatten h)) 5
 -- 6
 flatten :: Hyper a b -> Trace (,) (->) a b
-flatten h = Lift (lower h)
+flatten h = Arr (lower h)
 
 -- * Instances
 

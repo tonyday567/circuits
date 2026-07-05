@@ -20,17 +20,17 @@ type T = (,)
 
 circuits :: [C.Trace T Arr Int Int]
 circuits =
-  [ C.Lift (+1),
-    C.Lift (*2),
-    C.Compose (C.Lift (*2)) (C.Lift (+1)),
-    C.Trace (C.Lift (\(acc, x) -> (x, acc + x)))
+  [ C.Arr (+1),
+    C.Arr (*2),
+    C.Arr (*2) . C.Arr (+1),
+    C.Knot (\(acc, x) -> (x, acc + x))
   ]
 
 prop_circuit_direct_roundtrip :: Property
 prop_circuit_direct_roundtrip =
   conjoin
     [ forAll arbitrary $ \x ->
-        C.realise (sigToTrace (traceToSig c)) x == C.realise c x
+        C.run (sigToTrace (traceToSig c)) x == C.run c x
       | c <- circuits
     ]
 
@@ -57,7 +57,7 @@ nets =
   [ N.Lift (+1),
     N.Compose (N.Lift (*2)) (N.Lift (+1)),
     N.Compose N.Plus (N.Compose (N.Par (N.Lift (*2)) (N.Lift (+3))) N.Copy),
-    N.Trace (N.Lift (\(acc, x) -> (x, acc + x)))
+    N.Knot (N.Lift (\(acc, x) -> (x, acc + x)))
   ]
 
 prop_net_direct_roundtrip :: Property

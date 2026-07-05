@@ -15,24 +15,24 @@ import Control.Category ((>>>))
 import Data.Bool (bool)
 import System.IO (Handle, IOMode(ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
-openf = Lift (Kleisli (\fp -> openFile fp ReadMode))
-       -- Trace (Kleisli IO) t FilePath Handle
+openf = Arr (Kleisli (\fp -> openFile fp ReadMode))
+       -- Trace Either (Kleisli IO) FilePath Handle
 
-countLines = Trace (Kleisli step)
+countLines = Knot (Kleisli step)
   where
     step (Left (h, n)) = hIsEOF h >>= bool
       (hGetLine h >> pure (Left (h, n + 1)))
       (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
-       -- Trace (Kleisli IO) Either Handle (Handle, Int)
+       -- Trace Either (Kleisli IO) Handle (Handle, Int)
 
-pipeline = openf >>> countLines >>> Lift (Kleisli (\(h, n) -> hClose h >> pure n))
-         -- Trace (Kleisli IO) Either FilePath Int
+pipeline = openf >>> countLines >>> Arr (Kleisli (\(h, n) -> hClose h >> pure n))
+         -- Trace Either (Kleisli IO) FilePath Int
 
--- paste into ghci:  runKleisli (realise pipeline) "readme.md"
+-- paste into ghci:  runKleisli (run pipeline) "readme.md"
 ```
 
-Three constructors. `Lift` wraps a plain function. `Compose` (written `>>>`) sequences them. `Trace` ties feedback — `Left` continues the loop, `Right` exits.
+Two constructors. `Arr` wraps a plain function; sequential composition is `(.)` or `(>>>)`. `Knot` ties feedback — `Left` continues the loop, `Right` exits.
 
 ## two flavours of feedback
 
@@ -47,8 +47,8 @@ Same `Trace` constructor. Different tensor, different universe. The library trea
 
 ```haskell
 -- Lazy streaming with (,):
-powers = Trace (Lift (\(ns, ()) -> (1 : map (*2) ns, take 5 ns)))
-realise powers ()  -- [1,2,4,8,16]
+powers = Knot (\(ns, ()) -> (1 : map (*2) ns, take 5 ns))
+run powers ()  -- [1,2,4,8,16]
 
 -- Iteration with Either:
 step n = if n < 5 then Left (n + 1) else Right n

@@ -26,9 +26,9 @@
 -- === Switching between representations
 --
 -- 'Trace' is the inspectable GADT form. 'Hyper' is the efficient final
--- encoding. Convert with 'encode' and 'realise'.
+-- encoding. Convert with 'encode' and 'run'.
 --
--- >>> lower (encode (Lift (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> lower (encode (Arr (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
@@ -65,14 +65,24 @@ module Circuit
     Co (..),
     Contra (..),
     close,
-    realise,
-    freeze,
+    run,
+    foldTrace,
+    Channelled (..),
     trace,
     untrace,
 
     -- * Free
     Free,
     runFree,
+
+    -- * Adjunction tower
+    FreeLayer (..),
+    Cat2,
+    (:~>),
+    leftAdjunct,
+    realise,
+    hoist,
+    join,
 
     -- * Dagger (bimonoid + dagger)
     Monoid (..),
@@ -93,7 +103,7 @@ module Circuit
     lower,
     base,
     push,
-    run,
+    runHyper,
     encode,
     encodeEither,
     encodeFree,
@@ -122,6 +132,15 @@ module Circuit
   )
 where
 
+import Circuit.Adjunction
+  ( Cat2,
+    FreeLayer (..),
+    hoist,
+    join,
+    leftAdjunct,
+    realise,
+    (:~>),
+  )
 import Circuit.Dagger
   ( Bimonoid,
     Comonoid (..),
@@ -143,27 +162,10 @@ import Circuit.Hyper
     lift,
     lower,
     push,
-    run,
+    runHyper,
     runEither,
   )
 import Circuit.Monoidal
-  ( Braided (..),
-    MonoidalP (..),
-    absorb,
-    ambient,
-    ambientBy,
-    assoc,
-    assoc',
-    coabsorbL,
-    coabsorbR,
-    coassoc,
-    coassoc',
-    coreleaseL,
-    coreleaseR,
-    coseed,
-    release,
-    seed,
-  )
 import Circuit.Net
   ( Net,
     enrich,
@@ -171,14 +173,15 @@ import Circuit.Net
     weave,
   )
 import Circuit.Trace
-  ( Co (..),
+  ( Channelled (..),
+    Co (..),
     Contra (..),
     Step,
     Trace (..),
     Wire,
     close,
-    freeze,
-    realise,
+    foldTrace,
+    run,
   )
 import Circuit.Traced (trace, untrace)
 import Circuit.Traced qualified as Traced

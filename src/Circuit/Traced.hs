@@ -115,7 +115,8 @@ class Traced arr t where
 --
 -- Only works in a lazy setting — the feedback value is a self-referential
 -- thunk.  In a strict language this binding is circular and divergent.
--- Haskell's lazy evaluation makes cyclic sharing possible without
+-- Haskell's lazy evaluation makes cyclic sharing possible without an
+-- explicit fixpoint operator.
 --
 -- >>> :{
 -- let powers (ns, ()) =

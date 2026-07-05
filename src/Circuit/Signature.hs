@@ -271,23 +271,27 @@ sigMelt = foldInto Lift
 
 -- | Embed the direct 'C.Trace' GADT into the signature-based form.
 traceToSig :: forall t arr a b. C.Trace t arr a b -> SigTrace t arr a b
-traceToSig (C.Lift f) = Lift f
-traceToSig (C.Compose g f) = Op (L (SigCompose (traceToSig g) (traceToSig f)))
-traceToSig (C.Trace f) = Op (R (SigKnot (traceToSig f)))
+traceToSig (C.Arr f) = Lift f
+traceToSig (C.Knot f) = Op (R (SigKnot (Lift f)))
 
 -- | Project the signature-based circuit back to the direct GADT.
-sigToTrace :: forall t arr a b. SigTrace t arr a b -> C.Trace t arr a b
-sigToTrace = go
+--
+-- 'SigCompose' nodes are interpreted using the 'Category' instance of
+-- 'C.Trace', so the result is in normal form (at most one 'C.Knot').
+sigToTrace ::
+  forall t arr a b.
+  (Category arr, Traced arr t, C.Channelled arr t) =>
+  SigTrace t arr a b ->
+  C.Trace t arr a b
+sigToTrace (Lift f) = C.Arr f
+sigToTrace (Op op) = go op
   where
-    go :: forall x y. SigTrace t arr x y -> C.Trace t arr x y
-    go (Lift f) = C.Lift f
-    go (Op op) = goOp op
-
-    goOp :: forall x y. (SigCompose :+: SigKnot t) arr (SigTrace t arr) x y -> C.Trace t arr x y
-    goOp (L sc) = case sc of
-      SigCompose g f -> C.Compose (go g) (go f)
-    goOp (R sk) = case sk of
-      SigKnot f -> C.Trace (go f)
+    go ::
+      forall x y.
+      (SigCompose :+: SigKnot t) arr (SigTrace t arr) x y ->
+      C.Trace t arr x y
+    go (L (SigCompose g f)) = sigToTrace g . sigToTrace f
+    go (R (SigKnot f)) = C.Knot (C.run (sigToTrace f))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 netToSig :: forall t arr a b. N.Net t arr a b -> SigNet t arr a b
@@ -299,7 +303,7 @@ netToSig N.Copy = Op (R (R (R (R SigCopy))))
 netToSig N.Discard = Op (R (R (R (R SigDiscard))))
 netToSig N.Plus = Op (R (R (R (R SigPlus))))
 netToSig N.Zero = Op (R (R (R (R SigZero))))
-netToSig (N.Trace f) = Op (R (L (SigKnot (netToSig f))))
+netToSig (N.Knot f) = Op (R (L (SigKnot (netToSig f))))
 
 -- | Project the signature-based Net back to the direct GADT.
 sigToNet :: forall t arr a b. SigNet t arr a b -> N.Net t arr a b
@@ -321,7 +325,7 @@ sigToNet = goTop
     goKnotOrMore (R rest) = goParOrMore rest
 
     goKnot :: forall x y. SigKnot t arr (SigNet t arr) x y -> N.Net t arr x y
-    goKnot (SigKnot f) = N.Trace (goTop f)
+    goKnot (SigKnot f) = N.Knot (goTop f)
 
     goParOrMore :: forall x y. (SigPar :+: SigSwap :+: SigBimonoid) arr (SigNet t arr) x y -> N.Net t arr x y
     goParOrMore (L sp) = goPar sp
