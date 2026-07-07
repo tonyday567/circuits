@@ -76,6 +76,7 @@ library
     Circuit.Monoidal
     Circuit.Monoidal.Category
     Circuit.Net
+    Circuit.Poly
 
   build-depends:
     base >=4.18 && <5
