@@ -240,7 +240,7 @@ sift = bind unit
 -- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
-  (Traced t arr, Action (,) arr) =>
+  (Traced t arr, Action (,) arr, Action (,) (C.Trace t arr)) =>
   Net t arr a b ->
   C.Trace t arr a b
 melt (Lift f) = C.Arr f

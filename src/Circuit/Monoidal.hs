@@ -42,6 +42,11 @@ import Circuit.Layer (run)
 import Circuit.Monoidal.Category qualified as MC
 import Circuit.Trace (Trace (..), Traced (..))
 
+-- $setup
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Trace (Trace (..))
+-- >>> import Prelude hiding (id, (.))
+
 -- ===========================================================================
 -- BRAIDING
 -- ===========================================================================
@@ -279,19 +284,22 @@ instance Action Either (->) where
 -- >>> let k2 = Circuit.Trace.Knot (\(ns, _) -> (2 : ns, take 3 ns))
 -- >>> Circuit.Layer.run (par k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
+-- >>> case par k1 k2 :: Trace (,) (->) ([Int], [Int]) ([Int], [Int]) of Knot _ -> "fused"; Arr _ -> "melted"
+-- "fused"
 instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
   par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
     where
       pre = MC.assoc >>> untrace MC.braid >>> MC.assoc'
       post = MC.assoc >>> untrace MC.braid >>> MC.assoc'
+  par (Knot f) (Arr g) = Knot (MC.assoc' >>> par f g >>> MC.assoc)
+  par (Arr f) (Knot g) = Knot (MC.braid >>> par f g >>> MC.braid)
   par (Arr f) (Arr g) = Arr (par f g)
-  par f g = Arr (par (run f) (run g))
   swap = Arr swap
 
 -- | Lift 'Action' through 'Trace' when tensors differ.
 --
 -- Falls back to independent evaluation — 'trace' is called once per
 -- branch.  Correct and black-hole-free, but doesn't fuse the loops.
-instance {-# INCOHERENT #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
+instance {-# OVERLAPPABLE #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
   par f g = Arr (par (run f) (run g))
   swap = Arr swap
