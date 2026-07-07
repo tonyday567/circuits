@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
 
 -- | Sketch: the category Poly.
 --
@@ -23,6 +22,15 @@
 -- Morphisms are natural transformations between the induced polynomial
 -- functors, equivalently bundle maps (positions forward, directions
 -- backward).
+--
+-- Two extra constructors make dependent lenses expressible:
+--
+-- * 'Konst' introduces a global element (a constant position).
+-- * 'Depend' is the copower universal property: a @Const a@-indexed family
+--   of morphisms @p -> q@.
+--
+-- With them, the general point-dependent lens @(get :: a -> b, put :: a -> db -> da)@
+-- is a two-line 'Morphism'.
 module Circuit.Poly
   ( -- * Polynomial expressions
     Poly (..),
@@ -31,6 +39,12 @@ module Circuit.Poly
     -- * Morphisms
     Morphism (..),
     runMorphism,
+
+    -- * Lenses
+    Mono,
+    lens,
+    dagger,
+    applyLens,
 
     -- * Dynamical systems
     System,
@@ -42,6 +56,10 @@ import Control.Category
 import Data.Bifunctor
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Circuit.Poly
+-- >>> import Prelude hiding (id, (.))
 
 -- | Syntactic polynomial objects, promoted to a kind.
 data Poly = Y
@@ -77,6 +95,9 @@ instance Functor (Eval p) where
 -- By the Yoneda / sigma universal property, this is equivalent to a
 -- bundle map: a function on positions together with a contravariant
 -- family of functions on directions.
+--
+-- 'Konst' and 'Depend' extend the original Poly sketch so that backward
+-- maps can depend on the current position, giving point-dependent lenses.
 data Morphism (p :: Poly) (q :: Poly) where
   -- | Identity morphism.
   Id :: Morphism p p
@@ -98,6 +119,10 @@ data Morphism (p :: Poly) (q :: Poly) where
   Snd :: Morphism ('Prod p q) q
   -- | Product pairing.
   Pair :: Morphism r p -> Morphism r q -> Morphism r ('Prod p q)
+  -- | Global element (constant introduction).
+  Konst :: b -> Morphism p ('Const b)
+  -- | Copower universal property: a @Const a@-indexed family of morphisms.
+  Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Const a) p) q
 
 instance Category Morphism where
   id = Id
@@ -119,6 +144,37 @@ runMorphism = \case
   Fst -> \(EP (a, _)) -> a
   Snd -> \(EP (_, b)) -> b
   Pair f g -> \r -> EP (runMorphism f r, runMorphism g r)
+  Konst b -> \_ -> EK b
+  Depend k -> \(EP (EK a, p)) -> runMorphism (k a) p
+
+-- | The monomial interface: @a@ positions, @a'@ directions.
+type Mono a a' = 'Prod ('Const a) ('Exp a')
+
+-- | The general point-dependent lens.
+--
+-- Forward pass @get :: a -> b@; backward pass @put :: a -> db -> da@
+-- depends on the current position.
+--
+-- >>> let l = lens show (\n d -> n + d) :: Morphism (Mono Int Int) (Mono String Int)
+-- >>> let (v, put) = applyLens l 40 in (v, put 2)
+-- ("40",42)
+lens :: (a -> b) -> (a -> db -> da) -> Morphism (Mono a da) (Mono b db)
+lens f g = Depend (\a -> Pair (Konst (f a)) (ExpMap (g a)))
+
+-- | The position-independent dagger case.
+--
+-- Expressible without 'Konst' or 'Depend'.
+--
+-- >>> let d = dagger (+1) (subtract 1) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> let (v, put) = applyLens d 5 in (v, put 6)
+-- (6,5)
+dagger :: (a -> b) -> (db -> da) -> Morphism (Mono a da) (Mono b db)
+dagger f g = Pair (Compose (ConstMap f) Fst) (Compose (ExpMap g) Snd)
+
+-- | Apply a monomial morphism as a lens: @(get, put)@.
+applyLens :: Morphism (Mono a da) (Mono b db) -> a -> (b, db -> da)
+applyLens m a = case runMorphism m (EP (EK a, EE id)) of
+  EP (EK b, EE g) -> (b, g)
 
 -- | A dynamical system with interface @p@ and state type @s@.
 --
