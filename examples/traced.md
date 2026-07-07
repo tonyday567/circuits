@@ -9,7 +9,7 @@ arrows.
 ```haskell
 -- $setup
 -- >>> import Control.Arrow (Kleisli(..), right)
--- >>> import Circuit.Traced (Traced(..))
+-- >>> import Circuit.Trace (Traced(..))
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -104,7 +104,7 @@ traverse the output channel, pass the feedback channel through unchanged.
 The hand-written form and `right` from ArrowChoice produce the same
 results.  `right` pays an `arr` tax — two extra `pure` wrappers from
 `arr mirror` — but the semantics are identical.  The hand-written version
-in `Circuit.Traced` avoids that allocation.
+in `Circuit.Trace` avoids that allocation.
 
 ---
 

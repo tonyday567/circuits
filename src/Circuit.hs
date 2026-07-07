@@ -28,7 +28,7 @@
 -- 'Trace' is the inspectable GADT form. 'Hyper' is the efficient final
 -- encoding. Convert with 'encode' and 'run'.
 --
--- >>> lower (encode (Arr (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> observe (encode (Arr (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
@@ -38,7 +38,7 @@
 -- * 'Trace' (in "Circuit.Trace") — the initial, inspectable GADT encoding.
 -- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
 --
--- The 'Traced' class (in "Circuit.Traced") abstracts the choice of tensor,
+-- The 'Traced' class (in "Circuit.Trace") abstracts the choice of tensor,
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
@@ -60,28 +60,28 @@
 module Circuit
   ( -- * Trace
     Trace (..),
-    Wire,
-    Step,
+    Traced,
     Co (..),
     Contra (..),
     close,
-    run,
-    foldTrace,
-    Channelled (..),
+    -- | Close a feedback loop. See "Circuit.Trace".
     trace,
+    -- | Open a feedback loop. See "Circuit.Trace".
     untrace,
 
     -- * Free
     Free,
-    runFree,
 
-    -- * Adjunction tower
-    FreeLayer (..),
+    -- * Layer tower
+    Layer (..),
     Cat2,
+    NT,
+    HNT,
     (:~>),
-    leftAdjunct,
-    realise,
-    hoist,
+    (:~~>),
+    lower,
+    run,
+    hmap,
     join,
 
     -- * Dagger (bimonoid + dagger)
@@ -91,16 +91,18 @@ module Circuit
     Bimonoid,
     transpose,
 
+    -- * Mon
+    Mon,
+
     -- * Net
     Net,
     enrich,
-    weave,
     melt,
 
     -- * Hyper
     Hyper (..),
     lift,
-    lower,
+    observe,
     base,
     push,
     runHyper,
@@ -128,19 +130,10 @@ module Circuit
     ambientBy,
 
     -- * Monoidal product
-    MonoidalP (..),
+    Action (..),
   )
 where
 
-import Circuit.Adjunction
-  ( Cat2,
-    FreeLayer (..),
-    hoist,
-    join,
-    leftAdjunct,
-    realise,
-    (:~>),
-  )
 import Circuit.Dagger
   ( Bimonoid,
     Comonoid (..),
@@ -150,7 +143,6 @@ import Circuit.Dagger
   )
 import Circuit.Free
   ( Free,
-    runFree,
   )
 import Circuit.Hyper
   ( Hyper (..),
@@ -160,29 +152,44 @@ import Circuit.Hyper
     encodeFree,
     flatten,
     lift,
-    lower,
+    observe,
     push,
-    runHyper,
     runEither,
+    runHyper,
   )
+import Circuit.Layer
+  ( Cat2,
+    HNT,
+    Layer (..),
+    NT,
+    hmap,
+    join,
+    lower,
+    run,
+    (:~>),
+    (:~~>),
+  )
+import Circuit.Mon
 import Circuit.Monoidal
 import Circuit.Net
   ( Net,
     enrich,
     melt,
-    weave,
   )
 import Circuit.Trace
-  ( Channelled (..),
-    Co (..),
+  ( Co (..),
     Contra (..),
-    Step,
     Trace (..),
-    Wire,
+    Traced,
     close,
-    foldTrace,
-    run,
   )
-import Circuit.Traced (trace, untrace)
-import Circuit.Traced qualified as Traced
+import Circuit.Trace qualified as Trace
 import Prelude hiding (Monoid)
+
+-- | Close a feedback loop. See "Circuit.Trace".
+trace :: (Traced t arr) => arr (t a b) (t a c) -> arr b c
+trace = Trace.trace
+
+-- | Open a feedback loop. See "Circuit.Trace".
+untrace :: (Traced t arr) => arr b c -> arr (t a b) (t a c)
+untrace = Trace.untrace

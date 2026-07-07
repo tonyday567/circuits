@@ -26,20 +26,21 @@ module Circuit.Monoidal
     ambientBy,
 
     -- * Monoidal product on base arrows
-    MonoidalP (..),
+    Action (..),
   )
 where
 
 #ifdef __GLASGOW_HASKELL__
-import Control.Category (Category)
+import Control.Category (Category, (>>>))
 import Data.Profunctor (Profunctor, dimap)
 import Data.Bifunctor (Bifunctor (..))
 #else
-import Circuit.Classes (Profunctor (..), Bifunctor (..), Category)
+import Circuit.Classes (Profunctor (..), Bifunctor (..), Category, (>>>))
 #endif
 
-import Circuit.Trace (Channelled (..), Trace (..), run)
-import Circuit.Traced
+import Circuit.Layer (run)
+import Circuit.Monoidal.Category qualified as MC
+import Circuit.Trace (Trace (..), Traced (..))
 
 -- ===========================================================================
 -- BRAIDING
@@ -60,7 +61,7 @@ class (Bifunctor t) => Braided t where
 
 -- | Cartesian slide: @(x, (y, z)) -> (y, (x, z))@.
 instance Braided (,) where
-  braid (x, (y, z)) = (y, (x, z))
+  braid ~(x, ~(y, z)) = (y, (x, z))
 
 -- | Coproduct slide.
 --
@@ -75,7 +76,7 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the braid supplied by the 'Braided' instance.
 ambient ::
-  (Profunctor arr, Traced arr t, Braided t) =>
+  (Profunctor arr, Traced t arr, Braided t) =>
   Trace t arr a b -> Trace t arr (t s a) (t s b)
 ambient = ambientBy braid
 
@@ -85,11 +86,11 @@ ambient = ambientBy braid
 
 -- | Associator: @(a, (b, c)) -> ((a, b), c)@.
 assoc :: (a, (b, c)) -> ((a, b), c)
-assoc (a, (b, c)) = ((a, b), c)
+assoc ~(a, ~(b, c)) = ((a, b), c)
 
 -- | Inverse associator: @((a, b), c) -> (a, (b, c))@.
 assoc' :: ((a, b), c) -> (a, (b, c))
-assoc' ((a, b), c) = (a, (b, c))
+assoc' ~(~(a, b), c) = (a, (b, c))
 
 -- | Introduce a state wire alongside a payload.
 --
@@ -185,16 +186,17 @@ coreleaseR _ (Left a) = Left a
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
 -- @\(x, (s, a)) -> (s, (x, a))@.
 --
--- >>> import Circuit.Trace (Trace(..), run)
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Trace (Trace(..))
 -- >>> let braid (x, (s, a)) = (s, (x, a))
--- >>> Circuit.Trace.run (ambientBy braid (Arr (+1) :: Trace (,) (->) Int Int)) ("st", 5)
+-- >>> run (ambientBy braid (Arr (+1) :: Trace (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
 --
 -- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> Circuit.Trace.run (ambientBy braid (Knot step)) ("st", ())
+-- >>> run (ambientBy braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Profunctor arr, Traced arr t) =>
+  (Profunctor arr, Traced t arr) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
   Trace t arr a b ->
   Trace t arr (t s a) (t s b)
@@ -202,36 +204,94 @@ ambientBy _br (Arr f) = Arr (untrace f)
 ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 
 -- ===========================================================================
--- MonoidalP — parallel composition for product categories
+-- Action — tensor action on morphisms
 -- ===========================================================================
 
--- | A monoidal product on base arrows.
+-- | The action of a tensor @t@ on a category @arr@.
 --
--- 'par' composes two arrows in parallel (disjoint wires — no interaction,
--- so no 'Monoid' constraint).  'swap' is the symmetric braiding.
-class (Category arr) => MonoidalP arr where
+-- 'par' is the tensor product of morphisms (parallel composition on
+-- disjoint wires). 'swap' is the symmetry / braiding.
+--
+-- This is the self-action of a monoidal category: @t@ acts on @arr@
+-- by taking morphisms to morphisms over paired objects.
+class (Category arr) => Action t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
   -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
-  par :: arr a b -> arr c d -> arr (a, c) (b, d)
+  par :: arr a b -> arr c d -> arr (t a c) (t b d)
 
   -- | Symmetric braiding.
   --
   -- >>> swap (3, 4) :: (Int, Int)
   -- (4,3)
-  swap :: arr (a, b) (b, a)
+  swap :: arr (t a b) (t b a)
 
-instance MonoidalP (->) where
+instance Action (,) (->) where
   par f g (a, c) = (f a, g c)
   {-# INLINE par #-}
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
 
--- | Lift 'MonoidalP' through 'Trace t'.
+-- | Coproduct action on functions.
 --
--- Parallel composition runs both sides at the base arrow and lifts the
--- result. This forgets interior 'Trace' structure but preserves semantics.
-instance (MonoidalP arr, Traced arr t, Channelled arr t) => MonoidalP (Trace t arr) where
+-- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
+-- Left 4
+--
+-- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
+-- Right 6
+--
+-- >>> swap (Left 3 :: Either Int Int) :: Either Int Int
+-- Right 3
+instance Action Either (->) where
+  par f g = bimap f g
+  {-# INLINE par #-}
+  swap = \case
+    Left a -> Right a
+    Right b -> Left b
+  {-# INLINE swap #-}
+
+-- | Lift 'Action' through 'Trace' when the feedback tensor matches.
+--
+-- Two 'Knot's in parallel superpose into one 'Knot' over a paired channel,
+-- satisfying the superposing axiom of traced monoidal categories:
+--
+-- @par (trace f) (trace g) = trace (pre . par f g . post)@
+--
+-- where @pre@ and @post@ rearrange the paired channel via associators
+-- and braiding.
+--
+-- [Lazy patterns absorbed] For the @(,)@ tensor, the paired channel is a
+-- tuple. The lazy-knot 'trace' diverges if any stage on the recursive path
+-- forces the channel before emitting its result constructor. All structure
+-- maps on the @(,)@ route are irrefutable, and 'untrace' re-emits the
+-- channel as a manifest pair of projections, so /top-level strict tuple
+-- patterns in user bodies are absorbed at the fusion boundary/ and do not
+-- cause a black hole. Bodies that genuinely force the channel's contents
+-- before producing output still diverge correctly, and 'cellIO' remains the
+-- right tool for strict accumulators.
+--
+-- [Instance selection] The fused instance is selected when the action tensor
+-- equals the feedback tensor. Code polymorphic in the tensor resolves the
+-- fallback, so fusion depends on where the 'Action' constraint is discharged.
+--
+-- >>> let k1 = Circuit.Trace.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Trace.Trace (,) (->) [Int] [Int]
+-- >>> let k2 = Circuit.Trace.Knot (\(ns, _) -> (2 : ns, take 3 ns))
+-- >>> Circuit.Layer.run (par k1 k2) ([], [])
+-- ([1,1,1],[2,2,2])
+instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
+  par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
+    where
+      pre = MC.assoc >>> untrace MC.braid >>> MC.assoc'
+      post = MC.assoc >>> untrace MC.braid >>> MC.assoc'
+  par (Arr f) (Arr g) = Arr (par f g)
+  par f g = Arr (par (run f) (run g))
+  swap = Arr swap
+
+-- | Lift 'Action' through 'Trace' when tensors differ.
+--
+-- Falls back to independent evaluation — 'trace' is called once per
+-- branch.  Correct and black-hole-free, but doesn't fuse the loops.
+instance {-# INCOHERENT #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
   par f g = Arr (par (run f) (run g))
   swap = Arr swap

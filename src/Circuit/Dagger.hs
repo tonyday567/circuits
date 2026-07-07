@@ -14,8 +14,9 @@
 -- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
 --   arrow with a backward arrow.  'transpose' is the dagger operation.
 --
--- The four structural rows of 'Circuit.Net' ('Copy', 'Discard', 'Add',
--- 'Zero') are exactly the generators of this bimonoid.  In a dagger setting,
+-- The four structural rows of 'Circuit.Net' ('Circuit.Net.Copy',
+-- 'Circuit.Net.Discard', 'Circuit.Net.Plus', 'Circuit.Net.Zero') are exactly
+-- the generators of this bimonoid.  In a dagger setting,
 -- copy and add are adjoint, as are discard and zero.  'Dagger' makes that
 -- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
@@ -41,15 +42,15 @@ import Control.Category
 import Circuit.Classes
 #endif
 
-import Circuit.Monoidal (MonoidalP (..))
-import Circuit.Trace (Channelled (..))
-import Circuit.Traced
+import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Trace (Traced (..))
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
--- >>> import Circuit.Monoidal (MonoidalP (..))
--- >>> import Circuit.Traced
+-- >>> import Circuit.Monoidal (Action (..))
+-- >>> import Circuit.Trace (Traced (..))
 -- >>> import Control.Category
 -- >>> import Prelude hiding (id, (.), Monoid)
 
@@ -118,7 +119,7 @@ instance Monoid (->) Float where
 -- | Boolean monoid under disjunction.
 --
 -- Idempotent: @plus . copy = id@ — the relations/Boolean profile where
--- @True || True = True@.  'Trace' 'Either' loops terminate without
+-- @True || True = True@.  'Circuit.Trace.Trace' 'Either' loops terminate without
 -- truncated iteration because countable sums in an idempotent monoid
 -- converge.
 --
@@ -237,7 +238,7 @@ instance (Category arr) => Category (Dagger arr) where
   Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
 
-instance (Traced arr t) => Traced (Dagger arr) t where
+instance (Traced t arr) => Traced t (Dagger arr) where
   trace (Dagger f g) = Dagger (trace f) (trace g)
   {-# INLINE trace #-}
   untrace (Dagger f g) = Dagger (untrace f) (untrace g)
@@ -257,14 +258,14 @@ instance (Comonoid arr a, Monoid arr a) => Monoid (Dagger arr) a where
   zero = Dagger zero discard
   {-# INLINE zero #-}
 
-instance (MonoidalP arr) => MonoidalP (Dagger arr) where
+instance (Action t arr) => Action t (Dagger arr) where
   par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
   {-# INLINE par #-}
   swap = Dagger swap swap
   {-# INLINE swap #-}
 
--- | Lift cartesian channel plumbing through 'Dagger'.
-instance (Channelled arr (,)) => Channelled (Dagger arr) (,) where
-  assocC = Dagger assocC assocC'
-  assocC' = Dagger assocC' assocC
-  braidC = Dagger braidC braidC
+-- | Lift monoidal structure through 'Dagger'.
+instance (Monoidal t arr) => Monoidal t (Dagger arr) where
+  assoc = Dagger assoc assoc'
+  assoc' = Dagger assoc' assoc
+  braid = Dagger braid braid

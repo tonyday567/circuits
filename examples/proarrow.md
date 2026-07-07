@@ -31,7 +31,7 @@ bridge is thin precisely because of this coincidence.
 
 ## The Two Typeclasses
 
-**Circuit's `Traced`** (from `Circuit.Traced`):
+**Circuit's `Traced`** (from `Circuit.Trace`):
 
 ```haskell
 class Traced arr t where

@@ -1,16 +1,17 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Trace GADT, Hyper (final encoding), Trace, and Channel (bidirectional communication on Hyper). For reading, building, extending, and debugging.
+description: Free traced monoidal categories. Trace GADT (Arr/Knot normal form), Hyper (final encoding), Net (inspectable wiring), and the Layer tower. For reading, building, extending, and debugging.
 ---
 
 # circuits — agent field guide
 
-A free traced monoidal category over any base arrow. Two representations:
-Trace (initial, inspectable) and Hyper (final, coinductive). Plus
-bidirectional channel structure on Hyper via self-dual continuation.
+A free traced monoidal category over any base arrow. Two canonical
+representations: `Trace` (initial, inspectable GADT) and `Hyper` (final,
+coinductive). `Net` keeps wiring inspectable with monoidal and bimonoid
+rows. `Circuit.Layer` unifies the folds out of each layer.
 
-Start here: `other/01-marks-and-stacks.md` (five marks, six axioms, one Fibonacci),
-then follow the Prev/Next chain through the six-chapter narrative arc.
+Start here: `other/01-marks-and-stacks.md` (five marks, six axioms, one
+Fibonacci), then follow the Prev/Next chain through the narrative arc.
 
 ## narrative arc
 
@@ -24,6 +25,7 @@ Read in order. Each builds on the last.
 05-no-remorse-once-removed         Mendler case is viewl; performance story
 06-some-more-knots                 making stuff: parsers, pipes, loops, agents, metering
 axioms                             equational proofs (appendix)
+symbols                            notation table
 ```
 
 ## module map
@@ -31,22 +33,34 @@ axioms                             equational proofs (appendix)
 Recommended reading order for the source (core concepts first):
 
 ```
-Circuit.Trace  — Trace GADT: Lift, Compose, Trace. realise.
-Circuit.Traced   — Trace class. (,) lazy knot, Either iteration,
-                   Kleisli IO via delimited continuations (GHC primops).
-                   cellIO helper.
-Circuit.Monoidal — Braided, Cartesian and Cocartesian structure over the
-                   standard tensors, plus ambient / ambientBy state threading.
-Circuit.Hyper    — Hyper a b (final encoding), invoke, run, base/push/lift/lower,
-                   encode/encodeEither, runEither, flatten.
-Trace           — umbrella re-export. This is the recommended import
-                    (`import Trace`) for almost all use. Submodules are
-                    available when you need to be very precise about what
-                    you are bringing into scope.
+Circuit.Trace       — Trace GADT (Arr, Knot), the Traced class, channel
+                      ends (Co/Contra), and base instances: (,) lazy knot,
+                      Either iteration, Kleisli IO via delimited
+                      continuations, cellIO helper.
+Circuit.Monoidal    — Braided, Cartesian and Cocartesian structure over the
+                      standard tensors, plus ambient / ambientBy state
+                      threading.
+Circuit.Monoidal.Category
+                    — Monoidal superclass (associator + braiding) for
+                      traced categories.
+Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift, observe,
+                      base, push, encode, encodeEither, runEither, flatten.
+Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
+                      Plus, Zero, Knot. enrich, melt, transpose.
+Circuit.Layer       — Layer tower. unit, bind, run, hmap, join, lower;
+                      NT, HNT, (:~>), (:~~>).
+Circuit.Layer.Algebra — change-of-base algebras for modular circuit syntax (optional).
+Circuit.Dagger      — Monoid, Comonoid, Bimonoid, Dagger, transpose.
+Circuit.Free        — Free category: Lift, Compose.
+Circuit.Mon         — Free symmetric monoidal category: Arr, Compose, Par,
+                      Swap.
+Circuit             — umbrella re-export. This is the recommended import
+                      (`import Circuit`) for almost all use. Submodules are
+                      available when you need to be very precise about scope.
 ```
 
-Hyper imports Trace for the GADT constructors. Traced depends only on
-`GHC.Exts` (prompt#/control0#).
+`Hyper` imports `Circuit.Trace` for the GADT constructors. `Traced` depends
+only on `GHC.Exts` (prompt#/control0#) under GHC.
 
 ## build and test
 
@@ -67,7 +81,7 @@ cabal repl
 
 Example cards are markdown with fenced Haskell blocks. They are NOT
 compiled by `cabal build` — they're validated by pasting into `cabal repl`
-or via `cabal-docspec`.
+or via `cabal-docspec` (for doctests in library modules only).
 
 ## notation
 
@@ -76,10 +90,14 @@ mathematical notation — not Haskell identifiers.  See
 [other/symbols.md](other/symbols.md) for the full table, axioms, and
 worked examples.
 
-The canonical API uses lowercase names: `lift`, `lower`, `realise`,
-`encode`, `push`, `run`, `trace`, `untrace`, etc.
+The canonical API uses lowercase names: `lift`, `observe`, `encode`,
+`push`, `run`, `runHyper`, `runEither`, `trace`, `untrace`, `melt`,
+`enrich`, `hmap`, `join`, `lower`, etc.
 
-Symbols appear in two places only: the notation table (01/symbols.md)
+Type-level vocabulary: `Cat2`, `NT` (natural transformation), `HNT`
+(higher natural transformation), `(:~>)`, `(:~~>)`.
+
+Symbols appear in two places only: the notation table (`other/symbols.md`)
 and axiom blocks. Everywhere else — prose, proof steps, explanations,
 type signatures, code — use names. This boundary prevents agent churn.
 
@@ -87,22 +105,36 @@ type signatures, code — use names. This boundary prevents agent churn.
 
 - **Language**: GHC2024, extensions declared per module.
 - **Trace direction**: `Left` = feedback (continue), `Right` = exit.
-  The `Trace (->) Either` instance iterates until `Right`. The `Trace (->) (,)`
+  The `Traced Either (->)` instance iterates until `Right`. The `Traced (,) (->)`
   instance ties a lazy knot.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
-- **Use `realise` for Trace, `run` for Hyper**. `realise :: Trace arr t x y -> arr x y`
-  interprets a Trace to a plain arrow. `run :: Hyper a a -> a` ties the
-  self-referential knot. They are not interchangeable — calling `run` on a
-  Trace is a type error. This is the most common bug in example cards.
+- **Use the right elimination form**:
+  - `run` interprets any `Layer`: use `run @Free`, `run @(Trace t)`, or
+    `run @(Net t)`. `run @(Trace t)` is polymorphic in the target arrow:
+    it works for any `Traced t arr`, including `arr = (->)` and `arr = Hyper`.
+  - `encode :: Trace (,) (->) a b -> Hyper a b` is not a separate
+    primitive: it is `bind lift`, the `Layer (Trace (,))` fold that sends
+    the base arrow `(->)` into `Hyper` via `lift :: (->) :~> Hyper`.
+  - `runHyper :: Hyper a a -> a` ties the self-referential knot on `Hyper`.
+  - `observe :: Hyper a b -> (a -> b)` extracts a plain function from `Hyper`.
+  - `lower :: (Layer f, Category arr) => (f arr :~> arr') -> (arr :~> arr')`
+    is the left direction of the hom-set isomorphism.
 
 ## gotchas
 
-### run vs realise
+### run vs runHyper vs run @Net
 
-`run` takes a `Hyper`; `realise` takes a `Trace`. They are different
-elimination forms on different types. If an example calls `run` on something
-built with `Trace` or `Lift`, it needs `realise` (or `encode` then `run`).
+`run` takes any `Layer`: `run @Free`, `run @(Trace t)`, `run @(Net t)`.
+`run @(Trace (,))` folds into any `Traced (,) arr`, so it can interpret
+directly into `Hyper` when the source is `Trace (,) Hyper`. `encode`
+handles the common case where the source is `Trace (,) (->)` and the
+target is `Hyper`; under the hood it is just `bind lift`.
+
+`runHyper` takes a `Hyper a a`. `observe` extracts `Hyper a b -> (a -> b)`.
+They are different elimination forms on different types. If an example calls
+`run` on something built with `Hyper`, it needs `runHyper` or `observe`
+(or `run @(Trace (,))` if the value is already `Trace (,) Hyper`).
 
 ### .md cards cannot be loaded directly in cabal repl
 
@@ -116,12 +148,12 @@ sessions — not automated tests.
 
 ### either blindness
 
-`Trace (->) Either` uses `Left` = feedback (continue), `Right` = exit.
+`Traced Either (->)` uses `Left` = feedback (continue), `Right` = exit.
 User-facing code often uses the opposite convention — `Left` = result
-(done), `Right` = continue (next state). See `examples/while.md`'s
-`Step s r` type and the `swapRL` bridge.
+(done), `Right` = continue (next state). See `examples/while.md` for an
+`Either` iteration type and the `swapRL` bridge.
 
-When a Trace body behaves strangely — exiting immediately when it should
+When a `Trace` body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
 returning. The convention is fixed by the class, not configurable.
 
@@ -130,16 +162,16 @@ returning. The convention is fixed by the class, not configurable.
 `Trace` is parametric in the tensor `t`. `(,)` and `Either` have
 different loop semantics but identical GADT constructors. The compiler
 won't stop you from using the wrong one — you'll get a puzzling type
-error deep inside a `Trace` or `realise`.
+error deep inside a `Trace` or `run`.
 
 | if you wanted | but wrote | symptom |
 |-------------|----------|---------|
-| iteration loop | `Trace (->) (,)` | `Left`/`Right` not in scope inside Trace body |
-| lazy knot | `Trace (->) Either` | lazy knot needs pair pattern `(a, b)`, got `Either` |
+| iteration loop | `Traced (,) (->)` | `Left`/`Right` not in scope inside Trace body |
+| lazy knot | `Traced Either (->)` | lazy knot needs pair pattern `(a, b)`, got `Either` |
 
 Pin the tensor explicitly with a type annotation:
-`:: Trace (->) (,) Int Int` or `:: Trace (->) Either Int Int`.
-The annotation also resolves overlapping `Trace (->)` instances.
+`:: Trace (,) (->) Int Int` or `:: Trace Either (->) Int Int`.
+The annotation also resolves overlapping `Traced` instances for `(->)`.
 
 ### extra dependencies for example cards
 
@@ -157,15 +189,15 @@ The dependency lives in the command, not in circuits.cabal.
 New example cards go in `examples/`. A good card:
 
 - **Repl-verifiable.** Paste code blocks into `cabal repl` and they work.
-  Verify before committing — `run` where `realise` belongs is a type error.
+  Verify before committing — `run` where `runHyper` or `observe` belongs is a
+  type error.
 - **Pleasant to read.** Not a wall of code. Break up large blocks with
   narrative sections.
 - **Pleasant to copy/paste.** The reader should want to grab a block and play.
 - **Not too long.** Can be as short as ~12 lines. If it's sprawling, split it.
 - **Not too polished.** A few rough edges encourage participation.
 
-Solid examples to learn from: `parser.md`, `while.md`, `elgot-abacus.md`,
-`pipes.md`.
+Solid examples to learn from: `parser.md`, `while.md`, `pipes.md`.
 
 ## sibling libraries
 
@@ -174,3 +206,5 @@ Solid examples to learn from: `parser.md`, `while.md`, `elgot-abacus.md`,
 - **circuits-io** — `Trace (Kleisli IO) Either` with delimited
   continuations for resource-bracketed IO loops, producer/consumer
   channels, and the circuits-io frontier.
+- **circuits-meter** — one-line performance metering.
+- **circuits-ad** — backpropagation as transpose.

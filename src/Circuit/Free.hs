@@ -1,20 +1,22 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | The free category over a base arrow — just 'Lift' and 'Compose'.
 --
--- 'Free' is 'Trace' without the knot constructor.  Where 'Trace' is the free /traced/
--- category, 'Free' is the free category.  The universal fold out of 'Free'
--- is 'runFree'; it is also the 'rightAdjunct' of the 'FreeLayer' instance
--- in "Circuit.Adjunction".
+-- Free is Trace without the knot constructor.  Where Trace is the free /traced/
+-- category, Free is the free category.  The universal fold out of Free
+-- is 'run'; it is also 'bind' of the 'Layer' instance.
 module Circuit.Free
   ( Free (..),
-    runFree,
-    hoistFree,
+    freeze,
   )
 where
 
-import Circuit.Traced
+import Circuit.Layer (Layer (..), run)
+import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Trace (Traced (..))
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -25,6 +27,7 @@ import Circuit.Classes
 
 -- $setup
 -- >>> import Circuit.Free
+-- >>> import Circuit.Layer (hmap, run)
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free category over a base arrow @arr@.
@@ -34,7 +37,7 @@ import Circuit.Classes
 --   * 'Lift' — embed a base arrow.
 --   * 'Compose' — sequential composition.
 --
--- >>> runFree (Lift (+1) :: Free (->) Int Int) 5
+-- >>> run (Lift (+1) :: Free (->) Int Int) 5
 -- 6
 data Free arr a b where
   -- | Embed a base arrow.
@@ -46,28 +49,32 @@ instance (Category arr) => Category (Free arr) where
   id = Lift id
   (.) = Compose
 
--- | Interpret a 'Free' to a plain arrow.
---
--- This is the canonical fold — no 'Trace' needed, just 'Category'.
---
--- >>> runFree (Lift (+1) `Compose` Lift (*2) :: Free (->) Int Int) 5
--- 11
-runFree :: (Category arr) => Free arr a b -> arr a b
-runFree (Lift f) = f
-runFree (Compose f g) = runFree f . runFree g
+-- | Free category over a graph.
+instance Layer Free where
+  type Law Free arr' = Category arr'
+  unit = Lift
+  bind h (Lift f) = h f
+  bind h (Compose g f) = bind h g . bind h f
 
--- | Functor map for 'Free' over the base arrow.
+-- | Freeze a 'Free' category into its base arrow.
 --
--- Lifts a natural transformation on base arrows to a map between
--- free categories.  This is the functorial action used by the
--- counit of the 'Free' ⊣ 'Id' adjunction.
-hoistFree :: (Category arr, Category arr') => (forall x y. arr x y -> arr' x y) -> Free arr a b -> Free arr' a b
-hoistFree h (Lift f) = Lift (h f)
-hoistFree h (Compose f g) = Compose (hoistFree h f) (hoistFree h g)
+-- This is the concrete specialization of 'run' @Free@.
+--
+-- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
+-- 6
+freeze :: (Category arr) => Free arr a b -> arr a b
+freeze (Lift f) = f
+freeze (Compose g f) = freeze g . freeze f
+
+-- | Lift the 'Monoidal' structure through 'Free'.
+instance (Monoidal t arr) => Monoidal t (Free arr) where
+  assoc = Lift assoc
+  assoc' = Lift assoc'
+  braid = Lift braid
 
 -- | Lift the 'Traced' class through 'Free'.
 --
--- A loop body in @Free arr@ is folded before calling the base 'trace'.
-instance (Category arr, Traced arr t) => Traced (Free arr) t where
-  trace body = Lift (trace (runFree body))
-  untrace f = Lift (untrace (runFree f))
+-- A loop body in @Free arr@ is frozen before calling the base 'trace'.
+instance (Category arr, Traced t arr) => Traced t (Free arr) where
+  trace = Lift . trace . freeze
+  untrace = Lift . untrace . freeze

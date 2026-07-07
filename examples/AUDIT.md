@@ -66,7 +66,7 @@ ones that were updated or are known to be high-impact.
 | `examples/hyper*.md` | design docs | 🟡 | Hyper examples; check `encode`, `lower`, `run` naming. |
 | `examples/effects.md` | design doc | 🟡 | Likely outdated. |
 | `examples/state.md` | design doc | 🟡 | Likely outdated. |
-| `examples/traced.md` | design doc | 🟡 | May be partly superseded by `Circuit.Traced` haddock. |
+| `examples/traced.md` | design doc | 🟡 | May be partly superseded by `Circuit.Trace` haddock. |
 | `examples/wirecat.md` | design doc | 🟡 | Likely outdated. |
 | `examples/relations.md` | design doc | 🟡 | Likely outdated. |
 | `examples/optics.md` | design doc | 🟡 | Likely outdated. |

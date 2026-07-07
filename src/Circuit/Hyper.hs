@@ -18,7 +18,7 @@ module Circuit.Hyper
 
     -- * Construction and elimination
     lift,
-    lower,
+    observe,
     base,
     push,
     runHyper,
@@ -33,8 +33,9 @@ module Circuit.Hyper
 where
 
 import Circuit.Free qualified as F
-import Circuit.Trace (Trace (..))
-import Circuit.Traced
+import Circuit.Layer (Layer, bind, run, (:~>))
+import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Trace (Trace (..), Traced (..))
 import Prelude hiding (id, (.))
 
 #ifdef __GLASGOW_HASKELL__
@@ -48,8 +49,8 @@ import Circuit.Classes
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
 -- >>> import Data.Profunctor
--- >>> import Circuit.Traced (Traced (..))
--- >>> import Circuit.Trace (Trace (..), run)
+-- >>> import Circuit.Trace (Trace (..), Traced (..))
+-- >>> import Circuit.Layer (run)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -63,7 +64,7 @@ import Circuit.Classes
 --
 -- Two small examples:
 --
--- >>> lower (lift (+1)) 41
+-- >>> observe (lift (+1)) 41
 -- 42
 --
 -- >>> runHyper (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
@@ -81,7 +82,7 @@ newtype Hyper a b = Hyper
 -- @lift f@ creates a hyperfunction by recursively pushing @f@ onto
 -- every future continuation that will ever be supplied.
 --
--- >>> lower (lift (+1)) 5
+-- >>> observe (lift (+1)) 5
 -- 6
 lift :: (a -> b) -> Hyper a b
 lift f = push f (lift f)
@@ -92,14 +93,14 @@ lift f = push f (lift f)
 -- (@invoke h (Hyper (const a))@), asking: "what output do you produce
 -- when the feedback channel feeds back the input @a@?"
 --
--- >>> lower (lift reverse) "hello"
+-- >>> observe (lift reverse) "hello"
 -- "olleh"
-lower :: Hyper a b -> (a -> b)
-lower h a = invoke h (Hyper (const a))
+observe :: Hyper a b -> (a -> b)
+observe h a = invoke h (Hyper (const a))
 
 -- | Ignores the input and returns a constant value.
 --
--- >>> lower (base 42) undefined
+-- >>> observe (base 42) undefined
 -- 42
 base :: a -> Hyper b a
 base a = Hyper (const a)
@@ -110,7 +111,7 @@ base a = Hyper (const a)
 -- eventually produces. This threads @f@ through the continuation,
 -- enabling feedback-aware composition.
 --
--- >>> lower (push (+1) (lift (*2))) 5
+-- >>> observe (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push f h = Hyper (\k -> f (invoke k h))
@@ -132,11 +133,11 @@ runHyper h = invoke h (Hyper runHyper)
 
 -- Faithful embedding: observation recovers the original arrow.
 --
--- prop> \x -> lower (lift (+1)) (x :: Int) == x + 1
+-- prop> \x -> observe (lift (+1)) (x :: Int) == x + 1
 
 -- Functoriality: lift respects composition.
 --
--- prop> \x -> lower (lift (*2) . lift (+1)) (x :: Int) == (x + 1) * 2
+-- prop> \x -> observe (lift (*2) . lift (+1)) (x :: Int) == (x + 1) * 2
 
 -- * Trace
 
@@ -155,32 +156,37 @@ runHyper h = invoke h (Hyper runHyper)
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
 --
--- Law: @lower (trace (lift f)) x = trace \@ (->) f x@
+-- Law: @observe (trace (lift f)) x = trace \@ (->) f x@
 --
--- >>> import Circuit.Traced (Traced (..))
+-- >>> import Circuit.Trace (Traced (..))
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
--- >>> lower (trace body) ()
+-- >>> observe (trace body) ()
 -- [0,0,0]
-instance Traced Hyper (,) where
+instance Monoidal (,) Hyper where
+  assoc = lift $ \((a, b), c) -> (a, (b, c))
+  assoc' = lift $ \(a, (b, c)) -> ((a, b), c)
+  braid = lift $ \(a, (b, c)) -> (b, (a, c))
+
+instance Traced (,) Hyper where
   trace body = Hyper $ \k ->
     let pair = invoke body cont
         cont = Hyper $ \_ ->
           let a_val = invoke k (Hyper (const (snd pair)))
            in (fst pair, a_val)
      in snd pair
-  untrace = lift . fmap . lower
+  untrace = lift . fmap . observe
 
 -- * Encoding Trace into Hyper
 
--- | Encode a 'Free' into a 'Hyper'.
+-- | Encode a Free into a Hyper.
 --
--- The lift of the canonical fold 'runFree' into the final encoding.
+-- The lift of the canonical fold 'run' into the final encoding.
 --
--- Law: @'lower' . 'encodeFree' = 'F.runFree'@ — the two interpreters
--- from 'Free' agree.
+-- Law: @'observe' . 'encodeFree' = 'run'@ — the two interpreters
+-- from Free agree.
 --
 -- >>> import Circuit.Free qualified as F
--- >>> lower (encodeFree (F.Lift (+1))) 5
+-- >>> observe (encodeFree (F.Lift (+1))) 5
 -- 6
 encodeFree :: F.Free (->) a b -> Hyper a b
 encodeFree (F.Lift f) = lift f
@@ -188,12 +194,19 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 
 -- | Encode a Trace into a Hyper. Symbol: @(⇨)@.
 --
--- This is the unique traced functor from the initial object (Trace)
--- to the final object (Hyper), satisfying the commuting triangle
--- @'lower' . 'encode' = 'run'@.
+-- This is the unique traced functor from the initial object ('Trace')
+-- to the final object ('Hyper'), satisfying the commuting triangle
+-- @'observe' . 'encode' = 'run'@.
 --
--- >>> import Circuit.Trace (Trace (..), run)
--- >>> lower (encode (Arr (+1) :: Trace (,) (->) Int Int)) 5
+-- Under the hood it is just 'bind' 'lift': a 'Layer' fold from
+-- @'Trace' (,) (->)@ into @'Hyper'@, using @lift :: (->) ':~>' 'Hyper'@
+-- as the base-arrow map.  In other words, it is the non-standard
+-- instantiation of the free-forgetful machinery that lands in
+-- coinductive-land.
+--
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Trace (Trace (..))
+-- >>> observe (encode (Arr (+1) :: Trace (,) (->) Int Int)) 5
 -- 6
 encode :: Trace (,) (->) a b -> Hyper a b
 encode (Arr f) = lift f
@@ -257,10 +270,10 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- Flatten then encode is not identity — the feedback structure is gone:
 --
 -- >>> let h = lift (+ 1)
--- >>> lower (encode (flatten h)) 5
+-- >>> observe (encode (flatten h)) 5
 -- 6
 flatten :: Hyper a b -> Trace (,) (->) a b
-flatten h = Arr (lower h)
+flatten h = Arr (observe h)
 
 -- * Instances
 
@@ -276,19 +289,19 @@ instance Category Hyper where
 --
 -- Profunctor identity: dimap id id = id
 --
--- prop> \x -> lower (dimap id id h) (x :: Int) == x + 1
+-- prop> \x -> observe (dimap id id h) (x :: Int) == x + 1
 --
 -- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
 --
--- prop> \x -> lower (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == lower (dimap (f2 . f1) (g1 . g2) h) x
+-- prop> \x -> observe (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == observe (dimap (f2 . f1) (g1 . g2) h) x
 --
 -- lmap f = dimap f id
 --
--- prop> \x -> lower (lmap ((*2) :: Int -> Int) h) (x :: Int) == lower (dimap ((*2) :: Int -> Int) id h) x
+-- prop> \x -> observe (lmap ((*2) :: Int -> Int) h) (x :: Int) == observe (dimap ((*2) :: Int -> Int) id h) x
 --
 -- rmap g = dimap id g
 --
--- prop> \x -> lower (rmap ((*2) :: Int -> Int) h) (x :: Int) == lower (dimap id ((*2) :: Int -> Int) h) x
+-- prop> \x -> observe (rmap ((*2) :: Int -> Int) h) (x :: Int) == observe (dimap id ((*2) :: Int -> Int) h) x
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f
   lmap f h = Hyper $ invoke h . rmap f

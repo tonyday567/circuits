@@ -1,24 +1,59 @@
 # Revision history for circuits
 
+## 0.3.0.0 — 2026-07-05
+
+*BREAKING: **`Circuit.Traced` is merged into `Circuit.Trace`.** The `Traced`
+class, base instances, and `cellIO` now live alongside the `Trace` GADT in a
+single module.*
+
+*BREAKING: **`Traced` takes the tensor first.** The class is now
+`Traced t arr` (was `Traced arr t`), matching `Trace t arr a b`.*
+
+*BREAKING: **`Channelled` is replaced by `Monoidal`.** The structural
+superclass lives in the new `Circuit.Monoidal.Category` module. `Traced` is
+now a subclass of `Monoidal`; the `Trace`/`Net` `Category` instances require
+only `Traced t arr`.*
+
+*BREAKING: **The free-layer vocabulary is unified under `Circuit.Layer`.*
+`FreeLayer` is renamed to `Layer`; `Lawful` is renamed to `Law`.
+`rightAdjunct` becomes `bind`; `leftAdjunct` becomes `lower`.
+The per-layer folds are now `run` with a type application:*
+
+  * `run @Free` (was `runFree`)
+  * `run @(Trace t)` (was `run`)
+  * `run @(Net t)` (was `weave`)
+
+*`hoist` becomes `hmap`; `realise` becomes `run`; `Hyper.lower` becomes `observe`.
+`Circuit.Adjunction` is removed; `Circuit.Layer` is the canonical module.
+All instances are now orphan `Layer` instances in `Circuit.Free`, `Circuit.Trace`,
+and `Circuit.Net`.*
+
+*BREAKING: **`Circuit.Signature` is renamed to `Circuit.Layer.Algebra`.**
+The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
+`handle` becomes `alg`, and the folds become `eval`/`evalInto`.*
+
+*Removed: The `signature-tests` Cabal test suite. Verification is now via
+`cabal-docspec` (doctests) and `cabal check`.*
+
 ## 0.2.0.0 — 2026-06-19
 
-*BREAKING: **The GADT is now `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructor `Knot` is now also `Trace`. The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*
+*BREAKING: **The GADT is renamed from `Circuit` to `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructors are now `Arr` (plain base arrow) and `Knot` (feedback loop). The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*
 
-*BREAKING: **Trace takes a Trace body.** `Trace :: Trace t arr (t a b) (t a c) -> Trace t arr b c`. Previously the body was a plain arrow. The body is now a full `Trace`, making loop wiring inspectable — transpose can recurse into trace bodies, the encode case is `trace (encode k)` (uniform recursion, no special `lift`), and the Mendler case in realise works uniformly. JSV's trace is an operation on all morphisms, not just generators, so recursive bodies are the correct presentation of the free traced category.*
+*BREAKING: **Normal-form `Trace`.** Composition fuses via the `Category` instance, so every `Trace` is in normal form: at most one `Knot` at the top over a base-arrow body. There is no explicit `Compose` constructor and no Mendler case in `run`.*
 
-*New: **Circuit.Net** — the free traced PROP with a bimonoid. Structural rows: Par, Swap (monoidal), Copy, Discard (comonoid), Add, Zero (monoid), all inspectable before realise. Transposition (`transpose`) is structural recursion: Compose reverses, Copy↔Add, Discard↔Zero, Trace↔Trace.*
+*New: **Circuit.Net** — the free traced PROP with a bimonoid. Structural rows: `Par`, `Swap` (monoidal), `Copy`, `Discard` (comonoid), `Plus`, `Zero` (monoid), all inspectable before interpretation. `Net.Knot` takes a `Net` body so `transpose` can recurse into loops. Transposition is structural recursion: `Compose` reverses, `Copy↔Plus`, `Discard↔Zero`, `Knot↔Knot`.*
 
 *New: **Circuit.Signature** and **Circuit.Adjunction** — design-lab modules for the feature lattice and the free/forgetful adjunction tower. Direct GADTs remain the canonical implementation.*
 
-*New: **Circuit.Dagger** — consolidated module for 'Monoid', 'Comonoid', 'Dagger', and 'Bimonoid'. 'Monoid' (was 'Additive') provides channel-object addition; 'Comonoid' (was 'Dup') provides 'copy' and 'discard'; 'Dagger' (was 'Duplex') is the free dagger category with 'transpose' (was 'transposeDuplex'); 'Bimonoid' (was 'Linear') is the constraint synonym.*
+*New: **Circuit.Dagger** — consolidated module for `Monoid`, `Comonoid`, `Dagger`, and `Bimonoid`. `Monoid` (was `Additive`) provides channel-object addition; `Comonoid` (was `Dup`) provides `copy` and `discard`; `Dagger` (was `Duplex`) is the free dagger category with `transpose` (was `transposeDuplex`); `Bimonoid` (was `Linear`) is the constraint synonym.*
 
-*New: **Co/Contra** — companion/conjoint channel ends, now exported from Circuit.Trace directly.*
+*New: **Co/Contra** — companion/conjoint channel ends, exported from `Circuit.Trace`.*
 
 *Removed: **Circuit.AD** moved to circuits-ad package. The Diff arrow, backprop, traceStar, and Oracle live there.*
 
-*Fixed: README, symbols.md, and arc chapters 02–03 updated for the new Trace shape. Triangle proof in 03 redone for `trace (encode k)`.*
+*Fixed: README updated to the `Arr`/`Knot` normal form and the FreeLayer tower.*
 
-*Quality: 100% haddock coverage (54/54), 123/123 doctests, ormolu/formatted, hlint/clean. GHC 9.14 backend.*
+*Quality: ormolu-formatted, hlint-clean, 100% Haddock coverage on library modules, 128 examples and 28 setup blocks pass `cabal-docspec`, 12 property laws documented in source. GHC 9.14 backend.*
 
 ## 0.1.0.0 — 2025-05-26
 
@@ -38,7 +73,7 @@
 - Narrative arc in `other/`: marks → GADT → Hyper → tensors → Mendler case → making stuff.
 - 15+ example cards: parsers, pipes, while-loops, Elgot iteration, delimited continuations, proequipment, ambient, hyper-chain, state, pure-queue, etc.
 - Boundary rule: symbols in tables/axioms only; names everywhere else.
-- `Step` convention unified with `Trace (->) Either`: `Left` = feedback, `Right` = exit.
+- `Either` iteration convention: `Left` = feedback (continue), `Right` = exit.
 - Push is Hyper-only — no direct GADT counterpart.
 - Axiom doctests and QuickCheck properties for JSV laws and Hyper embedding/functoriality.
 - No Applicative or Monad instances — these collapse feedback structure.

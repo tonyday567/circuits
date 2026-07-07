@@ -1,0 +1,9 @@
+# HLint configuration for circuits.
+#
+# Two eta-reduce hints are suppressed because the suggested point-free
+# forms do not type-check: both 'close' (rank-2 'runCo') and the
+# 'FreeLayer (Trace t)' instance's 'rightAdjunct' (the tensor 't' must be
+# fixed by the surrounding instance head).
+
+- ignore: {name: "Eta reduce", within: Circuit.Trace}
+- ignore: {name: "Eta reduce", within: Circuit.Adjunction}

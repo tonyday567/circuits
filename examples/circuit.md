@@ -9,7 +9,7 @@ and build combinators that Hyper cannot.
 -- $setup
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Circuit (Trace(..), run)
--- >>> import Circuit.Traced (Traced(..))
+-- >>> import Circuit.Trace (Traced(..))
 -- >>> import Circuit.Hyper (encode, lower, lift)
 -- >>> import Prelude hiding (id, (.))
 ```

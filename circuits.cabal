@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: circuits
-version: 0.2.0.0
+version: 0.3.0.0
 license: BSD-3-Clause
 license-file: LICENSE
 copyright: Tony Day (c) 2025-2026
@@ -65,16 +65,17 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Adjunction
     Circuit.Trace
-    Circuit.Signature
+    Circuit.Layer.Algebra
     Circuit.Classes
     Circuit.Dagger
     Circuit.Free
     Circuit.Hyper
+    Circuit.Layer
+    Circuit.Mon
     Circuit.Monoidal
+    Circuit.Monoidal.Category
     Circuit.Net
-    Circuit.Traced
 
   build-depends:
     base >=4.18 && <5
@@ -82,13 +83,3 @@ library
   if impl(ghc)
     build-depends: profunctors >=5.0 && <6
 
-test-suite signature-tests
-  import: ghc-options-stanza
-  import: ghc2024-stanza
-  type: exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is: Signature.hs
-  build-depends:
-    base,
-    circuits,
-    QuickCheck >=2 && <3

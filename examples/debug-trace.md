@@ -76,4 +76,4 @@ When the thing you want to "debug" is the history or accumulation across recursi
 - The Fibonacci and powers examples in the main `readme.md`
 - `examples/while.md` for iteration patterns with the `Either` tensor
 - `other/02-a-knot-recovers-fix.md` for the underlying reason this structure appears
-- `Circuit.Traced` for the two tensor disciplines and their different looping behaviours
+- `Circuit.Trace` for the two tensor disciplines and their different looping behaviours
