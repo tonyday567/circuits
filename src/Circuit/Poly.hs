@@ -64,6 +64,10 @@ module Circuit.Poly
     nestedToComp,
     compToNested,
 
+    -- * Tensor wiring
+    tensorEval,
+    parWiring,
+
     -- * Morphisms
     Morphism (..),
     runMorphism,
@@ -285,6 +289,23 @@ nestedToComp v =
 compToNested :: (Netlist p, Netlist q) => Eval ('Comp p q) x -> Eval p (Eval q x)
 compToNested (EC (i, hang) k) =
   fromNet i (\dp -> fromNet (hang dp) (\dq -> k (dp, dq)))
+
+-- | Pair two polynomial values into a Dirichlet tensor (@p ⊗ q@).
+--
+-- Each factor contributes its position and pin assignment; the result is
+-- one joint assignment over the product of direction sets.
+tensorEval :: (Netlist p, Netlist q) => Eval p a -> Eval q b -> Eval (Tensor p q) (a, b)
+tensorEval v w =
+  let (i, fv) = toNet v
+      (j, fw) = toNet w
+   in ET (i, j) (\(dp, dq) -> (fv dp, fw dq))
+
+-- | Place two Moore systems side by side: interface @p ⊗ q@, state @(s, t)@.
+--
+-- This is the entry point for acyclic wiring over the Dirichlet tensor —
+-- boxes in parallel, pins assigned jointly.
+parWiring :: (Netlist p, Netlist q) => System s p -> System t q -> System (s, t) (Tensor p q)
+parWiring sp sq (s, t) = tensorEval (sp s) (sq t)
 
 -- $netlist-roundtrip
 --
@@ -516,6 +537,30 @@ runMorphism = \case
 --
 -- >>> case compToNested (nestedToComp dyn) of EE f -> case f 10 of EE g -> g 20
 -- 30
+
+-- ** Tensor wiring
+--
+-- 'tensorEval' pairs factors; both pin maps must contribute (not just the
+-- left factor).
+--
+-- >>> let va = EE (\x -> x ++ "x") :: Eval ('Exp String) String
+-- >>> let vb = EE (\n -> n * 10) :: Eval ('Exp Int) Int
+-- >>> case tensorEval va vb of ET ((), ()) f -> (f ("hi", 3), f ("", 0))
+-- (("hix",30),("x",0))
+--
+-- 'parWiring' places two monomial systems side by side; 'parT' maps the
+-- wired interface (wire-then-map).
+--
+-- >>> let sysN = (\s -> EP (EK (s + 1), EE (\dn -> s + dn))) :: System Int (Mono Int Int)
+-- >>> let sysB = (\b -> EP (EK b, EE (\db -> b && db))) :: System Bool (Mono Bool Bool)
+-- >>> case parWiring sysN sysB (3, True) of ET ((n, ()), (c, ())) f -> (n, c, f (Right 2, Right False))
+-- (4,True,(5,False))
+--
+-- >>> let m1 = lens show (\n dn -> n + dn) :: Morphism (Mono Int Int) (Mono String Int)
+-- >>> let m2 = lens (\b -> if b then 1 else 0 :: Int) (\b db -> b && db) :: Morphism (Mono Bool Bool) (Mono Int Bool)
+-- >>> let wired = parWiring sysN sysB (5, True)
+-- >>> case parT m1 m2 wired of ET ((_, ()), (_, ())) f -> f (Right 3, Right True)
+-- (14,True)
 
 -- | The monomial interface: @a@ positions, @a'@ directions.
 type Mono a a' = 'Prod ('Const a) ('Exp a')
