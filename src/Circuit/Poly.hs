@@ -15,6 +15,7 @@
 --           |  Sum p q        coproduct
 --           |  Prod p q       cartesian product
 --           |  Tensor p q     Dirichlet/parallel product
+--           |  Comp p q       composition (substitution)
 --
 -- The kind @Poly@ is promoted, so polynomial expressions live at the type
 -- level.  'Eval' is a GADT that witnesses the value shape of @p(x)@.  We use
@@ -59,6 +60,10 @@ module Circuit.Poly
     morphAt,
     parT,
 
+    -- * Composition product
+    nestedToComp,
+    compToNested,
+
     -- * Morphisms
     Morphism (..),
     runMorphism,
@@ -92,6 +97,7 @@ data Poly = Y
   | Sum Poly Poly
   | Prod Poly Poly
   | Tensor Poly Poly
+  | Comp Poly Poly
 
 -- | Position set of a polynomial.
 --
@@ -103,6 +109,7 @@ type family Pos (p :: Poly) :: Type where
   Pos ('Sum p q) = Either (Pos p) (Pos q)
   Pos ('Prod p q) = (Pos p, Pos q)
   Pos ('Tensor p q) = (Pos p, Pos q)
+  Pos ('Comp p q) = (Pos p, Dir p -> Pos q)
 
 -- | Direction set of a polynomial.
 --
@@ -116,12 +123,18 @@ type family Pos (p :: Poly) :: Type where
 -- unsound. This is the known representation fork: a position-indexed 'Dir'
 -- family would be fully general, but is not needed for the monomial / wiring
 -- fragment this package targets first.
+--
+-- For 'Comp', @'Dir' ('Comp p q) = ('Dir p, 'Dir q)@ is the same flat
+-- approximation: the @q@-position (hence its honest pin set) depends on which
+-- @p@-direction was taken.  Exact for Sum-free factors with uniform
+-- directions — the monomial fragment.  See 'loom/circuits-monomial.md'.
 type family Dir (p :: Poly) :: Type where
   Dir 'Y = ()
   Dir ('Const a) = Void
   Dir ('Exp a) = a
   Dir ('Prod p q) = Either (Dir p) (Dir q)
   Dir ('Tensor p q) = (Dir p, Dir q)
+  Dir ('Comp p q) = (Dir p, Dir q)
 
 -- | Values of a polynomial functor @p@ evaluated at @x@.
 --
@@ -133,6 +146,9 @@ type family Dir (p :: Poly) :: Type where
 -- 'ET' is the Dirichlet tensor: a pair of positions with one function out of
 -- the product of direction sets. This cannot be built from a pair of ordinary
 -- 'Eval' values, which is why 'Pos' and 'Dir' are needed.
+--
+-- 'EC' is the composition product: a @p@-position with a @q@-component hung on
+-- each @p@-pin, and a path @(dp, dq)@ into @x@.
 data Eval (p :: Poly) (x :: Type) where
   EY :: x -> Eval 'Y x
   EK :: c -> Eval ('Const c) x
@@ -140,6 +156,10 @@ data Eval (p :: Poly) (x :: Type) where
   ES :: Either (Eval p x) (Eval q x) -> Eval ('Sum p q) x
   EP :: (Eval p x, Eval q x) -> Eval ('Prod p q) x
   ET :: (Pos p, Pos q) -> ((Dir p, Dir q) -> x) -> Eval ('Tensor p q) x
+  EC ::
+    (Pos p, Dir p -> Pos q) ->
+    ((Dir p, Dir q) -> x) ->
+    Eval ('Comp p q) x
 
 instance Functor (Eval p) where
   fmap f = \case
@@ -149,6 +169,7 @@ instance Functor (Eval p) where
     ES e -> ES (bimap (fmap f) (fmap f) e)
     EP (a, b) -> EP (fmap f a, fmap f b)
     ET pos g -> ET pos (f . g)
+    EC pos g -> EC pos (f . g)
 
 -- ** Netlist view
 
@@ -193,6 +214,10 @@ instance (Netlist p, Netlist q) => Netlist ('Prod p q) where
 instance Netlist ('Tensor p q) where
   toNet (ET ij f) = (ij, f)
   fromNet = ET
+
+instance Netlist ('Comp p q) where
+  toNet (EC i k) = (i, k)
+  fromNet = EC
 
 -- | Reassemble a value after taking it apart. This is the executable form
 -- of the round-trip law @'fromNet' ('toNet' v) ≡ v@.
@@ -245,6 +270,21 @@ parT m n (ET (i, j) f) =
   let (i', pullM) = morphAt m i
       (j', pullN) = morphAt n j
    in ET (i', j') (\dp' -> f (pullM (fst dp'), pullN (snd dp')))
+
+-- | Composition-product view of a nested evaluation @'Eval' p ('Eval' q x)@.
+--
+-- Correctness iso (right): @'Eval' ('Comp' p q) x ≅ 'Eval' p ('Eval' q x)@.
+nestedToComp :: (Netlist p, Netlist q) => Eval p (Eval q x) -> Eval ('Comp p q) x
+nestedToComp v =
+  let (i, g) = toNet v
+   in EC (i, \dp -> fst (toNet (g dp))) (\(dp, dq) -> snd (toNet (g dp)) dq)
+
+-- | Nested evaluation from a composition-product value.
+--
+-- Correctness iso (left): inverse of 'nestedToComp'.
+compToNested :: (Netlist p, Netlist q) => Eval ('Comp p q) x -> Eval p (Eval q x)
+compToNested (EC (i, hang) k) =
+  fromNet i (\dp -> fromNet (hang dp) (\dq -> k (dp, dq)))
 
 -- $netlist-roundtrip
 --
@@ -455,6 +495,27 @@ runMorphism = \case
 --
 -- >>> case parT m n v of ET ((), ()) g -> g (3, True)
 -- -13
+
+-- ** Composition product
+--
+-- Correctness iso @'Eval' ('Comp' p q) x ≅ 'Eval' p ('Eval' q x)@.  The
+-- @hang@ map must depend on the outer @p@-direction — a constant hang fails.
+--
+-- >>> let nested = EP (EK 5, EE (\dn -> EP (EK (show dn ++ "!"), EE (\c -> [c] ++ "?")))) :: Eval (Mono Int Int) (Eval (Mono String Char) String)
+-- >>> case nestedToComp nested of EC ((n, ()), hang) k -> (n, fst (hang (Right 7)), k (Right 7, Right 'a'))
+-- (5,"7!","a?")
+--
+-- >>> case compToNested (nestedToComp nested) of EP (EK n, EE f) -> case f 7 of EP (EK s, EE g) -> (n, s, g 'a')
+-- (5,"7!","a?")
+--
+-- Two-step dynamics: @('Exp' Int ∘ 'Exp' Int)@ adds inputs along a path.
+--
+-- >>> let dyn = EE (\n -> EE (\m -> n + m)) :: Eval ('Exp Int) (Eval ('Exp Int) Int)
+-- >>> case nestedToComp dyn of EC ((), hang) k -> k (10, 20)
+-- 30
+--
+-- >>> case compToNested (nestedToComp dyn) of EE f -> case f 10 of EE g -> g 20
+-- 30
 
 -- | The monomial interface: @a@ positions, @a'@ directions.
 type Mono a a' = 'Prod ('Const a) ('Exp a')
