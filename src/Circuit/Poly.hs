@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | Sketch: the category Poly.
 --
@@ -13,6 +14,7 @@
 --           |  Exp A          y^A
 --           |  Sum p q        coproduct
 --           |  Prod p q       cartesian product
+--           |  Tensor p q     Dirichlet/parallel product
 --
 -- The kind @Poly@ is promoted, so polynomial expressions live at the type
 -- level.  'Eval' is a GADT that witnesses the value shape of @p(x)@.  We use
@@ -31,10 +33,19 @@
 --
 -- With them, the general point-dependent lens @(get :: a -> b, put :: a -> db -> da)@
 -- is a two-line 'Morphism'.
+--
+-- The 'Tensor' constructor adds the Dirichlet (parallel) product. It requires
+-- 'Pos' and 'Dir' type families because a value of @(p ⊗ q)(x)@ is a pair of
+-- positions together with a single function out of the product of direction
+-- sets — not derivable from a pair of ordinary 'Eval' values.
 module Circuit.Poly
   ( -- * Polynomial expressions
     Poly (..),
     Eval (..),
+
+    -- * Positions and directions
+    Pos,
+    Dir,
 
     -- * Morphisms
     Morphism (..),
@@ -55,6 +66,7 @@ where
 import Control.Category
 import Data.Bifunctor
 import Data.Kind (Type)
+import Data.Void (Void)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -67,6 +79,37 @@ data Poly = Y
   | Exp Type
   | Sum Poly Poly
   | Prod Poly Poly
+  | Tensor Poly Poly
+
+-- | Position set of a polynomial.
+--
+-- For a value of @p(x)@, 'Pos p' is the index type of positions.
+type family Pos (p :: Poly) :: Type where
+  Pos 'Y = ()
+  Pos ('Const a) = a
+  Pos ('Exp a) = ()
+  Pos ('Sum p q) = Either (Pos p) (Pos q)
+  Pos ('Prod p q) = (Pos p, Pos q)
+  Pos ('Tensor p q) = (Pos p, Pos q)
+
+-- | Direction set of a polynomial.
+--
+-- For a value of @p(x)@ at a given position, 'Dir p' is the domain of the
+-- function into @x@.
+--
+-- There is no 'Dir ('Sum p q)' row: directions over a sum are
+-- position-dependent. At 'Left i' the direction set is 'Dir p'; at 'Right j'
+-- it is 'Dir q'. The 'ES' constructor records this correctly; a flattened
+-- family would over-approximate and make 'ET' over a sum-containing tensor
+-- unsound. This is the known representation fork: a position-indexed 'Dir'
+-- family would be fully general, but is not needed for the monomial / wiring
+-- fragment this package targets first.
+type family Dir (p :: Poly) :: Type where
+  Dir 'Y = ()
+  Dir ('Const a) = Void
+  Dir ('Exp a) = a
+  Dir ('Prod p q) = Either (Dir p) (Dir q)
+  Dir ('Tensor p q) = (Dir p, Dir q)
 
 -- | Values of a polynomial functor @p@ evaluated at @x@.
 --
@@ -74,12 +117,17 @@ data Poly = Y
 -- standard product and coproduct of Haskell ('(,)' and 'Either'); they are
 -- not reimplemented, only tagged so that the polynomial shape remains
 -- inspectable.
+--
+-- 'ET' is the Dirichlet tensor: a pair of positions with one function out of
+-- the product of direction sets. This cannot be built from a pair of ordinary
+-- 'Eval' values, which is why 'Pos' and 'Dir' are needed.
 data Eval (p :: Poly) (x :: Type) where
   EY :: x -> Eval 'Y x
   EK :: c -> Eval ('Const c) x
   EE :: (a -> x) -> Eval ('Exp a) x
   ES :: Either (Eval p x) (Eval q x) -> Eval ('Sum p q) x
   EP :: (Eval p x, Eval q x) -> Eval ('Prod p q) x
+  ET :: (Pos p, Pos q) -> ((Dir p, Dir q) -> x) -> Eval ('Tensor p q) x
 
 instance Functor (Eval p) where
   fmap f = \case
@@ -88,6 +136,7 @@ instance Functor (Eval p) where
     EE g -> EE (f . g)
     ES e -> ES (bimap (fmap f) (fmap f) e)
     EP (a, b) -> EP (fmap f a, fmap f b)
+    ET pos g -> ET pos (f . g)
 
 -- | A morphism @p -> q@ in Poly, encoded as a natural transformation
 -- between the evaluated functors.
@@ -123,6 +172,22 @@ data Morphism (p :: Poly) (q :: Poly) where
   Konst :: b -> Morphism p ('Const b)
   -- | Copower universal property: a @Const a@-indexed family of morphisms.
   Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Const a) p) q
+  -- | Left associator for the Dirichlet tensor:
+  -- @((p ⊗ q) ⊗ r) -> (p ⊗ (q ⊗ r))@.
+  TensorAssocL :: Morphism ('Tensor ('Tensor p q) r) ('Tensor p ('Tensor q r))
+  -- | Right associator for the Dirichlet tensor.
+  TensorAssocR :: Morphism ('Tensor p ('Tensor q r)) ('Tensor ('Tensor p q) r)
+  -- | Symmetry/braiding for the Dirichlet tensor: @p ⊗ q -> q ⊗ p@.
+  TensorBraid :: Morphism ('Tensor p q) ('Tensor q p)
+  -- | Functorial action of the Dirichlet tensor on monomial morphisms:
+  -- @f ⊗ g : (a·y^{da}) ⊗ (c·y^{dc}) -> (b·y^{db}) ⊗ (d·y^{dd})@.
+  --
+  -- Restricted to monomials because the current 'Dir' family cannot express
+  -- position-dependent direction sets (in particular, 'Sum' has no 'Dir' row).
+  ParT ::
+    Morphism (Mono a da) (Mono b db) ->
+    Morphism (Mono c dc) (Mono d dd) ->
+    Morphism ('Tensor (Mono a da) (Mono c dc)) ('Tensor (Mono b db) (Mono d dd))
 
 instance Category Morphism where
   id = Id
@@ -146,6 +211,86 @@ runMorphism = \case
   Pair f g -> \r -> EP (runMorphism f r, runMorphism g r)
   Konst b -> \_ -> EK b
   Depend k -> \(EP (EK a, p)) -> runMorphism (k a) p
+  TensorAssocL -> \(ET ((pp, pq), pr) f) ->
+    ET (pp, (pq, pr)) (f . (\(dp, (dq, dr)) -> ((dp, dq), dr)))
+  TensorAssocR -> \(ET (pp, (pq, pr)) f) ->
+    ET ((pp, pq), pr) (f . (\((dp, dq), dr) -> (dp, (dq, dr))))
+  TensorBraid -> \(ET (pp, pq) f) ->
+    ET (pq, pp) (f . (\(dq, dp) -> (dp, dq)))
+  ParT m n -> \(ET ((a, ()), (c, ())) f) ->
+    let (b, putM) = monoLensAt m a
+        (d, putN) = monoLensAt n c
+    in ET ((b, ()), (d, ()))
+         (\v -> let (db, dd) = fromMonoTensorDir v
+                in f (toMonoTensorDir (putM db, putN dd)))
+
+-- | Run a monomial morphism at a single position and return the forward
+-- position plus the backward direction map.
+--
+-- 'ParT' is restricted to the monomial fragment because the current 'Dir'
+-- family cannot express position-dependent direction sets (in particular,
+-- 'Sum' has no 'Dir' row). The monomial fragment is the wiring layer's first
+-- target anyway.
+monoLensAt ::
+  Morphism (Mono a da) (Mono b db) ->
+  a ->
+  (b, db -> da)
+monoLensAt m a = case runMorphism m (EP (EK a, EE id)) of
+  EP (EK b, EE put) -> (b, put)
+
+-- | Monomial tensor directions are 'Either Void d', where the 'Left' branch
+-- is impossible. These helpers centralise the (safe, unevaluated) 'Void'
+-- placeholders.
+fromMonoTensorDir :: (Either Void d1, Either Void d2) -> (d1, d2)
+fromMonoTensorDir (Right d1, Right d2) = (d1, d2)
+fromMonoTensorDir _ = error "Either Void branch is uninhabited"
+
+toMonoTensorDir :: (d1, d2) -> (Either Void d1, Either Void d2)
+toMonoTensorDir (d1, d2) = (Right d1, Right d2)
+
+-- ** Dirichlet tensor
+
+-- | The Dirichlet tensor @p ⊗ q@ pairs positions and multiplies directions.
+-- A value is a position pair together with one function out of the product of
+-- direction sets — not two separate functions.
+--
+-- >>> let ab = ET ((), ()) (\(a, b) -> a ++ b) :: Eval ('Tensor ('Exp String) ('Exp String)) String
+-- >>> case ab of ET ((), ()) f -> f ("hello ", "world")
+-- "hello world"
+--
+-- 'fmap' acts on the result of the combined direction function.
+--
+-- >>> let v = ET ((), ()) (\(a, b) -> a + b) :: Eval ('Tensor ('Exp Int) ('Exp Int)) Int
+-- >>> case fmap (* 2) v of ET ((), ()) f -> f (3, 4)
+-- 14
+--
+-- The braiding swaps both the position pair and the direction pair.
+--
+-- >>> case runMorphism TensorBraid ab of ET ((), ()) f -> f ("world", "hello ")
+-- "hello world"
+--
+-- The associator reassociates both positions and directions.
+--
+-- >>> let abc = ET (((), ()), ()) (\((a, b), c) -> a ++ b ++ c) :: Eval ('Tensor ('Tensor ('Exp String) ('Exp String)) ('Exp String)) String
+-- >>> case runMorphism TensorAssocL abc of ET ((), ((), ())) f -> f ("a", ("b", "c"))
+-- "abc"
+-- >>> case runMorphism TensorAssocR (runMorphism TensorAssocL abc) of ET (((), ()), ()) f -> f (("x", "y"), "z")
+-- "xyz"
+--
+-- 'ParT' is the functorial action of tensor on monomials: map each factor
+-- independently, backward directions thread through both.
+--
+-- The puts are deliberately non-identity: a test with identity puts would still
+-- pass if ParT ignored the factor morphisms and threaded directions straight
+-- through (the mutation-review catch).
+--
+-- >>> let m1 = lens show (\n dn -> n + dn) :: Morphism (Mono Int Int) (Mono String Int)
+-- >>> let m2 = lens (\b -> if b then 1 else 0 :: Int) (\b db -> b && db) :: Morphism (Mono Bool Bool) (Mono Int Bool)
+-- >>> let v = ET ((5, ()), (True, ())) (\(Right n, Right b) -> (n, b)) :: Eval ('Tensor (Mono Int Int) (Mono Bool Bool)) (Int, Bool)
+-- >>> case runMorphism (ParT m1 m2) v of ET ((_, ()), (_, ())) f -> f (Right 3, Right True)
+-- (8,True)
+-- >>> case runMorphism (ParT m1 m2) v of ET ((_, ()), (_, ())) f -> f (Right 2, Right False)
+-- (7,False)
 
 -- | The monomial interface: @a@ positions, @a'@ directions.
 type Mono a a' = 'Prod ('Const a) ('Exp a')
