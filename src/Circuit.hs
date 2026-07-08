@@ -69,6 +69,20 @@ module Circuit
     -- | Open a feedback loop. See "Circuit.Trace".
     untrace,
 
+    -- * Channel ends
+    open,
+    openSTM,
+
+    -- * Queues
+    Queue (..),
+    WireK,
+    Emit,
+    Commit,
+    endsSTM,
+    endsPure,
+    endsQueue,
+    closeQueue,
+
     -- * Free
     Free,
 
@@ -141,6 +155,10 @@ import Circuit.Dagger
     Monoid (..),
     transpose,
   )
+import Circuit.Ends
+  ( open,
+    openSTM,
+  )
 import Circuit.Free
   ( Free,
   )
@@ -175,6 +193,16 @@ import Circuit.Net
   ( Net,
     enrich,
     melt,
+  )
+import Circuit.Queue
+  ( Commit,
+    Emit,
+    Queue (..),
+    WireK,
+    closeQueue,
+    endsPure,
+    endsQueue,
+    endsSTM,
   )
 import Circuit.Trace
   ( Co (..),

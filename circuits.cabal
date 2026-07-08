@@ -69,6 +69,7 @@ library
     Circuit.Layer.Algebra
     Circuit.Classes
     Circuit.Dagger
+    Circuit.Ends
     Circuit.Free
     Circuit.Hyper
     Circuit.Layer
@@ -78,9 +79,11 @@ library
     Circuit.Monoidal.Category
     Circuit.Net
     Circuit.Poly
+    Circuit.Queue
 
   build-depends:
-    base >=4.18 && <5
+    base >=4.18 && <5,
+    stm >=2.5 && <3
 
   if impl(ghc)
     build-depends: profunctors >=5.0 && <6
