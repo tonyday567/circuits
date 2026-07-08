@@ -50,6 +50,10 @@ module Circuit.Poly
     -- * Netlist view
     Netlist (..),
     netRoundTrip,
+    tensorUnitorL,
+    tensorUnitorL',
+    tensorUnitorR,
+    tensorUnitorR',
 
     -- * Morphisms
     Morphism (..),
@@ -191,6 +195,28 @@ instance Netlist ('Tensor p q) where
 netRoundTrip :: Netlist p => Eval p x -> Eval p x
 netRoundTrip v = uncurry fromNet (toNet v)
 
+-- | Left unitor for the Dirichlet tensor: @Y ⊗ p ≅ p@.
+--
+-- The @Y@ factor is degenerate; collapse via 'fromNet' on the other factor.
+tensorUnitorL :: Netlist p => Eval ('Tensor 'Y p) x -> Eval p x
+tensorUnitorL (ET ((), i) f) = fromNet i (\dp -> f ((), dp))
+
+-- | Inverse left unitor: @p -> Y ⊗ p@.
+tensorUnitorL' :: Netlist p => Eval p x -> Eval ('Tensor 'Y p) x
+tensorUnitorL' v =
+  let (i, k) = toNet v
+   in ET ((), i) (\((), dp) -> k dp)
+
+-- | Right unitor for the Dirichlet tensor: @p ⊗ Y ≅ p@.
+tensorUnitorR :: Netlist p => Eval ('Tensor p 'Y) x -> Eval p x
+tensorUnitorR (ET (i, ()) f) = fromNet i (\dp -> f (dp, ()))
+
+-- | Inverse right unitor: @p -> p ⊗ Y@.
+tensorUnitorR' :: Netlist p => Eval p x -> Eval ('Tensor p 'Y) x
+tensorUnitorR' v =
+  let (i, k) = toNet v
+   in ET (i, ()) (\(dp, ()) -> k dp)
+
 -- $netlist-roundtrip
 --
 -- Round trips hold for the structural instances. The witnesses below are
@@ -239,6 +265,30 @@ netRoundTrip v = uncurry fromNet (toNet v)
 -- >>> let (i, k) = toNet (fromNet ((), ()) (\case Left c -> c : "!"; Right b -> if b then "yes" else "no") :: Eval ('Prod ('Exp Char) ('Exp Bool)) String)
 -- >>> (i, k (Left 'x'), k (Right False))
 -- (((),()),"x!","no")
+--
+-- Left unitor: @Y ⊗ Mono@ collapses to @Mono@ and back.  Pin assignment
+-- transforms (@dn -> show dn ++ "!"@) — a stub that ignores @f@ fails.
+--
+-- >>> let yt = ET ((), (5, ())) (\((), Right dn) -> show dn ++ "!") :: Eval ('Tensor 'Y (Mono Int Int)) String
+-- >>> case tensorUnitorL yt of EP (EK n, EE f) -> (n, f 7, f 42)
+-- (5,"7!","42!")
+--
+-- >>> let mono = EP (EK 5, EE (\dn -> show dn ++ "!")) :: Eval (Mono Int Int) String
+-- >>> case tensorUnitorL' mono of ET ((), (n, ())) f -> (n, f ((), Right 7))
+-- (5,"7!")
+--
+-- >>> case tensorUnitorL (tensorUnitorL' mono) of EP (EK n, EE f) -> (n, f 3)
+-- (5,"3!")
+--
+-- Right unitor: position pair @(i, ())@ not @(() , i)@.
+--
+-- >>> let ty = ET ((5, ()), ()) (\(Right dn, ()) -> dn + 10) :: Eval ('Tensor (Mono Int Int) 'Y) Int
+-- >>> case tensorUnitorR ty of EP (EK n, EE f) -> (n, f 3, f 7)
+-- (5,13,17)
+--
+-- >>> let monoInt = EP (EK 5, EE (\dn -> dn + 1)) :: Eval (Mono Int Int) Int
+-- >>> case tensorUnitorR (tensorUnitorR' monoInt) of EP (EK n, EE f) -> (n, f 3)
+-- (5,4)
 
 -- | A morphism @p -> q@ in Poly, encoded as a natural transformation
 -- between the evaluated functors.
