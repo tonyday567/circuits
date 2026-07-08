@@ -73,6 +73,7 @@ library
     Circuit.Hyper
     Circuit.Layer
     Circuit.Mon
+    Circuit.Int
     Circuit.Monoidal
     Circuit.Monoidal.Category
     Circuit.Net
