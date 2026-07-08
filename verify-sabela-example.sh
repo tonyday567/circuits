@@ -1,21 +1,43 @@
 #!/bin/bash
 # verify-sabela-example.sh — load one markdown notebook in Sabela and report PASS/FAIL.
 # Usage: ./verify-sabela-example.sh <port> <path-to-md>
+#
+# Reproducible successor to the crashed version:
+#   - resolves the sabela binary from PATH (globally installed), not a /tmp hardcode
+#   - exports SABELA_LOCAL_PACKAGES so cells that `import Circuit` resolve the LOCAL
+#     circuits package (+ satellites) instead of Hackage
+#   - roots the file explorer at the circuits repo so data files (other/alice.md …) resolve
+#   - cells run under `cabal repl` = the default GHC (9.14.1, what circuits is tested-with);
+#     do NOT export GHC or cells build on the wrong compiler.
 
 set -u
 
 PORT="${1:?usage: $0 <port> <path-to-md>}"
 NB="${2:?usage: $0 <port> <path-to-md>}"
 BASE="http://localhost:$PORT"
-WORK_DIR="/Users/tonyday567/haskell/circuits"
-SABELA_BIN="/tmp/sabela/dist-newstyle/build/aarch64-osx/ghc-9.14.1/sabela-0.1.0.0/x/sabela/build/sabela/sabela"
+WORK_DIR="${SABELA_WORK_DIR:-/Users/tonyday567/haskell/circuits}"
 
-if [ ! -x "$SABELA_BIN" ]; then
-  echo "FAIL: sabela binary not found at $SABELA_BIN"
+# Local package overlays: circuits + the satellites some examples import.
+# A cell still needs `-- cabal: build-depends: circuits` to pull one in; this
+# just makes the local checkouts resolvable in the generated cabal.project.
+export SABELA_LOCAL_PACKAGES="${SABELA_LOCAL_PACKAGES:-\
+$HOME/haskell/circuits:\
+$HOME/haskell/circuits-meter:\
+$HOME/haskell/circuits-mat:\
+$HOME/haskell/circuits-ad:\
+$HOME/haskell/circuits-parser}"
+
+# Resolve the sabela binary: PATH first, then cabal's install dir.
+SABELA_BIN="$(command -v sabela || true)"
+if [ -z "$SABELA_BIN" ] && [ -x "$HOME/.cabal/bin/sabela" ]; then
+  SABELA_BIN="$HOME/.cabal/bin/sabela"
+fi
+if [ -z "$SABELA_BIN" ]; then
+  echo "FAIL: sabela binary not found on PATH or in ~/.cabal/bin (cabal install exe:sabela)"
   exit 1
 fi
 
-# Start sabela in the background on the requested port.
+# Start sabela in the background: <port> <work-dir>.
 "$SABELA_BIN" "$PORT" "$WORK_DIR" >/dev/null 2>&1 &
 PID=$!
 
@@ -63,7 +85,6 @@ curl -s --max-time 120 -X POST "$BASE/api/run-all" >/dev/null 2>&1
 # Poll the notebook state until execution settles.
 for i in $(seq 1 60); do
   sleep 2
-  # Check if any code cell is still running (no output and no error yet).
   PENDING=$(curl -s --max-time 10 "$BASE/api/notebook" 2>/dev/null | python3 -c "
 import sys, json
 try:
