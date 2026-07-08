@@ -22,42 +22,49 @@ module Circuit.Int
     IntMorph (..),
 
     -- * Compact-closed structure
-    intId,
-    intComp,
-    intDual,
+    id,
+    comp,
+    dual,
 
     -- * Tensor product of Int morphisms
-    intPar,
+    par,
 
     -- * Hyper bridge
-    intToHyper,
-    hyperToIntMorph,
+    toHyper,
+    fromHyper,
 
-    -- * Cup / cap (yanking witnesses)
-    intCap,
-    intCup,
-    intUnitL,
-    intUnitR',
-    intAssocInv,
+    -- * Unit and coherence (yanking witnesses)
+    cap,
+    cup,
+    unitL,
+    unitR',
+    assocInv,
+
+    -- * Bridge from Poly monomial lenses
+    causal,
   )
 where
 
 import Circuit.Hyper (Hyper (..), encode, flatten, observe)
-import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal qualified as M (Action (..))
 import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Poly (Morphism, Mono, applyLens)
 import Circuit.Trace (Trace (..), Traced (..))
-import Control.Category
+import Control.Category ((.))
+import Control.Category qualified as Cat (Category (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
--- >>> import Control.Category
+-- >>> import Control.Category ((.))
+-- >>> import Control.Category qualified as Cat
 -- >>> import Circuit.Trace (Trace (..), Traced (..), trace)
 -- >>> import Circuit.Monoidal (Action (..))
 -- >>> import Circuit.Monoidal.Category (Monoidal (..))
 -- >>> import Circuit.Hyper (observe)
 -- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Poly (dagger, lens, applyLens, Morphism (..), Mono)
 -- >>> import Data.Bifunctor (Bifunctor (..))
 -- >>> :set -XGADTs -XStandaloneDeriving -XFlexibleInstances -XFlexibleContexts -XScopedTypeVariables -XTypeApplications
 -- >>> class Eq a => Finite a where universe :: [a]
@@ -83,7 +90,7 @@ import Prelude hiding (id, (.))
 -- :}
 --
 -- >>> :{
--- instance Category Mat where
+-- instance Cat.Category Mat where
 --   id = Id
 --   Id . f = f
 --   f . Id = f
@@ -137,17 +144,17 @@ import Prelude hiding (id, (.))
 -- :}
 --
 -- >>> :{
--- intCompMatEither ::
+-- compMatEither ::
 --   forall ap am bp bm cp cm.
 --   (Finite ap, Finite am, Finite bp, Finite bm, Finite cp, Finite cm) =>
 --   IntMorph Either Mat bp bm cp cm ->
 --   IntMorph Either Mat ap am bp bm ->
 --   IntMorph Either Mat ap am cp cm
--- intCompMatEither (IntMorph g) (IntMorph f) = IntMorph (matTrace (middleOut . matPar g f . middleIn))
+-- compMatEither (IntMorph g) (IntMorph f) = IntMorph (matTrace (middleOut . matPar g f . middleIn))
 --   where
---     id_ap = id :: Mat ap ap
---     id_am = id :: Mat am am
---     id_bm = id :: Mat bm bm
+--     id_ap = Cat.id :: Mat ap ap
+--     id_am = Cat.id :: Mat am am
+--     id_bm = Cat.id :: Mat bm bm
 --     middleIn =
 --       matSwap @(Either ap bm) @(Either bp cm)
 --         . matAssoc' @ap @bm @(Either bp cm)
@@ -181,11 +188,11 @@ newtype IntMorph (t :: Type -> Type -> Type) arr (ap :: Type) (am :: Type) (bp :
 
 -- | Identity in @Int@ is the symmetry that swaps the two factors.
 --
--- >>> let i = intId :: IntMorph (,) (->) Int Bool Int Bool
+-- >>> let i = id :: IntMorph (,) (->) Int Bool Int Bool
 -- >>> runIntMorph i (1, False)
 -- (False,1)
-intId :: (Action t arr) => IntMorph t arr ap am ap am
-intId = IntMorph swap
+id :: (M.Action t arr) => IntMorph t arr ap am ap am
+id = IntMorph M.swap
 
 -- | Dual of an Int morphism: swap the polarities of domain and codomain.
 --
@@ -193,10 +200,10 @@ intId = IntMorph swap
 -- the types line up: @arr (t bm ap) (t bp am)@.
 --
 -- >>> let f = IntMorph (\(a, d) -> (a * 2, d + 1)) :: IntMorph (,) (->) Int Int Int Int
--- >>> runIntMorph (intDual f) (5, 1)
+-- >>> runIntMorph (dual f) (5, 1)
 -- (6,2)
-intDual :: (Action t arr) => IntMorph t arr ap am bp bm -> IntMorph t arr bm bp am ap
-intDual (IntMorph f) = IntMorph (swap . f . swap)
+dual :: (M.Action t arr) => IntMorph t arr ap am bp bm -> IntMorph t arr bm bp am ap
+dual (IntMorph f) = IntMorph (M.swap . f . M.swap)
 
 -- | Bridge from an Int morphism over functions to a hyperfunction on the
 -- paired wires.  This is not a structural isomorphism — it is the
@@ -204,21 +211,21 @@ intDual (IntMorph f) = IntMorph (swap . f . swap)
 -- over @(->)@.
 --
 -- >>> let f = IntMorph (\(a, d) -> (a * 2, d + 1)) :: IntMorph (,) (->) Int Int Int Int
--- >>> observe (intToHyper f) (5, 1)
+-- >>> observe (toHyper f) (5, 1)
 -- (10,2)
-intToHyper :: IntMorph (,) (->) ap am bp bm -> Hyper (ap, bm) (am, bp)
-intToHyper = encode . Arr . runIntMorph
+toHyper :: IntMorph (,) (->) ap am bp bm -> Hyper (ap, bm) (am, bp)
+toHyper = encode . Arr . runIntMorph
 
 -- | Forget a hyperfunction back to an Int morphism.  This collapses feedback
 -- structure; only observable behaviour round-trips.
 --
 -- >>> let f = IntMorph (\(a, d) -> (a * 2, d + 1)) :: IntMorph (,) (->) Int Int Int Int
--- >>> runIntMorph (hyperToIntMorph (intToHyper f)) (5, 1)
+-- >>> runIntMorph (fromHyper (toHyper f)) (5, 1)
 -- (10,2)
-hyperToIntMorph :: Hyper (ap, bm) (am, bp) -> IntMorph (,) (->) ap am bp bm
-hyperToIntMorph h = case flatten h of
+fromHyper :: Hyper (ap, bm) (am, bp) -> IntMorph (,) (->) ap am bp bm
+fromHyper h = case flatten h of
   Arr f -> IntMorph f
-  Knot _ -> error "hyperToIntMorph: flatten produced a Knot"
+  Knot _ -> error "fromHyper: flatten produced a Knot"
 
 -- | Composition in the Int construction.
 --
@@ -233,45 +240,45 @@ hyperToIntMorph h = case flatten h of
 --
 -- >>> let f = IntMorph (Arr (\(a, _) -> (a + 1, a))) :: IntMorph (,) (Trace (,) (->)) Int Int Int Int
 -- >>> let g = IntMorph (Arr (\(_, c) -> (c, c + 1))) :: IntMorph (,) (Trace (,) (->)) Int Int Int Int
--- >>> run (runIntMorph (g `intComp` f)) (4, 1)
+-- >>> run (runIntMorph (g `comp` f)) (4, 1)
 -- (5,2)
 --
 -- The composite over @Trace@ inherits the one-'Knot' normal form: the inner
 -- plumbing is absorbed into a single 'Knot' over one base arrow.
 --
--- >>> case runIntMorph (g `intComp` f) of Knot _ -> "one-Knot"; Arr _ -> "not one-Knot"
+-- >>> case runIntMorph (g `comp` f) of Knot _ -> "one-Knot"; Arr _ -> "not one-Knot"
 -- "one-Knot"
-intComp ::
+comp ::
   forall t arr ap am bp bm cp cm.
-  (Action t arr, Traced t arr) =>
+  (M.Action t arr, Monoidal t arr, Traced t arr) =>
   IntMorph t arr bp bm cp cm ->
   IntMorph t arr ap am bp bm ->
   IntMorph t arr ap am cp cm
-intComp (IntMorph g) (IntMorph f) = IntMorph (trace (middleOut . (g `par` f) . middleIn))
+comp (IntMorph g) (IntMorph f) = IntMorph (trace (middleOut . (g `M.par` f) . middleIn))
   where
     -- identities at the relevant objects, pinned so 'par' can resolve
     id_ap :: arr ap ap
     id_am :: arr am am
     id_bm :: arr bm bm
-    id_ap = id
-    id_am = id
-    id_bm = id
+    id_ap = Cat.id
+    id_am = Cat.id
+    id_bm = Cat.id
 
     middleIn :: arr (t (t bm bp) (t ap cm)) (t (t bp cm) (t ap bm))
     middleIn = step6 . step5 . step4 . step3 . step2 . step1
       where
         step1 :: arr (t (t bm bp) (t ap cm)) (t (t ap cm) (t bm bp))
-        step1 = swap @t @arr @(t bm bp) @(t ap cm)
+        step1 = M.swap @t @arr @(t bm bp) @(t ap cm)
         step2 :: arr (t (t ap cm) (t bm bp)) (t ap (t cm (t bm bp)))
         step2 = assoc @t @arr @ap @cm @(t bm bp)
         step3 :: arr (t ap (t cm (t bm bp))) (t ap (t (t bm bp) cm))
-        step3 = id_ap `par` swap @t @arr @cm @(t bm bp)
+        step3 = id_ap `M.par` M.swap @t @arr @cm @(t bm bp)
         step4 :: arr (t ap (t (t bm bp) cm)) (t ap (t bm (t bp cm)))
-        step4 = id_ap `par` assoc @t @arr @bm @bp @cm
+        step4 = id_ap `M.par` assoc @t @arr @bm @bp @cm
         step5 :: arr (t ap (t bm (t bp cm))) (t (t ap bm) (t bp cm))
         step5 = assoc' @t @arr @ap @bm @(t bp cm)
         step6 :: arr (t (t ap bm) (t bp cm)) (t (t bp cm) (t ap bm))
-        step6 = swap @t @arr @(t ap bm) @(t bp cm)
+        step6 = M.swap @t @arr @(t ap bm) @(t bp cm)
 
     middleOut :: arr (t (t bm cp) (t am bp)) (t (t bm bp) (t am cp))
     middleOut = step7 . step6 . step5 . step4 . step3 . step2 . step1
@@ -279,35 +286,35 @@ intComp (IntMorph g) (IntMorph f) = IntMorph (trace (middleOut . (g `par` f) . m
         step1 :: arr (t (t bm cp) (t am bp)) (t bm (t cp (t am bp)))
         step1 = assoc @t @arr @bm @cp @(t am bp)
         step2 :: arr (t bm (t cp (t am bp))) (t bm (t (t am bp) cp))
-        step2 = id_bm `par` swap @t @arr @cp @(t am bp)
+        step2 = id_bm `M.par` M.swap @t @arr @cp @(t am bp)
         step3 :: arr (t bm (t (t am bp) cp)) (t bm (t am (t bp cp)))
-        step3 = id_bm `par` assoc @t @arr @am @bp @cp
+        step3 = id_bm `M.par` assoc @t @arr @am @bp @cp
         step4 :: arr (t bm (t am (t bp cp))) (t bm (t am (t cp bp)))
-        step4 = id_bm `par` (id_am `par` swap @t @arr @bp @cp)
+        step4 = id_bm `M.par` (id_am `M.par` M.swap @t @arr @bp @cp)
         step5 :: arr (t bm (t am (t cp bp))) (t bm (t (t am cp) bp))
-        step5 = id_bm `par` assoc' @t @arr @am @cp @bp
+        step5 = id_bm `M.par` assoc' @t @arr @am @cp @bp
         step6 :: arr (t bm (t (t am cp) bp)) (t (t am cp) (t bm bp))
         step6 = braid @t @arr @bm @(t am cp) @bp
         step7 :: arr (t (t am cp) (t bm bp)) (t (t bm bp) (t am cp))
-        step7 = swap @t @arr @(t am cp) @(t bm bp)
+        step7 = M.swap @t @arr @(t am cp) @(t bm bp)
 
 -- | Tensor product of two Int morphisms.
 --
 -- On objects this is componentwise: @(ap, am) \u2297 (cp, cm) = (t ap cp, t am cm)@.
 -- On morphisms it threads the two base arrows side-by-side and reassociates
 -- the factors into the required @arr (t (t ap cp) (t bm dm)) (t (t am cm) (t bp dp))@ shape.
-intPar ::
+par ::
   forall t arr ap am bp bm cp cm dp dm.
-  (Action t arr, Monoidal t arr) =>
+  (M.Action t arr, Monoidal t arr) =>
   IntMorph t arr ap am bp bm ->
   IntMorph t arr cp cm dp dm ->
   IntMorph t arr (t ap cp) (t am cm) (t bp dp) (t bm dm)
-intPar (IntMorph f) (IntMorph g) = IntMorph (permOut . (f `par` g) . permIn)
+par (IntMorph f) (IntMorph g) = IntMorph (permOut . (f `M.par` g) . permIn)
   where
     id_ap :: arr ap ap
     id_bm :: arr bm bm
-    id_ap = id
-    id_bm = id
+    id_ap = Cat.id
+    id_bm = Cat.id
 
     -- permIn  :: arr (t (t ap cp) (t bm dm)) (t (t ap bm) (t cp dm))
     permIn = step5 . step4 . step3 . step2 . step1
@@ -315,11 +322,11 @@ intPar (IntMorph f) (IntMorph g) = IntMorph (permOut . (f `par` g) . permIn)
         step1 :: arr (t (t ap cp) (t bm dm)) (t ap (t cp (t bm dm)))
         step1 = assoc @t @arr @ap @cp @(t bm dm)
         step2 :: arr (t ap (t cp (t bm dm))) (t ap (t (t bm dm) cp))
-        step2 = id_ap `par` swap @t @arr @cp @(t bm dm)
+        step2 = id_ap `M.par` M.swap @t @arr @cp @(t bm dm)
         step3 :: arr (t ap (t (t bm dm) cp)) (t ap (t bm (t dm cp)))
-        step3 = id_ap `par` assoc @t @arr @bm @dm @cp
+        step3 = id_ap `M.par` assoc @t @arr @bm @dm @cp
         step4 :: arr (t ap (t bm (t dm cp))) (t ap (t bm (t cp dm)))
-        step4 = id_ap `par` (id_bm `par` swap @t @arr @dm @cp)
+        step4 = id_ap `M.par` (id_bm `M.par` M.swap @t @arr @dm @cp)
         step5 :: arr (t ap (t bm (t cp dm))) (t (t ap bm) (t cp dm))
         step5 = assoc' @t @arr @ap @bm @(t cp dm)
 
@@ -329,39 +336,39 @@ intPar (IntMorph f) (IntMorph g) = IntMorph (permOut . (f `par` g) . permIn)
         step1 :: arr (t (t am bp) (t cm dp)) (t am (t bp (t cm dp)))
         step1 = assoc @t @arr @am @bp @(t cm dp)
         step2 :: arr (t am (t bp (t cm dp))) (t am (t (t cm dp) bp))
-        step2 = id_am `par` swap @t @arr @bp @(t cm dp)
+        step2 = id_am `M.par` M.swap @t @arr @bp @(t cm dp)
         step3 :: arr (t am (t (t cm dp) bp)) (t am (t cm (t dp bp)))
-        step3 = id_am `par` assoc @t @arr @cm @dp @bp
+        step3 = id_am `M.par` assoc @t @arr @cm @dp @bp
         step4 :: arr (t am (t cm (t dp bp))) (t am (t cm (t bp dp)))
-        step4 = id_am `par` (id_cm `par` swap @t @arr @dp @bp)
+        step4 = id_am `M.par` (id_cm `M.par` M.swap @t @arr @dp @bp)
         step5 :: arr (t am (t cm (t bp dp))) (t (t am cm) (t bp dp))
         step5 = assoc' @t @arr @am @cm @(t bp dp)
 
     id_am :: arr am am
     id_cm :: arr cm cm
-    id_am = id
-    id_cm = id
+    id_am = Cat.id
+    id_cm = Cat.id
 
 -- | Cap (unit introduction) for @Int(->)@ at object @IN a b@.
 --
 -- The unit object is @IN () ()@; the cap produces the tensor @IN (a, b) (b, a)@.
-intCap :: IntMorph (,) (->) () () (a, b) (b, a)
-intCap = IntMorph $ \((), (b, a)) -> ((), (a, b))
+cap :: IntMorph (,) (->) () () (a, b) (b, a)
+cap = IntMorph $ \((), (b, a)) -> ((), (a, b))
 
 -- | Cup (unit elimination) for @Int(->)@ at object @IN a b@.
-intCup :: IntMorph (,) (->) (b, a) (a, b) () ()
-intCup = IntMorph $ \((b, a), ()) -> ((a, b), ())
+cup :: IntMorph (,) (->) (b, a) (a, b) () ()
+cup = IntMorph $ \((b, a), ()) -> ((a, b), ())
 
 -- | Left-unitor for @Int(->)@: @I \u2297 A -> A@.
-intUnitL :: IntMorph (,) (->) ((), a) ((), b) a b
-intUnitL = IntMorph $ \(((), a), b) -> (((), b), a)
+unitL :: IntMorph (,) (->) ((), a) ((), b) a b
+unitL = IntMorph $ \(((), a), b) -> (((), b), a)
 
 -- | Inverse left-unitor for @Int(->)@: @A -> I \u2297 A@.
-intUnitR' :: IntMorph (,) (->) a b (a, ()) (b, ())
-intUnitR' = IntMorph $ \(a, (b, ())) -> (b, (a, ()))
+unitR' :: IntMorph (,) (->) a b (a, ()) (b, ())
+unitR' = IntMorph $ \(a, (b, ())) -> (b, (a, ()))
 
 -- | Inverse associator used in the left yanking equation for @IN a b@.
-intAssocInv ::
+assocInv ::
   IntMorph
     (,)
     (->)
@@ -369,13 +376,13 @@ intAssocInv ::
     (b, (a, b))
     ((a, b), a)
     ((b, a), b)
-intAssocInv = IntMorph $ \((x, (y, x')), ((y', x''), y'')) -> ((y', (x'', y'')), ((x, y), x'))
+assocInv = IntMorph $ \((x, (y, x')), ((y', x''), y'')) -> ((y', (x'', y'')), ((x, y), x'))
 
 -- | Yanking witness.  In the Int construction the identity is the braid on
 -- the two factors; tracing that braid over the Either tensor returns the
 -- input unchanged.
 --
--- >>> let i = intId :: IntMorph Either (->) Int Int Int Int
+-- >>> let i = id :: IntMorph Either (->) Int Int Int Int
 -- >>> trace (runIntMorph i) (42 :: Int)
 -- 42
 
@@ -383,7 +390,7 @@ intAssocInv = IntMorph $ \((x, (y, x')), ((y', x''), y'')) -> ((y', (x'', y'')),
 -- @Bool@, the @aa@ block is the swap (so its reflexive-transitive closure is
 -- the universal relation on @Bool@), and the off-diagonal @ba@/@ac@ blocks are
 -- non-constant.  The helper below repeats the same @parT + braid + trace-middle@
--- wiring as 'intComp', but specialised to the @Mat@/Either setup so the
+-- wiring as 'comp', but specialised to the @Mat@/Either setup so the
 -- doctest can live in the finite-type setting.
 --
 -- >>> let aa = mat (\a a' -> a /= a') :: Mat Bool Bool
@@ -396,11 +403,58 @@ intAssocInv = IntMorph $ \((x, (y, x')), ((y', x''), y'')) -> ((y', (x'', y'')),
 -- >>> let baG = mat (\c b -> c || b) :: Mat Bool Bool
 -- >>> let mG = mat (\x y -> case x of { Left b -> case y of { Left b' -> b /= b'; Right c -> c }; Right c -> case y of { Left b' -> c || b'; Right _ -> False } })
 -- >>> let g = IntMorph mG :: IntMorph Either Mat Bool Bool Bool Bool
--- >>> runMat (runIntMorph (intCompMatEither g f)) (Right False) (Right False)
+-- >>> runMat (runIntMorph (compMatEither g f)) (Right False) (Right False)
 -- False
--- >>> runMat (runIntMorph (intCompMatEither g f)) (Right False) (Right True)
+-- >>> runMat (runIntMorph (compMatEither g f)) (Right False) (Right True)
 -- True
--- >>> runMat (runIntMorph (intCompMatEither g f)) (Right True) (Right False)
+-- >>> runMat (runIntMorph (compMatEither g f)) (Right True) (Right False)
 -- False
--- >>> runMat (runIntMorph (intCompMatEither g f)) (Right True) (Right True)
+-- >>> runMat (runIntMorph (compMatEither g f)) (Right True) (Right True)
 -- True
+
+-- | Include a @Poly@ monomial lens as an @Int@ morphism over @(->)@.
+--
+-- A monomial @'Mono' a da@ is the @Int@ object @'IN' a da@: forward face @a@,
+-- backward face @da@. A lens @'Morphism' ('Mono' a da) ('Mono' b db)@ carries a
+-- forward pass @a -> b@ and a backward pass @a -> db -> da@; 'causal' packs them
+-- into the single joint map @(a, db) -> (da, b)@ that an 'IntMorph' demands.
+--
+-- This is the /causal fragment/: the forward output @b@ is read from @a@ alone,
+-- never from the backward input @db@. The image therefore carries no feedback —
+-- composing two 'causal' images under 'comp' leaves the middle 'trace' with
+-- nothing to close, so the knot is trivial.
+--
+-- >>> let l1 = dagger (+10) (*2) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> runIntMorph (causal l1) (100, 3)
+-- (6,110)
+--
+-- The forward face ignores the backward input — feeding two different backward
+-- values leaves the forward output @b@ fixed at @110@:
+--
+-- >>> [ snd (runIntMorph (causal l1) (100, db)) | db <- [3, 99] ]
+-- [110,110]
+--
+-- Point-dependent lenses cross too: @'lens' 'show' (\\n d -> n + d)@ at @40@ gives
+-- forward @"40"@ and backward @40 + 2 = 42@.
+--
+-- >>> let l2 = lens show (\n d -> n + d) :: Morphism (Mono Int Int) (Mono String Int)
+-- >>> runIntMorph (causal l2) (40, 2)
+-- (42,"40")
+--
+-- __Trivial knot under composition.__ Take 'causal' into the 'Trace' base and
+-- compose two images with 'comp'. Composition ties a 'Knot' (the middle 'trace'
+-- fires) — yet the observed value equals plain lens 'Compose' under the polarity
+-- swap, because the causal fragment feeds nothing back through the loop. The knot
+-- is tied and does nothing: pullback magnitude of the trace is zero here.
+--
+-- >>> let cz (m :: Morphism (Mono x xd) (Mono y yd)) = IntMorph (Arr (\(a, db) -> let (b, put) = applyLens m a in (put db, b))) :: IntMorph (,) (Trace (,) (->)) x xd y yd
+-- >>> let f = dagger (+1) (*2) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> let g = dagger (*10) (+5) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> let (b, put) = applyLens (Compose g f) 7 in (b, put 100)
+-- (80,210)
+-- >>> run (runIntMorph (comp (cz g) (cz f) :: IntMorph (,) (Trace (,) (->)) Int Int Int Int)) (7, 100)
+-- (210,80)
+-- >>> case runIntMorph (comp (cz g) (cz f) :: IntMorph (,) (Trace (,) (->)) Int Int Int Int) of Knot _ -> "Knot (tied, trivial)"; Arr _ -> "Arr (no knot)"
+-- "Knot (tied, trivial)"
+causal :: Morphism (Mono a da) (Mono b db) -> IntMorph (,) (->) a da b db
+causal m = IntMorph (\(a, db) -> let (b, put) = applyLens m a in (put db, b))
