@@ -47,6 +47,10 @@ module Circuit.Poly
     Pos,
     Dir,
 
+    -- * Netlist view
+    Netlist (..),
+    netRoundTrip,
+
     -- * Morphisms
     Morphism (..),
     runMorphism,
@@ -66,7 +70,7 @@ where
 import Control.Category
 import Data.Bifunctor
 import Data.Kind (Type)
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -137,6 +141,104 @@ instance Functor (Eval p) where
     ES e -> ES (bimap (fmap f) (fmap f) e)
     EP (a, b) -> EP (fmap f a, fmap f b)
     ET pos g -> ET pos (f . g)
+
+-- ** Netlist view
+
+-- | Polynomials that admit a netlist view: every value is a chosen position
+-- together with an assignment of that position's pins (directions) into @x@.
+--
+-- The view is defined structurally over the promoted grammar. It is the
+-- missing inverse that lets us build arbitrary 'Eval' values from netlist
+-- data — in particular it underlies the unitors for the Dirichlet tensor
+-- and the functorial action @parT@ on tensor factors.
+--
+-- 'Sum' is deliberately /not/ an instance. A sum value stores its pin set
+-- in the branch constructor ('ES'), so there is no single flat direction
+-- set 'Dir' can assign to it. That is the honest boundary of the view;
+-- handling sums position-dependently needs the full position-indexed
+-- representation fork (see the 'Dir' haddock and 'loom/circuits-monomial.md').
+class Netlist (p :: Poly) where
+  -- | Extract the position and pin assignment from a polynomial value.
+  toNet :: Eval p x -> (Pos p, Dir p -> x)
+  -- | Build a polynomial value from a position and pin assignment.
+  fromNet :: Pos p -> (Dir p -> x) -> Eval p x
+
+instance Netlist 'Y where
+  toNet (EY x) = ((), \() -> x)
+  fromNet () k = EY (k ())
+
+instance Netlist ('Const a) where
+  toNet (EK c) = (c, absurd)
+  fromNet c _ = EK c
+
+instance Netlist ('Exp a) where
+  toNet (EE f) = ((), f)
+  fromNet () f = EE f
+
+instance (Netlist p, Netlist q) => Netlist ('Prod p q) where
+  toNet (EP (u, v)) =
+    let (i, f) = toNet u
+        (j, g) = toNet v
+     in ((i, j), either f g)
+  fromNet (i, j) k = EP (fromNet i (k . Left), fromNet j (k . Right))
+
+instance Netlist ('Tensor p q) where
+  toNet (ET ij f) = (ij, f)
+  fromNet = ET
+
+-- | Reassemble a value after taking it apart. This is the executable form
+-- of the round-trip law @'fromNet' ('toNet' v) ≡ v@.
+netRoundTrip :: Netlist p => Eval p x -> Eval p x
+netRoundTrip v = uncurry fromNet (toNet v)
+
+-- $netlist-roundtrip
+--
+-- Round trips hold for the structural instances. The witnesses below are
+-- chosen so that a placeholder 'fromNet'/'toNet' that ignores its input
+-- would fail: they use non-identity pin assignments and non-unit direction
+-- sets.
+--
+-- 'Y': the pin assignment is nondegenerate because it must return the stored
+-- value.
+--
+-- >>> let yv = EY 'a' :: Eval 'Y Char
+-- >>> case netRoundTrip yv of EY c -> c
+-- 'a'
+--
+-- 'Const': the direction set is 'Void', so the assignment is unique.
+--
+-- >>> let cv = EK True :: Eval ('Const Bool) Bool
+-- >>> case netRoundTrip cv of EK b -> b
+-- True
+--
+-- 'Exp': round-trip holds pointwise on the direction set.
+--
+-- >>> let ev = EE (\case 'a' -> 1; 'b' -> 2; _ -> 3) :: Eval ('Exp Char) Int
+-- >>> case netRoundTrip ev of EE f -> (f 'a', f 'b', f 'c')
+-- (1,2,3)
+--
+-- 'Prod': directions split over 'Either'; the witness uses different
+-- behaviour on each side. Both factors here are 'Exp Char' so a mutant that
+-- sends both sides through 'Left' still compiles but produces the wrong value
+-- on the right.
+--
+-- >>> let pv = EP (EE (\c -> c : "!"), EE (\c -> c : "?")) :: Eval ('Prod ('Exp Char) ('Exp Char)) String
+-- >>> case netRoundTrip pv of EP (EE f, EE g) -> (f 'x', g 'y')
+-- ("x!","y?")
+--
+-- 'Tensor': the constructor already /is/ netlist form, but the witness
+-- still exercises the split product of directions.
+--
+-- >>> let tv = ET ((), ()) (\(d1, d2) -> d1 ++ d2) :: Eval ('Tensor ('Exp String) ('Exp String)) String
+-- >>> case netRoundTrip tv of ET ((), ()) f -> f ("hello ", "world")
+-- "hello world"
+--
+-- The position-round-trip law @toNet ('fromNet' i k) == (i, k)@ also holds
+-- pointwise. For 'Prod' this is where a broken split would show up.
+--
+-- >>> let (i, k) = toNet (fromNet ((), ()) (\case Left c -> c : "!"; Right b -> if b then "yes" else "no") :: Eval ('Prod ('Exp Char) ('Exp Bool)) String)
+-- >>> (i, k (Left 'x'), k (Right False))
+-- (((),()),"x!","no")
 
 -- | A morphism @p -> q@ in Poly, encoded as a natural transformation
 -- between the evaluated functors.
