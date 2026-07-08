@@ -55,6 +55,10 @@ module Circuit.Poly
     tensorUnitorR,
     tensorUnitorR',
 
+    -- * Tensor functoriality
+    morphAt,
+    parT,
+
     -- * Morphisms
     Morphism (..),
     runMorphism,
@@ -217,6 +221,31 @@ tensorUnitorR' v =
   let (i, k) = toNet v
    in ET (i, ()) (\(dp, ()) -> k dp)
 
+-- | Read the bundle map off a 'Morphism' at a chosen position.
+--
+-- Instantiating the output as @'Dir' p@ turns an opaque morphism into a
+-- forward position plus a backward direction map — the crux that makes
+-- 'parT' a few lines.
+morphAt :: (Netlist p, Netlist p') => Morphism p p' -> Pos p -> (Pos p', Dir p' -> Dir p)
+morphAt m i =
+  let (i', k) = toNet (runMorphism m (fromNet i id))
+   in (i', k)
+
+-- | Functorial action of the Dirichlet tensor on 'Netlist' factors.
+--
+-- Map each tensor factor through its morphism independently; backward
+-- directions thread through both pullback maps.
+parT ::
+  (Netlist p, Netlist q, Netlist p', Netlist q') =>
+  Morphism p p' ->
+  Morphism q q' ->
+  Eval ('Tensor p q) x ->
+  Eval ('Tensor p' q') x
+parT m n (ET (i, j) f) =
+  let (i', pullM) = morphAt m i
+      (j', pullN) = morphAt n j
+   in ET (i', j') (\dp' -> f (pullM (fst dp'), pullN (snd dp')))
+
 -- $netlist-roundtrip
 --
 -- Round trips hold for the structural instances. The witnesses below are
@@ -369,36 +398,7 @@ runMorphism = \case
     ET ((pp, pq), pr) (f . (\((dp, dq), dr) -> (dp, (dq, dr))))
   TensorBraid -> \(ET (pp, pq) f) ->
     ET (pq, pp) (f . (\(dq, dp) -> (dp, dq)))
-  ParT m n -> \(ET ((a, ()), (c, ())) f) ->
-    let (b, putM) = monoLensAt m a
-        (d, putN) = monoLensAt n c
-    in ET ((b, ()), (d, ()))
-         (\v -> let (db, dd) = fromMonoTensorDir v
-                in f (toMonoTensorDir (putM db, putN dd)))
-
--- | Run a monomial morphism at a single position and return the forward
--- position plus the backward direction map.
---
--- 'ParT' is restricted to the monomial fragment because the current 'Dir'
--- family cannot express position-dependent direction sets (in particular,
--- 'Sum' has no 'Dir' row). The monomial fragment is the wiring layer's first
--- target anyway.
-monoLensAt ::
-  Morphism (Mono a da) (Mono b db) ->
-  a ->
-  (b, db -> da)
-monoLensAt m a = case runMorphism m (EP (EK a, EE id)) of
-  EP (EK b, EE put) -> (b, put)
-
--- | Monomial tensor directions are 'Either Void d', where the 'Left' branch
--- is impossible. These helpers centralise the (safe, unevaluated) 'Void'
--- placeholders.
-fromMonoTensorDir :: (Either Void d1, Either Void d2) -> (d1, d2)
-fromMonoTensorDir (Right d1, Right d2) = (d1, d2)
-fromMonoTensorDir _ = error "Either Void branch is uninhabited"
-
-toMonoTensorDir :: (d1, d2) -> (Either Void d1, Either Void d2)
-toMonoTensorDir (d1, d2) = (Right d1, Right d2)
+  ParT m n -> parT m n
 
 -- ** Dirichlet tensor
 
@@ -443,6 +443,18 @@ toMonoTensorDir (d1, d2) = (Right d1, Right d2)
 -- (8,True)
 -- >>> case runMorphism (ParT m1 m2) v of ET ((_, ()), (_, ())) f -> f (Right 2, Right False)
 -- (7,False)
+--
+-- 'parT' on non-monomial 'Netlist' factors ('Exp' morphisms via 'ExpMap').
+-- Both pullbacks must fire; dropping either factor leaves the wrong sign.
+--
+-- >>> let v = ET ((), ()) (\(i, b) -> if b then i else -i) :: Eval ('Tensor ('Exp Int) ('Exp Bool)) Int
+-- >>> let m = ExpMap (+ 10) :: Morphism ('Exp Int) ('Exp Int)
+-- >>> let n = ExpMap not :: Morphism ('Exp Bool) ('Exp Bool)
+-- >>> case parT m n v of ET ((), ()) g -> (g (3, True), g (0, False))
+-- (-13,10)
+--
+-- >>> case parT m n v of ET ((), ()) g -> g (3, True)
+-- -13
 
 -- | The monomial interface: @a@ positions, @a'@ directions.
 type Mono a a' = 'Prod ('Const a) ('Exp a')
