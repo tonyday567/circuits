@@ -9,10 +9,10 @@ operates on the payload; the state rides alongside via the tensor —
 ambient, unnoticed.
 
 ```haskell
-ambient :: (Profunctor arr, Traced arr t)
-        => (forall x y z. t x (t y z) -> t y (t x z))
-        -> Trace t arr a b
-        -> Trace t arr (t s a) (t s b)
+ambientBy :: (Profunctor arr, Traced arr t)
+          => (forall x y z. t x (t y z) -> t y (t x z))
+          -> Trace t arr a b
+          -> Trace t arr (t s a) (t s b)
 ```
 
 The braid argument swaps the state wire past the feedback channel:
@@ -33,7 +33,7 @@ inc = Arr (+1)
 -- Thread a String label through
 braid (x, (s, a)) = (s, (x, a))
 
--- >>> run (ambient braid inc) ("count", 5)
+-- >>> run (ambientBy braid inc) ("count", 5)
 -- ("count",6)
 ```
 
@@ -56,7 +56,7 @@ counter = Knot step
 braidE (Left (s, a))  = (s, Left a)
 braidE (Right (s, c)) = (s, Right c)
 
--- >>> run (ambient braidE counter) ("run-1", ())
+-- >>> run (ambientBy braidE counter) ("run-1", ())
 -- ("run-1",(3,[2,1,0]))
 ```
 
@@ -67,8 +67,8 @@ The label `"run-1"` slides past every iteration.
 `ambient` recurses over the `Trace` constructors:
 
 ```haskell
-ambient _braid (Arr f) = Arr (untrace f)
-ambient braid (Knot k) = Knot (dimap braid braid (untrace k))
+ambientBy _braid (Arr f) = Arr (untrace f)
+ambientBy braid (Knot k) = Knot (dimap braid braid (untrace k))
 ```
 
 | Constructor | What happens |

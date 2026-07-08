@@ -1,5 +1,8 @@
 # Pipes — Proxy decomposition
 
+> **Design-only / exploratory.** A sketch of how `pipes` `Proxy` might decompose
+> into `Trace` tensors. No executable mapping currently ships with the library.
+
 The `Proxy` type from Gabriel Gonzalez's `pipes` library decomposes into
 Circuit tensors. The key is the repeated elimination pattern — every
 instance follows the same Mendler fold.

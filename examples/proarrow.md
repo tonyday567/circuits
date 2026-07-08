@@ -297,5 +297,5 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 - [nLab: equipment](https://ncatlab.org/nlab/show/equipment) — proarrow equipment axioms
 - [examples/proequip.md](../examples/proequip.md) — double category framing; open lemma
 - [axioms.md](../other/axioms.md) — JSV axioms proved for both tensors
-- `src/Circuit/Traced.hs` — `Traced` instances
-- `Circuit` — `Trace(..)`, `run`, `weave`, `melt`
+- `src/Circuit/Trace.hs` — `Traced` instances
+- `Circuit` — `Trace(..)`, `run`, `melt`

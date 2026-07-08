@@ -39,19 +39,19 @@ The dual arrow is always present — it's the argument to `invoke`.
 | operation | type | what it does |
 |-----------|------|-------------|
 | `lift` / `↑` | `(a -> b) -> Hyper a b` | embed a plain function |
-| `lower` / `↓` | `Hyper a b -> a -> b` | observe with constant continuation |
+| `observe` / `↓` | `Hyper a b -> a -> b` | observe with constant continuation |
 | `base` / `○` | `a -> Hyper b a` | ignore feedback, return constant |
 | `push` / `⊲` | `(b -> c) -> Hyper a b -> Hyper a c` | prepend function to output |
 | `runHyper` / `⥁` | `Hyper a a -> a` | tie the self-referential knot |
 
 ```haskell
--- >>> lower (lift (+ 1)) 5
+-- >>> observe (lift (+ 1)) 5
 -- 6
 
--- >>> lower (base 42) undefined
+-- >>> observe (base 42) undefined
 -- 42
 
--- >>> lower (push (+ 1) (lift (* 2))) 5
+-- >>> observe (push (+ 1) (lift (* 2))) 5
 -- 6
 
 -- >>> runHyper (Hyper $ \_ -> (42 :: Int))
@@ -114,23 +114,23 @@ function argument rather than being eliminated to a plain function.
 after encoding gives the same result as running `Trace` directly:
 
 ```
-lower (encode t)  =  run t
+observe (encode t)  =  run t
 ```
 
 ```haskell
--- >>> lower (encode (Arr (+ 1))) 5
+-- >>> observe (encode (Arr (+ 1))) 5
 -- 6
 -- >>> run (Arr (+ 1) :: Trace (,) (->) Int Int) 5
 -- 6
 
 -- >>> let t = Arr (+ 1) . Arr (* 2) :: Trace (,) (->) Int Int
--- >>> lower (encode t) 5
+-- >>> observe (encode t) 5
 -- 11
 -- >>> run t 5
 -- 11
 
 -- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Trace (,) (->) () [Int]
--- >>> lower (encode k) ()
+-- >>> observe (encode k) ()
 -- [0,0,0]
 -- >>> run k ()
 -- [0,0,0]
@@ -138,7 +138,7 @@ lower (encode t)  =  run t
 
 The `Knot` case is where the triangle earns its keep.  `encode (Knot f)`
 uses Hyper's own `Traced Hyper (,)` instance — a coinductive lazy knot.  The
-sliding axiom guarantees `lower (encode (Knot f)) = trace f`.
+sliding axiom guarantees `observe (encode (Knot f)) = trace f`.
 
 Compare `encode` vs `run` on `Knot f . g`:
 
@@ -171,15 +171,15 @@ The sliding axiom is structural, not enforced by pattern matching.
 | `Functor` | `fmap = rmap` | from Profunctor |
 
 `Hyper` does not provide `Applicative` or `Monad` instances.  These
-would require observing via `lower` on every step, collapsing the
+would require observing via `observe` on every step, collapsing the
 continuation structure back to plain functions.
 
 The `Profunctor` instance is coinductive: `dimap` calls itself.  Under
-lazy evaluation, any finite observation (via `lower` or `runHyper`) only
+lazy evaluation, any finite observation (via `observe` or `runHyper`) only
 unfolds finitely many layers, never reaching bottom.
 
 ```haskell
--- >>> lower (dimap words unwords (lift (map reverse))) "hello world"
+-- >>> observe (dimap words unwords (lift (map reverse))) "hello world"
 -- "olleh dlrow"
 ```
 
@@ -192,7 +192,7 @@ Hyper's continuation barrier limits what can be built directly:
 | capability | Trace | Hyper |
 |-----------|---------|-------|
 | `first` / thread a pair | yes — pattern-match constructors | no — continuation grabs everything |
-| fanout / `(&&&)` | yes — lower both branches | no — can't route one input to two places |
+| fanout / `(&&&)` | yes — observe both branches | no — can't route one input to two places |
 | Kleisli arrows / effects | yes — parametric in `arr` | no — `invoke` returns `b`, not `m b` |
 | inspect structure | yes — GADT constructors | no — opaque |
 
@@ -210,15 +210,15 @@ expressive power flows through to Hyper's structural guarantees.
 | feedback | explicit `Knot` | structural in type |
 | sliding | handled by the `Category` instance | inherent in `(.)` |
 | degeneration possible? | no — already in normal form | no |
-| elimination | `run` | `lower` |
+| elimination | `run` | `observe` |
 | map to other | `encode` (→ Hyper) | `flatten` (→ Trace) |
 | inspection | constructors visible | opaque |
 | composition cost | O(1) (normal form) | O(1) amortised |
 | Either loops | `Traced (->) Either` | `encodeEither` / `runEither` |
 | Kleisli | parametric in `arr` | pure only |
 
-The two encodings are not isomorphic on the nose.  `lower . encode = run`
+The two encodings are not isomorphic on the nose.  `observe . encode = run`
 holds, but `encode . flatten ≠ id` — flattening a Hyper to `Trace`
 observes it against a constant continuation, losing all feedback
-structure.  `flatten h = Arr (lower h)` is the forgetful map, not an
+structure.  `flatten h = Arr (observe h)` is the forgetful map, not an
 inverse.

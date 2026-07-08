@@ -1,7 +1,7 @@
 # hyper-chain ⟜ Category composition on Hyper
 
 The universal test: build a chain of `lift` layers via `(.)`, then walk
-it with `lower`.  If Category composition works, this works.
+it with `observe`.  If Category composition works, this works.
 
 ```haskell
 -- $setup
@@ -15,7 +15,7 @@ streamChain :: [a] -> Hyper () [a]
 streamChain = foldr (\x acc -> lift (x:) . acc) (lift (const []))
 
 runLift :: [a] -> [a]
-runLift xs = lower (streamChain xs) ()
+runLift xs = observe (streamChain xs) ()
 ```
 
 ```haskell
@@ -24,5 +24,5 @@ runLift xs = lower (streamChain xs) ()
 ```
 
 Each `lift (x:)` prepends an element.  `(.)` threads the feedback channel
-through the layers.  `lower` severs feedback with a constant continuation
+through the layers.  `observe` severs feedback with a constant continuation
 and walks the chain — `x : (y : (z : []))`.

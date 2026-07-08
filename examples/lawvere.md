@@ -2,6 +2,9 @@
 
 # What's Next for Circuit? Comparative Engineering with Lawvere
 
+> **Design-only / exploratory.** A speculative comparison with Lawvere; no
+> implementation of exponentials currently exists.
+
 For Circuit's current structure see [proarrow.md](proarrow.md) — `Knot` as a 2-cell.
 For Lawvere see the [lawvere repo](https://github.com/jameshaydon/lawvere)
 (James Haydon, 2020) and `~/other/lawvere/`.
@@ -225,7 +228,7 @@ beyond the Circuit-Lawvere pair, see [sysl examples](https://github.com/tonyday5
 - [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) —
   traced monoidal categories.
 - `src/Circuit.hs` — `Arr`, `Knot`, `run`.
-- `src/Circuit/Traced.hs` — `Traced` typeclass and instances.
+- `src/Circuit/Trace.hs` — `Traced` typeclass and instances.
 - `~/other/lawvere/src/Lawvere/Expr.hs` — `Curry`, `UnCurry` constructors.
 - `~/other/lawvere/src/Lawvere/Eval.hs` — `evalAr` on `Curry`/`UnCurry`.
 - [nLab: cartesian closed category](https://ncatlab.org/nlab/show/cartesian+closed+category)

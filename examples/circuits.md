@@ -6,7 +6,7 @@ Imports for using circuits.  The umbrella module `Circuit` re-exports everything
 import Circuit
 ```
 
-That's it.  `Circuit` brings in `Trace(..)`, `Wire`, `Step`, `Co(..)`, `Contra(..)`, `close`, `run`, `foldTrace`, `Channelled(..)`, `trace`, `untrace`, `Free`, `runFree`, `FreeLayer(..)`, `Cat2`, `(:~>)`, `leftAdjunct`, `realise`, `hoist`, `join`, `Monoid(..)`, `Comonoid(..)`, `Dagger(..)`, `Bimonoid`, `transpose`, `Net`, `enrich`, `weave`, `melt`, `Hyper(..)`, `lift`, `lower`, `base`, `push`, `runHyper`, `encode`, `encodeEither`, `encodeFree`, `runEither`, `flatten`, `Braided(..)`, `ambient`, `assoc`, `assoc'`, `seed`, `absorb`, `release`, `coassoc`, `coassoc'`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`, `ambientBy`, `MonoidalP(..)`.
+That's it.  `Circuit` brings in `Trace(..)`, `Traced`, `Co(..)`, `Contra(..)`, `close`, `trace`, `untrace`, `Free`, `Layer(..)`, `Cat2`, `NT`, `HNT`, `(:~>)`, `(:~~>)`, `lower`, `run`, `hmap`, `join`, `Monoid(..)`, `Comonoid(..)`, `Dagger(..)`, `Bimonoid`, `transpose`, `Mon`, `Net`, `enrich`, `melt`, `Hyper(..)`, `lift`, `observe`, `base`, `push`, `runHyper`, `encode`, `encodeEither`, `encodeFree`, `runEither`, `flatten`, `Braided(..)`, `ambient`, `assoc`, `assoc'`, `seed`, `absorb`, `release`, `coassoc`, `coassoc'`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`, `ambientBy`, `Action(..)`.
 
 LANGUAGE pragmas used internally: `CPP`, `RankNTypes`, `UndecidableInstances`, `ConstraintKinds`, `GADTs`, `FlexibleInstances`.
 

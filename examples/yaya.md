@@ -2,6 +2,10 @@
 
 # Hyper ≅ Fix (Ran (Const a) (Const b)) — The yaya Bridge
 
+> **Design-only / exploratory.** A self-contained proof that `Hyper` is a
+> standard recursion-scheme fixpoint. `Circuit.Hyper.Fix` does not currently
+> exist.
+
 For background on both libraries see [hyper-basic.md](hyper-basic.md) (Circuit.Hyper)
 and the [yaya repo](https://github.com/sellout/yaya) (recursion schemes over pattern
 functors). This card proves the isomorphism conjectured in the narrative
@@ -253,7 +257,7 @@ receives `(r → a) → b` and must produce `r`. This constrains `r` to capture
 
 ---
 
-## The Observe Algebra — Recovers `lower`
+## The Observe Algebra — Recovers `observe`
 
 ```haskell
 -- | Algebra: observe a Hyper as a plain function a → b.
@@ -266,17 +270,17 @@ This is the canonical algebra. Given `f :: ((a → b) → a) → b` and an input
 obtaining `b`.  The identity:
 
 ```
-hyperCata observeAlgebra  =  lower
+hyperCata observeAlgebra  =  observe
 ```
 
 Proof sketch: by induction on the fixpoint structure. At each layer,
 `observeAlgebra` supplies `const a` as the continuation, which is exactly
-what `lower h a = invoke h (base a) = invoke h (Hyper (const a))` does. The
+what `observe h a = invoke h (base a) = invoke h (Hyper (const a))` does. The
 `cataFix` recursion threads this through all layers.
 
 ```
-hyperCata observeAlgebra (base 42) 0  =  lower (base 42) 0  =  42
-hyperCata observeAlgebra (lift (+1)) 5  =  lower (lift (+1)) 5  =  6
+hyperCata observeAlgebra (base 42) 0  =  observe (base 42) 0  =  42
+hyperCata observeAlgebra (lift (+1)) 5  =  observe (lift (+1)) 5  =  6
 ```
 
 ---
@@ -317,7 +321,7 @@ Hyper a b  ≅  Fix (Ran (Const a) (Const b))
 - **Before Fix:** `Trace ~ Ran (Const a) (Const b)` (the free category)
 - **After Fix:** `Hyper a b = Fix (Ran (Const a) (Const b))` (the traced category)
 
-The Mendler case in `lower` on `Trace` makes the catamorphism valid.
+The Mendler case in `run` on `Trace` makes the catamorphism valid.
 `encode` maps `Trace → Hyper` as the unique `Traced` functor from the initial
 to the final encoding. The bridge in this card shows the converse:
 `Hyper` **is** the fixpoint of the Ran functor, and standard recursion
@@ -350,7 +354,7 @@ with `toFix`/`fromFix`.
 1. `(x → a) → b` is covariant in `x` — double contravariance cancels
 2. `Fix (HyperF a b)` is the yaya-compatible encoding of `Hyper a b`
 3. `toFix`/`fromFix` are the concrete isomorphism
-4. `hyperCata observeAlgebra = lower` — the observe algebra recovers elimination
+4. `hyperCata observeAlgebra = observe` — the observe algebra recovers elimination
 5. `hyperAna` = Kmett's `ana` — the universal anamorphism
 6. The full yaya zoo (cata, ana, para, apo, histo, futu, zygo, mutu) applies
 

@@ -1,6 +1,6 @@
 # Examples audit
 
-Last updated: 2026-06-19.
+Last updated: 2026-07-08.
 
 This audit covers the `examples/` directories in the circuits-related
 repositories. Status legends:
@@ -57,25 +57,36 @@ ones that were updated or are known to be high-impact.
 
 | file | type | status | notes |
 |------|------|--------|-------|
-| `examples/words.md` | worked example | 🟢 | Updated to `Trace t (Kleisli IO)`, `Arr`/`Knot` constructors, `run`, `Traced`. |
-| `examples/parser.md` | design doc | 🟢 | Updated `Circuit` → `Trace`, `Knot` → `Trace`, interpreter calls → `run`. |
-| `examples/while.md` | design doc | 🟢 | Updated `Knot` → `Trace`, interpreter calls → `run`, `Trace` class → `Traced`. |
-| `examples/pure-queue-circuit.md` | design doc | 🟡 | Still uses old interpreter calls (now `run`) and likely old type order. Needs a pass. |
-| `examples/reader-monad.md` | design doc | 🟡 | References old interpreter calls, old `Circuit` GADT name, and deleted `Circuit.Circuit` module. Needs update to `run`, `Trace`, and top-level `Circuit`. |
-| `examples/pure-queue*.md` | design docs | 🟡 | Queue design sketches; likely use old names. |
-| `examples/hyper*.md` | design docs | 🟡 | Hyper examples; check `encode`, `lower`, `run` naming. |
-| `examples/effects.md` | design doc | 🟡 | Likely outdated. |
-| `examples/state.md` | design doc | 🟡 | Likely outdated. |
-| `examples/traced.md` | design doc | 🟡 | May be partly superseded by `Circuit.Trace` haddock. |
-| `examples/wirecat.md` | design doc | 🟡 | Likely outdated. |
-| `examples/relations.md` | design doc | 🟡 | Likely outdated. |
-| `examples/optics.md` | design doc | 🟡 | Likely outdated. |
-| `examples/proarrow.md`, `proequip.md` | design docs | 🟡 | Advanced design docs; update if kept. |
-| `examples/lawvere.md`, `elgot-abacus.md`, `yaya.md` | design docs | 🟡 | Highly speculative / exploratory. Consider archiving if not actively maintained. |
-| `examples/ambient.md` | design doc | 🟡 | Check `ambient`, `ambientBy` naming. |
-| `examples/resource-io.md` | design doc | 🟡 | Likely outdated. |
-| `examples/debug-trace.md` | design doc | 🟡 | Likely outdated. |
-| `examples/circuits.md`, `circuit.md` | design docs | 🔴 | Almost certainly use the old `Circuit` GADT name throughout. Either rewrite as `Trace` intro or discard. |
+| `examples/circuits.md` | quick reference | 🟢 | Rewritten: import list matches current `Circuit` exports; `Trace`/`Arr`/`Knot`/`run`. |
+| `examples/circuit.md` | quick reference | 🟢 | Rewritten: `Trace` GADT intro; `observe` replaces old `lower` for Hyper. |
+| `examples/words.md` | worked example | 🟢 | `Trace t (Kleisli IO)`, `Arr`/`Knot`, `run`, `Traced`. |
+| `examples/parser.md` | design doc | 🟢 | `Trace`/`Arr`/`Knot` parser combinators; `run`. |
+| `examples/while.md` | design doc | 🟢 | Loop patterns over `Trace Either (->)` with `run`. |
+| `examples/traced.md` | design doc | 🟢 | Explains `Traced` class, `trace`/`untrace`. |
+| `examples/hyper.md` | design doc | 🟢 | Hyper API; `observe` replaces old `lower`. |
+| `examples/hyper-chain.md` | design doc | 🟢 | Hyper chain composition; `observe`. |
+| `examples/encode-either.md` | design doc | 🟢 | Why `Traced Hyper Either` is absent; `encodeEither`/`runEither`. |
+| `examples/lift-trace-commute.md` | design doc | 🟢 | `lift`/`trace` commutation; `observe`. |
+| `examples/reader-monad.md` | design doc | 🟢 | Escape hatch to monadic style; `observe`/`run`. |
+| `examples/resource-io.md` | design doc | 🟢 | Resource lifecycle via `Trace Either (Kleisli IO)` and `run`. |
+| `examples/state.md` | design doc | 🟢 | Visible / ambient / hidden state mechanisms. |
+| `examples/ambient.md` | design doc | 🟢 | `ambientBy` for custom braids; `ambient` is the canonical braid version. |
+| `examples/debug-trace.md` | design doc | 🟢 | Feedback as history; uses `ambientBy`. |
+| `examples/effects.md` | design doc | 🟢 | Cross-library effects comparison; `observe`/`freeze` naming updated. |
+| `examples/pure-queue.md` | design doc | 🟢 | Pure queue strategies; no stale naming. |
+| `examples/pure-queue-circuit.md` | design doc | 🟢 | Queue ends lifted into `Trace (,) (->)` with `run`. |
+| `examples/pure-queue-ends.md` | design doc | 🟢 | Simpler `[a]` queue ends. |
+| `examples/pure-queue-test.md` | design doc | 🟢 | Pipeline test using `Trace`/`Arr`/`run`. |
+| `examples/arrow-proarrow.md` | design doc | 🟡 | Design-only; `Circuit.Signature.Optic`/`Free SigCompose` are not implemented. |
+| `examples/proarrow.md` | design doc | 🟡 | Design-only; advanced proarrow bridge. |
+| `examples/proequip.md` | design doc | 🟡 | Design-only; profunctor equipment lemmas open. |
+| `examples/lawvere.md` | design doc | 🟡 | Design-only; exponential adjunction speculation. |
+| `examples/elgot-abacus.md` | design doc | 🟡 | Design-only; `Circuit.Abacus` not implemented. |
+| `examples/yaya.md` | design doc | 🟡 | Design-only; `Circuit.Hyper.Fix` not implemented. |
+| `examples/wirecat.md` | design doc | 🟡 | Design-only; retired WireCat integration sketch. |
+| `examples/relations.md` | design doc | 🟡 | Design-only; `Rel` base arrow not implemented. |
+| `examples/optics.md` | design doc | 🟡 | Design-only; no `Optic` module currently exists. |
+| `examples/pipes.md` | design doc | 🟡 | Design-only; Proxy decomposition sketch. |
 | `examples/words-circuit.svg`, `words-metered.svg` | assets | 🟢 | SVG diagrams; filenames are fine. |
 
 ### Recommendation for `circuits/examples/`

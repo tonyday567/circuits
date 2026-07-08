@@ -9,7 +9,7 @@ observe, work in `Reader`, re-encode.
 
 ## The pattern
 
-`lower` extracts a plain function. `lift` embeds one. Between them sits
+`observe` extracts a plain function. `lift` embeds one. Between them sits
 the full power of Haskell's function arrow:
 
 ```haskell
@@ -25,11 +25,11 @@ double = lift (* 2)
 -- Monadic-style sequencing via explicit observation
 step :: Hyper Int Int
 step = lift $ \n ->
-  let n'  = lower inc n
-      n'' = lower double n'
+  let n'  = observe inc n
+      n'' = observe double n'
   in n''
 
--- >>> step ↓ 5
+-- >>> observe step 5
 -- 12
 ```
 
@@ -58,11 +58,11 @@ stepC = Arr $ \n ->
 
 ## Why not an instance?
 
-A `Monad` instance would hide the `lower`/`lift` pairs:
+A `Monad` instance would hide the `observe`/`lift` pairs:
 
 ```haskell
 -- Hypothetical (removed) instance:
--- m >>= k = lift $ \a -> lower (k (lower m a)) a
+-- m >>= k = lift $ \a -> observe (k (observe m a)) a
 ```
 
 This discards continuation structure. Two hyperfunctions that differ
@@ -91,5 +91,5 @@ is real — but it lives at the application layer, not in the substrate.
 ## Reference
 
 - `examples/parser.md` — `Parser` newtype with lawful `Applicative`/`Monad`
-- `src/Circuit/Hyper.hs` — `lower`, `lift`
+- `src/Circuit/Hyper.hs` — `observe`, `lift`
 - `src/Circuit.hs` — `run`, `Arr`

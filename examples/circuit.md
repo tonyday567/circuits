@@ -10,7 +10,7 @@ and build combinators that Hyper cannot.
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Circuit (Trace(..), run)
 -- >>> import Circuit.Trace (Traced(..))
--- >>> import Circuit.Hyper (encode, lower, lift)
+-- >>> import Circuit.Hyper (encode, observe, lift)
 -- >>> import Prelude hiding (id, (.))
 ```
 
@@ -122,14 +122,14 @@ encode (Knot f) = trace (lift f)
 ```
 
 The `Knot` case uses Hyper's own `Traced` instance — a coinductive
-lazy knot.  The triangle `lower . encode = run` holds.
+lazy knot.  The triangle `observe . encode = run` holds.
 
 ```haskell
--- >>> lower (encode (Arr (+ 1) :: Trace (,) (->) Int Int)) 5
+-- >>> observe (encode (Arr (+ 1) :: Trace (,) (->) Int Int)) 5
 -- 6
 
 -- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Trace (,) (->) () [Int]
--- >>> lower (encode k) ()
+-- >>> observe (encode k) ()
 -- [0,0,0]
 ```
 

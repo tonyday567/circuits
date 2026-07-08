@@ -1,11 +1,15 @@
 
-## Abacus → Circuit Compiler
+## Abacus → Trace Compiler
+
+> **Design-only / exploratory.** A sketch of compiling counter-machine programs
+> to `Trace Either (->)`. The `Circuit.Abacus` module does not exist in the
+> current codebase.
 
 ```haskell
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Circuit.Abacus where
+module Abacus where
 
 import Circuit
 import Control.Category ((.))
@@ -28,12 +32,9 @@ abacus (Inc next) =
     Right x -> Right x)           -- pass through if already terminated
   . abacus next
 
--- TODO: Under the current API, Knot takes a base arrow
+-- Under the current API, Knot takes a base arrow
 --   (Either s a -> Either s b), so recursively embedding sub-programs
---   in the loop body is no longer directly expressible. The branch
---   below preserves the original intent but needs a reformulation
---   (for example, by first interpreting sub-programs to base arrows)
---   before it will type-check.
+--   in the loop body is done by first interpreting them with `run`.
 abacus (Dec next1 next0) = Knot $ \case
   -- Still running: look at register
   Left 0  -> Left (run (abacus next0) 0)      -- zero case → next0
@@ -95,8 +96,8 @@ inc  :: Abacus b → Abacus b
 inc next = Arr (λcase Left n → Left (n+1); Right x → Right x) ⊙ next
 
 dec  :: Abacus b → Abacus b → Abacus b
--- TODO: Recursive embedding of sub-programs inside a Knot body is not
--- directly expressible with the current Knot :: arr (t s a) (t s b).
+-- Recursive embedding of sub-programs inside a Knot body is done by
+-- first interpreting them with `run`.
 dec next1 next0 = ↬ (λcase
                     Left 0  → Left (run (abacus next0) 0)
                     Left n  → Left (run (abacus next1) (n-1))

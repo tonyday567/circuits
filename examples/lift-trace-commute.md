@@ -19,8 +19,8 @@ lift :: (a -> b) -> Hyper a b
 lift f = Hyper (\k -> f (invoke k (lift f)))
 
 -- Hyper observation: supply the identity continuation
-lower :: Hyper a b -> (a -> b)
-lower h x = invoke h (Hyper (const x))
+observe :: Hyper a b -> (a -> b)
+observe h x = invoke h (Hyper (const x))
 
 -- Base arrow trace: lazy knot
 trace_arr :: ((a, b) -> (a, c)) -> (b -> c)
@@ -36,14 +36,14 @@ trace_Hyper body = Hyper $ \k ->
    in snd pair
 ```
 
-## proof (behavioral, via lower)
+## proof (behavioral, via observe)
 
 Left side, `lift . trace_arr`:
 
 ```
 lift (trace f) = Hyper (\k -> trace f (invoke k (lift (trace f))))
 
-lower (lift (trace f)) x
+observe (lift (trace f)) x
   = trace f (invoke (Hyper (const x)) (lift (trace f)))
   = trace f x
   = let (a, c) = f (a, x) in c
@@ -59,7 +59,7 @@ trace (lift f) = Hyper $ \k ->
          in (fst pair, a_val)
    in snd pair
 
-lower (trace (lift f)) x
+observe (trace (lift f)) x
   -- substitute k = Hyper (const x):
   let pair = invoke (lift f) cont
       cont = Hyper $ \_ ->
@@ -80,7 +80,7 @@ lower (trace (lift f)) x
   = let (a, c) = f (a, x) in c
 ```
 
-Both reduce to `let (a, c) = f (a, x) in c`.  Equal through `lower` — and for
+Both reduce to `let (a, c) = f (a, x) in c`.  Equal through `observe` — and for
 the final encoding, behavioral equality IS equality.
 
 ## why it matters
@@ -111,6 +111,6 @@ This is the **traced functor** condition (Hasegawa 1997, Joyal-Street-Verity 199
 A functor `F` between traced monoidal categories is **traced** if `F(trace f) = trace(F f)`.
 Here `F = lift :: (->) → Hyper`, and the condition is exactly `lift . trace = trace . lift`.
 
-It's the same condition that makes `lower` a traced functor in the other direction:
-`lower . trace_Hyper = trace_arr . lower`.  Both hold because `lift` and `lower`
+It's the same condition that makes `observe` a traced functor in the other direction:
+`observe . trace_Hyper = trace_arr . observe`.  Both hold because `lift` and `observe`
 form a traced adjunction between the initial and final encodings.

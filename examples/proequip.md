@@ -1,5 +1,8 @@
 # foldH ⟜ coroutining folds, profunctor equipment
 
+> **Design-only / exploratory.** This card explores the profunctor-equipment
+> structure of `Trace`/`Hyper`. The formal lemmas remain open.
+
 Coroutining folds via Hyper (LKS 2013), plus the double-category /
 profunctor-equipment structure they reveal (Milewski 2026).
 Concrete example first; categorical framing second.

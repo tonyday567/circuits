@@ -1,5 +1,9 @@
 # Circuits + WireCat
 
+> **Design-only / exploratory.** This card records a past proof-of-concept
+> integrating `circuits` with WireCat. The standalone `circuits-wirecat` package
+> has been retired; no WireCat integration currently ships with the library.
+
 Proof-of-concept that the `circuits` free traced monoidal category framework is compatible with WireCat's cartesian record categories.
 
 ## What it adds

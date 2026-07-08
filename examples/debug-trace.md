@@ -55,7 +55,7 @@ Thread an extra label through the loop using `ambient`:
 braidE (Left (s, a))  = (s, Left a)
 braidE (Right (s, c)) = (s, Right c)
 
--- >>> run (ambient braidE counter) ("run-1", ())
+-- >>> run (ambientBy braidE counter) ("run-1", ())
 -- ("run-1",(3,[2,1,0]))
 ```
 

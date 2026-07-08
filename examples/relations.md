@@ -1,5 +1,9 @@
 # relations — circuits over Rel
 
+> **Design-only / exploratory.** `Rel` is not an implemented base arrow in the
+> current library; this card explores what a relational semantics would look
+> like.
+
 **Context:** What happens when `arr = Rel` instead of `(->)` or `Kleisli IO`?
 The human disappears from the categorical diagram. Every agent — human,
 language model, or otherwise — is just a relation that produces sensible

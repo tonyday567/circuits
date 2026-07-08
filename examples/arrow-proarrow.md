@@ -1,5 +1,9 @@
 # Arrows and proarrows in circuits
 
+> **Design-only / exploratory.** This card sketches how proarrow vocabulary
+> maps onto `circuits`. Concrete modules such as `Circuit.Signature.Optic` or
+> `Free SigCompose` are not part of the current codebase.
+
 `circuits` builds string diagrams, and string diagrams are the 2-cells of a
 double category (or *proarrow equipment*). But `circuits` is deliberately
 lightweight: it uses the vocabulary of proarrow equipment without depending on
@@ -102,8 +106,9 @@ vocabulary explains the design, but the library remains small and runnable.
 
 ## Optics as an example
 
-`Circuit.Signature.Optic` is a concrete optic type built directly on a base
-`Category` and a tensor `t`.  The residual is kept explicit in the type:
+A hypothetical `Optic` type (not currently in the library) is built directly
+on a base `Category` and a tensor `t`.  The residual is kept explicit in the
+type:
 
 ```haskell
 data Optic t arr r a b = Optic
@@ -147,7 +152,7 @@ category over lens diagrams folds back into `SomeLens arr`:
 type SigLensTrace arr = Trace (,) (SomeLens arr)
 type SigPrismTrace arr = Trace Either (SomePrism arr)
 
-foldTrace :: SigLensTrace arr a b -> SomeLens arr a b
+run :: SigLensTrace arr a b -> SomeLens arr a b
 ```
 
 This is an example of the general pattern: the equipment structure (here,

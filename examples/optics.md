@@ -1,5 +1,8 @@
 # Optics and Circuits
 
+> **Design-only / exploratory.** This card explains how trace residuals relate
+> to optic structure; no `Optic` module currently exists in the library.
+
 An optic is a pair of morphisms with a hidden residual:
 
 ```haskell

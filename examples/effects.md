@@ -46,13 +46,13 @@ Contrast with final tagless style (the Layer 2 mtl classes):
 - Final tagless: the "program" *is* the host-language term using the class methods. Different instances supply different interpretations. There is no separate data value representing the program between writing it and running it.
 - Circuits: you build an explicit value (`Trace` or `Hyper`). You can inspect it, transform Knot bodies, bracket it with meters, choose the tensor, rewrite it, or partially evaluate it *before* the single interpretation step (`run`).
 
-The price is the explicit `Arr` / `run` (or `lift` / `lower`) boundary when you cross into or out of full monadic composition. See `reader-monad.md` for the exact pattern and the rationale (a `Monad` instance would erase the internal feedback distinctions).
+The price is the explicit `Arr` / `run` (or `lift` / `observe`) boundary when you cross into or out of full monadic composition. See `reader-monad.md` for the exact pattern and the rationale (a `Monad` instance would erase the internal feedback distinctions).
 
 ---
 
 ## Opt-in service in an existing pipeline
 
-The claim under test: can a ReaderT (or Bluefin/effectful) codebase treat circuits as a *service* for selected stretches — "Arr this bit, do the feedback / channel / measurement work, lower back out" — without dragging the rest of the architecture along?
+The claim under test: can a ReaderT (or Bluefin/effectful) codebase treat circuits as a *service* for selected stretches — "Arr this bit, do the feedback / channel / measurement work, observe back out" — without dragging the rest of the architecture along?
 
 The evidence from the existing machinery:
 
@@ -103,7 +103,7 @@ stepC = Arr $ \n ->
   in n''
 ```
 
-You pay the `run` / `lower` cost only on the stretches that need full `do` notation, `local`, `catch`, or your Layer 2 classes. The rest of the circuit stays in the algebraic form.
+You pay the `run` / `observe` cost only on the stretches that need full `do` notation, `local`, `catch`, or your Layer 2 classes. The rest of the circuit stays in the algebraic form.
 
 ### 4. Resource lifecycles as structure
 
@@ -145,7 +145,7 @@ This does not eliminate Layer 2. It gives you an additional place to locate conc
 | Bidirectional channels        | MVar/TQueue + async                | Coroutine pairs + connect        | Dynamic effects + Env cells        | Producer/Consumer + endsQueue           |
 | Resource safety               | bracket / ResourceT in Layer 1     | Prompt finalisation in streams   | Handler-managed                    | Structural (Right exit path on Either)  |
 | Instrumentation / metering    | Manual wrappers                    | Effect composition               | Handler wrapping                   | meterA / withMeter / ambient (plugin)   |
-| Escape to full monad          | You're already there               | `Eff` is the monad               | `Eff` is the monad                 | Explicit lower/run (reader-monad.md)    |
+| Escape to full monad          | You're already there               | `Eff` is the monad               | `Eff` is the monad                 | Explicit observe/run (reader-monad.md)  |
 | Can host the others           | Yes (base for everything)          | Limited                          | Limited                            | Yes (Kleisli AppM as base arrow)        |
 | Can be hosted inside the others | N/A                              | Via bridge (e.g. endsQueue)      | Via bridge                         | Yes — opt-in stretches                  |
 
@@ -157,7 +157,7 @@ The quadratic slowdown that affects `pipes` and `streaming` (see issues [#234](h
 
 The question for circuits: does sequential composition have the same problem?
 
-**Answer: no.** `run` (and `runFree`) are structural folds (catamorphisms), not searches. Each sequential composition becomes one function composition `(.)` in the base arrow — O(1). For `Free`/`Net`, the `Compose` constructor maps directly to that `(.)`; for `Trace`, the constructor is absent and `(.)` is used directly. The quadratic slowdown is specific to free *monads* where `>>=` must find the next constructor by traversing the chain. Circuit's `(.)` just appends.
+**Answer: no.** `run` (and `run @Free`, concretely `freeze`) are structural folds (catamorphisms), not searches. Each sequential composition becomes one function composition `(.)` in the base arrow — O(1). For `Free`/`Net`, the `Compose` constructor maps directly to that `(.)`; for `Trace`, the constructor is absent and `(.)` is used directly. The quadratic slowdown is specific to free *monads* where `>>=` must find the next constructor by traversing the chain. Circuit's `(.)` just appends.
 
 The `circuits-effects` project (`~/haskell/circuits-effects/`) contains a cross-library benchmark that builds left-skewed and right-skewed pipelines of N stages and measures execution time. Reproduced 2026-05-29, GHC 9.14.1, Apple M-series:
 
@@ -184,7 +184,7 @@ At 10,000 stages: circuits 440µs, pipes 370,000µs — **840x difference**. Blu
 
 The Bluefin @1000 left figure (630µs) is likely a warmup/GC artefact from the `unsafePerformIO` inside `runPureEff`; the @10000 numbers (180µs left, 95µs right) are more representative. Rerunning warms the allocation path and the ratio drops to ~2x.
 
-**Why circuits is immune:** for the free encodings, `runFree (Compose f g) = runFree f . runFree g`. The `Trace` encoding has no `Compose` constructor at all; `run` interprets the already-composed base-arrow term. No search, no traversal of accumulated structure. The Hyper path (`lower . encode`) is 2–3x faster still because it avoids building intermediate function compositions, but `run` is already O(n).
+**Why circuits is immune:** for the free encodings, `freeze (Compose f g) = freeze f . freeze g`. The `Trace` encoding has no `Compose` constructor at all; `run` interprets the already-composed base-arrow term. No search, no traversal of accumulated structure. The Hyper path (`observe . encode`) is 2–3x faster still because it avoids building intermediate function compositions, but `run` is already O(n).
 
 The benchmark code lives in `Circuit.Effects.CrossBench.{Circuits,Bluefin,Effectful,Pipes}` and is driven by `Circuit.Effects.CrossBench.benchAll`. It uses `circuits-meter` for the circuits-internal benchmarks and a simple `nanos`-based `timeIO` for the cross-library comparison so each library is measured the same way.
 
