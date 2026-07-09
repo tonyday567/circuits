@@ -267,7 +267,7 @@ melt (Knot f) = trace (melt f)
 instance Layer (Net t) where
   type Law (Net t) arr' = (Traced t arr', Action (,) arr')
   unit = Lift
-  bind :: forall arr' arr. Law (Net t) arr' => (arr :~> arr') -> (Net t arr :~> arr')
+  bind :: forall arr' arr. (Law (Net t) arr') => (arr :~> arr') -> (Net t arr :~> arr')
   bind h (Lift f) = h f
   bind h (Compose g f) = bind h g . bind h f
   bind h (Par f g) = par (bind h f) (bind h g)

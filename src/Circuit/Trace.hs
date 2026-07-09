@@ -1,14 +1,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-
-#ifdef __GLASGOW_HASKELL__
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
-#endif
 
 -- | The free traced monoidal category, in existential normal form, and the
 -- 'Traced' class that gives feedback-loop semantics to a base category.
@@ -41,7 +38,6 @@
 --
 -- * __Feedback channel__: The hidden type @s@ in a 'Knot'. It is the value
 --   the abstraction hides.
-#ifdef __GLASGOW_HASKELL__
 module Circuit.Trace
   ( -- * Trace
     Trace (..),
@@ -58,26 +54,8 @@ module Circuit.Trace
     cellIO,
   )
 where
-#else
-module Circuit.Trace
-  ( -- * Trace
-    Trace (..),
-
-    -- * Traced class
-    Traced (..),
-
-    -- * Channel ends
-    Co (..),
-    Contra (..),
-    close,
-  )
-where
-#endif
 
 import Circuit.Layer (Layer (..), run)
-import Prelude hiding (id, (.))
-
-#ifdef __GLASGOW_HASKELL__
 import Circuit.Monoidal.Category (Monoidal (..))
 import Control.Arrow (Kleisli (..))
 import Control.Category
@@ -88,11 +66,7 @@ import Data.Kind (Type)
 import Data.Profunctor
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
-#else
-import Circuit.Classes
-import Circuit.Monoidal.Category (Monoidal (..))
-import Data.Kind (Type)
-#endif
+import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Layer (run)
@@ -252,10 +226,11 @@ instance (Category arr, Traced t arr) => Traced t (Trace t arr) where
 -- prop> \a c -> trace ((\(x, (p, q)) -> (x, (p + a, q + 1))) :: ((Int, (Int, Int)) -> (Int, (Int, Int)))) (0 :: Int, c :: Int) == (a :: Int, c + 1)
 instance Traced (,) (->) where
   trace f b = let ~(a, c) = f (a, b) in c
+
   -- Projection-based untrace emits a manifest pair, so fused knot bodies
   -- with strict top-level patterns match the constructor without forcing
   -- the recursive channel.
-  untrace f p = (fst p, f (snd p))
+  untrace f p = second f p
 
 -- * Either tensor — iteration
 
@@ -316,18 +291,16 @@ instance Traced Either (->) where
         Left a -> go (Left a)
   untrace = fmap
 
-#ifdef __GLASGOW_HASKELL__
-
 -- * Kleisli m — monoidal structure
 
 -- | Cartesian monoidal structure for 'Kleisli' @m@ with @(,)@.
-instance Monad m => Monoidal (,) (Kleisli m) where
+instance (Monad m) => Monoidal (,) (Kleisli m) where
   assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
   braid = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
 -- | Cocartesian monoidal structure for 'Kleisli' @m@ with 'Either'.
-instance Monad m => Monoidal Either (Kleisli m) where
+instance (Monad m) => Monoidal Either (Kleisli m) where
   assoc = Kleisli $ \case
     Left (Left a) -> pure (Left a)
     Left (Right b) -> pure (Right (Left b))
@@ -357,7 +330,7 @@ instance Monad m => Monoidal Either (Kleisli m) where
 --
 -- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
-instance MonadFix m => Traced (,) (Kleisli m) where
+instance (MonadFix m) => Traced (,) (Kleisli m) where
   trace (Kleisli f) =
     Kleisli
       ( \b -> do
@@ -393,11 +366,12 @@ instance MonadFix m => Traced (,) (Kleisli m) where
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
 -- priority for 'IO', providing constant-stack iteration via delimited
 -- continuations.
-instance {-# OVERLAPPABLE #-} Monad m => Traced Either (Kleisli m) where
+instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
   trace (Kleisli f) =
     Kleisli $ \b -> go (Right b)
-      where
-        go x = f x >>= \case
+    where
+      go x =
+        f x >>= \case
           Right c -> pure c
           Left a -> go (Left a)
 
@@ -486,12 +460,12 @@ instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
 -- 8
 -- >>> runKleisli acc 2
 -- 10
-cellIO
-  :: s
-  -- ^ initial state
-  -> (s -> a -> IO (s, b))
-  -- ^ transfer: current state and input yield next state and output
-  -> IO (Kleisli IO a b)
+cellIO ::
+  -- | initial state
+  s ->
+  -- | transfer: current state and input yield next state and output
+  (s -> a -> IO (s, b)) ->
+  IO (Kleisli IO a b)
 cellIO s0 step = do
   ref <- newIORef s0
   pure $
@@ -500,8 +474,6 @@ cellIO s0 step = do
       (s', b) <- step s a
       writeIORef ref s'
       pure b
-
-#endif
 
 -- | Free traced monoidal category.
 instance Layer (Trace t) where

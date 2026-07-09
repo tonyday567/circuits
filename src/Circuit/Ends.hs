@@ -95,7 +95,10 @@ open seed = (co, contra)
 openSTM :: TVar a -> IO (Co (Kleisli IO) (,) a, Contra (Kleisli IO) (,) a)
 openSTM tvar = pure (co, contra)
   where
-    co = Co $ \_ -> Arr (Kleisli $ \_ -> atomically (readTVar tvar))
-    contra = Contra $ \co' -> Arr (Kleisli $ \a -> do
-      atomically (writeTVar tvar a)
-      runKleisli (run (runContra co' contra)) a)
+    co = Co $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
+    contra = Contra $ \co' ->
+      Arr
+        ( Kleisli $ \a -> do
+            atomically (writeTVar tvar a)
+            runKleisli (run (runContra co' contra)) a
+        )
