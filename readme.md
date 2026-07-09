@@ -85,7 +85,9 @@ Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14) and MicroHs
 
 ## read more
 
-The examples directory has walkthroughs pitched at wherever you're coming from: parsers, effects, state, optics, relations, pipes, resource handling, the word-count pipeline with metering. The `other/` directory is the narrative arc — seven chapters from "marks and stacks" through free-plus-knot.
+The examples directory has walkthroughs pitched at wherever you're coming from: parsers, effects, state, optics, relations, pipes, resource handling. The `other/` directory is the narrative arc — seven chapters from "marks and stacks" through free-plus-knot.
+
+For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
 
 If you want to see what circuits looks like when compiled to a single combinator and rendered as a mandala: **[Tea-Leaf Fingerprints](https://tonyday567.github.io/posts/fingerprints/)**.
 

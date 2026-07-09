@@ -125,8 +125,17 @@ data Trace (t :: Type -> Type -> Type) arr a b where
   Arr :: arr a b -> Trace t arr a b
   -- | Tie a feedback loop. The tensor @t@ carries the hidden channel type @s@.
   --
+  -- The argument is the base arrow itself, /not/ an 'Arr'-wrapped stage:
+  --
   -- >>> run (Knot (\(acc, x) -> (x, acc)) :: Trace (,) (->) Int Int) 42
   -- 42
+  --
+  -- For the @(,)@ tensor the channel value is self-referential, so the body
+  -- must use an irrefutable pattern or otherwise avoid forcing the channel
+  -- before producing its constructor:
+  --
+  -- >>> run (Knot (\ ~(ns, ()) -> (0 : ns, take 3 ns)) :: Trace (,) (->) () [Int]) ()
+  -- [0,0,0]
   Knot :: arr (t s a) (t s b) -> Trace t arr a b
 
 -- | Fusing two '(,)'-'Knot's into one loop. Top-level strict tuple

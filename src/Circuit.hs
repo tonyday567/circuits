@@ -160,7 +160,7 @@ import Circuit.Ends
     openSTM,
   )
 import Circuit.Free
-  ( Free,
+  ( Free (..),
   )
 import Circuit.Hyper
   ( Hyper (..),
