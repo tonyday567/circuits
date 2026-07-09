@@ -48,7 +48,7 @@ where
 import Circuit.Hyper (Hyper (..), encode, flatten, observe)
 import Circuit.Monoidal qualified as M (Action (..))
 import Circuit.Monoidal.Category (Monoidal (..))
-import Circuit.Poly (Morphism, Mono, applyLens)
+import Circuit.Poly (Mono, Morphism, applyLens)
 import Circuit.Trace (Trace (..), Traced (..))
 import Control.Category ((.))
 import Control.Category qualified as Cat (Category (..))
@@ -250,7 +250,7 @@ fromHyper h = case flatten h of
 -- "one-Knot"
 comp ::
   forall t arr ap am bp bm cp cm.
-  (M.Action t arr, Monoidal t arr, Traced t arr) =>
+  (M.Action t arr, Traced t arr) =>
   IntMorph t arr bp bm cp cm ->
   IntMorph t arr ap am bp bm ->
   IntMorph t arr ap am cp cm

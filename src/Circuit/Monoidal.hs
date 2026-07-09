@@ -30,17 +30,12 @@ module Circuit.Monoidal
   )
 where
 
-#ifdef __GLASGOW_HASKELL__
-import Control.Category (Category, (>>>))
-import Data.Profunctor (Profunctor, dimap)
-import Data.Bifunctor (Bifunctor (..))
-#else
-import Circuit.Classes (Profunctor (..), Bifunctor (..), Category, (>>>))
-#endif
-
 import Circuit.Layer (run)
 import Circuit.Monoidal.Category qualified as MC
 import Circuit.Trace (Trace (..), Traced (..))
+import Control.Category (Category, (>>>))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Profunctor (Profunctor, dimap)
 
 -- $setup
 -- >>> import Circuit.Layer (run)
@@ -249,7 +244,7 @@ instance Action (,) (->) where
 -- >>> swap (Left 3 :: Either Int Int) :: Either Int Int
 -- Right 3
 instance Action Either (->) where
-  par f g = bimap f g
+  par = bimap
   {-# INLINE par #-}
   swap = \case
     Left a -> Right a

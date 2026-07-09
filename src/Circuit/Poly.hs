@@ -95,7 +95,8 @@ import Prelude hiding (id, (.))
 -- >>> import Prelude hiding (id, (.))
 
 -- | Syntactic polynomial objects, promoted to a kind.
-data Poly = Y
+data Poly
+  = Y
   | Const Type
   | Exp Type
   | Sum Poly Poly
@@ -193,6 +194,7 @@ instance Functor (Eval p) where
 class Netlist (p :: Poly) where
   -- | Extract the position and pin assignment from a polynomial value.
   toNet :: Eval p x -> (Pos p, Dir p -> x)
+
   -- | Build a polynomial value from a position and pin assignment.
   fromNet :: Pos p -> (Dir p -> x) -> Eval p x
 
@@ -206,7 +208,7 @@ instance Netlist ('Const a) where
 
 instance Netlist ('Exp a) where
   toNet (EE f) = ((), f)
-  fromNet () f = EE f
+  fromNet () = EE
 
 instance (Netlist p, Netlist q) => Netlist ('Prod p q) where
   toNet (EP (u, v)) =
@@ -225,27 +227,27 @@ instance Netlist ('Comp p q) where
 
 -- | Reassemble a value after taking it apart. This is the executable form
 -- of the round-trip law @'fromNet' ('toNet' v) ≡ v@.
-netRoundTrip :: Netlist p => Eval p x -> Eval p x
+netRoundTrip :: (Netlist p) => Eval p x -> Eval p x
 netRoundTrip v = uncurry fromNet (toNet v)
 
 -- | Left unitor for the Dirichlet tensor: @Y ⊗ p ≅ p@.
 --
 -- The @Y@ factor is degenerate; collapse via 'fromNet' on the other factor.
-tensorUnitorL :: Netlist p => Eval ('Tensor 'Y p) x -> Eval p x
+tensorUnitorL :: (Netlist p) => Eval ('Tensor 'Y p) x -> Eval p x
 tensorUnitorL (ET ((), i) f) = fromNet i (\dp -> f ((), dp))
 
 -- | Inverse left unitor: @p -> Y ⊗ p@.
-tensorUnitorL' :: Netlist p => Eval p x -> Eval ('Tensor 'Y p) x
+tensorUnitorL' :: (Netlist p) => Eval p x -> Eval ('Tensor 'Y p) x
 tensorUnitorL' v =
   let (i, k) = toNet v
    in ET ((), i) (\((), dp) -> k dp)
 
 -- | Right unitor for the Dirichlet tensor: @p ⊗ Y ≅ p@.
-tensorUnitorR :: Netlist p => Eval ('Tensor p 'Y) x -> Eval p x
+tensorUnitorR :: (Netlist p) => Eval ('Tensor p 'Y) x -> Eval p x
 tensorUnitorR (ET (i, ()) f) = fromNet i (\dp -> f (dp, ()))
 
 -- | Inverse right unitor: @p -> p ⊗ Y@.
-tensorUnitorR' :: Netlist p => Eval p x -> Eval ('Tensor p 'Y) x
+tensorUnitorR' :: (Netlist p) => Eval p x -> Eval ('Tensor p 'Y) x
 tensorUnitorR' v =
   let (i, k) = toNet v
    in ET (i, ()) (\(dp, ()) -> k dp)
@@ -273,7 +275,7 @@ parT ::
 parT m n (ET (i, j) f) =
   let (i', pullM) = morphAt m i
       (j', pullN) = morphAt n j
-   in ET (i', j') (\dp' -> f (pullM (fst dp'), pullN (snd dp')))
+   in ET (i', j') (f . bimap pullM pullN)
 
 -- | Composition-product view of a nested evaluation @'Eval' p ('Eval' q x)@.
 --
@@ -281,7 +283,7 @@ parT m n (ET (i, j) f) =
 nestedToComp :: (Netlist p, Netlist q) => Eval p (Eval q x) -> Eval ('Comp p q) x
 nestedToComp v =
   let (i, g) = toNet v
-   in EC (i, \dp -> fst (toNet (g dp))) (\(dp, dq) -> snd (toNet (g dp)) dq)
+   in EC (i, fst . toNet . g) (\(dp, dq) -> snd (toNet (g dp)) dq)
 
 -- | Nested evaluation from a composition-product value.
 --
@@ -298,7 +300,7 @@ tensorEval :: (Netlist p, Netlist q) => Eval p a -> Eval q b -> Eval (Tensor p q
 tensorEval v w =
   let (i, fv) = toNet v
       (j, fw) = toNet w
-   in ET (i, j) (\(dp, dq) -> (fv dp, fw dq))
+   in ET (i, j) (bimap fv fw)
 
 -- | Place two Moore systems side by side: interface @p ⊗ q@, state @(s, t)@.
 --
@@ -518,6 +520,7 @@ runMorphism = \case
 -- -13
 
 -- ** Composition product
+
 --
 -- Correctness iso @'Eval' ('Comp' p q) x ≅ 'Eval' p ('Eval' q x)@.  The
 -- @hang@ map must depend on the outer @p@-direction — a constant hang fails.
@@ -539,6 +542,7 @@ runMorphism = \case
 -- 30
 
 -- ** Tensor wiring
+
 --
 -- 'tensorEval' pairs factors; both pin maps must contribute (not just the
 -- left factor).
