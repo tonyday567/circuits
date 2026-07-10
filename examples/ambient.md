@@ -83,5 +83,5 @@ swaps the two wires so the state can pass through unscathed.
 ## See Also
 
 - `src/Circuit.hs` — `ambient` definition and doctests
-- `other/01-marks-and-stacks.md` — `∥` as the sixth mark
+- `examples/marks-and-stacks.md` — `∥` as the sixth mark
 - `circuits-perf` — `ambientPair` specializes `ambient` to `(,)`

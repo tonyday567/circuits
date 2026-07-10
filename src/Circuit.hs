@@ -85,6 +85,7 @@ module Circuit
 
     -- * Free
     Free,
+    freeze,
 
     -- * Layer tower
     Layer (..),
@@ -161,6 +162,7 @@ import Circuit.Ends
   )
 import Circuit.Free
   ( Free (..),
+    freeze,
   )
 import Circuit.Hyper
   ( Hyper (..),

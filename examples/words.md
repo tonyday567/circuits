@@ -113,7 +113,7 @@ wordCount :: FilePath -> IO ()
 wordCount path = putStr =<< runKleisli (run wordPipeline) path
 ```
 
-Expected output (run against `other/alice.md`):
+Expected output (run against `readme.md`, illustrative):
 
 ```
 the: 1614
@@ -139,7 +139,7 @@ perfTest path = do
   putStr output
 ```
 
-A typical run on `other/alice.md` reports ~3–4 ms wall time.
+A typical run on a small text file reports ~3–4 ms wall time.
 
 ### threading state with `second`
 

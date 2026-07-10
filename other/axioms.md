@@ -3,7 +3,7 @@
 **Summary:** Equational proofs for all five axioms, both tensors. For when
 you need to be sure.
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
-**See also:** `02-a-knot-recovers-fix.md` (GADT derivation), `src/Circuit/Traced.hs` (`Traced` instances)
+**See also:** `examples/knot-recovers-fix.md` (GADT derivation), `src/Circuit/Trace.hs` (`Traced` instances)
 
 The five Joyal–Street–Verity axioms proved for tensors `(,)` and `Either`
 over the base arrow `(->)`. Narrative motivation lives in the arc docs (01–07).
@@ -116,7 +116,7 @@ The old `Circuit` interpreter needed a Mendler case for `Compose (Knot f) g`
 to avoid closing the channel too early. In the normal-form `Trace`, sequential
 composition of `Knot`s is normalized by the `Category` instance before `run`
 ever sees it, so there is no `Compose` constructor and no Mendler case. For the
-full story see `02-a-knot-recovers-fix.md` and `05-no-remorse-once-removed.md`.
+full story see `examples/knot-recovers-fix.md`.
 
 ## Proofs
 
@@ -352,5 +352,4 @@ structure.
 - [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — hyperfunction axioms
 - [Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) — Theorem 3.1: cartesian traces = fixpoints
 - [Van der Ploeg & Kiselyov (2014)](https://doi.org/10.1145/2633357.2633360) — Reflection Without Remorse
-- `other/02-a-knot-recovers-fix.md` — how the axioms force the GADT
-- `other/05-no-remorse-once-removed.md` — Mendler case as `viewl`
+- `examples/knot-recovers-fix.md` — how the axioms force the GADT

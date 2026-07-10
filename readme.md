@@ -1,12 +1,12 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-A small Haskell library that makes feedback first-class. Two constructors — a plain arrow, and a knot — plus composition that fuses as you build. The rest falls out.
+A small Haskell library that makes feedback first-class. Two constructors — a plain arrow (`Arr`) and a feedback loop (`Knot`) — plus composition that fuses as you build. The rest falls out.
 
-It's off the beaten track but absolutely core Haskell. A paean to some underappreciated infrastructure, built by an aging coder with perhaps too much time on his hands.
+It's off the beaten track but absolutely core Haskell: traced monoidal categories, hyperfunctions, and wiring diagrams, packaged so you can paste examples into GHCi.
 
-## what can it do?
+## what is it?
 
-Count the lines in a file. Every step is explicit — open, loop, close — and the handle is a visible wire, not a closure:
+`Trace t arr a b` is the free traced monoidal category over a base arrow `arr`, with feedback tensor `t`. In plain English: a circuit is either a base arrow or a feedback loop, and composing circuits already applies the trace axioms, so every value is in normal form (at most one `Knot`, at the top).
 
 ```haskell
 import Circuit
@@ -32,20 +32,18 @@ pipeline = openf >>> countLines >>> Arr (Kleisli (\(h, n) -> hClose h >> pure n)
 -- paste into ghci:  runKleisli (run pipeline) "readme.md"
 ```
 
-Two constructors. `Arr` wraps a plain arrow. `Knot` ties a feedback loop through the tensor. Composition (written `>>>`) is not a constructor — it *fuses*: `pipeline` above is a single `Knot` by the time you've typed it. Every circuit is always in normal form — at most one knot, at the top, over one base arrow — because the trace axioms are performed by the `Category` instance, not promised by documentation.
+The handle is a visible wire, not a closure. In `Kleisli IO`, the `Either` loop runs in constant stack via GHC's delimited-continuation primops.
 
-In `Kleisli IO`, the loop above runs in **constant stack** via GHC's delimited-continuation primops (`prompt#`/`control0#`) — the file can be as long as it likes.
+## two tensors
 
-## two flavours of feedback
-
-The magic is in the tensor — the first type argument:
+The feedback tensor is the first type argument:
 
 | tensor | feedback | behaviour |
 |--------|----------|-----------|
 | `Either` | `Left` = continue, `Right` = exit | loops that terminate |
 | `(,)` | lazy self-reference | streams, sharing, coinduction |
 
-Same `Knot` constructor. Different tensor, different universe. The library treats both uniformly — the axioms that make feedback well-behaved hold for either choice.
+Same `Knot` constructor. Different tensor, different universe.
 
 ```haskell
 -- Lazy streaming with (,):
@@ -59,37 +57,43 @@ trace (either step step) 0  -- 5
 
 ## the tower
 
-Each layer of the library is a free construction over the one below, and one class captures them all:
+The library layers free constructions over a base arrow:
 
-```haskell
-class FreeLayer f where
-  type Lawful f arr' :: Constraint
-  unit         :: Category arr => arr :~> f arr
-  rightAdjunct :: Lawful f arr' => (arr :~> arr') -> (f arr :~> arr')
+- `Free` — the free category (lift and compose).
+- `Trace t` — `Free` plus feedback (`Knot`). Every value is already in normal form; the `Category` instance performs the sliding axiom.
+- `Net t` — `Trace` plus inspectable wiring: parallel composition, copy, discard, add, zero. Transposition over a `Dagger` base swaps wiring rows.
+- `Hyper` — the final, coinductive encoding. Convert with `encode` / `observe`.
 
--- rightAdjunct h . unit = h       (β)
--- rightAdjunct unit    = id       (η)
-```
-
-`Free` adds composition, `Trace` adds feedback, `Net` adds wiring. Every interpreter in the library is `rightAdjunct` at some layer; `realise = rightAdjunct id` recovers `runFree`, `run`, and `weave`. For `Trace`, the η law holds *definitionally* — check it by `case`, not by doctest. Under the hood this is the free traced monoidal category over your base arrow, with the trace axioms performed by construction.
+Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical fold.
 
 ## what's new in 0.2
 
-**Trace collapsed to normal form.** Two constructors, laws in the instances, one call to the base arrow's `trace` per circuit — in `run`, at the very end. There is no interpreter with a special case, because there is nothing left to normalize.
-
-**Net** keeps the wiring inspectable where `Trace` fuses it: two monoidal rows (`Par`, `Swap`) and four bimonoid rows (`Copy`, `Discard`, `Plus`, `Zero`), with feedback whose body is itself a `Net`. Because every wiring row is self-dual over a `Dagger` base, running a circuit backwards is a constructor swap — `Copy ↔ Plus`, `Discard ↔ Zero` — not a program transformation. This is the piece that will eventually power circuits-ad's one-line backpropagation reveal. For now it's here to play with.
+Trace collapsed to normal form: two constructors, laws in the instances, one call to the base arrow's `trace` per circuit. Net keeps wiring inspectable for metering, transposition, and (eventually) `circuits-ad`.
 
 ## install
 
 Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14) and MicroHs. One dependency beyond base: `profunctors`.
 
-## read more
+## examples
 
-The examples directory has walkthroughs pitched at wherever you're coming from: parsers, effects, state, optics, relations, pipes, resource handling. The `other/` directory is the narrative arc — seven chapters from "marks and stacks" through free-plus-knot.
+All example cards live in `examples/`:
+
+- `circuits.md` — imports and a minimal file-reading pipeline.
+- `circuit.md` — the `Trace` GADT and `run`.
+- `traced.md` — the `Traced` class and the bracket pattern.
+- `hyper.md` / `hyper-chain.md` — the final encoding and composition.
+- `encode-either.md` — why `Traced Hyper Either` is not an instance.
+- `lift-trace-commute.md` — the traced-functor lemma that makes `encode` work.
+- `marks-and-stacks.md` / `knot-recovers-fix.md` / `hyper-buries-the-knot.md` / `holding-hands-or-taking-turns.md` — the narrative arc, now in `examples/`.
+- `while.md` — `while`/`until`/`for` on `Either`.
+- `resource-io.md` — acquire/loop/release with `Trace Either (Kleisli IO)`.
+- `state.md` / `ambient.md` / `debug-trace.md` — visible, ambient, and hidden state.
+- `reader-monad.md` — the explicit escape hatch when you need monadic `do`.
+- `effects.md` — how circuits sit alongside ReaderT/Bluefin/effectful.
+- `proarrow.md` / `proequip.md` — categorical bridges (advanced).
+- `words.md` — word-count pipeline; the metering version lives in `circuits-meter`.
 
 For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
-
-If you want to see what circuits looks like when compiled to a single combinator and rendered as a mandala: **[Tea-Leaf Fingerprints](https://tonyday567.github.io/posts/fingerprints/)**.
 
 ## companion libraries
 

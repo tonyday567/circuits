@@ -6,7 +6,7 @@
 
 *In which we discover a little stack language turn out to be an almost perfect description of functional programming; the five marks arrive first, the GADT follows.*
 
-**[Next: A Knot Recovers Fix ⟶](02-a-knot-recovers-fix.md)**
+**[Next: A Knot Recovers Fix ⟶](knot-recovers-fix.md)**
 
 </div>
 

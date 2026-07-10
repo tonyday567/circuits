@@ -329,7 +329,7 @@ delimited-continuation `Traced` instance for `Kleisli IO` should form a
 2-cell — a worked example showing the Cell structure in effectful
 circuits.
 
-**Structural 2-cells beyond trace.** [lawvere.md](lawvere.md) identifies
+**Structural 2-cells beyond trace.** Comparative engineering with Lawvere identifies
 `Curry`/`UnCurry` (exponential adjunction) as the next structural 2-cell
 after `Knot`.  What's the 2-cell for distributive categories?  For linear
 logic?  The design direction: Circuit as a free category with accumulating
@@ -349,4 +349,3 @@ nLab: [double category](https://ncatlab.org/nlab/show/double+category),
 [equipment](https://ncatlab.org/nlab/show/equipment)
 
 [proarrow.md](proarrow.md) — `Trace t arr ≅ Strong + Costrong` under self-action
-[lawvere.md](lawvere.md) — comparative engineering; structural 2-cells
