@@ -1,3 +1,10 @@
+---
+title: "A Knot Recovers Fix"
+category: narrative
+status: stable
+tags: ["trace", "fixpoint", "story"]
+---
+
 # A Knot Recovers Fix
 
 <div align="center">

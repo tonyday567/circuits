@@ -1,3 +1,10 @@
+---
+title: "While, Until, For — Trace loops"
+category: core
+status: stable
+tags: ["either", "iteration", "loops"]
+---
+
 # While, Until, For — Trace loops
 
 The three canonical loop patterns using `Trace`'s `Knot` constructor

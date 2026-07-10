@@ -1,3 +1,10 @@
+---
+title: "Ambient State"
+category: state
+status: stable
+tags: ["ambient", "state-threading"]
+---
+
 # Ambient State
 
 > Threading a state wire through a `Trace`.

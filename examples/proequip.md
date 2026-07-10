@@ -1,3 +1,10 @@
+---
+title: "foldH ⟜ coroutining folds, profunctor equipment"
+category: advanced
+status: experimental
+tags: ["category-theory", "profunctor", "equipment"]
+---
+
 # foldH ⟜ coroutining folds, profunctor equipment
 
 > **Design-only / exploratory.** This card explores the profunctor-equipment

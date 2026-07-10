@@ -1,3 +1,10 @@
+---
+title: "hyper-chain ⟜ Category composition on Hyper"
+category: hyper
+status: stable
+tags: ["hyper", "composition"]
+---
+
 # hyper-chain ⟜ Category composition on Hyper
 
 The universal test: build a chain of `lift` layers via `(.)`, then walk

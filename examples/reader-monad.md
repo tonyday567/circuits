@@ -1,3 +1,10 @@
+---
+title: "reader-monad ⟜ when you need monadic composition"
+category: core
+status: stable
+tags: ["monad", "escape-hatch"]
+---
+
 # reader-monad ⟜ when you need monadic composition
 
 `Trace` and `Hyper` do not provide `Applicative` or `Monad` instances.

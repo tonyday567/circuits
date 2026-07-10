@@ -1,3 +1,10 @@
+---
+title: "Hyper Buries the Knot"
+category: narrative
+status: stable
+tags: ["hyper", "trace", "story"]
+---
+
 # Hyper Buries the Knot
 
 <div align="center">

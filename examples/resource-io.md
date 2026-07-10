@@ -1,3 +1,10 @@
+---
+title: "Resource IO"
+category: io
+status: stable
+tags: ["io", "resources", "either"]
+---
+
 # Resource IO
 
 Safe I/O and resource handling with `Trace Either (Kleisli IO)`.

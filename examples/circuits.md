@@ -1,3 +1,10 @@
+---
+title: "circuits — imports and pragmas"
+category: core
+status: stable
+tags: ["imports", "setup", "minimal"]
+---
+
 # circuits — imports and pragmas
 
 Imports for using circuits.  The umbrella module `Circuit` re-exports everything.

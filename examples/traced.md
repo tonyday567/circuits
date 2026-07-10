@@ -1,3 +1,10 @@
+---
+title: "Trace — reading the feedback boundary"
+category: core
+status: stable
+tags: ["traced", "type-class", "bracket"]
+---
+
 # Trace — reading the feedback boundary
 
 `Traced` is a two-method class: `trace` closes a feedback loop, `untrace`

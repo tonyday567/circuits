@@ -1,3 +1,10 @@
+---
+title: "Pure tracing via feedback wires"
+category: state
+status: stable
+tags: ["debug", "history"]
+---
+
 # Pure tracing via feedback wires
 
 `Debug.Trace.trace` is the standard way to observe intermediate values while debugging. It is convenient precisely because it lets you reach inside a computation from the outside.

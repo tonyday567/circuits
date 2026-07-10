@@ -76,22 +76,28 @@ Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14) and MicroHs
 
 ## examples
 
-All example cards live in `examples/`:
+Every file in `examples/` is a card: a short, paste-into-GHCi walkthrough with YAML front matter (`category`, `status`, `tags`).
 
-- `circuits.md` — imports and a minimal file-reading pipeline.
-- `circuit.md` — the `Trace` GADT and `run`.
-- `traced.md` — the `Traced` class and the bracket pattern.
-- `hyper.md` / `hyper-chain.md` — the final encoding and composition.
-- `encode-either.md` — why `Traced Hyper Either` is not an instance.
-- `lift-trace-commute.md` — the traced-functor lemma that makes `encode` work.
-- `marks-and-stacks.md` / `knot-recovers-fix.md` / `hyper-buries-the-knot.md` / `holding-hands-or-taking-turns.md` — the narrative arc, now in `examples/`.
-- `while.md` — `while`/`until`/`for` on `Either`.
-- `resource-io.md` — acquire/loop/release with `Trace Either (Kleisli IO)`.
-- `state.md` / `ambient.md` / `debug-trace.md` — visible, ambient, and hidden state.
-- `reader-monad.md` — the explicit escape hatch when you need monadic `do`.
-- `effects.md` — how circuits sit alongside ReaderT/Bluefin/effectful.
-- `proarrow.md` / `proequip.md` — categorical bridges (advanced).
-- `words.md` — word-count pipeline; the metering version lives in `circuits-meter`.
+### structural choice
+
+`examples/` is not a secondary dump for outdated material — it is the *development surface* of the library.
+
+- **Stable cards** document API that is exported and supported.
+- **Experimental cards** grow ideas that are not yet in the API. They are leads for future work, not maintenance contracts.
+- When an experimental card matures, it gets promoted into `src/` and the public API. Until then it lives in `examples/` where it can be read, copied, and improved without breaking anyone.
+
+This is gradual API design: develop in the open, promote only what is fully spec'd, and keep dead ends visible but clearly marked. If you want to explore an extension, contribute a card.
+
+### the cards
+
+| category | cards | what they cover |
+|---|---|---|
+| **core** | `circuits.md`, `circuit.md`, `traced.md`, `while.md`, `reader-monad.md` | imports, the `Trace` GADT, the `Traced` class, loops, monadic escape hatches |
+| **hyper** | `hyper.md`, `hyper-chain.md`, `encode-either.md`, `lift-trace-commute.md` | the final `Hyper` encoding and the lemmas that connect it to `Trace` |
+| **narrative** | `marks-and-stacks.md`, `knot-recovers-fix.md`, `hyper-buries-the-knot.md`, `holding-hands-or-taking-turns.md` | the story arc: from hyperfunctions to traced categories and back |
+| **state** | `state.md`, `ambient.md`, `debug-trace.md` | visible, ambient, and hidden state patterns |
+| **io** | `resource-io.md`, `words.md` | resource lifecycles and the word-count pipeline |
+| **advanced** | `effects.md`, `proarrow.md`, `proequip.md` | effect-library comparisons and categorical bridges (experimental) |
 
 For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
 

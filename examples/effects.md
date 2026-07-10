@@ -1,3 +1,10 @@
+---
+title: "effects — ReaderT, three-layer cake, Bluefin, effectful, and circuits"
+category: advanced
+status: experimental
+tags: ["effects", "mtl", "comparison"]
+---
+
 # effects — ReaderT, three-layer cake, Bluefin, effectful, and circuits
 
 **Context:** A low-key comparison of how `Circuit` and `circuits-io` sit alongside the dominant ReaderT + three-layer style, and the two leading "analytic" effect systems (Bluefin, effectful). No advocacy. Just where the models touch, where they pull apart, and what initial construction changes about layer responsibilities.

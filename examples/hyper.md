@@ -1,3 +1,10 @@
+---
+title: "Hyper — the final encoding"
+category: hyper
+status: stable
+tags: ["hyper", "final-encoding"]
+---
+
 # Hyper — the final encoding
 
 `Hyper` is the coinductive / final encoding.  Where `Trace` makes

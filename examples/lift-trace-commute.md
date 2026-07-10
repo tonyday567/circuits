@@ -1,3 +1,10 @@
+---
+title: "lift . trace = trace . lift"
+category: hyper
+status: stable
+tags: ["hyper", "trace", "lemma"]
+---
+
 # lift . trace = trace . lift
 
 The identity that makes `encode` on `Trace` agree with the base-arrow route.  If

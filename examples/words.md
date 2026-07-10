@@ -1,3 +1,10 @@
+---
+title: "words — a worked example"
+category: io
+status: stable
+tags: ["word-count", "pipeline", "metering"]
+---
+
 # words — a worked example
 
 Counting word frequencies from a file, reporting the top 5. A pipeline built

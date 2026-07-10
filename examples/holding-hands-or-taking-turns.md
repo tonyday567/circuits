@@ -1,3 +1,10 @@
+---
+title: "Holding Hands or Taking Turns"
+category: narrative
+status: stable
+tags: ["tensor", "either", "story"]
+---
+
 # Holding Hands or Taking Turns
 
 <div align="center">

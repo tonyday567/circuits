@@ -1,3 +1,10 @@
+---
+title: "Circuit — the initial encoding"
+category: core
+status: stable
+tags: ["trace", "gadt", "run"]
+---
+
 # Circuit — the initial encoding
 
 `Trace` is the initial encoding: a GADT with two constructors.

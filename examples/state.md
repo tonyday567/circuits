@@ -1,3 +1,10 @@
+---
+title: "State in Circuits"
+category: state
+status: stable
+tags: ["state", "ambient", "hidden-state"]
+---
+
 # State in Circuits
 
 Circuits offer three mechanisms for managing state, corresponding to three

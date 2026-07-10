@@ -1,3 +1,10 @@
+---
+title: "⟝ proarrow"
+category: advanced
+status: experimental
+tags: ["category-theory", "proarrow", "equipment"]
+---
+
 ⟝ proarrow
 
 # Traced ≅ Strong + Costrong on Hom k — The proarrow Bridge

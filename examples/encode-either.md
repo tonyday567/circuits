@@ -1,3 +1,10 @@
+---
+title: "encode-either ⟜ why Traced Hyper Either does not exist"
+category: hyper
+status: stable
+tags: ["hyper", "either", "encoding"]
+---
+
 # encode-either ⟜ why Traced Hyper Either does not exist
 
 `Hyper` has `Traced Hyper (,)` but no `Traced Hyper Either`. This card explains
