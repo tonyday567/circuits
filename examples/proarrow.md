@@ -303,6 +303,6 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 - [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
 - [nLab: equipment](https://ncatlab.org/nlab/show/equipment) — proarrow equipment axioms
 - [examples/proequip.md](../examples/proequip.md) — double category framing; open lemma
-- [axioms.md](../other/axioms.md) — JSV axioms proved for both tensors
+- [axioms.md](axioms.md) — JSV axioms proved for both tensors
 - `src/Circuit/Trace.hs` — `Traced` instances
 - `Circuit` — `Trace(..)`, `run`, `melt`

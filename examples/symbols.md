@@ -1,6 +1,13 @@
+---
+title: "Notation"
+category: advanced
+status: stable
+tags: [notation, symbols, reference]
+---
+
 # Notation
 
-**Summary:** The symbols used throughout the arc and examples. Mathematical
+**Summary:** The symbols used throughout the examples. Mathematical
 notation, used as mathematical notation — no apologies to GHC.
 
 ---

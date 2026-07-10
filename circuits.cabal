@@ -22,8 +22,8 @@ tested-with:
 extra-doc-files:
   ChangeLog.md
   LICENSE
-  other/axioms.md
-  other/symbols.md
+  examples/axioms.md
+  examples/symbols.md
   readme.md
 
 source-repository head

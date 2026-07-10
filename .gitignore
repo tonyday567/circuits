@@ -7,3 +7,5 @@
 .hie/
 dist-mcabal/
 .ghc.environment.*
+.sabela/
+

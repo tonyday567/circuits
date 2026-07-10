@@ -1,3 +1,10 @@
+---
+title: "Traced Monoidal Category Axioms"
+category: advanced
+status: stable
+tags: [axioms, traced, equations, proof]
+---
+
 # Traced Monoidal Category Axioms
 
 **Summary:** Equational proofs for all five axioms, both tensors. For when
@@ -6,7 +13,7 @@ you need to be sure.
 **See also:** `examples/knot-recovers-fix.md` (GADT derivation), `src/Circuit/Trace.hs` (`Traced` instances)
 
 The five Joyal–Street–Verity axioms proved for tensors `(,)` and `Either`
-over the base arrow `(->)`. Narrative motivation lives in the arc docs (01–07).
+over the base arrow `(->)`. Narrative motivation lives in the arc docs.
 
 ## Preliminaries
 
