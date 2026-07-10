@@ -48,6 +48,9 @@ import Control.Category (Category (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
+-- $setup
+-- >>> import Circuit.Free
+
 -- | The kind of Haskell categories: type-to-type hom-sets.
 type Cat2 = Type -> Type -> Type
 
@@ -96,6 +99,9 @@ lower g = g . unit
 -- run @(Trace t)
 -- run @(Net t)
 -- @
+--
+-- >>> run (Lift (+1) :: Free (->) Int Int) 5
+-- 6
 run :: (Layer f, Law f arr) => f arr :~> arr
 run = bind id
 

@@ -39,7 +39,7 @@ See also `reader-monad.md` for the explicit "when you need a monad" escape hatch
 
 `Trace t arr a b` (the GADT with `Arr` and `Knot`) is the *initial* object in the category of traced monoidal categories over the base arrow `arr`. `Hyper` is the corresponding *final* (coinductive) encoding.
 
-This is a deliberate design choice visible from the narrative arc (the knot forcing the GADT in `02-a-knot-recovers-fix`).
+This is a deliberate design choice visible from the narrative arc (the knot forcing the GADT in `examples/knot-recovers-fix.md`).
 
 Contrast with final tagless style (the Layer 2 mtl classes):
 
@@ -205,8 +205,6 @@ These are empirical questions that depend on the concrete workload. The machiner
 - `reader-monad.md` — the explicit escape hatch and why no `Monad` instance
 - `resource-io.md` — structural resource lifecycles
 - `state.md` — visible / ambient / hidden state mechanisms
-- `optics.md` — traced structure as residual/context (lens-like)
-- `pipes.md` — decomposition of an existing streaming abstraction
 - `ends-effectful.md` (in the mg workspace) — the deepest existing comparison of Ends vs Bluefin coroutines vs effectful dynamic effects
 - `circuits-effects` (`~/haskell/circuits-effects/`) — the cross-library benchmark project; source modules: `Circuit.Effects.{Co,Coroutine,Bench,CrossBench}`
 - `Circuit.Monoidal` (`ambient`, `ambientBy`)

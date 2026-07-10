@@ -90,6 +90,6 @@ is real — but it lives at the application layer, not in the substrate.
 
 ## Reference
 
-- `examples/parser.md` — `Parser` newtype with lawful `Applicative`/`Monad`
+- [circuits-parser](https://github.com/tonyday567/circuits-parser) — parser library using circuits
 - `src/Circuit/Hyper.hs` — `observe`, `lift`
 - `src/Circuit.hs` — `run`, `Arr`

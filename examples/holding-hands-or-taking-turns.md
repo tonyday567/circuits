@@ -6,7 +6,7 @@
 
 *we find a basic choice: hold hands and go together, or take turns passing control back and forth.*
 
-**[⟵ Prev: Hyper Buries the Knot](03-hyper-buries-the-knot.md)** · **[Next: No Remorse, Once Removed ⟶](05-no-remorse-once-removed.md)**
+**[⟵ Prev: Hyper Buries the Knot](hyper-buries-the-knot.md)**
 
 </div>
 
@@ -102,8 +102,7 @@ channel.
 | `untrace` | `fmap` | `fmap` |
 | Hyper encoding | `encode` via `Traced Hyper (,)` | `encodeEither` via hand-rolled loop |
 
-**Next:** [05-no-remorse-once-removed.md](05-no-remorse-once-removed.md) — Reflection Without Remorse; the
-Mendler case as `viewl`; the GADT hierarchy.
+**Next:** [while.md](while.md) — loop patterns with the `Either` tensor.
 
 ---
 

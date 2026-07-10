@@ -144,8 +144,8 @@ run fibs ()   = let (xs, ys) = ... in ys      -- lazy knot
 
 ## References
 
-- [01-marks-and-stacks.md](01-marks-and-stacks.md) — the five marks introduced
-- [02-a-knot-recovers-fix.md](02-a-knot-recovers-fix.md) — the Mendler identity derived; Free discovered
-- [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — the triangle proved; lift.trace = trace.lift
+- [marks-and-stacks.md](../examples/marks-and-stacks.md) — the five marks introduced
+- [knot-recovers-fix.md](../examples/knot-recovers-fix.md) — the Mendler identity derived; Free discovered
+- [hyper-buries-the-knot.md](../examples/hyper-buries-the-knot.md) — the triangle proved; lift.trace = trace.lift
 - [axioms.md](axioms.md) — JSV axioms proved for both tensors
 - `examples/lift-trace-commute.md` — full proof of the traced functor lemma

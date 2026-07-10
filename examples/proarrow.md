@@ -2,8 +2,8 @@
 
 # Traced ≅ Strong + Costrong on Hom k — The proarrow Bridge
 
-For background on Circuit see [01-marks-and-stacks.md](../other/01-marks-and-stacks.md)
-and [02-a-knot-recovers-fix.md](../other/02-a-knot-recovers-fix.md).
+For background on Circuit see [marks-and-stacks.md](marks-and-stacks.md)
+and [knot-recovers-fix.md](knot-recovers-fix.md).
 For the proarrow library see the
 [proarrow repo](https://github.com/sjoerdvisscher/proarrow/) (Sjoerd Visscher)
 and Bartosz Milewski's

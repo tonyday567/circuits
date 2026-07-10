@@ -6,7 +6,7 @@
 
 *In which Hyper is re-examined; the triangle identity is decomposed; and a lemma that held the proof together gets a name.*
 
-**[⟵ Prev: A Knot Recovers Fix](02-a-knot-recovers-fix.md)** · **[Next: Holding Hands or Taking Turns ⟶](04-holding-hands-or-taking-turns.md)**
+**[⟵ Prev: A Knot Recovers Fix](knot-recovers-fix.md)** · **[Next: Holding Hands or Taking Turns ⟶](holding-hands-or-taking-turns.md)**
 
 </div>
 
@@ -237,7 +237,7 @@ is the lemma that makes it work — the traced functor condition, proven
 in the `Knot` case of the triangle. `Traced Hyper (,)` is used by
 `encode` for loops and proves the lemma.
 
-**Next:** [04-holding-hands-or-taking-turns.md](04-holding-hands-or-taking-turns.md) — the tensor parameter;
+**Next:** [holding-hands-or-taking-turns.md](holding-hands-or-taking-turns.md) — the tensor parameter;
 `(,)` vs `Either`; holding hands vs taking turns.
 
 ---

@@ -126,4 +126,4 @@ To get `Traced Hyper Either` natively would require one of:
 
 - `src/Circuit/Hyper.hs` — `encodeEither`, `runEither`
 - `examples/hyper.md` — the Either gap, final encoding limitations
-- `other/04-holding-hands-or-taking-turns.md` — `(,)` vs `Either` semantics
+- `holding-hands-or-taking-turns.md` — `(,)` vs `Either` semantics

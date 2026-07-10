@@ -6,7 +6,7 @@
 
 *In which a GADT takes shape; a single pattern match enforces honesty; and between Trace and arr, Free is discovered.*
 
-**[⟵ Prev: Marks and Stacks](01-marks-and-stacks.md)** · **[Next: Hyper Buries the Knot ⟶](03-hyper-buries-the-knot.md)**
+**[⟵ Prev: Marks and Stacks](marks-and-stacks.md)** · **[Next: Hyper Buries the Knot ⟶](hyper-buries-the-knot.md)**
 
 </div>
 
