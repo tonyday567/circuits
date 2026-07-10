@@ -1,10 +1,8 @@
 ---
-title: "Hyper — the final encoding"
-category: hyper
-status: stable
-tags: ["hyper", "final-encoding"]
+name: hyper
+description: The final coinductive encoding
+tags: ['hyper', 'final-encoding']
 ---
-
 # Hyper — the final encoding
 
 `Hyper` is the coinductive / final encoding.  Where `Trace` makes
@@ -14,9 +12,11 @@ carries a continuation `Hyper b a` — the feedback is structural.
 
 ```haskell
 -- $setup
+-- >>> :set -XLambdaCase
 -- >>> import Control.Category ((.))
 -- >>> import Data.Profunctor (dimap)
--- >>> import Circuit (Trace(..), run, trace, untrace)
+-- >>> import Circuit (run)
+-- >>> import Circuit.Trace (Trace(..), trace, untrace)
 -- >>> import Circuit.Hyper
 -- >>> import Prelude hiding (id, (.))
 ```
@@ -26,7 +26,9 @@ carries a continuation `Hyper b a` — the feedback is structural.
 ## the type
 
 ```haskell
-newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
+import Circuit.Hyper (Hyper)
+
+-- newtype Hyper a b = Hyper { invoke :: Hyper b a -> b }
 ```
 
 To produce a `b`, you invoke the dual `Hyper b a` — a continuation that
@@ -48,7 +50,7 @@ The dual arrow is always present — it's the argument to `invoke`.
 | `lift` / `↑` | `(a -> b) -> Hyper a b` | embed a plain function |
 | `observe` / `↓` | `Hyper a b -> a -> b` | observe with constant continuation |
 | `base` / `○` | `a -> Hyper b a` | ignore feedback, return constant |
-| `push` / `⊲` | `(b -> c) -> Hyper a b -> Hyper a c` | prepend function to output |
+| `push` / `⊲` | `(a -> b) -> Hyper a b -> Hyper a b` | apply a function to the continuation result |
 | `runHyper` / `⥁` | `Hyper a a -> a` | tie the self-referential knot |
 
 ```haskell

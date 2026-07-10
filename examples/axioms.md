@@ -1,16 +1,14 @@
 ---
-title: "Traced Monoidal Category Axioms"
-category: advanced
-status: stable
-tags: [axioms, traced, equations, proof]
+name: axioms
+description: Traced monoidal category axioms and equational proofs
+tags: ['axioms', 'traced', 'equations']
 ---
-
 # Traced Monoidal Category Axioms
 
 **Summary:** Equational proofs for all five axioms, both tensors. For when
 you need to be sure.
 **Reference:** https://ncatlab.org/nlab/show/traced+monoidal+category
-**See also:** `examples/knot-recovers-fix.md` (GADT derivation), `src/Circuit/Trace.hs` (`Traced` instances)
+**See also:** `examples/knot-and-fix.md` (GADT derivation), `src/Circuit/Trace.hs` (`Traced` instances)
 
 The five Joyal–Street–Verity axioms proved for tensors `(,)` and `Either`
 over the base arrow `(->)`. Narrative motivation lives in the arc docs.
@@ -18,7 +16,7 @@ over the base arrow `(->)`. Narrative motivation lives in the arc docs.
 ## Preliminaries
 
 ```haskell
-class Traced arr t where
+class Monoidal t arr => Traced t arr where
   trace   :: arr (t a b) (t a c) -> arr b c   -- close the channel
   untrace :: arr b c -> arr (t a b) (t a c)   -- inject into channel
 ```
@@ -27,13 +25,15 @@ For `arr = (->)`:
 
 | Tensor | `trace` | `untrace` |
 |--------|---------|-----------|
-| `(,)` | `\f b -> let (a, c) = f (a, b) in c` | `fmap` / `second` |
+| `(,)` | `\f b -> let ~(a, c) = f (a, b) in c` | `fmap` / `second` |
 | `Either` | while-loop: `Left` continues, `Right` exits | `fmap` / `right` |
 
 The left-channel convention puts the channel on the left: `t a b` means
-channel `a`, payload `b`. So `id ⊗ f` means `first f` for `(,)` and
+channel `a`, payload `b`. So `f ⊗ id` means `first f` for `(,)` and
 `left f` for `Either` — both act on the channel component, leaving the
-payload untouched.
+payload untouched. Dually, `id ⊗ f` means `second f` for `(,)` and
+`right f` for `Either` — both act on the payload component, leaving the
+channel untouched.
 
 The two tensors are operationally dual:
 
@@ -104,7 +104,7 @@ Axioms 4 and 5 introduce no new constructors on the final side. Axiom 4
 base arrows are available in the final encoding; it is part of the motivation
 for why the initial encoding needs the structure that `Knot` provides.
 Only axiom 6 (sliding) forces a new constructor on the initial side.
-See `02-a-knot-recovers-fix.md` for the derivation.
+See `examples/knot-and-fix.md` for the derivation.
 
 ## The Mendler Case
 
@@ -114,7 +114,7 @@ in existential normal form — at most one `Knot` at the top, over a base-arrow
 body — so `run` is a direct fold:
 
 ```haskell
-run :: Traced arr t => Trace t arr a b -> arr a b
+run :: Traced t arr => Trace t arr a b -> arr a b
 run (Arr f)  = f
 run (Knot f) = trace f
 ```
@@ -123,7 +123,7 @@ The old `Circuit` interpreter needed a Mendler case for `Compose (Knot f) g`
 to avoid closing the channel too early. In the normal-form `Trace`, sequential
 composition of `Knot`s is normalized by the `Category` instance before `run`
 ever sees it, so there is no `Compose` constructor and no Mendler case. For the
-full story see `examples/knot-recovers-fix.md`.
+full story see `examples/knot-and-fix.md`.
 
 ## Proofs
 
@@ -359,4 +359,4 @@ structure.
 - [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) — hyperfunction axioms
 - [Hasegawa (1997)](https://doi.org/10.1007/978-1-4471-0865-8_7) — Theorem 3.1: cartesian traces = fixpoints
 - [Van der Ploeg & Kiselyov (2014)](https://doi.org/10.1145/2633357.2633360) — Reflection Without Remorse
-- `examples/knot-recovers-fix.md` — how the axioms force the GADT
+- `examples/knot-and-fix.md` — how the axioms force the GADT

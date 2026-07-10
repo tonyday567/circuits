@@ -1,14 +1,12 @@
 ---
-title: "While, Until, For — Trace loops"
-category: core
-status: stable
-tags: ["either", "iteration", "loops"]
+name: while
+description: While, until, and for loops with Trace
+tags: ['either', 'iteration', 'loops']
 ---
-
 # While, Until, For — Trace loops
 
 The three canonical loop patterns using `Trace`'s `Knot` constructor
-and the `Traced (->) Either` instance.  One fundamental pattern, three
+and the `Traced Either (->)` instance.  One fundamental pattern, three
 specialisations.
 
 ```haskell
@@ -22,7 +20,7 @@ specialisations.
 
 ## The convention
 
-`Traced (->) Either` uses `Left = feedback` (iterate) and `Right = exit`
+`Traced Either (->)` uses `Left = feedback` (iterate) and `Right = exit`
 (done).  We adopt the same convention for user-facing step functions:
 
 ```haskell
@@ -130,7 +128,7 @@ forC n body s0 = loop step' (0, s0)
 
 ## Convention
 
-All loops use the same convention as `Traced (->) Either`:
+All loops use the same convention as `Traced Either (->)`:
 
 | branch | meaning |
 |--------|---------|

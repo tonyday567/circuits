@@ -1,10 +1,8 @@
 ---
-title: "Marks and Stacks"
-category: narrative
-status: stable
-tags: ["hyper", "story"]
+name: marks-and-stacks
+description: Five marks, six axioms, and a stack language
+tags: ['hyper', 'story']
 ---
-
 # Marks and Stacks
 
 <div align="center">
@@ -13,7 +11,7 @@ tags: ["hyper", "story"]
 
 *In which we discover a little stack language turn out to be an almost perfect description of functional programming; the five marks arrive first, the GADT follows.*
 
-**[Next: A Knot Recovers Fix ⟶](knot-recovers-fix.md)**
+**[Next: Knot and Fix ⟶](knot-and-fix.md)**
 
 </div>
 

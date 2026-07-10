@@ -1,10 +1,8 @@
 ---
-title: "Pure tracing via feedback wires"
-category: state
-status: stable
-tags: ["debug", "history"]
+name: debug-trace
+description: Pure tracing via feedback wires
+tags: ['debug', 'history', 'trace']
 ---
-
 # Pure tracing via feedback wires
 
 `Debug.Trace.trace` is the standard way to observe intermediate values while debugging. It is convenient precisely because it lets you reach inside a computation from the outside.
@@ -31,44 +29,35 @@ The variable `fibs` in the feedback position *is* the trace of previous results.
 
 This is tracing, but the trace is first-class data rather than a side effect.
 
-## Explicit logging with ambient state
+## Explicit logging in the state wire
 
-You can thread a log alongside a computation or loop without the main logic having to mention it, using `ambient`.
+You can also accumulate a log as data inside the feedback wire of a terminating loop. The `Either` tensor distinguishes continuing (`Left`) from exiting (`Right`), so the final state can include the full history.
 
 ```haskell
-{-# LANGUAGE BlockArguments #-}
-
 import Circuit
-import Control.Category (id, (.))
+import Control.Category ((.))
 import Prelude hiding (id, (.))
 ```
 
-A loop that counts and accumulates a log in the state wire:
+A loop that counts and accumulates a log in its state wire:
 
 ```haskell
-step :: (Int, [Int]) -> Either (Int, [Int]) (Int, [Int])
-step (n, log) =
-  if n < 3
-    then Left  (n + 1, n : log)
-    else Right (n,     n : log)
+step :: Either (Int, [Int]) () -> Either (Int, [Int]) (Int, [Int])
+step (Right ())         = Left (0, [])
+step (Left (n, history))
+  | n < 3               = Left (n + 1, n : history)
+  | otherwise           = Right (n, n : history)
 
 counter :: Trace Either (->) () (Int, [Int])
 counter = Knot step
+
+-- >>> run counter ()
+-- (3,[3,2,1,0])
 ```
 
-Thread an extra label through the loop using `ambient`:
+The tuple `(Int, [Int])` is the loop's state wire; the list is the accumulated history. It is ordinary data flowing through the wire.
 
-```haskell
-braidE (Left (s, a))  = (s, Left a)
-braidE (Right (s, c)) = (s, Right c)
-
--- >>> run (ambientBy braidE counter) ("run-1", ())
--- ("run-1",(3,[2,1,0]))
-```
-
-The label rides along "ambiently". The log is ordinary data in the state wire.
-
-## Relationship to Debug.Trace
+To thread an extra label *alongside* a payload, use the `ambient` combinator with the `(,)` tensor. See `examples/ambient.md`.
 
 ## Relationship to Debug.Trace
 
@@ -80,7 +69,7 @@ When the thing you want to "debug" is the history or accumulation across recursi
 
 ## See also
 
-- The Fibonacci and powers examples in the main `readme.md`
+- The powers example in the main `readme.md`; the Fibonacci snippet above
 - `examples/while.md` for iteration patterns with the `Either` tensor
-- `examples/knot-recovers-fix.md` for the underlying reason this structure appears
+- `examples/knot-and-fix.md` for the underlying reason this structure appears
 - `Circuit.Trace` for the two tensor disciplines and their different looping behaviours

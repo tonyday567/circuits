@@ -1,10 +1,8 @@
 ---
-title: "foldH ⟜ coroutining folds, profunctor equipment"
-category: advanced
-status: experimental
-tags: ["category-theory", "profunctor", "equipment"]
+name: proequip
+description: Coroutining folds and the profunctor equipment structure of Trace
+tags: ['category-theory', 'profunctor', 'equipment']
 ---
-
 # foldH ⟜ coroutining folds, profunctor equipment
 
 > **Design-only / exploratory.** This card explores the profunctor-equipment
@@ -22,7 +20,6 @@ alone cannot express.
 ```haskell
 -- $setup
 -- >>> import Circuit
--- >>> import Data.These
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Control.Category
 ```
@@ -110,16 +107,16 @@ Both folds build an endofunction chain.  `foldr'` builds `[a] -> [a]`
 via cons.  `foldh'` builds `Hyper a b -> Hyper a b` via push.  The
 λ-term is identical — the generator is the only difference.
 
-At `Hyper a a` the types align perfectly:
+At `Hyper a a` the types align:
 
 ```
-foldr'  :: [a -> a] -> [a -> a]   -> [a -> a]
-foldh'  :: [a -> a] -> Hyper a a  -> Hyper a a
+foldr'  :: [a]      -> [a]      -> [a]
+foldh'  :: [a -> a] -> Hyper a a -> Hyper a a
 ```
 
-Both are `[τ] -> M -> M` — a list of endofunctions folded into an
-endofunction carrier.  `(:)` and `push` are dual representations of
-the same endofunction stack.
+Both build a carrier (`[a]` or `Hyper a a`) from a list of generators —
+elements for `(:)` and functions for `push`.  `(:)` and `push` are dual
+representations of the same endofunction-stack shape.
 
 ---
 
@@ -159,10 +156,12 @@ not force the rest of either input list.
 the `[(a,b)]` is the accumulated output passed through the channel.
 `These` makes the coroutine structure visible in the type.
 
-From `Data.These` (`these` package):
+The `These` type (from the `these` package; we define a local copy so the
+example stays self-contained):
 
 ```haskell
 data These a b = This a | That b | These a b
+  deriving (Show, Eq)
 ```
 
 `That` is the empty signal (no element).  `These element remainder`
@@ -170,7 +169,7 @@ carries the token.  `This` handles the final element with no remainder.
 
 ```haskell
 zipHThese :: [a] -> [b] -> [(a, b)]
-zipHThese xs ys = runHyper (foldH xs first (That []) . foldH ys second (That []))
+zipHThese xs ys = runHyper (foldH xs first [] . foldH ys second (That []))
   where
     first x (This y)      = [(x, y)]
     first x (These y ys)  = (x, y) : ys
@@ -216,7 +215,7 @@ slot open, so we can swap `(,)` for `bin` without touching the pipeline:
 
 ```haskell
 zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
-zipWith bin xs ys = runHyper (foldH xs combine (That []) . foldH ys These (That []))
+zipWith bin xs ys = runHyper (foldH xs combine [] . foldH ys These (That []))
   where
     combine x (This y)      = [bin x y]
     combine x (These y ys)  = bin x y : ys
@@ -248,13 +247,16 @@ via coroutining.
 The `Trace` constructor `Knot` has the same shape as `Cell`:
 
 ```haskell
-Knot :: arr (t a b) (t a c) -> Trace t arr b c
+import Circuit
+import qualified Circuit.Trace as T
+
+-- Knot :: arr (t a b) (t a c) -> T.Trace t arr b c
 ```
 
-With `f = g = id`, `h = arr ∘ (t a)`, `j = Trace t arr`:
+With `f = g = id`, `h = arr ∘ (t a)`, `j = T.Trace t arr`:
 
 ```haskell
--- Cell id id (arr ∘ (t a)) (Trace t arr)
+-- Cell id id (arr ∘ (t a)) (T.Trace t arr)
 ```
 
 `Knot` is a natural 2-cell in its boundary types.  The `dimap` instance

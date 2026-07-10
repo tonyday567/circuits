@@ -1,10 +1,8 @@
 ---
-title: "Trace — reading the feedback boundary"
-category: core
-status: stable
-tags: ["traced", "type-class", "bracket"]
+name: traced
+description: The Traced class and reading the feedback boundary
+tags: ['traced', 'type-class', 'bracket']
 ---
-
 # Trace — reading the feedback boundary
 
 `Traced` is a two-method class: `trace` closes a feedback loop, `untrace`
@@ -17,6 +15,7 @@ arrows.
 -- $setup
 -- >>> import Control.Arrow (Kleisli(..), right)
 -- >>> import Circuit.Trace (Traced(..))
+-- >>> import Control.Category ((.))
 -- >>> import Prelude hiding (id, (.))
 ```
 

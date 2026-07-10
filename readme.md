@@ -10,24 +10,25 @@ It's off the beaten track but absolutely core Haskell: traced monoidal categorie
 
 ```haskell
 import Circuit
+import qualified Circuit.Trace as T
 import Control.Arrow (Kleisli (..))
 import Control.Category ((>>>))
 import Data.Bool (bool)
 import System.IO (IOMode (ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
-openf = Arr (Kleisli (\fp -> openFile fp ReadMode))
-     -- Trace Either (Kleisli IO) FilePath Handle
+openf :: T.Trace Either (Kleisli IO) FilePath Handle
+openf = T.Arr (Kleisli (\fp -> openFile fp ReadMode))
 
-countLines = Knot (Kleisli step)
+countLines :: T.Trace Either (Kleisli IO) Handle (Handle, Int)
+countLines = T.Knot (Kleisli step)
   where
     step (Left (h, n)) = hIsEOF h >>= bool
       (hGetLine h >> pure (Left (h, n + 1)))
       (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
-     -- Trace Either (Kleisli IO) Handle (Handle, Int)
 
-pipeline = openf >>> countLines >>> Arr (Kleisli (\(h, n) -> hClose h >> pure n))
-     -- Trace Either (Kleisli IO) FilePath Int
+pipeline :: T.Trace Either (Kleisli IO) FilePath Int
+pipeline = openf >>> countLines >>> T.Arr (Kleisli (\(h, n) -> hClose h >> pure n))
 
 -- paste into ghci:  runKleisli (run pipeline) "readme.md"
 ```
@@ -46,13 +47,21 @@ The feedback tensor is the first type argument:
 Same `Knot` constructor. Different tensor, different universe.
 
 ```haskell
+import Circuit
+import qualified Circuit.Trace as T
+
 -- Lazy streaming with (,):
-powers = Knot (\(ns, ()) -> (1 : map (*2) ns, take 5 ns))
+powers :: T.Trace (,) (->) () [Integer]
+powers = T.Knot (\(ns, ()) -> (1 : map (*2) ns, take 5 ns))
 run powers ()  -- [1,2,4,8,16]
 
 -- Iteration with Either:
+step :: Int -> Either Int Int
 step n = if n < 5 then Left (n + 1) else Right n
-trace (either step step) 0  -- 5
+
+countToFive :: T.Trace Either (->) Int Int
+countToFive = T.Arr (either step step)
+run countToFive 0  -- 5
 ```
 
 ## the tower
@@ -76,7 +85,7 @@ Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14) and MicroHs
 
 ## examples
 
-Every file in `examples/` is a card: a short, paste-into-GHCi walkthrough with YAML front matter (`category`, `status`, `tags`).
+Every file in `examples/` is a card: a short, paste-into-GHCi walkthrough with YAML front matter (`name`, `description`, `tags`).
 
 ### structural choice
 
@@ -92,12 +101,12 @@ This is gradual API design: develop in the open, promote only what is fully spec
 
 | category | cards | what they cover |
 |---|---|---|
-| **core** | `circuits.md`, `circuit.md`, `traced.md`, `while.md`, `reader-monad.md` | imports, the `Trace` GADT, the `Traced` class, loops, monadic escape hatches |
+| **core** | `setup.md`, `circuit.md`, `traced.md`, `while.md`, `reader-monad.md` | imports, the `Trace` GADT, the `Traced` class, loops, monadic escape hatches |
 | **hyper** | `hyper.md`, `hyper-chain.md`, `encode-either.md`, `lift-trace-commute.md` | the final `Hyper` encoding and the lemmas that connect it to `Trace` |
-| **narrative** | `marks-and-stacks.md`, `knot-recovers-fix.md`, `hyper-buries-the-knot.md`, `holding-hands-or-taking-turns.md` | the story arc: from hyperfunctions to traced categories and back |
+| **narrative** | `marks-and-stacks.md`, `knot-and-fix.md`, `hyper-buries-the-knot.md`, `tensors.md` | the story arc: from hyperfunctions to traced categories and back |
 | **state** | `state.md`, `ambient.md`, `debug-trace.md` | visible, ambient, and hidden state patterns |
-| **io** | `resource-io.md`, `words.md` | resource lifecycles and the word-count pipeline |
-| **advanced** | `effects.md`, `proarrow.md`, `proequip.md` | effect-library comparisons and categorical bridges (experimental) |
+| **io** | `resource-io.md` | resource lifecycles as Either-trace loops |
+| **advanced** | `proarrow.md`, `proequip.md` | categorical bridges to profunctor equipment (experimental) |
 
 For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
 

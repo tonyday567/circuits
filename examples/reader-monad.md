@@ -1,10 +1,8 @@
 ---
-title: "reader-monad ⟜ when you need monadic composition"
-category: core
-status: stable
-tags: ["monad", "escape-hatch"]
+name: reader-monad
+description: When you need monadic composition
+tags: ['monad', 'escape-hatch']
 ---
-
 # reader-monad ⟜ when you need monadic composition
 
 `Trace` and `Hyper` do not provide `Applicative` or `Monad` instances.
@@ -85,6 +83,9 @@ Build a newtype with its own semantics. `circuits-parser` does exactly
 this:
 
 ```haskell
+-- Local copy so the example stays self-contained.
+data These a b = This a | That b | These a b deriving (Show, Eq)
+
 newtype Parser f s a = Parser
   { unParser :: Trace Either (->) f (These a f) }
 ```

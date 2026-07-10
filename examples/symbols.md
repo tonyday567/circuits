@@ -1,10 +1,8 @@
 ---
-title: "Notation"
-category: advanced
-status: stable
-tags: [notation, symbols, reference]
+name: symbols
+description: Notation table for symbols used in the narrative
+tags: ['notation', 'symbols', 'reference']
 ---
-
 # Notation
 
 **Summary:** The symbols used throughout the examples. Mathematical
@@ -17,12 +15,12 @@ notation, used as mathematical notation — no apologies to GHC.
 | Symbol | Name | Type | Meaning |
 |--------|------|------|---------|
 | `↑` | lift | `(a → b) → Hyper a b` | embed a plain arrow |
-| `↓` | lower | `Hyper a b → (a → b)` | observe a hyperfunction |
+| `↓` | observe | `Hyper a b → (a → b)` | observe a hyperfunction (not `Circuit.Layer.lower`) |
 | `⊙` | compose | `cat b c → cat a b → cat a c` | sequential composition |
 | `⊲` | push | `(a → b) → Hyper a b → Hyper a b` | prepend to the continuation |
-| `⥁` | run | `Hyper a a → a` | tie the self-referential knot |
-| `∥` | ambient | `braid → Trace t arr a b → Trace t arr (t s a) (t s b)` | thread state wire alongside |
-| `↮` | knot | `Trace t arr (t a b) (t a c) → Trace t arr b c` | feedback loop constructor (body is a base arrow) |
+| `⥁` | runHyper | `Hyper a a → a` | tie the self-referential knot (not `Circuit.Layer.run`) |
+| `∥` | ambient | `Trace t arr a b → Trace t arr (t s a) (t s b)` | thread state wire alongside |
+| `↮` | knot | `arr (t a b) (t a c) → Trace t arr b c` | feedback loop constructor (body is a base arrow) |
 | `↘` | run | `Trace t arr x y → arr x y` | interpret Trace to plain arrow |
 | `↪` | trace | `arr (t a b) (t a c) → arr b c` | close the feedback channel |
 | `↩` | untrace | `arr b c → arr (t a b) (t a c)` | open the feedback channel |
@@ -152,7 +150,7 @@ run fibs ()   = let (xs, ys) = ... in ys      -- lazy knot
 ## References
 
 - [marks-and-stacks.md](../examples/marks-and-stacks.md) — the five marks introduced
-- [knot-recovers-fix.md](../examples/knot-recovers-fix.md) — the Mendler identity derived; Free discovered
+- [knot-and-fix.md](../examples/knot-and-fix.md) — the Mendler identity derived; Free discovered
 - [hyper-buries-the-knot.md](../examples/hyper-buries-the-knot.md) — the triangle proved; lift.trace = trace.lift
 - [axioms.md](axioms.md) — JSV axioms proved for both tensors
 - `examples/lift-trace-commute.md` — full proof of the traced functor lemma

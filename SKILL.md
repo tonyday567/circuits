@@ -19,13 +19,13 @@ Read in order. Each builds on the last.
 
 ```
 01-marks-and-stacks               five marks, six axioms, the stack language
-02-a-knot-recovers-fix            how axiom 4 forces a GADT and a load-bearing pattern match
-03-hyper-buries-the-knot           final encoding where feedback dissolves into the type
-04-holding-hands-or-taking-turns   (,) vs Either — simultaneous vs sequential
-05-no-remorse-once-removed         Mendler case is viewl; performance story
-06-some-more-knots                 making stuff: parsers, pipes, loops, agents, metering
-axioms                             equational proofs (appendix)
-symbols                            notation table
+02-knot-and-fix                   how axiom 4 forces a GADT and a load-bearing pattern match
+03-hyper-buries-the-knot          final encoding where feedback dissolves into the type
+04-tensors                        (,) vs Either — simultaneous vs sequential
+05-no-remorse-once-removed        Mendler case is viewl; performance story
+06-some-more-knots                making stuff: parsers, pipes, loops, agents, metering
+axioms                            equational proofs (appendix)
+symbols                           notation table
 ```
 
 ## module map

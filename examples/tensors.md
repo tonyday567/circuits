@@ -1,11 +1,9 @@
 ---
-title: "Holding Hands or Taking Turns"
-category: narrative
-status: stable
-tags: ["tensor", "either", "story"]
+name: tensors
+description: Pair versus Either: simultaneous and sequential feedback
+tags: ['tensor', 'either', 'pair']
 ---
-
-# Holding Hands or Taking Turns
+# Tensors
 
 <div align="center">
 
@@ -38,7 +36,7 @@ For `arr = (->)`:
 
 | Tensor `t` | `trace`    | `untrace`  | Character       |
 |------------|------------|------------|-----------------|
-| `(,)`      | lazy knot  | `fmap`     | Simultaneous    |
+| `(,)`      | lazy knot  | `second`   | Simultaneous    |
 | `Either`   | while-loop | `fmap`     | Sequential      |
 
 The `Knot` constructor syntax is the same in both cases. What changes is
@@ -52,7 +50,7 @@ differ via the `Traced` instance.
 With `t = (,)`, `trace` ties a lazy knot:
 
 ```haskell
-trace f b = let (a, c) = f (a, b) in c
+trace f b = let ~(a, c) = f (a, b) in c
 ```
 
 The feedback value `a` and the output `c` are produced simultaneously.
@@ -87,7 +85,7 @@ Feedback and output take turns. Only one participant acts per step.
 - Suitable for: coroutines, state machines, parsers
 
 Hyper encodes Either loops via `encodeEither` — a hand-rolled state
-machine inside the continuation structure, closed with `run`.
+machine inside the continuation structure, closed with `runEither`.
 
 ---
 
@@ -106,7 +104,7 @@ channel.
 |--|-------|---------|
 | Character | Simultaneous / holding hands | Sequential / taking turns |
 | `trace` | Lazy knot | While-loop |
-| `untrace` | `fmap` | `fmap` |
+| `untrace` | `second` | `fmap` |
 | Hyper encoding | `encode` via `Traced Hyper (,)` | `encodeEither` via hand-rolled loop |
 
 **Next:** [while.md](while.md) — loop patterns with the `Either` tensor.

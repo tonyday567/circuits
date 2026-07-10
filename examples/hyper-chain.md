@@ -1,25 +1,23 @@
 ---
-title: "hyper-chain ⟜ Category composition on Hyper"
-category: hyper
-status: stable
-tags: ["hyper", "composition"]
+name: hyper-chain
+description: Category composition on Hyper
+tags: ['hyper', 'composition']
 ---
-
 # hyper-chain ⟜ Category composition on Hyper
 
-The universal test: build a chain of `lift` layers via `(.)`, then walk
-it with `observe`.  If Category composition works, this works.
+The universal test: build a chain of `lift` layers via Category
+composition (`>>>`), then walk it with `observe`.  If Category
+composition works, this works.
 
 ```haskell
 -- $setup
 -- >>> import Circuit.Hyper
--- >>> import Control.Category
--- >>> import Prelude hiding (id, (.))
+-- >>> import Control.Category ((>>>))
 ```
 
 ```haskell
 streamChain :: [a] -> Hyper () [a]
-streamChain = foldr (\x acc -> lift (x:) . acc) (lift (const []))
+streamChain = foldr (\x acc -> acc >>> lift (x:)) (lift (const []))
 
 runLift :: [a] -> [a]
 runLift xs = observe (streamChain xs) ()
@@ -30,6 +28,6 @@ runLift xs = observe (streamChain xs) ()
 -- [1,2,3]
 ```
 
-Each `lift (x:)` prepends an element.  `(.)` threads the feedback channel
+Each `lift (x:)` prepends an element.  `>>>` threads the feedback channel
 through the layers.  `observe` severs feedback with a constant continuation
 and walks the chain — `x : (y : (z : []))`.

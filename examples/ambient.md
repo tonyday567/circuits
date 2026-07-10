@@ -1,10 +1,8 @@
 ---
-title: "Ambient State"
-category: state
-status: stable
-tags: ["ambient", "state-threading"]
+name: ambient
+description: Threading a state wire through a Trace
+tags: ['ambient', 'state-threading']
 ---
-
 # Ambient State
 
 > Threading a state wire through a `Trace`.
@@ -16,10 +14,14 @@ operates on the payload; the state rides alongside via the tensor —
 ambient, unnoticed.
 
 ```haskell
-ambientBy :: (Profunctor arr, Traced arr t)
+import Circuit
+import Data.Profunctor (Profunctor, dimap)
+import qualified Circuit.Trace as T
+
+ambientBy :: (Profunctor arr, T.Traced t arr)
           => (forall x y z. t x (t y z) -> t y (t x z))
-          -> Trace t arr a b
-          -> Trace t arr (t s a) (t s b)
+          -> T.Trace t arr a b
+          -> T.Trace t arr (t s a) (t s b)
 ```
 
 The braid argument swaps the state wire past the feedback channel:
@@ -29,18 +31,18 @@ explicit.
 ## Cartesian: `(,)`
 
 ```haskell
-{-# LANGUAGE BlockArguments #-}
-
-import Circuit (Trace(..), run, ambient)
+import Circuit (Trace, run, ambient)
+import Circuit.Monoidal (ambientBy)
+import qualified Circuit.Trace as T
 
 -- A simple increment circuit
 inc :: Trace (,) (->) Int Int
-inc = Arr (+1)
+inc = T.Arr (+1)
 
 -- Thread a String label through
-braid (x, (s, a)) = (s, (x, a))
+slide (x, (s, a)) = (s, (x, a))
 
--- >>> run (ambientBy braid inc) ("count", 5)
+-- >>> run (ambientBy slide inc) ("count", 5)
 -- ("count",6)
 ```
 
@@ -48,34 +50,47 @@ The label `"count"` is preserved while `inc` operates on the payload.
 
 ## Iteration: `Either`
 
+For the `Either` tensor, `ambientBy` uses the coproduct braid. The
+ambient wire is part of the nested sum, not a tuple riding alongside the
+payload, so the input and output are nested `Either` values.
+
 ```haskell
-import Circuit (Trace(..), run, ambient)
+import Circuit (Trace, run, ambient)
+import Circuit.Monoidal (ambientBy, braid)
+import qualified Circuit.Trace as T
 
 -- A counting loop that also accumulates a log
-step (n, log) = if n < 3
-  then Left (n + 1, n : log)
-  else Right (n, log)
+step :: Either (Int, [Int]) () -> Either (Int, [Int]) (Int, [Int])
+step (Right ()) = Left (0, [])
+step (Left (n, history))
+  | n < 3     = Left (n + 1, n : history)
+  | otherwise = Right (n, history)
 
 counter :: Trace Either (->) () (Int, [Int])
-counter = Knot step
+counter = T.Knot step
 
--- Thread an extra label through the Either loop
-braidE (Left (s, a))  = (s, Left a)
-braidE (Right (s, c)) = (s, Right c)
+-- >>> run (ambientBy braid counter) (Right ())
+-- Right (3,[2,1,0])
 
--- >>> run (ambientBy braidE counter) ("run-1", ())
--- ("run-1",(3,[2,1,0]))
+-- A value in the outer-Left position bypasses the circuit unchanged.
+-- >>> run (ambientBy braid counter) (Left "run-1")
+-- Left "run-1"
 ```
 
-The label `"run-1"` slides past every iteration.
+Because `Either` uses `Left`/`Right` for both control flow and the
+ambient wire, a `Left`-carrying input exits immediately with the ambient
+value; only a `Right`-carrying input enters the loop.
 
-## The Three Cases
+## The Two Cases
 
 `ambient` recurses over the `Trace` constructors:
 
 ```haskell
-ambientBy _braid (Arr f) = Arr (untrace f)
-ambientBy braid (Knot k) = Knot (dimap braid braid (untrace k))
+import Circuit
+import qualified Circuit.Trace as T
+
+ambientBy _braid (T.Arr f) = T.Arr (untrace f)
+ambientBy braid (T.Knot k) = T.Knot (dimap braid braid (untrace k))
 ```
 
 | Constructor | What happens |
@@ -91,4 +106,4 @@ swaps the two wires so the state can pass through unscathed.
 
 - `src/Circuit.hs` — `ambient` definition and doctests
 - `examples/marks-and-stacks.md` — `∥` as the sixth mark
-- `circuits-perf` — `ambientPair` specializes `ambient` to `(,)`
+- `examples/state.md` — visible, ambient, and hidden state compared

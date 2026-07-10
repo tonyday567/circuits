@@ -1,10 +1,8 @@
 ---
-title: "lift . trace = trace . lift"
-category: hyper
-status: stable
-tags: ["hyper", "trace", "lemma"]
+name: lift-trace-commute
+description: The traced functor condition lift . trace = trace . lift
+tags: ['hyper', 'trace', 'lemma']
 ---
-
 # lift . trace = trace . lift
 
 The identity that makes `encode` on `Trace` agree with the base-arrow route.  If
@@ -48,25 +46,25 @@ trace_Hyper body = Hyper $ \k ->
 Left side, `lift . trace_arr`:
 
 ```
-lift (trace f) = Hyper (\k -> trace f (invoke k (lift (trace f))))
+lift (trace_arr f) = Hyper (\k -> trace_arr f (invoke k (lift (trace_arr f))))
 
-observe (lift (trace f)) x
-  = trace f (invoke (Hyper (const x)) (lift (trace f)))
-  = trace f x
+observe (lift (trace_arr f)) x
+  = trace_arr f (invoke (Hyper (const x)) (lift (trace_arr f)))
+  = trace_arr f x
   = let (a, c) = f (a, x) in c
 ```
 
 Right side, `trace_Hyper . lift`:
 
 ```
-trace (lift f) = Hyper $ \k ->
+trace_Hyper (lift f) = Hyper $ \k ->
   let pair = invoke (lift f) cont
       cont = Hyper $ \_ ->
         let a_val = invoke k (Hyper (const (snd pair)))
          in (fst pair, a_val)
    in snd pair
 
-observe (trace (lift f)) x
+observe (trace_Hyper (lift f)) x
   -- substitute k = Hyper (const x):
   let pair = invoke (lift f) cont
       cont = Hyper $ \_ ->
@@ -96,17 +94,16 @@ the final encoding, behavioral equality IS equality.
 
 ```
 encode (Arr f)        = lift f
-encode (Knot k)       = trace_Hyper (encode k)          -- Hyper's trace
+encode (Knot k)       = trace_Hyper (lift k)            -- Hyper's trace
 ```
 
 Alternatively, via the base-arrow interpreter `run`:
 
 ```
-run (Knot k)          = trace_arr (run k)
+run (Knot k)          = trace_arr k
 encode (Knot k)       = lift (run (Knot k))
-                      = lift (trace_arr (run k))
-                      = trace_Hyper (lift (run k))      -- by lift.trace=trace.lift
-                      = trace_Hyper (encode k)          -- by induction
+                      = lift (trace_arr k)
+                      = trace_Hyper (lift k)            -- by lift.trace=trace.lift
 ```
 
 `run` pushes `trace` into the base arrow; `lift` lifts it into Hyper.

@@ -1,14 +1,21 @@
 ---
-title: "State in Circuits"
-category: state
-status: stable
-tags: ["state", "ambient", "hidden-state"]
+name: state
+description: Visible, ambient, and hidden state in circuits
+tags: ['state', 'ambient', 'hidden-state']
 ---
-
 # State in Circuits
 
 Circuits offer three mechanisms for managing state, corresponding to three
 different relationships between the state and the computation.
+
+```haskell
+import Circuit (Trace, run, ambient)
+import qualified Circuit.Trace as T
+import Control.Category ((>>>))
+```
+
+(`T.Arr` and `T.Knot` are qualified because `cabal repl circuits` also loads
+`Circuit.Mon`, which exports its own `Arr` constructor.)
 
 ## 1. Visible state — threaded by composition
 
@@ -19,17 +26,16 @@ The state appears explicitly in the type. Composition threads it through.
 -- This is the state monad in arrow form.
 
 push :: Trace (,) (->) ([a], a) ([a], ())
-push = Arr $ \(buf, a) -> (buf ++ [a], ())
+push = T.Arr $ \(buf, a) -> (buf ++ [a], ())
 
 pop :: Trace (,) (->) ([a], ()) ([a], a)
-pop = Arr $ \(buf, ()) -> case uncons buf of
-  These x xs -> (xs, x)
-  That _     -> (buf, error "Queue.pop: empty buffer")
-  This x     -> ([], x)
+pop = T.Arr $ \(buf, ()) -> case buf of
+  x : xs -> (xs, x)
+  []     -> (buf, error "Queue.pop: empty buffer")
 
 -- Composition threads state
 queue :: Trace (,) (->) ([a], a) ([a], a)
-queue = pop . push
+queue = push >>> pop
 ```
 
 State is **visible**, **mutable**, and **persistent across composition**.
@@ -49,7 +55,7 @@ State rides alongside the computation, invisible to the circuit itself.
 ```haskell
 -- A circuit that operates on the payload only
 increment :: Trace (,) (->) Int Int
-increment = Arr (+1)
+increment = T.Arr (+1)
 
 -- Thread a log through ambiently
 metered :: Trace (,) (->) ([String], Int) ([String], Int)
@@ -65,8 +71,9 @@ The `meteredAmbient` combinator in `circuits-meter` extends this: the
 circuit CAN read and write the state, using it as an accumulator.
 
 ```haskell
-meteredAmbient :: (s -> t -> s) -> Meter s t -> Kleisli IO a b
-               -> Trace (,) (Kleisli IO) (s, a) (s, b)
+-- In circuits-meter this looks roughly like:
+-- meteredAmbient :: (s -> t -> s) -> Meter s t -> Kleisli IO a b
+--                -> Trace (,) (Kleisli IO) (s, a) (s, b)
 ```
 
 Trade: state is threaded automatically, but the circuit is unaware
@@ -89,7 +96,7 @@ a self-referential channel.
 ```haskell
 -- powers = [1, 2, 4, 8, 16, ...] via lazy knot
 powers :: Trace (,) (->) () [Integer]
-powers = Knot $ \(ns, ()) -> (1 : map (*2) ns, take 5 ns)
+powers = T.Knot $ \(ns, ()) -> (1 : map (*2) ns, take 5 ns)
 ```
 
 Constraint: the feedback channel must be **lazy** — you can reference
@@ -107,7 +114,7 @@ trace f b = go (Right b)
 
 ```haskell
 fac :: Trace Either (->) (Int, Int) Int  -- input: (n, acc)
-fac = Knot $ either step step
+fac = T.Knot $ either step step
   where step (n, acc) | n <= 1    = Right acc
                       | otherwise = Left (n - 1, n * acc)
 ```

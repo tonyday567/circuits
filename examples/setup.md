@@ -1,10 +1,8 @@
 ---
-title: "circuits — imports and pragmas"
-category: core
-status: stable
-tags: ["imports", "setup", "minimal"]
+name: setup
+description: Imports, pragmas, and minimal cabal repl session
+tags: ['imports', 'setup', 'minimal']
 ---
-
 # circuits — imports and pragmas
 
 Imports for using circuits.  The umbrella module `Circuit` re-exports everything.
@@ -23,24 +21,28 @@ For user code: `GHC2021` covers most, add `BlockArguments` if you want `\\case` 
 
 ## two tags
 
-`Arr` embeds a base arrow. `Knot` introduces a feedback channel. Sequential composition is `(.)` or `(>>>)`.
+`Circuit.Arr` embeds a base arrow. `Circuit.Knot` introduces a feedback channel. Sequential composition is `(.)` or `(>>>)`.
 
 The tensor choice lives in the type argument: `(,)` for lazy coinductive sharing, `Either` for iteration (`Left` = continue, `Right` = exit).
 
 ## minimal example
 
+In a raw `cabal repl circuits` session, `import Circuit` also exposes the constructors of the internal `Circuit.Mon` module, so unqualified `Arr`/`Knot` are ambiguous. Import `Circuit.Trace` qualified and use `T.Arr`/`T.Knot`, wrapping multi-line definitions in `:{` … `:}`:
+
 ```haskell
+:{
 import Circuit
+import qualified Circuit.Trace as T
 import Control.Arrow (Kleisli(..), runKleisli)
 import Control.Category ((>>>))
 import Data.Bool (bool)
 import System.IO (Handle, IOMode(ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
-openf :: Trace t (Kleisli IO) FilePath Handle
-openf = Arr (Kleisli (\fp -> openFile fp ReadMode))
+openf :: T.Trace t (Kleisli IO) FilePath Handle
+openf = T.Arr (Kleisli (\fp -> openFile fp ReadMode))
 
-countLines :: Trace Either (Kleisli IO) Handle (Handle, Int)
-countLines = Knot (Kleisli step)
+countLines :: T.Trace Either (Kleisli IO) Handle (Handle, Int)
+countLines = T.Knot (Kleisli step)
   where
     step (Left (h, n)) =
       hIsEOF h >>= bool
@@ -48,9 +50,9 @@ countLines = Knot (Kleisli step)
         (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
 
-pipeline :: Trace Either (Kleisli IO) FilePath Int
-pipeline = openf >>> countLines >>> Arr (Kleisli (\(h, n) -> hClose h >> pure n))
+pipeline :: T.Trace Either (Kleisli IO) FilePath Int
+pipeline = openf >>> countLines >>> T.Arr (Kleisli (\(h, n) -> hClose h >> pure n))
+:}
 
--- paste into ghci:
--- runKleisli (run pipeline) "readme.md"
+runKleisli (run pipeline) "readme.md"
 ```

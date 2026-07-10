@@ -1,11 +1,9 @@
 ---
-title: "A Knot Recovers Fix"
-category: narrative
-status: stable
-tags: ["trace", "fixpoint", "story"]
+name: knot-and-fix
+description: How the axioms force a GADT and a load-bearing pattern match
+tags: ['trace', 'fixpoint', 'story']
 ---
-
-# A Knot Recovers Fix
+# Knot and Fix
 
 <div align="center">
 
@@ -47,7 +45,9 @@ runFree (Lift f)       = f
 runFree (Compose f g)  = runFree f . runFree g
 ```
 
-Two constructors. No `Traced` constraint. This is the free category — the
+In the current library this fold is `run @Free` (or the concrete
+`freeze`). Two constructors. No `Traced` constraint. This is the free
+category — the
 moves of FP, with no feedback. Historically we didn't discover `Free`
 until after building the full `Trace` GADT. It's presented first here
 because it's logically prior, even if it came chronologically later.
@@ -71,11 +71,18 @@ data Trace t arr a b where
 ```
 
 Sequential composition is handled by the `Category` instance, using `(.)`
-or `(>>>)`; there is no `Compose` constructor. The `Knot` body is a base
-arrow, not a nested `Trace`. This keeps the GADT in normal form: every
-feedback loop is tied directly to a base-arrow body. `Net` still permits
-nested structure inside `Knot` bodies, but `Trace` itself is the
-inspectable, already-normalised layer.
+or `(>>>)`; there is no `Compose` constructor. The library's instance
+supplies the key Mendler/sliding cases:
+
+```haskell
+Knot f . Arr g = Knot (f . untrace g)
+Arr f . Knot g = Knot (untrace f . g)
+```
+
+The `Knot` body is a base arrow, not a nested `Trace`. This keeps the
+GADT in normal form: every feedback loop is tied directly to a base-arrow
+body. `Net` still permits nested structure inside `Knot` bodies, but
+`Trace` itself is the inspectable, already-normalised layer.
 
 ---
 
@@ -85,7 +92,8 @@ To eliminate a `Trace` to a plain arrow, we need a `Traced` instance on
 the base arrow — something that knows how to close a feedback channel:
 
 ```haskell
-class Traced arr t where
+-- The real library class has a Monoidal t arr superclass; elided here.
+class Traced t arr where
   trace   :: arr (t a b) (t a c) -> arr b c
   untrace :: arr b c -> arr (t a b) (t a c)
 ```
@@ -93,15 +101,15 @@ class Traced arr t where
 For `arr = (->)` and `t = (,)`:
 
 ```haskell
-instance Traced (->) (,) where
-  trace f b   = let (a, c) = f (a, b) in c
+instance Traced (,) (->) where
+  trace f b   = let ~(a, c) = f (a, b) in c
   untrace     = fmap
 ```
 
 The interpreter handles `Knot` by calling `trace`:
 
 ```haskell
-run :: (Category arr, Traced arr t) => Trace t arr a b -> arr a b
+run :: (Category arr, Traced t arr) => Trace t arr a b -> arr a b
 run (Arr f)  = f
 run (Knot k) = trace k
 ```
@@ -152,12 +160,12 @@ The Mendler sliding case is enforced while building that normal form.
 `run` becomes the direct interpretation:
 
 ```haskell
-run :: (Category arr, Traced arr t) => Trace t arr x y -> arr x y
+run :: (Category arr, Traced t arr) => Trace t arr x y -> arr x y
 run (Arr f)  = f
 run (Knot k) = trace k
 ```
 
-`Trace` eliminates feedback by calling the base arrow's `trace`; `runFree`
+`Trace` eliminates feedback by calling the base arrow's `trace`; `run @Free`
 still folds `Free` to a plain arrow. The separation is clean: `Free` knows
 nothing about `Traced`. `run` is where the trace structure is
 operationalized.
@@ -172,20 +180,20 @@ Putting it together:
                 constructor added
 Free            Lift, Compose          free category
 Trace           + Arr, Knot            free traced category
-Net             + Par, Copy, Add, ...  free traced PROP with bimonoid
+Net             + Par, Copy, Plus, ... free traced PROP with bimonoid
 ```
 
 And the interpreters:
 
 ```
-run     :: Trace → arr        apply base-arrow trace to normal form
-melt    :: Net → Trace        eliminate structural rows into Arr
-runFree :: Free → arr         fold the free category
-weave   :: Net → arr          = run . melt
+run       :: Trace t arr a b → arr a b  apply base-arrow trace to normal form
+melt      :: Net t arr a b → Trace t arr a b  eliminate structural rows into Arr
+run @Free :: Free arr a b → arr a b    fold the free category
+run @(Net t) :: Net t arr a b → arr a b  = run . melt
 ```
 
 The Mendler sliding case is enforced by the `Category` instance for
-`Trace` and, implicitly, by `weave` (for `Net.Knot`, via `run . melt`).
+`Trace` and, implicitly, by `run @(Net t)` (for `Net.Knot`, via `run . melt`).
 It appears at two types because `Knot` appears twice in the GADT
 hierarchy. This is not duplication — it's the same structural fact
 applied at two different levels.
@@ -197,7 +205,7 @@ applied at two different levels.
 `Free` is the free category. `Trace` adds `Arr` and `Knot`. Because
 `Trace` has no `Compose` constructor, it is already in normal form;
 `run` eliminates `Knot` by calling the base arrow's `trace`, with the
-Mendler sliding case enforced by the `Category` instance. `runFree` still
+Mendler sliding case enforced by the `Category` instance. `run @Free` still
 folds `Free` to a plain arrow.
 
 `Free` was discovered after `Trace` — extracted from it by observing
@@ -206,7 +214,7 @@ mentions `Traced`. The discovery simplified `run`, clarified the
 relationship to `Hyper` (chapter 03), and made explicit what was
 previously implicit.
 
-**Next:** [03-hyper-buries-the-knot.md](03-hyper-buries-the-knot.md) — Hyper as the final encoding;
+**Next:** [hyper-buries-the-knot.md](hyper-buries-the-knot.md) — Hyper as the final encoding;
 the triangle identity; how `lift . trace = trace . lift` makes the
 factorization work.
 

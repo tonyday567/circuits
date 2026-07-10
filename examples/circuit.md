@@ -1,10 +1,8 @@
 ---
-title: "Circuit — the initial encoding"
-category: core
-status: stable
-tags: ["trace", "gadt", "run"]
+name: circuit
+description: The Trace GADT as the initial encoding
+tags: ['trace', 'gadt', 'run']
 ---
-
 # Circuit — the initial encoding
 
 `Trace` is the initial encoding: a GADT with two constructors.
@@ -14,7 +12,9 @@ and build combinators that Hyper cannot.
 
 ```haskell
 -- $setup
+-- >>> :module
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> import Control.Category ((.))
 -- >>> import Circuit (Trace(..), run)
 -- >>> import Circuit.Trace (Traced(..))
 -- >>> import Circuit.Hyper (encode, observe, lift)
@@ -26,9 +26,12 @@ and build combinators that Hyper cannot.
 ## the two constructors
 
 ```haskell
-data Trace t arr a b where
-  Arr     :: arr a b -> Trace t arr a b
-  Knot    :: arr (t a b) (t a c) -> Trace t arr b c
+import Circuit
+import qualified Circuit.Trace as T
+
+-- The Trace GADT has two constructors (already imported):
+--   Arr  :: arr a b -> Trace t arr a b
+--   Knot :: arr (t a b) (t a c) -> Trace t arr b c
 ```
 
 | constructor | what it encodes | axiom |
@@ -60,9 +63,12 @@ strictly more than traced.  The GADT is minimal.
 structural recursion over the normal-form GADT:
 
 ```haskell
-run :: Traced arr t => Trace t arr a b -> arr a b
-run (Arr f)  = f
-run (Knot k) = trace k
+import Circuit
+import qualified Circuit.Trace as T
+
+-- run :: T.Traced t arr => T.Trace t arr a b -> arr a b
+-- run (T.Arr f)  = f
+-- run (T.Knot k) = T.trace k
 ```
 
 Because `Trace` is already in normal form, sequential composition is
@@ -100,7 +106,7 @@ instance).
 
 ```haskell
 -- | Effectful loop: append "!" until length >= 3.
--- >>> let exclaim = Knot (Kleisli (\case Right s | length s < 3 -> pure (Left (s <> "!")); Right s -> pure (Right ()); Left s -> pure (Right ()))) :: Trace Either (Kleisli IO) String ()
+-- >>> let exclaim = Knot (Kleisli (\case Right s | length s < 3 -> pure (Left (s <> "!")); Right _ -> pure (Right ()); Left _ -> pure (Right ()))) :: Trace Either (Kleisli IO) String ()
 -- >>> runKleisli (run exclaim) "a"
 -- ()
 ```
@@ -123,9 +129,12 @@ loop's effect threads through each iteration of the first.
 `encode` maps `Trace` into Hyper, preserving observable behaviour:
 
 ```haskell
-encode :: Trace (,) (->) a b -> Hyper a b
-encode (Arr f)  = lift f
-encode (Knot f) = trace (lift f)
+import Circuit
+import qualified Circuit.Trace as T
+
+-- encode :: T.Trace (,) (->) a b -> Hyper a b
+-- encode (T.Arr f)  = lift f
+-- encode (T.Knot f) = T.trace (lift f)
 ```
 
 The `Knot` case uses Hyper's own `Traced` instance — a coinductive

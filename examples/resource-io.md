@@ -1,10 +1,8 @@
 ---
-title: "Resource IO"
-category: io
-status: stable
-tags: ["io", "resources", "either"]
+name: resource-io
+description: Resource lifecycles as a Trace over Kleisli IO
+tags: ['io', 'resources', 'either']
 ---
-
 # Resource IO
 
 Safe I/O and resource handling with `Trace Either (Kleisli IO)`.
@@ -87,34 +85,34 @@ cleanup guaranteed without try/finally boilerplate.
 ```haskell
 import System.IO (Handle, IOMode (..), hClose, hGetLine, hIsEOF, openFile)
 
-fileReader :: FilePath -> Trace Either (Kleisli IO) Handle ()
+fileReader :: FilePath -> Trace Either (Kleisli IO) (Maybe Handle) ()
 fileReader path = loopIO \case
-  () -> do                                       -- acquire
+  Nothing -> do                                  -- acquire
     h <- openFile path ReadMode
-    pure (Left h)
-  h -> do                                        -- use + decide
+    pure (Left (Just h))
+  Just h -> do                                   -- use + decide
     eof <- hIsEOF h
     if eof
       then hClose h >> pure (Right ())           -- release + exit
       else do
         line <- hGetLine h
         putStrLn line
-        pure (Left h)                            -- continue
+        pure (Left (Just h))                     -- continue
 
--- >>> runKleisli (run (fileReader "examples/resource-io.md")) ()
+-- >>> runKleisli (run (fileReader "examples/resource-io.md")) Nothing
 ```
 
 The state machine:
 
 ```
-  () → openFile → Left h ──┐
-                            │
-  ┌─────────────────────────┘
+  Nothing → openFile → Left (Just h) ──┐
+                                       │
+  ┌────────────────────────────────────┘
   │
   ▼
-  h → hIsEOF? ─── yes → hClose h → Right ()
-         │
-         no → hGetLine → print → Left h ──┘
+  Just h → hIsEOF? ─── yes → hClose h → Right ()
+                │
+                no → hGetLine → print → Left (Just h) ──┘
 ```
 
 The handle lives on the feedback channel.  The only way to exit is
@@ -173,8 +171,8 @@ feed it into another circuit.
 |------|-----------|-------------|-----------|
 | countdown | `Int` | `n <= 0` | none |
 | echo | `String` | `"quit"` in input | none |
-| file reader | `Handle` | EOF reached | yes |
-| file reader (typed) | `Maybe Handle` | EOF reached | yes, typed lifecycle |
+| file reader | `Maybe Handle` | EOF reached | yes |
+| file reader (typed) | `(Maybe Handle, [String])` | EOF reached | yes, typed lifecycle + accumulator |
 
 The guarantee: **the `Right` exit path is the single place where cleanup
 happens**.  For file handles this means `hClose` is always called.  For

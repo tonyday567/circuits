@@ -1,13 +1,11 @@
 ---
-title: "encode-either ⟜ why Traced Hyper Either does not exist"
-category: hyper
-status: stable
-tags: ["hyper", "either", "encoding"]
+name: encode-either
+description: Why Traced Either Hyper does not exist
+tags: ['hyper', 'either', 'encoding']
 ---
+# encode-either ⟜ why Traced Either Hyper does not exist
 
-# encode-either ⟜ why Traced Hyper Either does not exist
-
-`Hyper` has `Traced Hyper (,)` but no `Traced Hyper Either`. This card explains
+`Hyper` has `Traced (,) Hyper` but no `Traced Either Hyper`. This card explains
 why — and why `encodeEither` is the correct workaround, not a missing
 instance waiting to be written.
 
@@ -25,7 +23,7 @@ The two tensors give fundamentally different loop mechanics:
 `trace` for `(,)` ties a single lazy knot:
 
 ```haskell
-instance Traced Hyper (,) where
+instance Traced (,) Hyper where
   trace body = Hyper $ \k ->
     let pair = invoke body cont
         cont = Hyper $ \_ ->
@@ -40,7 +38,7 @@ same tuple. One `let-rec` ties them.
 
 ## Why Either fails
 
-`Traced (->) Either` is a while-loop:
+`Traced Either (->)` is a while-loop:
 
 ```haskell
 trace f b = go (Right b)
@@ -103,7 +101,7 @@ encodeEither f = h
 
 ```haskell
 runEither :: (Either a b -> Either a c) -> b -> c
-runEither f b = run (encodeEither f) (Right b)
+runEither f b = runHyper (encodeEither f) (Right b)
 ```
 
 The iteration is not hidden behind a typeclass. It is explicit in the
@@ -123,7 +121,7 @@ channel travel together in a single tuple. `Either` fits only when the
 iteration is reified as an explicit state machine — which is exactly what
 `encodeEither` does.
 
-To get `Traced Hyper Either` natively would require one of:
+To get `Traced Either Hyper` natively would require one of:
 
 - Stateful `Hyper` (e.g. `Hyper s a b` with an explicit state parameter)
 - Delimited continuations (the `Kleisli IO Either` approach)
@@ -133,4 +131,4 @@ To get `Traced Hyper Either` natively would require one of:
 
 - `src/Circuit/Hyper.hs` — `encodeEither`, `runEither`
 - `examples/hyper.md` — the Either gap, final encoding limitations
-- `holding-hands-or-taking-turns.md` — `(,)` vs `Either` semantics
+- `tensors.md` — `(,)` vs `Either` semantics

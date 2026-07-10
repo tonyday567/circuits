@@ -1,16 +1,14 @@
 ---
-title: "⟝ proarrow"
-category: advanced
-status: experimental
-tags: ["category-theory", "proarrow", "equipment"]
+name: proarrow
+description: Traced as Strong + Costrong on the hom profunctor
+tags: ['category-theory', 'proarrow', 'equipment']
 ---
-
 ⟝ proarrow
 
 # Traced ≅ Strong + Costrong on Hom k — The proarrow Bridge
 
 For background on Circuit see [marks-and-stacks.md](marks-and-stacks.md)
-and [knot-recovers-fix.md](knot-recovers-fix.md).
+and [knot-and-fix.md](knot-and-fix.md).
 For the proarrow library see the
 [proarrow repo](https://github.com/sjoerdvisscher/proarrow/) (Sjoerd Visscher)
 and Bartosz Milewski's
@@ -18,7 +16,7 @@ and Bartosz Milewski's
 (May 2026). This card proves the correspondence conjectured in
 [examples/proequip.md](../examples/proequip.md):
 
-> **`Traced arr t  ≅  Strong k (Hom arr)  +  Costrong k (Hom arr)`**
+> **`Traced t arr  ≅  Strong k (Hom arr)  +  Costrong k (Hom arr)`**
 > under the self-action where `Act a x = t a x`.
 
 ---
@@ -41,7 +39,7 @@ bridge is thin precisely because of this coincidence.
 **Circuit's `Traced`** (from `Circuit.Trace`):
 
 ```haskell
-class Traced arr t where
+class (Monoidal t arr) => Traced t arr where
   trace   :: arr (t a b) (t a c) -> arr b c   -- close the channel
   untrace :: arr b c -> arr (t a b) (t a c)   -- open the channel
 ```
@@ -74,7 +72,7 @@ Then `SelfAction Hask` holds with `(**) = t`.
 
 | Circuit | proarrow | Role |
 |---------|----------|------|
-| `Traced arr t` | `Strong k (Hom arr)` + `Costrong k (Hom arr)` | Both directions bundled |
+| `Traced t arr` | `Strong k (Hom arr)` + `Costrong k (Hom arr)` | Both directions bundled |
 | `trace` | `coact` on `Hom arr` | Close the channel |
 | `untrace` | `act (obj @a)` on `Hom arr` | Open the channel |
 | tensor `t` | `Act` under `SelfAction k` | The feedback channel |
@@ -114,31 +112,6 @@ Same function under the `Bifunctor (,)` instance.
 
 ---
 
-## The Bridge Functions
-
-```haskell
--- | From Circuit's bundled interface to proarrow's split interface.
---
--- 'toCostrong' extracts the elimination direction.
--- 'toStrong'   extracts the injection direction.
-
-toCostrong
-  :: Traced arr t
-  => (forall a b c. arr (t a b) (t a c) -> arr b c)
-toCostrong = trace
-
-toStrong
-  :: Traced arr t
-  => (forall a b c. arr b c -> arr (t a b) (t a c))
-toStrong = untrace
-```
-
-These are identity functions — `trace` **is** `coact` and `untrace` **is**
-`act (obj @a)` under the self-action. The bridge is not a construction;
-it is a recognition.
-
----
-
 ## Why Circuit Bundles Them
 
 Visscher separates `Strong` and `Costrong` because in the fully general
@@ -163,9 +136,9 @@ requiring both.
 ## The `(,)` Instance
 
 ```haskell
-instance Traced (->) (,) where
-  trace f b = let (a, c) = f (a, b) in c
-  untrace = fmap   -- i.e. second
+instance Traced (,) (->) where
+  trace f b = let ~(a, c) = f (a, b) in c
+  untrace = fmap   -- i.e. second for `(,)`
 ```
 
 In proarrow terms:
@@ -182,10 +155,10 @@ The self-action is `SelfAction Hask` with `(**) = (,)`.
 ## The `Either` Instance
 
 ```haskell
-instance Traced (->) Either where
+instance Traced Either (->) where
   trace f b = go (Right b)
     where go x = case f x of { Right c -> c; Left a -> go (Left a) }
-  untrace = fmap   -- i.e. right
+  untrace = fmap   -- i.e. `right` for `Either`
 ```
 
 In proarrow terms:
@@ -194,48 +167,6 @@ In proarrow terms:
 - `Strong Either (->)`: `act f g = right g` (act on the `Right` component).
 
 The self-action is `SelfAction Hask` with `(**) = Either`.
-
----
-
-## The `Kleisli IO Either` Instance
-
-```haskell
-instance Traced (Kleisli IO) Either where
-  trace  = ... -- delimited continuations: prompt / control0
-  untrace = ... -- inject into Right
-```
-
-In proarrow terms, this is `Costrong Either (Kleisli IO)` — the `coact`
-uses GHC's `prompt#` / `control0#` primops to run the loop in constant
-stack space. The `Strong` side (`untrace`) is the trivial injection into
-`Right`.
-
-This instance is the one that has no counterpart in existing proarrow
-instances — delimited continuations as `Costrong` on `Kleisli IO` is new
-ground. It is the piece of Circuit that earns "first to market."
-
----
-
-## The Mendler Case as Naturality
-
-The old `reify` interpreter contained a Mendler-style pattern match:
-
-```haskell
--- TODO: This example used the deleted `Compose` constructor of the old
--- `Circuit` GADT. The new inspectable `Trace` GADT has no `Compose`
--- constructor; sequential composition is `(.)` or `(>>>)`. Update this
--- section once the corresponding `run` equation is known.
-```
-
-That pattern was the naturality condition for the trace 2-cell. In
-Visscher's language, this is the requirement that `coact` commute with
-profunctor composition — that the `Costrong` structure is natural in its
-boundary types.
-
-Without that Mendler case, `Knot` collapses to `Arr (trace f)` — the
-degenerate model where `coact` closes immediately, discarding the boundary
-morphism `g`. The Mendler case was `coact` done right: `g` participated
-inside the loop, not just at the exit.
 
 ---
 
@@ -287,12 +218,10 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 ## Summary
 
 1. Circuit is always self-acting: `m = k`, `Act a x = t a x`
-2. `Traced arr t` = `Strong k (Hom arr)` + `Costrong k (Hom arr)` under `SelfAction k`
+2. `Traced t arr` = `Strong k (Hom arr)` + `Costrong k (Hom arr)` under `SelfAction k`
 3. `trace` = `coact`; `untrace` = `act (obj @a)` — the bridge is a recognition, not a construction
 4. Both `(,)` and `Either` instances correspond to standard proarrow instances on `Hom (->)`
-5. `Kleisli IO Either` is new: `Costrong Either (Kleisli IO)` via delimited continuations
-6. The Mendler case = naturality of `coact` = the 2-cell condition on `Knot`
-7. Open lemma: prove Circuit forms proarrow equipment with `Knot` as generating 2-cell
+5. Open lemma: prove Circuit forms proarrow equipment with `Knot` as generating 2-cell
 
 ---
 
