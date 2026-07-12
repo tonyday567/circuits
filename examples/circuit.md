@@ -12,26 +12,25 @@ and build combinators that Hyper cannot.
 
 ```haskell
 -- $setup
--- >>> :module
+-- >>> :set -XLambdaCase
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> import Control.Category ((.))
--- >>> import Circuit (Trace(..), run)
--- >>> import Circuit.Trace (Traced(..))
--- >>> import Circuit.Hyper (encode, observe, lift)
--- >>> import Prelude hiding (id, (.))
+-- >>> import Control.Category ((>>>))
+-- >>> import Circuit (Trace, run, encode)
+-- >>> import Circuit.Hyper (observe)
+-- >>> import qualified Circuit.Trace as T
 ```
+
+In `cabal repl`, qualify constructors as `T.Arr` / `T.Knot` — interpreted
+mode also loads `Circuit.Mon`, which exports its own `Arr`.
 
 ---
 
 ## the two constructors
 
 ```haskell
-import Circuit
-import qualified Circuit.Trace as T
-
--- The Trace GADT has two constructors (already imported):
+-- Trace GADT (Circuit.Trace):
 --   Arr  :: arr a b -> Trace t arr a b
---   Knot :: arr (t a b) (t a c) -> Trace t arr b c
+--   Knot :: arr (t s a) (t s b) -> Trace t arr a b
 ```
 
 | constructor | what it encodes | axiom |
@@ -40,18 +39,19 @@ import qualified Circuit.Trace as T
 | `Knot f` | feedback loop via tensor `t` | 6 — sliding/feedback |
 
 Two constructors, no more.  Sequential composition is `(.)` or `(>>>)`
-via the `Category` instance.  `Curry` would give a closed category,
-strictly more than traced.  The GADT is minimal.
+via the `Category` instance.  There is no `Compose` constructor and no
+`Lift` on `Trace` — those live on `Free` / `Net`.  The GADT is already
+in normal form: at most one `Knot`, at the top, over a base-arrow body.
 
 ```haskell
--- >>> run (Arr (+ 1) :: Trace (,) (->) Int Int) 5
+-- >>> run (T.Arr (+ 1) :: Trace (,) (->) Int Int) 5
 -- 6
 
--- >>> run (Arr (+ 1) . Arr (* 2) :: Trace (,) (->) Int Int) 5
--- 11
+-- >>> run (T.Arr (+ 1) >>> T.Arr (* 2) :: Trace (,) (->) Int Int) 5
+-- 12
 
 -- >>> let step n = if n < 3 then Left (n + 1) else Right n
--- >>> run (Knot (either step step) :: Trace Either (->) Int Int) 0
+-- >>> run (T.Knot (either step step) :: Trace Either (->) Int Int) 0
 -- 3
 ```
 
@@ -59,41 +59,36 @@ strictly more than traced.  The GADT is minimal.
 
 ## run
 
-`run` interprets a `Trace` to a plain arrow.  The definition is
-structural recursion over the normal-form GADT:
+`run` interprets a `Trace` to a plain arrow.  Structural recursion over
+the normal-form GADT:
 
 ```haskell
-import Circuit
-import qualified Circuit.Trace as T
-
--- run :: T.Traced t arr => T.Trace t arr a b -> arr a b
+-- run :: T.Traced t arr => Trace t arr a b -> arr a b
 -- run (T.Arr f)  = f
 -- run (T.Knot k) = T.trace k
 ```
 
-Because `Trace` is already in normal form, sequential composition is
-handled by the `Category` instance rather than by an explicit
-constructor.  The `Category` instance enforces the sliding law
-(Mendler-style): when an `Arr` is composed with a `Knot`, the base
-arrow is pushed inside the knot's feedback channel rather than applied
-only at the loop exit.
+Sequential composition is handled by the `Category` instance, not by an
+explicit constructor.  The instance enforces the sliding law: when an
+`Arr` is composed with a `Knot`, the base arrow is pushed inside the
+knot's feedback channel rather than applied only at the loop exit.
 
-If the instance instead treated composition naively, `Arr f . Knot k`
-would collapse to `f . trace k` applied only at the exit, and the
-feedback structure would be lost.  This is the degenerate model that
-the 2013 paper warns about.
+If composition were naive, `T.Arr f >>> T.Knot k` would collapse to
+`f . trace k` at the exit only, and feedback structure would be lost.
+That is the degenerate model the 2013 paper warns about.  Pre-0.2 this
+was a Mendler case in the interpreter (`Compose (Knot f) g`); post-0.2
+it lives entirely in `Category` — see `examples/symbols.md`.
 
 ```haskell
 -- | A composed loop exercises the sliding law.
 -- >>> let step n = if n < 3 then Left (n + 1) else Right n
--- >>> let counter = Knot (either step step) :: Trace Either (->) Int Int
--- >>> run (Arr (* 2) . counter) 0
+-- >>> let counter = T.Knot (either step step) :: Trace Either (->) Int Int
+-- >>> run (counter >>> T.Arr (* 2)) 0
 -- 6
 ```
 
-The doubling (`* 2`) runs on the exit value.  With the sliding law,
-`Arr (* 2)` is threaded inside the knot and participates in each
-iteration — though here it only affects the final `Right` branch.
+The doubling sits inside the feedback body before `run` closes the
+channel (`Category` builds `T.Knot (untrace (* 2) . either step step)`).
 
 ---
 
@@ -106,21 +101,21 @@ instance).
 
 ```haskell
 -- | Effectful loop: append "!" until length >= 3.
--- >>> let exclaim = Knot (Kleisli (\case Right s | length s < 3 -> pure (Left (s <> "!")); Right _ -> pure (Right ()); Left _ -> pure (Right ()))) :: Trace Either (Kleisli IO) String ()
+-- >>> let exclaim = T.Knot (Kleisli (\case Right s | length s < 3 -> pure (Left (s <> "!")); Right _ -> pure (Right ()); Left _ -> pure (Right ()))) :: Trace Either (Kleisli IO) String ()
 -- >>> runKleisli (run exclaim) "a"
 -- ()
 ```
 
 ```haskell
--- | Compose two Kleisli loops.  Second runs after first exits.
--- >>> let echo = Knot (Kleisli (\case Right s -> pure (Right (s <> "!")); Left s -> pure (Right s))) :: Trace Either (Kleisli IO) String String
--- >>> let doubler = Knot (Kleisli (\case Right s -> pure (Right (s <> s)); Left s -> pure (Right s))) :: Trace Either (Kleisli IO) String String
--- >>> runKleisli (run (doubler . echo)) "hi"
+-- | Sequence two Kleisli loops.  Second runs after first exits.
+-- >>> let echo = T.Knot (Kleisli (\case Right s -> pure (Right (s <> "!")); Left s -> pure (Right s))) :: Trace Either (Kleisli IO) String String
+-- >>> let doubler = T.Knot (Kleisli (\case Right s -> pure (Right (s <> s)); Left s -> pure (Right s))) :: Trace Either (Kleisli IO) String String
+-- >>> runKleisli (run (echo >>> doubler)) "hi"
 -- "hi!hi!"
 ```
 
-The sliding law handles composition correctly here too — the second
-loop's effect threads through each iteration of the first.
+Sliding handles composition here too — the second loop's effect threads
+through each iteration of the first.
 
 ---
 
@@ -129,10 +124,7 @@ loop's effect threads through each iteration of the first.
 `encode` maps `Trace` into Hyper, preserving observable behaviour:
 
 ```haskell
-import Circuit
-import qualified Circuit.Trace as T
-
--- encode :: T.Trace (,) (->) a b -> Hyper a b
+-- encode :: Trace (,) (->) a b -> Hyper a b
 -- encode (T.Arr f)  = lift f
 -- encode (T.Knot f) = T.trace (lift f)
 ```
@@ -141,17 +133,17 @@ The `Knot` case uses Hyper's own `Traced` instance — a coinductive
 lazy knot.  The triangle `observe . encode = run` holds.
 
 ```haskell
--- >>> observe (encode (Arr (+ 1) :: Trace (,) (->) Int Int)) 5
+-- >>> observe (encode (T.Arr (+ 1) :: Trace (,) (->) Int Int)) 5
 -- 6
 
--- >>> let k = Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Trace (,) (->) () [Int]
+-- >>> let k = T.Knot (\(xs, ()) -> (0 : xs, take 3 xs)) :: Trace (,) (->) () [Int]
 -- >>> observe (encode k) ()
 -- [0,0,0]
 ```
 
-`encode` does not need a special composition case — Hyper's `Category`
-composition threads the continuation structurally, and `Trace`
-composition already applies the sliding law.
+`encode` needs no special composition case — Hyper's `Category`
+threads the continuation structurally, and `Trace` composition already
+applies sliding.
 
 ---
 
@@ -165,5 +157,5 @@ composition already applies the sliding law.
 | degenerate model | possible (without sliding) | impossible |
 | composition cost | O(n²) left-nested | O(1) amortised |
 
-Build in Circuit for expressive power.  Encode to Hyper for structural
+Build in Trace for expressive power.  Encode to Hyper for structural
 guarantees.
