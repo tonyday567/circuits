@@ -111,12 +111,62 @@ as running the `Trace` directly.
 
 ## The Mendler Identity
 
-TODO: Rederive for the normal-form `Trace` GADT. `Trace` has no `Compose`
-constructor, so the old `freeze`-based Mendler case (`❄ (↮ f ⊙ g)`) no
-longer applies literally. The corresponding interaction between `Knot`
-and sequential composition is now encoded in the `Trace` `Category`
-instance / `run` interpreter. Preserve the narrative intent: the knot
-must not close its feedback channel before surrounding wiring participates.
+In pre-0.2 Trace, sequential composition was a constructor (`Compose`).
+Interpreting `Compose (Knot f) g` required a Mendler-style case so the
+knot did not close its feedback channel before surrounding wiring
+participated — freeze early and the sliding law fails.
+
+Post-0.2 `Trace` is already in normal form: only `Arr` and `Knot`. There
+is no `Compose` constructor and no Mendler case in `run`:
+
+```haskell
+run :: Traced t arr => Trace t arr a b -> arr a b
+run (Arr f)  = f
+run (Knot f) = trace f
+```
+
+Sliding lives in the `Category` instance instead. Composition rewrites
+into a single top-level `Knot` (or plain `Arr`) before `run` ever sees it:
+
+```haskell
+-- Category (Trace t arr) — the sliding law, as pattern match
+Arr f  . Arr g  = Arr (f . g)
+Knot f . Arr g  = Knot (f . untrace g)     -- pre-compose into the channel
+Arr f  . Knot g = Knot (untrace f . g)     -- post-compose into the channel
+Knot f . Knot g = Knot (… fuse via braid …)
+```
+
+| old (pre-0.2) | now (0.2 normal form) |
+|---------------|------------------------|
+| `Compose (Knot f) g` Mendler case in the interpreter | `Knot f . Arr g` / `Arr f . Knot g` in `Category` |
+| freeze, then run | rewrite at compose time; `run` is a direct fold |
+| risk: close channel before wiring joins | `untrace` threads surrounding arrows into the body |
+
+Narrative intent preserved: the knot must not close its feedback channel
+before surrounding wiring participates. The mechanism moved from
+interpreter case analysis to compile-time normal form.
+
+Worked witness (post-compose slides into the loop exit):
+
+```haskell
+import Circuit (Trace, run)
+import qualified Circuit.Trace as T
+import Control.Category ((>>>))
+
+-- >>> let step n = if n < 3 then Left (n + 1) else Right n
+-- >>> let counter = T.Knot (either step step) :: Trace Either (->) Int Int
+-- >>> run (counter >>> T.Arr (* 2)) 0
+-- 6
+```
+
+`counter >>> T.Arr (* 2)` is not `(* 2) . run counter`. The `Category`
+instance builds `T.Knot (untrace (* 2) . either step step)`, so the
+doubling sits inside the feedback body before `run` closes the channel.
+(Qualify `T.Arr`/`T.Knot` in `cabal repl` — interpreted mode also
+loads `Circuit.Mon`, which exports its own `Arr`.)
+
+See `examples/axioms.md` (Mendler case), `examples/circuit.md` (sliding),
+`examples/knot-and-fix.md` (why `Knot` exists).
 
 ---
 
