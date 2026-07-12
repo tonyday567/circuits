@@ -315,6 +315,8 @@ double-category clothes.
 8. **Knot as 2-cell** — same shape, dimap = vertical composition.
 9. **Category cases as naturality** — the equations enforce Cell structure.
 10. **The Trace GADT is a double category** — not layered on; the constructors enforce it.
+11. **Tambara** — horizontals action-compatible, verticals monoidal; free Tambara → lens families.
+    See [tambara.md](tambara.md).
 
 ## Open lemmas
 

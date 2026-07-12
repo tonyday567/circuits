@@ -106,7 +106,7 @@ This is gradual API design: develop in the open, promote only what is fully spec
 | **narrative** | `marks-and-stacks.md`, `knot-and-fix.md`, `hyper-buries-the-knot.md`, `tensors.md` | the story arc: from hyperfunctions to traced categories and back |
 | **state** | `state.md`, `ambient.md`, `debug-trace.md` | visible, ambient, and hidden state patterns |
 | **io** | `resource-io.md` | resource lifecycles as Either-trace loops |
-| **advanced** | `proarrow.md`, `proequip.md` | categorical bridges to profunctor equipment (experimental) |
+| **advanced** | `proarrow.md`, `proequip.md`, `tambara.md`, `pca.md` | equipment, free Tambara → optics, PCA as dagger + `Optic (,)` residual (experimental) |
 
 For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
 
