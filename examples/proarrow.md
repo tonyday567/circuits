@@ -3,18 +3,19 @@ name: proarrow
 description: Traced as Strong + Costrong on the hom profunctor
 tags: ['category-theory', 'proarrow', 'equipment']
 ---
-⟝ proarrow
-
 # Traced ≅ Strong + Costrong on Hom k — The proarrow Bridge
 
 For background on Circuit see [marks-and-stacks.md](marks-and-stacks.md)
-and [knot-and-fix.md](knot-and-fix.md).
+and [knot-and-fix.md](knot-and-fix.md).  The initial encoding is normal-form
+`Trace` with constructors `Arr` / `Knot` and fold `run` — see
+[circuit.md](circuit.md).
+
 For the proarrow library see the
 [proarrow repo](https://github.com/sjoerdvisscher/proarrow/) (Sjoerd Visscher)
 and Bartosz Milewski's
 [Profunctor Equipment in Haskell](https://bartoszmilewski.com/2026/05/16/profunctor-equipment-in-haskell/)
 (May 2026). This card proves the correspondence conjectured in
-[examples/proequip.md](../examples/proequip.md):
+[proequip.md](proequip.md):
 
 > **`Traced t arr  ≅  Strong k (Hom arr)  +  Costrong k (Hom arr)`**
 > under the self-action where `Act a x = t a x`.
@@ -77,6 +78,7 @@ Then `SelfAction Hask` holds with `(**) = t`.
 | `untrace` | `act (obj @a)` on `Hom arr` | Open the channel |
 | tensor `t` | `Act` under `SelfAction k` | The feedback channel |
 | `Knot` constructor | 2-cell in `Prof(Hask)` | Trace cell |
+| `run (Knot k)` | `coact` on the body | Fold initial → base arrow |
 
 **`trace` corresponds to `coact`.** Specialising Visscher's `trace` to
 `p = (->)` and `(**) = (,)`:
@@ -123,7 +125,7 @@ Circuit always needs both:
 
 - `trace` (`coact`) closes the feedback loop in `run`.
 - `untrace` (`act`) opens the loop — threading state past a `Knot` via
-  braiding.
+  braiding; also the sliding cases of `Category` for `Trace`.
 
 Bundling them in a single `Traced` typeclass is a design choice that reflects
 Circuit's use pattern: you never close a loop without also being able to open
@@ -182,14 +184,18 @@ conceptual vocabulary:
 
 - `dimap` on `Knot` is **vertical composition** of the trace 2-cell.
   The `second f` threading in
-  `dimap f g (Knot k) = Knot (dimap (second f) (second g) k)`
+
+  ```haskell
+  dimap f g (Knot k) = Knot (dimap (second f) (second g) k)
+  ```
+
   is vertical composition sliding through the channel.
 
 - Threading a state wire past a `Knot` is **horizontal sliding** — a
   vertical transform sliding past a horizontal boundary via braiding.
   This is the yanking identity in the double-category language.
 
-- The proof obligation from [examples/proequip.md](../examples/proequip.md) — that Circuit
+- The proof obligation from [proequip.md](proequip.md) — that Circuit
   forms a proarrow equipment over its base category — is now a matter of
   verifying that the `Costrong`/`Strong` instances satisfy the equipment
   axioms. The nLab entry on
@@ -201,14 +207,21 @@ conceptual vocabulary:
 
 ## Connection to the Narrative
 
-The narrative ([examples/proequip.md](../examples/proequip.md)) identifies `Knot` as a 2-cell and the
-Mendler case as naturality, but presents these as conclusions reached by
-following the `foldH` example. This card provides the direct categorical
-anchor: `Traced` is `Strong + Costrong` on the hom-profunctor, the
-self-action collapses `m = k`, and the Mendler case is the naturality
-condition for `coact`.
+The narrative ([proequip.md](proequip.md)) identifies `Knot` as a 2-cell
+and sliding as naturality, reached by following the `foldH` example.
+This card provides the direct categorical anchor: `Traced` is
+`Strong + Costrong` on the hom-profunctor, the self-action collapses
+`m = k`, and **sliding is the naturality condition for `coact`**.
 
-The open question from [examples/proequip.md](../examples/proequip.md) — proving Circuit forms a
+Post-0.2, `Trace` has no `Compose` constructor.  What older writeups
+called the "Mendler case" (interpreter handling `Compose (Knot f) g`)
+is now the `Category` instance for `Trace` — `untrace` threads
+surrounding `Arr`s into the knot body before `run` calls `trace`
+(`coact`).  Same naturality story; mechanism moved from interpreter
+case analysis to normal form.  See [symbols.md](symbols.md) and
+[circuit.md](circuit.md).
+
+The open question from [proequip.md](proequip.md) — proving Circuit forms a
 proarrow equipment — is now precisely: prove that `Costrong k (Hom arr)`
 plus `Strong k (Hom arr)` under `SelfAction k` satisfies the equipment
 axioms from nLab, with `Knot` as the generating 2-cell.
@@ -220,8 +233,9 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 1. Circuit is always self-acting: `m = k`, `Act a x = t a x`
 2. `Traced t arr` = `Strong k (Hom arr)` + `Costrong k (Hom arr)` under `SelfAction k`
 3. `trace` = `coact`; `untrace` = `act (obj @a)` — the bridge is a recognition, not a construction
-4. Both `(,)` and `Either` instances correspond to standard proarrow instances on `Hom (->)`
-5. Open lemma: prove Circuit forms proarrow equipment with `Knot` as generating 2-cell
+4. `run (Knot k) = trace k = coact` on the body; `Arr` embeds; no free-category `Lift`/`Compose` on `Trace`
+5. Both `(,)` and `Either` instances correspond to standard proarrow instances on `Hom (->)`
+6. Open lemma: prove Circuit forms proarrow equipment with `Knot` as generating 2-cell
 
 ---
 
@@ -231,8 +245,9 @@ axioms from nLab, with `Knot` as the generating 2-cell.
 - [Milewski, Profunctor Equipment in Haskell](https://bartoszmilewski.com/2026/05/16/profunctor-equipment-in-haskell/) — `Cell f g h j` encoding
 - [Joyal, Street & Verity (1996)](https://doi.org/10.1017/s0305004100074338) — traced monoidal categories
 - [nLab: equipment](https://ncatlab.org/nlab/show/equipment) — proarrow equipment axioms
-- [examples/proequip.md](../examples/proequip.md) — double category framing; open lemma
-- [examples/tambara.md](tambara.md) — Tambara equipment, free Tambara, Trace → lens families
+- [proequip.md](proequip.md) — double category framing; open lemma
+- [tambara.md](tambara.md) — Tambara equipment, free Tambara, Trace → lens families
 - [axioms.md](axioms.md) — JSV axioms proved for both tensors
-- `src/Circuit/Trace.hs` — `Traced` instances
-- `Circuit` — `Trace(..)`, `run`, `melt`
+- [circuit.md](circuit.md) — `Arr` / `Knot` / `run` initial encoding
+- [symbols.md](symbols.md) — notation; post-0.2 Mendler identity
+- `src/Circuit/Trace.hs` — `Traced` instances, `Category` sliding
