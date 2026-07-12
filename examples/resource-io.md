@@ -7,14 +7,19 @@ tags: ['io', 'resources', 'either']
 
 Safe I/O and resource handling with `Trace Either (Kleisli IO)`.
 The pattern: acquire, loop, release — all enforced by the feedback
-channel.
+channel.  Surface is `Arr` / `Knot` / `run` (normal-form Trace).
 
 ```haskell
 -- $setup
+-- >>> :set -XBlockArguments -XLambdaCase
 -- >>> import Control.Arrow (Kleisli (..), runKleisli)
--- >>> import Circuit (Trace(..), run)
--- >>> import Prelude hiding (id, (.))
+-- >>> import Circuit (Trace, run)
+-- >>> import qualified Circuit.Trace as T
+-- >>> import System.IO (Handle, IOMode (..), hClose, hGetLine, hIsEOF, openFile)
 ```
+
+Qualify `T.Knot` in `cabal repl` (interpreted mode also loads
+`Circuit.Mon`, which exports its own constructors).
 
 ---
 
@@ -25,14 +30,14 @@ through the same step function.  `Left = continue`, `Right = done`
 — the Trace-native convention.
 
 ```haskell
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
-
 loopIO :: (a -> IO (Either a b)) -> Trace Either (Kleisli IO) a b
-loopIO step = Knot (Kleisli \case
+loopIO step = T.Knot (Kleisli \case
   Right x -> step x
   Left  x -> step x)
 ```
+
+No free-category `Lift` / `Compose` here — just `Knot` over a base
+`Kleisli` body.  `run` folds it via `trace`.
 
 ---
 
@@ -83,8 +88,6 @@ The `Right` exit path is the single place where `hClose` is called —
 cleanup guaranteed without try/finally boilerplate.
 
 ```haskell
-import System.IO (Handle, IOMode (..), hClose, hGetLine, hIsEOF, openFile)
-
 fileReader :: FilePath -> Trace Either (Kleisli IO) (Maybe Handle) ()
 fileReader path = loopIO \case
   Nothing -> do                                  -- acquire
@@ -188,14 +191,14 @@ output, or wire it downstream.
 🚩 **Prompt finalization on exception** is an open question.  The
 structural guarantee holds for normal exit through `Right`.  If an
 async exception strikes the `Kleisli IO` body mid-iteration, the handle
-may leak.  See `loom/ends-effectful.md` for the Bluefin/effectful
-comparison and the bracketing gap in `circuits-io`.
+may leak.  See `circuits-io` for Bluefin/effectful comparison and the
+bracketing gap on effectful channel ends.
 
 ---
 
 ## mechanism
 
-Under the hood, `loopIO` creates a `Knot (Kleisli body)` executed by
-the `Trace Either (Kleisli IO)` instance using GHC's delimited
+Under the hood, `loopIO` builds `T.Knot (Kleisli body)`.  `run` folds
+via the `Traced Either (Kleisli IO)` instance using GHC's delimited
 continuation primops (`prompt` / `control0`).  Constant stack usage —
 the loop body is re-entered at the `prompt` boundary every iteration.
