@@ -26,6 +26,7 @@ module Circuit.Monoidal
     ambientBy,
 
     -- * Monoidal product on base arrows
+    Tensor (..),
     Action (..),
   )
 where
@@ -204,54 +205,67 @@ ambientBy _br (Arr f) = Arr (untrace f)
 ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 
 -- ===========================================================================
--- Action — tensor action on morphisms
+-- Tensor / Action — tensor action on morphisms
 -- ===========================================================================
 
--- | The action of a tensor @t@ on a category @arr@.
+-- | The tensor action of @t@ on a category @arr@, without braiding.
 --
 -- 'par' is the tensor product of morphisms (parallel composition on
--- disjoint wires). 'swap' is the symmetry / braiding.
---
--- This is the self-action of a monoidal category: @t@ acts on @arr@
--- by taking morphisms to morphisms over paired objects.
-class (Category arr) => Action t arr where
+-- disjoint wires). This is the planar fragment: consumers constrained to
+-- 'Tensor' cannot invoke a symmetry, even if the underlying value still
+-- contains one.
+class (Category arr) => Tensor t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
   -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
   par :: arr a b -> arr c d -> arr (t a c) (t b d)
 
+-- | The action of a tensor @t@ on a category @arr@, extended with a
+-- symmetric braiding.
+--
+-- This is the self-action of a symmetric monoidal category: @t@ acts on
+-- @arr@ by taking morphisms to morphisms over paired objects, and 'swap'
+-- provides the symmetry.
+class (Tensor t arr) => Action t arr where
   -- | Symmetric braiding.
   --
   -- >>> swap (3, 4) :: (Int, Int)
   -- (4,3)
   swap :: arr (t a b) (t b a)
 
-instance Action (,) (->) where
+-- | Cartesian tensor action on functions.
+instance Tensor (,) (->) where
   par f g (a, c) = (f a, g c)
   {-# INLINE par #-}
+
+-- | Cartesian symmetry on functions.
+instance Action (,) (->) where
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
 
--- | Coproduct action on functions.
+-- | Coproduct tensor action on functions.
 --
 -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
 -- Left 4
 --
 -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
 -- Right 6
+instance Tensor Either (->) where
+  par = bimap
+  {-# INLINE par #-}
+
+-- | Coproduct symmetry on functions.
 --
 -- >>> swap (Left 3 :: Either Int Int) :: Either Int Int
 -- Right 3
 instance Action Either (->) where
-  par = bimap
-  {-# INLINE par #-}
   swap = \case
     Left a -> Right a
     Right b -> Left b
   {-# INLINE swap #-}
 
--- | Lift 'Action' through 'Trace' when the feedback tensor matches.
+-- | Lift 'Tensor'/'Action' through 'Trace' when the feedback tensor matches.
 --
 -- Two 'Knot's in parallel superpose into one 'Knot' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
@@ -281,7 +295,7 @@ instance Action Either (->) where
 -- ([1,1,1],[2,2,2])
 -- >>> case par k1 k2 :: Trace (,) (->) ([Int], [Int]) ([Int], [Int]) of Knot _ -> "fused"; Arr _ -> "melted"
 -- "fused"
-instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
+instance {-# OVERLAPPING #-} (Tensor t arr, Traced t arr, MC.Monoidal t arr) => Tensor t (Trace t arr) where
   par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
     where
       pre = MC.assoc >>> untrace MC.braid >>> MC.assoc'
@@ -289,12 +303,16 @@ instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => 
   par (Knot f) (Arr g) = Knot (MC.assoc' >>> par f g >>> MC.assoc)
   par (Arr f) (Knot g) = Knot (MC.braid >>> par f g >>> MC.braid)
   par (Arr f) (Arr g) = Arr (par f g)
+
+instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
   swap = Arr swap
 
--- | Lift 'Action' through 'Trace' when tensors differ.
+-- | Lift 'Tensor'/'Action' through 'Trace' when tensors differ.
 --
 -- Falls back to independent evaluation — 'trace' is called once per
 -- branch.  Correct and black-hole-free, but doesn't fuse the loops.
-instance {-# OVERLAPPABLE #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
+instance {-# OVERLAPPABLE #-} (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
   par f g = Arr (par (run f) (run g))
+
+instance {-# OVERLAPPABLE #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
   swap = Arr swap

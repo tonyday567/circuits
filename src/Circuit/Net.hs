@@ -52,7 +52,7 @@ import Data.Kind (Type)
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Mon qualified as M
-import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Trace (Traced (..))
 import Circuit.Trace qualified as C
 import Prelude hiding (Monoid, id, (.))

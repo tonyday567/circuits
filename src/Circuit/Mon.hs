@@ -26,7 +26,7 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Traced (..))
 import Prelude hiding (id, (.))
@@ -41,7 +41,7 @@ import Circuit.Classes
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Free qualified as Fr
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Monoidal (Action (..))
+-- >>> import Circuit.Monoidal (Action (..), Tensor (..))
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category over a base arrow @arr@.
@@ -67,12 +67,16 @@ instance (Category arr) => Category (Mon arr) where
   id = Arr id
   (.) = Compose
 
--- | 'Mon' has a symmetric monoidal structure whose tensor is @(,)@.
+-- | 'Mon' has a tensor structure whose tensor is @(,)@.
 --
--- This is the syntactic instance: 'Par' and 'Swap' are their own
--- interpretations.
-instance (Category arr) => Action (,) (Mon arr) where
+-- This is the syntactic instance: 'Par' is its own interpretation.
+instance (Category arr) => Tensor (,) (Mon arr) where
   par = Par
+
+-- | 'Mon' has a symmetric braiding.
+--
+-- This is the syntactic instance: 'Swap' is its own interpretation.
+instance (Category arr) => Action (,) (Mon arr) where
   swap = Swap
 
 -- | Lift the 'Monoidal' structure through 'Mon'.

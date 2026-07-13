@@ -42,14 +42,14 @@ import Control.Category
 import Circuit.Classes
 #endif
 
-import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Traced (..))
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
--- >>> import Circuit.Monoidal (Action (..))
+-- >>> import Circuit.Monoidal (Action (..), Tensor (..))
 -- >>> import Circuit.Trace (Traced (..))
 -- >>> import Control.Category
 -- >>> import Prelude hiding (id, (.), Monoid)
@@ -258,9 +258,11 @@ instance (Comonoid arr a, Monoid arr a) => Monoid (Dagger arr) a where
   zero = Dagger zero discard
   {-# INLINE zero #-}
 
-instance (Action t arr) => Action t (Dagger arr) where
+instance (Tensor t arr) => Tensor t (Dagger arr) where
   par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
   {-# INLINE par #-}
+
+instance (Action t arr) => Action t (Dagger arr) where
   swap = Dagger swap swap
   {-# INLINE swap #-}
 

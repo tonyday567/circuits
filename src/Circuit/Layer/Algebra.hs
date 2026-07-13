@@ -92,7 +92,7 @@ where
 
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
-import Circuit.Monoidal (Action (..))
+import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Net qualified as N
 import Circuit.Trace (Traced (..))
@@ -189,8 +189,8 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
 data SigPar arr rec a b where
   SigPar :: rec a b -> rec c d -> SigPar arr rec (a, c) (b, d)
 
-instance (Action (,) arr') => Algebra SigPar arr arr' where
-  type Ctx SigPar arr arr' = Action (,) arr'
+instance (Tensor (,) arr') => Algebra SigPar arr arr' where
+  type Ctx SigPar arr arr' = Tensor (,) arr'
   alg _ rec (SigPar f g) = par (rec f) (rec g)
 
 -- | Symmetric braiding.
@@ -268,8 +268,10 @@ instance (Category arr, Traced t arr) => Traced t (AlgTrace t arr) where
   trace body = Op (R (SigKnot body))
   untrace f = Lift (untrace (eval f))
 
-instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Tensor (,) arr) => Tensor (,) (AlgTrace t arr) where
   par f g = Lift (par (eval f) (eval g))
+
+instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgTrace t arr) where
   swap = Lift swap
 
 instance (Category arr, Monoidal t arr) => Monoidal t (AlgCat arr) where

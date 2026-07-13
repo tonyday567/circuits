@@ -46,7 +46,7 @@ module Circuit.Int
 where
 
 import Circuit.Hyper (Hyper (..), encode, flatten, observe)
-import Circuit.Monoidal qualified as M (Action (..))
+import Circuit.Monoidal qualified as M (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Poly (Mono, Morphism, applyLens)
 import Circuit.Trace (Trace (..), Traced (..))
@@ -60,7 +60,7 @@ import Prelude hiding (id, (.))
 -- >>> import Control.Category ((.))
 -- >>> import Control.Category qualified as Cat
 -- >>> import Circuit.Trace (Trace (..), Traced (..), trace)
--- >>> import Circuit.Monoidal (Action (..))
+-- >>> import Circuit.Monoidal (Action (..), Tensor (..))
 -- >>> import Circuit.Monoidal.Category (Monoidal (..))
 -- >>> import Circuit.Hyper (observe)
 -- >>> import Circuit.Layer (run)

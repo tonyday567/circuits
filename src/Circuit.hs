@@ -145,6 +145,7 @@ module Circuit
     ambientBy,
 
     -- * Monoidal product
+    Tensor (..),
     Action (..),
   )
 where
