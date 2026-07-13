@@ -21,8 +21,9 @@
 -- Net  = Mon + Knot + Copy + Discard + Plus + Zero
 -- @
 --
--- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' forgets the
--- structural rows, squeezing 'Net' into the normal form of 'C.Trace'.
+-- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' interprets the
+-- structural rows into the normal form of 'C.Trace'; the overlapping
+-- @Action (,) (C.Trace t arr)@ instance is what absorbs parallel 'Knot's.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -230,10 +231,12 @@ sift = bind unit
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Trace'.
 --
--- The forgetful map from the free traced PROP with bimonoid to the free
+-- The interpretation from the free traced PROP with bimonoid to the free
 -- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
 -- etc.) become opaque base-arrow operations wrapped in 'C.Arr'; 'Compose'
 -- and 'C.Knot' use the 'Category' and 'Traced' instances of 'C.Trace'.
+-- Parallel 'Knot's are absorbed by the overlapping
+-- @Action (,) (C.Trace t arr)@ instance, not by 'melt' alone.
 --
 -- @'run' @Net = 'C.run' . 'melt'@.
 --

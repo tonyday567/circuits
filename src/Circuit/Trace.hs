@@ -24,6 +24,40 @@
 -- For example, a @Trace (,) (->)@ is the initial traced monoidal cartesian
 -- category over Haskell functions.
 --
+-- = Introduce / resolve
+--
+-- The vocabulary in this module follows the introduce/resolve pattern:
+--
+--   * 'Knot' introduces feedback; 'trace' resolves it. This is the gold
+--     type-changing pair; composition fuses 'Knot's.
+--   * 'Co' and 'Contra' introduce the two polar ends of a channel;
+--     'close' resolves them.
+--
+-- Slogan: @close@ is the dual-end analogue of 'trace'. By the spider lemma,
+-- every 'Knot' factors as:
+--
+-- @
+--   Knot body = open >>> body' >>> close
+-- @
+--
+-- where @open@ creates the matched pair of ends and @close@ plugs them
+-- together. The matched pair lives on one facet: both 'Co' and 'Contra'
+-- refer to the same hidden channel.
+--
+-- == Three moves on monoidal structure
+--
+-- When navigating the tower of monoidal structure, three different moves
+-- appear:
+--
+--   * __Planar fragment__ — never introduce 'swap'/'braid'. Fewer morphisms,
+--     polar dual ends, planar 'Par'.
+--   * __Forget braiding as structure__ (@U : SMC -> MC@) — same arrows, but
+--     consumers are constrained to a 'Tensor'-only class so they cannot
+--     invoke 'swap' even if the value still contains Swap constructors.
+--   * __Run / bind__ — leave free monoidal syntax and interpret into a target
+--     category. 'melt' interprets 'Net' rows into 'Trace'; the
+--     @Action (,) (Trace t arr)@ instance is what absorbs parallel 'Knot's.
+--
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor that pairs a feedback value with a payload.

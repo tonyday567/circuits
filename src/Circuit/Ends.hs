@@ -31,15 +31,20 @@
 -- ends collapse to the same handle on the mutable cell.  That is the
 -- /extrinsic/ case, served by 'Circuit.Queue.makeQueue'.
 --
--- = Relationship to 'Knot'
+-- = close ≅ trace
 --
--- By the spider lemma of proarrow equipment, any 'Knot' can be rewritten as:
+-- Slogan: @close@ is the dual-end analogue of 'trace'. 'Knot' introduces
+-- feedback and 'trace' resolves it; 'open' introduces a matched pair of
+-- channel ends and 'close' resolves them. The matched pair lives on one
+-- facet: both 'Co' and 'Contra' refer to the same hidden channel.
+--
+-- By the spider lemma of proarrow equipment, any 'Knot' factors as:
 --
 -- @
---   Knot body  =  open >>> body' >>> close
+--   Knot body = open >>> body' >>> close
 -- @
 --
--- and conversely.  'Co'/'Contra' is not a replacement for 'Knot' —
+-- and conversely. 'Co'/'Contra' is not a replacement for 'Knot' —
 -- it is a refinement that lets the two channel ends travel independently
 -- before being plugged together with 'close'.
 module Circuit.Ends
