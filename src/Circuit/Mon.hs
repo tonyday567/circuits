@@ -70,13 +70,18 @@ instance (Category arr) => Category (Mon arr) where
 -- | 'Mon' has a tensor structure whose tensor is @(,)@.
 --
 -- This is the syntactic instance: 'Par' is its own interpretation.
-instance (Category arr) => Tensor (,) (Mon arr) where
+-- The unitors require the base arrow to have its own cartesian unitors.
+instance (Tensor (,) arr) => Tensor (,) (Mon arr) where
   par = Par
+  unitl = Arr unitl
+  unitl' = Arr unitl'
+  unitr = Arr unitr
+  unitr' = Arr unitr'
 
 -- | 'Mon' has a symmetric braiding.
 --
 -- This is the syntactic instance: 'Swap' is its own interpretation.
-instance (Category arr) => Action (,) (Mon arr) where
+instance (Tensor (,) arr) => Action (,) (Mon arr) where
   swap = Swap
 
 -- | Lift the 'Monoidal' structure through 'Mon'.

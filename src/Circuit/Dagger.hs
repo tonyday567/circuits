@@ -261,6 +261,14 @@ instance (Comonoid arr a, Monoid arr a) => Monoid (Dagger arr) a where
 instance (Tensor t arr) => Tensor t (Dagger arr) where
   par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
   {-# INLINE par #-}
+  unitl = Dagger unitl unitl'
+  {-# INLINE unitl #-}
+  unitl' = Dagger unitl' unitl
+  {-# INLINE unitl' #-}
+  unitr = Dagger unitr unitr'
+  {-# INLINE unitr #-}
+  unitr' = Dagger unitr' unitr
+  {-# INLINE unitr' #-}
 
 instance (Action t arr) => Action t (Dagger arr) where
   swap = Dagger swap swap

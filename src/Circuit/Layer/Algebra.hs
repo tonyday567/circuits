@@ -270,6 +270,10 @@ instance (Category arr, Traced t arr) => Traced t (AlgTrace t arr) where
 
 instance (Category arr, Traced t arr, Tensor (,) arr) => Tensor (,) (AlgTrace t arr) where
   par f g = Lift (par (eval f) (eval g))
+  unitl = Lift unitl
+  unitl' = Lift unitl'
+  unitr = Lift unitr
+  unitr' = Lift unitr'
 
 instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgTrace t arr) where
   swap = Lift swap

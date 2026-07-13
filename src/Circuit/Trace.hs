@@ -104,10 +104,12 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Monoidal (Tensor (..))
 -- >>> import Control.Arrow (Kleisli (..), second)
 -- >>> import Control.Category ((.), (>>>))
 -- >>> import Data.Either (fromRight)
 -- >>> import Data.Profunctor (dimap)
+-- >>> import Data.Void (Void)
 -- >>> import Prelude hiding (id, (.))
 
 -- | A trace over a morphism @arr@ and tensor @t@.
@@ -212,16 +214,15 @@ instance (Category arr, Traced t arr) => Traced t (Trace t arr) where
 --
 -- Vanishing (a): tracing over the unit does nothing.
 --
--- Note: using @()@ as the channel type hits a GHC black-hole detection
--- because @()@ has only one constructor. We test with 'Int' as the
--- channel instead — the channel value is unconstrained, so the trace
--- degenerates to plain function application.
+-- The unit is @()@ for the @(,)@ tensor. The unitor laws say that
+-- threading a plain payload through the unit channel is the same as
+-- applying the payload morphism directly.
 --
--- >>> let f (x, a) = (x, a + 1)
--- >>> trace f 5
+-- >>> let f = (+1) :: Int -> Int
+-- >>> trace (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
 -- 6
 --
--- prop> \n -> trace ((\(x, a) -> (x, a + n)) :: ((Int, Int) -> (Int, Int))) (0 :: Int) == (n :: Int)
+-- prop> \n -> trace ((unitl' . (+ n) . unitl) :: ((), Int) -> ((), Int)) (0 :: Int) == (n :: Int)
 --
 -- Yanking: tracing a swap is the identity.
 --
@@ -292,11 +293,15 @@ instance Traced (,) (->) where
 --
 -- Vanishing (a): tracing over the unit does nothing.
 --
--- >>> let f = Right . (+1) . fromRight undefined
--- >>> trace f 5
+-- The unit is 'Data.Void.Void' for the 'Either' tensor. The unitor
+-- laws say that threading a plain payload through the unit channel is
+-- the same as applying the payload morphism directly.
+--
+-- >>> let f = (+1) :: Int -> Int
+-- >>> trace (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
 -- 6
 --
--- prop> \n -> trace ((Right . (+ n) . fromRight (undefined :: Int)) :: (Either () Int -> Either () Int)) (0 :: Int) == (n :: Int)
+-- prop> \n -> trace ((unitl' . (+ n) . unitl) :: Either Void Int -> Either Void Int) (0 :: Int) == (n :: Int)
 --
 -- Yanking: tracing a swap is the identity.
 --
@@ -313,10 +318,10 @@ instance Traced (,) (->) where
 -- Tightening: payload morphisms pass freely through the trace.
 --
 -- >>> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
--- >>> trace (f :: Either () Int -> Either () Int) 5
+-- >>> trace (f :: Either Void Int -> Either Void Int) 5
 -- 11
 --
--- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either () Int -> Either () Int) (x :: Int) == x * 2 + 1
+-- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) (x :: Int) == x * 2 + 1
 instance Traced Either (->) where
   trace f b = go (Right b)
     where

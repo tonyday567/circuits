@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | Monoidal structure for the tensors used in traced categories.
 --
@@ -36,7 +37,9 @@ import Circuit.Monoidal.Category qualified as MC
 import Circuit.Trace (Trace (..), Traced (..))
 import Control.Category (Category, (>>>))
 import Data.Bifunctor (Bifunctor (..))
+import Data.Kind (Type)
 import Data.Profunctor (Profunctor, dimap)
+import Data.Void (Void, absurd)
 
 -- $setup
 -- >>> import Circuit.Layer (run)
@@ -208,18 +211,34 @@ ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 -- Tensor / Action — tensor action on morphisms
 -- ===========================================================================
 
+-- | The unit object for a tensor @t@.
+type family Unit (t :: Type -> Type -> Type) :: Type
+
 -- | The tensor action of @t@ on a category @arr@, without braiding.
 --
 -- 'par' is the tensor product of morphisms (parallel composition on
--- disjoint wires). This is the planar fragment: consumers constrained to
--- 'Tensor' cannot invoke a symmetry, even if the underlying value still
--- contains one.
+-- disjoint wires). 'unitl' and 'unitr' witness that the tensor has a unit
+-- object. This is the planar fragment: consumers constrained to 'Tensor'
+-- cannot invoke a symmetry, even if the underlying value still contains
+-- one.
 class (Category arr) => Tensor t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
   -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
   par :: arr a b -> arr c d -> arr (t a c) (t b d)
+
+  -- | Left unitor: @I ⊗ a -> a@.
+  unitl :: arr (t (Unit t) a) a
+
+  -- | Inverse left unitor: @a -> I ⊗ a@.
+  unitl' :: arr a (t (Unit t) a)
+
+  -- | Right unitor: @a ⊗ I -> a@.
+  unitr :: arr (t a (Unit t)) a
+
+  -- | Inverse right unitor: @a -> a ⊗ I@.
+  unitr' :: arr a (t a (Unit t))
 
 -- | The action of a tensor @t@ on a category @arr@, extended with a
 -- symmetric braiding.
@@ -234,15 +253,29 @@ class (Tensor t arr) => Action t arr where
   -- (4,3)
   swap :: arr (t a b) (t b a)
 
+type instance Unit (,) = ()
+
 -- | Cartesian tensor action on functions.
+--
+-- Laws: 'unitl' = 'snd', 'unitl'' = @((),)@, 'unitr' = 'fst', 'unitr'' = @(,) ()@.
 instance Tensor (,) (->) where
   par f g (a, c) = (f a, g c)
   {-# INLINE par #-}
+  unitl ~((), a) = a
+  {-# INLINE unitl #-}
+  unitl' a = ((), a)
+  {-# INLINE unitl' #-}
+  unitr ~(a, ()) = a
+  {-# INLINE unitr #-}
+  unitr' a = (a, ())
+  {-# INLINE unitr' #-}
 
 -- | Cartesian symmetry on functions.
 instance Action (,) (->) where
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
+
+type instance Unit Either = Void
 
 -- | Coproduct tensor action on functions.
 --
@@ -254,6 +287,14 @@ instance Action (,) (->) where
 instance Tensor Either (->) where
   par = bimap
   {-# INLINE par #-}
+  unitl = either absurd id
+  {-# INLINE unitl #-}
+  unitl' = Right
+  {-# INLINE unitl' #-}
+  unitr = either id absurd
+  {-# INLINE unitr #-}
+  unitr' = Left
+  {-# INLINE unitr' #-}
 
 -- | Coproduct symmetry on functions.
 --
@@ -303,6 +344,10 @@ instance {-# OVERLAPPING #-} (Tensor t arr, Traced t arr, MC.Monoidal t arr) => 
   par (Knot f) (Arr g) = Knot (MC.assoc' >>> par f g >>> MC.assoc)
   par (Arr f) (Knot g) = Knot (MC.braid >>> par f g >>> MC.braid)
   par (Arr f) (Arr g) = Arr (par f g)
+  unitl = Arr unitl
+  unitl' = Arr unitl'
+  unitr = Arr unitr
+  unitr' = Arr unitr'
 
 instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
   swap = Arr swap
@@ -313,6 +358,10 @@ instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => 
 -- branch.  Correct and black-hole-free, but doesn't fuse the loops.
 instance {-# OVERLAPPABLE #-} (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
   par f g = Arr (par (run f) (run g))
+  unitl = Arr unitl
+  unitl' = Arr unitl'
+  unitr = Arr unitr
+  unitr' = Arr unitr'
 
 instance {-# OVERLAPPABLE #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
   swap = Arr swap
