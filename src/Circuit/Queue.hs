@@ -35,7 +35,7 @@ where
 import Circuit.Trace (Trace (..), Traced)
 import Control.Applicative
 import Control.Arrow (Kleisli (..))
-import Control.Category ((>>>))
+import Circuit.Classes ((>>>))
 import Control.Concurrent.STM
 import Prelude
 
@@ -44,7 +44,7 @@ import Prelude
 -- >>> import Circuit (Trace(..), run)
 -- >>> import Circuit.Queue
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> import Control.Category ((>>>))
+-- >>> import Circuit.Classes ((>>>))
 -- >>> import Control.Concurrent.STM (STM, TQueue, atomically, newTQueueIO, readTQueue, writeTQueue)
 
 -- ---------------------------------------------------------------------------

@@ -1,5 +1,9 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Arrow-level monoidal structure for a tensor @t@ inside a category @arr@.
@@ -8,27 +12,29 @@
 -- associator and a braiding for the tensor @t@, expressed as morphisms in
 -- @arr@. For @arr = (->)@ this collapses to the value-level combinators in
 -- "Circuit.Monoidal".
+--
+-- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds),
+-- so @(+)@ can be a tensor for @MatH@ alongside @Either@ for @Mat@ / @(->)@.
 module Circuit.Monoidal.Category
   ( Monoidal (..),
   )
 where
 
-#ifdef __GLASGOW_HASKELL__
-import Control.Category (Category)
-import Data.Bifunctor (Bifunctor (..))
-#else
-import Circuit.Classes (Bifunctor (..), Category)
-#endif
+import Circuit.Classes (Category (..))
+import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Control.Category ((>>>))
+-- >>> import Circuit.Classes ((>>>))
 
 -- | A monoidal structure on the tensor @t@ internal to the category @arr@.
 --
 -- Provides the associator and braiding required to reassociate and swap
 -- nested tensor values inside an arrow. This is the structure that traced
 -- categories inherit as a superclass.
-class (Bifunctor t, Category arr) => Monoidal t arr where
+--
+-- Object constraints live on 'Category' / 'Traced', not on these structure
+-- maps — free constructions over unconstrained bases stay lightweight.
+class (Category arr) => Monoidal t arr where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc :: arr (t (t a b) c) (t a (t b c))
 

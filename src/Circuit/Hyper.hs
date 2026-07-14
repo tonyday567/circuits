@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Hyperfunctions: final encoding of traced monoidal categories.
@@ -38,16 +39,16 @@ import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Trace (..), Traced (..))
 import Prelude hiding (id, (.))
 
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 #ifdef __GLASGOW_HASKELL__
-import Control.Category
 import Data.Profunctor
 #else
-import Circuit.Classes
+import Circuit.Classes (Profunctor (..))
 #endif
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
--- >>> import Control.Category
+-- >>> import Circuit.Classes (Category (..), Discrete (..), (>>>))
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Trace (Trace (..), Traced (..))
 -- >>> import Circuit.Layer (run)
@@ -278,6 +279,7 @@ flatten h = Arr (observe h)
 -- * Instances
 
 instance Category Hyper where
+  type Ob Hyper a = ()
   id = lift id
   f . g = Hyper $ \h -> invoke f (g . h)
 

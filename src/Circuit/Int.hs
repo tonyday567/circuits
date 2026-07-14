@@ -49,16 +49,16 @@ import Circuit.Hyper (Hyper (..), encode, flatten, observe)
 import Circuit.Monoidal qualified as M (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Poly (Mono, Morphism, applyLens)
+import Circuit.Classes ((.))
+import Circuit.Classes qualified as Cat (Category (..))
 import Circuit.Trace (Trace (..), Traced (..))
-import Control.Category ((.))
-import Control.Category qualified as Cat (Category (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
--- >>> import Control.Category ((.))
--- >>> import Control.Category qualified as Cat
+-- >>> import Circuit.Classes ((.))
+-- >>> import Circuit.Classes qualified as Cat
 -- >>> import Circuit.Trace (Trace (..), Traced (..), trace)
 -- >>> import Circuit.Monoidal (Action (..), Tensor (..))
 -- >>> import Circuit.Monoidal.Category (Monoidal (..))
@@ -191,7 +191,7 @@ newtype IntMorph (t :: Type -> Type -> Type) arr (ap :: Type) (am :: Type) (bp :
 -- >>> let i = id :: IntMorph (,) (->) Int Bool Int Bool
 -- >>> runIntMorph i (1, False)
 -- (False,1)
-id :: (M.Action t arr) => IntMorph t arr ap am ap am
+id :: (M.Action t (->)) => IntMorph t (->) ap am ap am
 id = IntMorph M.swap
 
 -- | Dual of an Int morphism: swap the polarities of domain and codomain.
@@ -202,7 +202,7 @@ id = IntMorph M.swap
 -- >>> let f = IntMorph (\(a, d) -> (a * 2, d + 1)) :: IntMorph (,) (->) Int Int Int Int
 -- >>> runIntMorph (dual f) (5, 1)
 -- (6,2)
-dual :: (M.Action t arr) => IntMorph t arr ap am bp bm -> IntMorph t arr bm bp am ap
+dual :: (M.Action t (->)) => IntMorph t (->) ap am bp bm -> IntMorph t (->) bm bp am ap
 dual (IntMorph f) = IntMorph (M.swap . f . M.swap)
 
 -- | Bridge from an Int morphism over functions to a hyperfunction on the
@@ -249,103 +249,103 @@ fromHyper h = case flatten h of
 -- >>> case runIntMorph (g `comp` f) of Knot _ -> "one-Knot"; Arr _ -> "not one-Knot"
 -- "one-Knot"
 comp ::
-  forall t arr ap am bp bm cp cm.
-  (M.Action t arr, Traced t arr) =>
-  IntMorph t arr bp bm cp cm ->
-  IntMorph t arr ap am bp bm ->
-  IntMorph t arr ap am cp cm
+  forall t ap am bp bm cp cm.
+  (M.Action t (Trace t (->)), Traced t (Trace t (->))) =>
+  IntMorph t (Trace t (->)) bp bm cp cm ->
+  IntMorph t (Trace t (->)) ap am bp bm ->
+  IntMorph t (Trace t (->)) ap am cp cm
 comp (IntMorph g) (IntMorph f) = IntMorph (trace (middleOut . (g `M.par` f) . middleIn))
   where
     -- identities at the relevant objects, pinned so 'par' can resolve
-    id_ap :: arr ap ap
-    id_am :: arr am am
-    id_bm :: arr bm bm
+    id_ap :: Trace t (->) ap ap
+    id_am :: Trace t (->) am am
+    id_bm :: Trace t (->) bm bm
     id_ap = Cat.id
     id_am = Cat.id
     id_bm = Cat.id
 
-    middleIn :: arr (t (t bm bp) (t ap cm)) (t (t bp cm) (t ap bm))
+    middleIn :: Trace t (->) (t (t bm bp) (t ap cm)) (t (t bp cm) (t ap bm))
     middleIn = step6 . step5 . step4 . step3 . step2 . step1
       where
-        step1 :: arr (t (t bm bp) (t ap cm)) (t (t ap cm) (t bm bp))
-        step1 = M.swap @t @arr @(t bm bp) @(t ap cm)
-        step2 :: arr (t (t ap cm) (t bm bp)) (t ap (t cm (t bm bp)))
-        step2 = assoc @t @arr @ap @cm @(t bm bp)
-        step3 :: arr (t ap (t cm (t bm bp))) (t ap (t (t bm bp) cm))
-        step3 = id_ap `M.par` M.swap @t @arr @cm @(t bm bp)
-        step4 :: arr (t ap (t (t bm bp) cm)) (t ap (t bm (t bp cm)))
-        step4 = id_ap `M.par` assoc @t @arr @bm @bp @cm
-        step5 :: arr (t ap (t bm (t bp cm))) (t (t ap bm) (t bp cm))
-        step5 = assoc' @t @arr @ap @bm @(t bp cm)
-        step6 :: arr (t (t ap bm) (t bp cm)) (t (t bp cm) (t ap bm))
-        step6 = M.swap @t @arr @(t ap bm) @(t bp cm)
+        step1 :: Trace t (->) (t (t bm bp) (t ap cm)) (t (t ap cm) (t bm bp))
+        step1 = M.swap @t @(Trace t (->)) @(t bm bp) @(t ap cm)
+        step2 :: Trace t (->) (t (t ap cm) (t bm bp)) (t ap (t cm (t bm bp)))
+        step2 = assoc @t @(Trace t (->)) @ap @cm @(t bm bp)
+        step3 :: Trace t (->) (t ap (t cm (t bm bp))) (t ap (t (t bm bp) cm))
+        step3 = id_ap `M.par` M.swap @t @(Trace t (->)) @cm @(t bm bp)
+        step4 :: Trace t (->) (t ap (t (t bm bp) cm)) (t ap (t bm (t bp cm)))
+        step4 = id_ap `M.par` assoc @t @(Trace t (->)) @bm @bp @cm
+        step5 :: Trace t (->) (t ap (t bm (t bp cm))) (t (t ap bm) (t bp cm))
+        step5 = assoc' @t @(Trace t (->)) @ap @bm @(t bp cm)
+        step6 :: Trace t (->) (t (t ap bm) (t bp cm)) (t (t bp cm) (t ap bm))
+        step6 = M.swap @t @(Trace t (->)) @(t ap bm) @(t bp cm)
 
-    middleOut :: arr (t (t bm cp) (t am bp)) (t (t bm bp) (t am cp))
+    middleOut :: Trace t (->) (t (t bm cp) (t am bp)) (t (t bm bp) (t am cp))
     middleOut = step7 . step6 . step5 . step4 . step3 . step2 . step1
       where
-        step1 :: arr (t (t bm cp) (t am bp)) (t bm (t cp (t am bp)))
-        step1 = assoc @t @arr @bm @cp @(t am bp)
-        step2 :: arr (t bm (t cp (t am bp))) (t bm (t (t am bp) cp))
-        step2 = id_bm `M.par` M.swap @t @arr @cp @(t am bp)
-        step3 :: arr (t bm (t (t am bp) cp)) (t bm (t am (t bp cp)))
-        step3 = id_bm `M.par` assoc @t @arr @am @bp @cp
-        step4 :: arr (t bm (t am (t bp cp))) (t bm (t am (t cp bp)))
-        step4 = id_bm `M.par` (id_am `M.par` M.swap @t @arr @bp @cp)
-        step5 :: arr (t bm (t am (t cp bp))) (t bm (t (t am cp) bp))
-        step5 = id_bm `M.par` assoc' @t @arr @am @cp @bp
-        step6 :: arr (t bm (t (t am cp) bp)) (t (t am cp) (t bm bp))
-        step6 = braid @t @arr @bm @(t am cp) @bp
-        step7 :: arr (t (t am cp) (t bm bp)) (t (t bm bp) (t am cp))
-        step7 = M.swap @t @arr @(t am cp) @(t bm bp)
+        step1 :: Trace t (->) (t (t bm cp) (t am bp)) (t bm (t cp (t am bp)))
+        step1 = assoc @t @(Trace t (->)) @bm @cp @(t am bp)
+        step2 :: Trace t (->) (t bm (t cp (t am bp))) (t bm (t (t am bp) cp))
+        step2 = id_bm `M.par` M.swap @t @(Trace t (->)) @cp @(t am bp)
+        step3 :: Trace t (->) (t bm (t (t am bp) cp)) (t bm (t am (t bp cp)))
+        step3 = id_bm `M.par` assoc @t @(Trace t (->)) @am @bp @cp
+        step4 :: Trace t (->) (t bm (t am (t bp cp))) (t bm (t am (t cp bp)))
+        step4 = id_bm `M.par` (id_am `M.par` M.swap @t @(Trace t (->)) @bp @cp)
+        step5 :: Trace t (->) (t bm (t am (t cp bp))) (t bm (t (t am cp) bp))
+        step5 = id_bm `M.par` assoc' @t @(Trace t (->)) @am @cp @bp
+        step6 :: Trace t (->) (t bm (t (t am cp) bp)) (t (t am cp) (t bm bp))
+        step6 = braid @t @(Trace t (->)) @bm @(t am cp) @bp
+        step7 :: Trace t (->) (t (t am cp) (t bm bp)) (t (t bm bp) (t am cp))
+        step7 = M.swap @t @(Trace t (->)) @(t am cp) @(t bm bp)
 
 -- | Tensor product of two Int morphisms.
 --
 -- On objects this is componentwise: @(ap, am) \u2297 (cp, cm) = (t ap cp, t am cm)@.
 -- On morphisms it threads the two base arrows side-by-side and reassociates
--- the factors into the required @arr (t (t ap cp) (t bm dm)) (t (t am cm) (t bp dp))@ shape.
+-- the factors into the required @Trace t (->) (t (t ap cp) (t bm dm)) (t (t am cm) (t bp dp))@ shape.
 par ::
-  forall t arr ap am bp bm cp cm dp dm.
-  (M.Action t arr, Monoidal t arr) =>
-  IntMorph t arr ap am bp bm ->
-  IntMorph t arr cp cm dp dm ->
-  IntMorph t arr (t ap cp) (t am cm) (t bp dp) (t bm dm)
+  forall t ap am bp bm cp cm dp dm.
+  (M.Action t (->), Monoidal t (->)) =>
+  IntMorph t (->) ap am bp bm ->
+  IntMorph t (->) cp cm dp dm ->
+  IntMorph t (->) (t ap cp) (t am cm) (t bp dp) (t bm dm)
 par (IntMorph f) (IntMorph g) = IntMorph (permOut . (f `M.par` g) . permIn)
   where
-    id_ap :: arr ap ap
-    id_bm :: arr bm bm
+    id_ap :: (->) ap ap
+    id_bm :: (->) bm bm
     id_ap = Cat.id
     id_bm = Cat.id
 
-    -- permIn  :: arr (t (t ap cp) (t bm dm)) (t (t ap bm) (t cp dm))
+    -- permIn  :: (->) (t (t ap cp) (t bm dm)) (t (t ap bm) (t cp dm))
     permIn = step5 . step4 . step3 . step2 . step1
       where
-        step1 :: arr (t (t ap cp) (t bm dm)) (t ap (t cp (t bm dm)))
-        step1 = assoc @t @arr @ap @cp @(t bm dm)
-        step2 :: arr (t ap (t cp (t bm dm))) (t ap (t (t bm dm) cp))
-        step2 = id_ap `M.par` M.swap @t @arr @cp @(t bm dm)
-        step3 :: arr (t ap (t (t bm dm) cp)) (t ap (t bm (t dm cp)))
-        step3 = id_ap `M.par` assoc @t @arr @bm @dm @cp
-        step4 :: arr (t ap (t bm (t dm cp))) (t ap (t bm (t cp dm)))
-        step4 = id_ap `M.par` (id_bm `M.par` M.swap @t @arr @dm @cp)
-        step5 :: arr (t ap (t bm (t cp dm))) (t (t ap bm) (t cp dm))
-        step5 = assoc' @t @arr @ap @bm @(t cp dm)
+        step1 :: (->) (t (t ap cp) (t bm dm)) (t ap (t cp (t bm dm)))
+        step1 = assoc @t @(->) @ap @cp @(t bm dm)
+        step2 :: (->) (t ap (t cp (t bm dm))) (t ap (t (t bm dm) cp))
+        step2 = id_ap `M.par` M.swap @t @(->) @cp @(t bm dm)
+        step3 :: (->) (t ap (t (t bm dm) cp)) (t ap (t bm (t dm cp)))
+        step3 = id_ap `M.par` assoc @t @(->) @bm @dm @cp
+        step4 :: (->) (t ap (t bm (t dm cp))) (t ap (t bm (t cp dm)))
+        step4 = id_ap `M.par` (id_bm `M.par` M.swap @t @(->) @dm @cp)
+        step5 :: (->) (t ap (t bm (t cp dm))) (t (t ap bm) (t cp dm))
+        step5 = assoc' @t @(->) @ap @bm @(t cp dm)
 
-    -- permOut :: arr (t (t am bp) (t cm dp)) (t (t am cm) (t bp dp))
+    -- permOut :: (->) (t (t am bp) (t cm dp)) (t (t am cm) (t bp dp))
     permOut = step5 . step4 . step3 . step2 . step1
       where
-        step1 :: arr (t (t am bp) (t cm dp)) (t am (t bp (t cm dp)))
-        step1 = assoc @t @arr @am @bp @(t cm dp)
-        step2 :: arr (t am (t bp (t cm dp))) (t am (t (t cm dp) bp))
-        step2 = id_am `M.par` M.swap @t @arr @bp @(t cm dp)
-        step3 :: arr (t am (t (t cm dp) bp)) (t am (t cm (t dp bp)))
-        step3 = id_am `M.par` assoc @t @arr @cm @dp @bp
-        step4 :: arr (t am (t cm (t dp bp))) (t am (t cm (t bp dp)))
-        step4 = id_am `M.par` (id_cm `M.par` M.swap @t @arr @dp @bp)
-        step5 :: arr (t am (t cm (t bp dp))) (t (t am cm) (t bp dp))
-        step5 = assoc' @t @arr @am @cm @(t bp dp)
+        step1 :: (->) (t (t am bp) (t cm dp)) (t am (t bp (t cm dp)))
+        step1 = assoc @t @(->) @am @bp @(t cm dp)
+        step2 :: (->) (t am (t bp (t cm dp))) (t am (t (t cm dp) bp))
+        step2 = id_am `M.par` M.swap @t @(->) @bp @(t cm dp)
+        step3 :: (->) (t am (t (t cm dp) bp)) (t am (t cm (t dp bp)))
+        step3 = id_am `M.par` assoc @t @(->) @cm @dp @bp
+        step4 :: (->) (t am (t cm (t dp bp))) (t am (t cm (t bp dp)))
+        step4 = id_am `M.par` (id_cm `M.par` M.swap @t @(->) @dp @bp)
+        step5 :: (->) (t am (t cm (t bp dp))) (t (t am cm) (t bp dp))
+        step5 = assoc' @t @(->) @am @cm @(t bp dp)
 
-    id_am :: arr am am
-    id_cm :: arr cm cm
+    id_am :: (->) am am
+    id_cm :: (->) cm cm
     id_am = Cat.id
     id_cm = Cat.id
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | The dagger/bimonoid layer of circuit wiring.
@@ -36,11 +37,7 @@ module Circuit.Dagger
   )
 where
 
-#ifdef __GLASGOW_HASKELL__
-import Control.Category
-#else
-import Circuit.Classes
-#endif
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 
 import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
@@ -51,7 +48,7 @@ import Prelude hiding (Monoid, id, (.))
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Monoidal (Action (..), Tensor (..))
 -- >>> import Circuit.Trace (Traced (..))
--- >>> import Control.Category
+-- >>> import Circuit.Classes (Category (..), Discrete (..), (>>>))
 -- >>> import Prelude hiding (id, (.), Monoid)
 
 -- ---------------------------------------------------------------------------
@@ -233,10 +230,15 @@ transpose :: Dagger arr a b -> Dagger arr b a
 transpose (Dagger f g) = Dagger g f
 
 instance (Category arr) => Category (Dagger arr) where
+  type Ob (Dagger arr) a = Ob arr a
   id = Dagger id id
   {-# INLINE id #-}
   Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
+
+-- | Dagger of functions is discrete (Ob reduces to @()@).
+instance Discrete (Dagger (->)) where
+  withOb x = x
 
 instance (Traced t arr) => Traced t (Dagger arr) where
   trace (Dagger f g) = Dagger (trace f) (trace g)

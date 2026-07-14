@@ -207,6 +207,7 @@ import Circuit.Queue
     endsQueue,
     endsSTM,
   )
+import Circuit.Classes (Ob)
 import Circuit.Trace
   ( Co (..),
     Contra (..),
@@ -218,9 +219,15 @@ import Circuit.Trace qualified as Trace
 import Prelude hiding (Monoid)
 
 -- | Close a feedback loop. See "Circuit.Trace".
-trace :: (Traced t arr) => arr (t a b) (t a c) -> arr b c
+trace ::
+  (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
+  arr (t a b) (t a c) ->
+  arr b c
 trace = Trace.trace
 
 -- | Open a feedback loop. See "Circuit.Trace".
-untrace :: (Traced t arr) => arr b c -> arr (t a b) (t a c)
+untrace ::
+  (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
+  arr b c ->
+  arr (t a b) (t a c)
 untrace = Trace.untrace

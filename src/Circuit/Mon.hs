@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | The free symmetric monoidal category over a base arrow.
 --
@@ -28,14 +30,10 @@ import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run)
 import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
-import Circuit.Trace (Traced (..))
+import Circuit.Trace (Traced (..), compD)
 import Prelude hiding (id, (.))
 
-#ifdef __GLASGOW_HASKELL__
-import Control.Category
-#else
-import Circuit.Classes
-#endif
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
@@ -64,8 +62,13 @@ data Mon arr a b where
 
 -- | 'Mon' is a category.
 instance (Category arr) => Category (Mon arr) where
+  type Ob (Mon arr) a = Ob arr a
   id = Arr id
   (.) = Compose
+
+-- | Free monoidal syntax over functions is discrete (Ob reduces to @()@).
+instance Discrete (Mon (->)) where
+  withOb x = x
 
 -- | 'Mon' has a tensor structure whose tensor is @(,)@.
 --
@@ -94,11 +97,16 @@ instance (Category arr, Monoidal t arr) => Monoidal t (Mon arr) where
 --
 -- The target only needs 'Action'; the sequential structure is folded
 -- with the target's category composition.
+-- | 'Action' plus 'Discrete' so free 'Mon' can fold intermediate objects.
+class (Action (,) arr, Discrete arr) => FreeMon arr
+
+instance (Action (,) arr, Discrete arr) => FreeMon arr
+
 instance Layer Mon where
-  type Law Mon arr' = Action (,) arr'
+  type Law Mon arr' = FreeMon arr'
   unit = Arr
   bind h (Arr f) = h f
-  bind h (Compose g f) = bind h g . bind h f
+  bind h (Compose g f) = bind h g `compD` bind h f
   bind h (Par f g) = par (bind h f) (bind h g)
   bind _ Swap = swap
 
@@ -135,6 +143,6 @@ monTranspose Swap = Swap
 -- Loop bodies are 'run' into the base arrow before tracing, just as for
 -- 'Free'.  This instance makes 'Mon' a valid target for 'Net.bind',
 -- yielding the forgetful map @Net t arr -> Mon arr@ via @bind unit@.
-instance (Traced t arr, Action (,) arr) => Traced t (Mon arr) where
+instance (Traced t arr, Action (,) arr, Discrete arr) => Traced t (Mon arr) where
   trace = Arr . trace . run
   untrace = Arr . untrace . run

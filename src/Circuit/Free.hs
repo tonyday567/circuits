@@ -1,5 +1,8 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -14,16 +17,11 @@ module Circuit.Free
   )
 where
 
+import Circuit.Classes (Category (..), Discrete (..))
 import Circuit.Layer (Layer (..), run)
 import Circuit.Monoidal.Category (Monoidal (..))
-import Circuit.Trace (Traced (..))
+import Circuit.Trace (Traced (..), compD)
 import Prelude hiding (id, (.))
-
-#ifdef __GLASGOW_HASKELL__
-import Control.Category
-#else
-import Circuit.Classes
-#endif
 
 -- $setup
 -- >>> import Circuit.Free
@@ -46,15 +44,19 @@ data Free arr a b where
   Compose :: Free arr b c -> Free arr a b -> Free arr a c
 
 instance (Category arr) => Category (Free arr) where
+  type Ob (Free arr) a = Ob arr a
   id = Lift id
   (.) = Compose
 
 -- | Free category over a graph.
+--
+-- 'Law' requires 'Discrete' so intermediate objects in 'Compose' can
+-- discharge 'Ob' when folding.
 instance Layer Free where
-  type Law Free arr' = Category arr'
+  type Law Free arr' = Discrete arr'
   unit = Lift
   bind h (Lift f) = h f
-  bind h (Compose g f) = bind h g . bind h f
+  bind h (Compose g f) = bind h g `compD` bind h f
 
 -- | Freeze a 'Free' category into its base arrow.
 --
@@ -62,9 +64,9 @@ instance Layer Free where
 --
 -- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
 -- 6
-freeze :: (Category arr) => Free arr a b -> arr a b
+freeze :: (Discrete arr) => Free arr a b -> arr a b
 freeze (Lift f) = f
-freeze (Compose g f) = freeze g . freeze f
+freeze (Compose g f) = freeze g `compD` freeze f
 
 -- | Lift the 'Monoidal' structure through 'Free'.
 instance (Monoidal t arr) => Monoidal t (Free arr) where
@@ -75,6 +77,6 @@ instance (Monoidal t arr) => Monoidal t (Free arr) where
 -- | Lift the 'Traced' class through 'Free'.
 --
 -- A loop body in @Free arr@ is frozen before calling the base 'trace'.
-instance (Category arr, Traced t arr) => Traced t (Free arr) where
+instance (Discrete arr, Traced t arr) => Traced t (Free arr) where
   trace = Lift . trace . freeze
   untrace = Lift . untrace . freeze

@@ -41,20 +41,14 @@ module Circuit.Net
   )
 where
 
-#ifdef __GLASGOW_HASKELL__
-import Control.Category
-import Data.Kind (Type)
-#else
-import Circuit.Classes
-import Data.Kind (Type)
-#endif
-
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Mon qualified as M
 import Circuit.Monoidal (Action (..), Tensor (..))
-import Circuit.Trace (Traced (..))
+import Circuit.Trace (Traced (..), compD, traceD)
 import Circuit.Trace qualified as C
+import Data.Kind (Type)
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
@@ -113,6 +107,7 @@ data Net (t :: Type -> Type -> Type) arr a b where
 -- user knot bodies match the channel lazily; strict bodies still
 -- diverge, as documented in "Circuit.Monoidal".
 instance (Category arr) => Category (Net t arr) where
+  type Ob (Net t arr) a = Ob arr a
   id = Lift id
   g . f = Compose g f
 
@@ -224,9 +219,9 @@ widen M.Swap = Swap
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets knots and bimonoid structure.
 sift ::
-  (Traced t arr, Action (,) arr) =>
-  Net t arr a b ->
-  M.Mon arr a b
+  (Traced t (->), Action (,) (->)) =>
+  Net t (->) a b ->
+  M.Mon (->) a b
 sift = bind unit
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Trace'.
@@ -243,9 +238,9 @@ sift = bind unit
 -- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
-  (Traced t arr, Action (,) arr, Action (,) (C.Trace t arr)) =>
-  Net t arr a b ->
-  C.Trace t arr a b
+  (Traced t (->), Action (,) (->), Action (,) (C.Trace t (->))) =>
+  Net t (->) a b ->
+  C.Trace t (->) a b
 melt (Lift f) = C.Arr f
 melt (Compose g f) = melt g . melt f
 melt (Par f g) = par (melt f) (melt g)
@@ -267,16 +262,21 @@ melt (Knot f) = trace (melt f)
 -- @h@ of the source arrow's dictionaries.  This is the free-PROP fold
 -- only when @h@ is a bimonoid homomorphism (automatic for 'unit' and
 -- 'hmap', but must be verified for custom @h@).
+-- | 'Traced' + 'Action' + 'Discrete' — free 'Net' fold needs trivial 'Ob'.
+class (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
+
+instance (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
+
 instance Layer (Net t) where
-  type Law (Net t) arr' = (Traced t arr', Action (,) arr')
+  type Law (Net t) arr' = FreeNet t arr'
   unit = Lift
   bind :: forall arr' arr. (Law (Net t) arr') => (arr :~> arr') -> (Net t arr :~> arr')
   bind h (Lift f) = h f
-  bind h (Compose g f) = bind h g . bind h f
+  bind h (Compose g f) = bind h g `compD` bind h f
   bind h (Par f g) = par (bind h f) (bind h g)
   bind _ Swap = swap
   bind h Copy = h Dg.copy
   bind h Discard = h Dg.discard
   bind h Plus = h Dg.plus
   bind h Zero = h Dg.zero
-  bind h (Knot f) = trace (bind h f)
+  bind h (Knot f) = traceD (bind h f)

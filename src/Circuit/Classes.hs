@@ -1,20 +1,101 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
--- | On GHC, Category, Bifunctor, and Profunctor come from packages.
--- On other compilers (e.g. MicroHs), we define them locally.
-module Circuit.Classes where
+-- | Local category hierarchy with object constraints.
+--
+-- On GHC, 'Bifunctor' and 'Profunctor' still come from packages.
+-- 'Category' is always local so morphisms can carry an associated 'Ob'
+-- constraint (e.g. 'Finite' for matrices, 'KnownNat' for harpie mats).
+--
+-- 'Discrete' marks categories whose 'Ob' is trivial for every object
+-- (@Ob = ()@). Free constructions that fuse existential channels
+-- (notably 'Trace') require 'Discrete' on the base.
+module Circuit.Classes
+  ( Category (..),
+    Discrete (..),
+    (>>>),
+    (<<<),
+#ifdef __GLASGOW_HASKELL__
+    Bifunctor (..),
+    Profunctor (..),
+#else
+    Bifunctor (..),
+    Profunctor (..),
+#endif
+  )
+where
 
-#ifndef __GLASGOW_HASKELL__
-
+import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
-class Category cat where
-  id :: cat a a
-  (.) :: cat b c -> cat a b -> cat a c
+#ifdef __GLASGOW_HASKELL__
+import Control.Arrow (Kleisli (..))
+import Control.Monad ((<=<))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Profunctor (Profunctor (..))
+#endif
 
+-- | A category whose objects may carry a constraint.
+--
+-- @Ob arr a@ is the evidence required to mention object @a@ in @arr@.
+-- Unconstrained categories use the default @()@. Constrained ones
+-- specialise it (e.g. @Ob (Mat s) a = Finite a@).
+class Category (arr :: k -> k -> Type) where
+  -- | Object constraint for this category.
+  type Ob arr (a :: k) :: Constraint
+
+  type Ob arr a = ()
+
+  -- | Identity morphism.
+  id :: (Ob arr a) => arr a a
+
+  -- | Composition (right-to-left).
+  (.) :: (Ob arr a, Ob arr b, Ob arr c) => arr b c -> arr a b -> arr a c
+
+-- | Categories with a trivial object constraint for every type.
+--
+-- 'withOb' discharges @Ob arr a@ at an arbitrary @a@. Free constructions
+-- that hide existential channels use this instead of
+-- @forall x. Ob arr x@ (illegal on associated types).
+class (Category arr) => Discrete arr where
+  withOb :: forall a r. (Ob arr a => r) -> r
+
+-- | Left-to-right composition.
+(>>>) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr a b -> arr b c -> arr a c
+f >>> g = g . f
+{-# INLINE (>>>) #-}
+
+-- | Right-to-left composition (synonym for '(.)').
+(<<<) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr b c -> arr a b -> arr a c
+(<<<) = (.)
+{-# INLINE (<<<) #-}
+
+-- | Unconstrained function category.
 instance Category (->) where
+  type Ob (->) a = ()
   id x = x
   (f . g) x = f (g x)
+
+instance Discrete (->) where
+  withOb x = x
+
+#ifdef __GLASGOW_HASKELL__
+-- | Kleisli arrows of a monad (unconstrained objects).
+instance (Monad m) => Category (Kleisli m) where
+  type Ob (Kleisli m) a = ()
+  id = Kleisli pure
+  Kleisli f . Kleisli g = Kleisli (f <=< g)
+
+instance (Monad m) => Discrete (Kleisli m) where
+  withOb x = x
+#else
 
 class Bifunctor p where
   bimap :: (a -> b) -> (c -> d) -> p a c -> p b d

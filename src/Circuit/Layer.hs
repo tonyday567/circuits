@@ -44,7 +44,7 @@ module Circuit.Layer
   )
 where
 
-import Control.Category (Category (..))
+import Circuit.Classes (Category (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 

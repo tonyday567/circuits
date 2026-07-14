@@ -1,5 +1,12 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Monoidal structure for the tensors used in traced categories.
 --
@@ -9,6 +16,9 @@
 --
 -- The goal is to keep the core 'Trace' GADT and 'run' mechanism
 -- independent of these structural details.
+--
+-- 'Tensor' / 'Action' are kind-polymorphic so @(+)@ can be a tensor for
+-- @MatH@ alongside @Either@ for @Mat@ / @(->)@.
 module Circuit.Monoidal
   ( Braided (..),
     ambient,
@@ -27,19 +37,22 @@ module Circuit.Monoidal
     ambientBy,
 
     -- * Monoidal product on base arrows
+    Unit,
     Tensor (..),
     Action (..),
   )
 where
 
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Layer (run)
 import Circuit.Monoidal.Category qualified as MC
-import Circuit.Trace (Trace (..), Traced (..))
-import Control.Category (Category, (>>>))
+import Circuit.Trace (Trace (..), Traced (..), untraceD)
+import Control.Arrow (Kleisli)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.Profunctor (Profunctor, dimap)
 import Data.Void (Void, absurd)
+import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Layer (run)
@@ -80,8 +93,9 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the braid supplied by the 'Braided' instance.
 ambient ::
-  (Profunctor arr, Traced t arr, Braided t) =>
-  Trace t arr a b -> Trace t arr (t s a) (t s b)
+  (Braided t, Traced t (->)) =>
+  Trace t (->) a b ->
+  Trace t (->) (t s a) (t s b)
 ambient = ambientBy braid
 
 -- ===========================================================================
@@ -200,10 +214,10 @@ coreleaseR _ (Left a) = Left a
 -- >>> run (ambientBy braid (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Profunctor arr, Traced t arr) =>
+  (Traced t (->)) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
-  Trace t arr a b ->
-  Trace t arr (t s a) (t s b)
+  Trace t (->) a b ->
+  Trace t (->) (t s a) (t s b)
 ambientBy _br (Arr f) = Arr (untrace f)
 ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 
@@ -212,7 +226,10 @@ ambientBy br (Knot k) = Knot (dimap br br (untrace k))
 -- ===========================================================================
 
 -- | The unit object for a tensor @t@.
-type family Unit (t :: Type -> Type -> Type) :: Type
+--
+-- @t@ is an object-level bifunctor (@Either@, @(,)@, type-level @(+)@, …)
+-- with kind @k -> k -> k@, not a morphism tensor.
+type family Unit (t :: k -> k -> k) :: k
 
 -- | The tensor action of @t@ on a category @arr@, without braiding.
 --
@@ -221,6 +238,8 @@ type family Unit (t :: Type -> Type -> Type) :: Type
 -- object. This is the planar fragment: consumers constrained to 'Tensor'
 -- cannot invoke a symmetry, even if the underlying value still contains
 -- one.
+--
+-- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 class (Category arr) => Tensor t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
@@ -336,7 +355,7 @@ instance Action Either (->) where
 -- ([1,1,1],[2,2,2])
 -- >>> case par k1 k2 :: Trace (,) (->) ([Int], [Int]) ([Int], [Int]) of Knot _ -> "fused"; Arr _ -> "melted"
 -- "fused"
-instance {-# OVERLAPPING #-} (Tensor t arr, Traced t arr, MC.Monoidal t arr) => Tensor t (Trace t arr) where
+instance {-# OVERLAPPING #-} (Tensor t (->), Traced t (->), MC.Monoidal t (->)) => Tensor t (Trace t (->)) where
   par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
     where
       pre = MC.assoc >>> untrace MC.braid >>> MC.assoc'
@@ -349,19 +368,43 @@ instance {-# OVERLAPPING #-} (Tensor t arr, Traced t arr, MC.Monoidal t arr) => 
   unitr = Arr unitr
   unitr' = Arr unitr'
 
-instance {-# OVERLAPPING #-} (Action t arr, Traced t arr, MC.Monoidal t arr) => Action t (Trace t arr) where
+instance {-# OVERLAPPING #-} (Action t (->), Traced t (->), MC.Monoidal t (->)) => Action t (Trace t (->)) where
+  swap = Arr swap
+
+instance
+  {-# OVERLAPPING #-}
+  (Monad m, Tensor t (Kleisli m), Traced t (Kleisli m), MC.Monoidal t (Kleisli m)) =>
+  Tensor t (Trace t (Kleisli m))
+  where
+  par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
+    where
+      pre = MC.assoc >>> untrace MC.braid >>> MC.assoc'
+      post = MC.assoc >>> untrace MC.braid >>> MC.assoc'
+  par (Knot f) (Arr g) = Knot (MC.assoc' >>> par f g >>> MC.assoc)
+  par (Arr f) (Knot g) = Knot (MC.braid >>> par f g >>> MC.braid)
+  par (Arr f) (Arr g) = Arr (par f g)
+  unitl = Arr unitl
+  unitl' = Arr unitl'
+  unitr = Arr unitr
+  unitr' = Arr unitr'
+
+instance
+  {-# OVERLAPPING #-}
+  (Monad m, Action t (Kleisli m), Traced t (Kleisli m), MC.Monoidal t (Kleisli m)) =>
+  Action t (Trace t (Kleisli m))
+  where
   swap = Arr swap
 
 -- | Lift 'Tensor'/'Action' through 'Trace' when tensors differ.
 --
 -- Falls back to independent evaluation — 'trace' is called once per
 -- branch.  Correct and black-hole-free, but doesn't fuse the loops.
-instance {-# OVERLAPPABLE #-} (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
+instance {-# OVERLAPPABLE #-} (Tensor t (->), Traced t' (->)) => Tensor t (Trace t' (->)) where
   par f g = Arr (par (run f) (run g))
   unitl = Arr unitl
   unitl' = Arr unitl'
   unitr = Arr unitr
   unitr' = Arr unitr'
 
-instance {-# OVERLAPPABLE #-} (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
+instance {-# OVERLAPPABLE #-} (Action t (->), Traced t' (->)) => Action t (Trace t' (->)) where
   swap = Arr swap

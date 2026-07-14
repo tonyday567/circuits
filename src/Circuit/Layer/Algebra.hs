@@ -95,9 +95,9 @@ import Circuit.Layer (Layer, run)
 import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Net qualified as N
-import Circuit.Trace (Traced (..))
+import Circuit.Trace (Traced (..), compD, traceD)
 import Circuit.Trace qualified as C
-import Control.Category (Category (..))
+import Circuit.Classes (Category (..), Discrete (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -174,16 +174,16 @@ data SigCompose arr rec a b where
   SigCompose :: rec b c -> rec a b -> SigCompose arr rec a c
 
 instance (Category arr') => Algebra SigCompose arr arr' where
-  type Ctx SigCompose arr arr' = Category arr'
-  alg _ rec (SigCompose g f) = rec g . rec f
+  type Ctx SigCompose arr arr' = Discrete arr'
+  alg _ rec (SigCompose g f) = rec g `compD` rec f
 
 -- | Feedback loop / trace over tensor @t@.
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
   SigKnot :: rec (t a b) (t a c) -> SigKnot t arr rec b c
 
 instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
-  type Ctx (SigKnot t) arr arr' = Traced t arr'
-  alg _ rec (SigKnot f) = trace (rec f)
+  type Ctx (SigKnot t) arr arr' = (Traced t arr', Discrete arr')
+  alg _ rec (SigKnot f) = traceD (rec f)
 
 -- | Parallel composition.
 data SigPar arr rec a b where
@@ -252,30 +252,38 @@ type AlgMonKnot t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap)
 -- Instances for signature-based categories
 
 instance (Category arr) => Category (AlgCat arr) where
+  type Ob (AlgCat arr) a = Ob arr a
   id = Lift id
   f . g = Op (SigCompose f g)
 
+instance Discrete (AlgCat (->)) where
+  withOb x = x
+
 instance (Category arr) => Category (AlgTrace t arr) where
+  type Ob (AlgTrace t arr) a = Ob arr a
   id = Lift id
   f . g = Op (L (SigCompose f g))
+
+instance Discrete (AlgTrace t (->)) where
+  withOb x = x
 
 instance (Category arr, Monoidal t arr) => Monoidal t (AlgTrace t arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   braid = Lift braid
 
-instance (Category arr, Traced t arr) => Traced t (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgTrace t arr) where
   trace body = Op (R (SigKnot body))
   untrace f = Lift (untrace (eval f))
 
-instance (Category arr, Traced t arr, Tensor (,) arr) => Tensor (,) (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Tensor (,) arr, Discrete arr) => Tensor (,) (AlgTrace t arr) where
   par f g = Lift (par (eval f) (eval g))
   unitl = Lift unitl
   unitl' = Lift unitl'
   unitr = Lift unitr
   unitr' = Lift unitr'
 
-instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Action (,) arr, Discrete arr) => Action (,) (AlgTrace t arr) where
   swap = Lift swap
 
 instance (Category arr, Monoidal t arr) => Monoidal t (AlgCat arr) where
@@ -283,7 +291,7 @@ instance (Category arr, Monoidal t arr) => Monoidal t (AlgCat arr) where
   assoc' = Lift assoc'
   braid = Lift braid
 
-instance (Category arr, Traced t arr) => Traced t (AlgCat arr) where
+instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) where
   trace body = Lift (trace (eval body))
   untrace f = Lift (untrace (eval f))
 
@@ -294,17 +302,17 @@ instance (Category arr, Traced t arr) => Traced t (AlgCat arr) where
 -- free category.  This is the forgetful map from the free traced
 -- category to the free category.
 algFreeze ::
-  (Traced t arr) =>
-  AlgTrace t arr a b ->
-  AlgCat arr a b
+  (Traced t (->)) =>
+  AlgTrace t (->) a b ->
+  AlgCat (->) a b
 algFreeze = evalInto Lift
 
 -- | Melt structural rows ('SigPar', 'SigSwap', 'SigBimonoid') into 'Lift'
 -- calls.  This is the forgetful map from 'AlgNet' to 'AlgTrace'.
 algMelt ::
-  (Traced t arr, Action (,) arr) =>
-  AlgNet t arr a b ->
-  AlgTrace t arr a b
+  (Traced t (->), Action (,) (->)) =>
+  AlgNet t (->) a b ->
+  AlgTrace t (->) a b
 algMelt = evalInto Lift
 
 -- ---------------------------------------------------------------------------
@@ -320,17 +328,17 @@ traceToAlg (C.Knot f) = Op (R (SigKnot (Lift f)))
 -- 'SigCompose' nodes are interpreted using the 'Category' instance of
 -- 'C.Trace', so the result is in normal form (at most one 'C.Knot').
 algToTrace ::
-  forall t arr a b.
-  (Traced t arr) =>
-  AlgTrace t arr a b ->
-  C.Trace t arr a b
+  forall t a b.
+  (Traced t (->)) =>
+  AlgTrace t (->) a b ->
+  C.Trace t (->) a b
 algToTrace (Lift f) = C.Arr f
 algToTrace (Op op) = go op
   where
     go ::
       forall x y.
-      (SigCompose :+: SigKnot t) arr (AlgTrace t arr) x y ->
-      C.Trace t arr x y
+      (SigCompose :+: SigKnot t) (->) (AlgTrace t (->)) x y ->
+      C.Trace t (->) x y
     go (L (SigCompose g f)) = algToTrace g . algToTrace f
     go (R (SigKnot f)) = C.Knot (run (algToTrace f))
 
@@ -340,10 +348,10 @@ algToTrace (Op op) = go op
 -- This is the signature-based version of 'melt' restricted to the
 -- TraceMon layer.
 monKnotToTrace ::
-  forall t arr a b.
-  (Traced t arr, Action (,) arr) =>
-  AlgMonKnot t arr a b ->
-  AlgTrace t arr a b
+  forall t a b.
+  (Traced t (->), Action (,) (->)) =>
+  AlgMonKnot t (->) a b ->
+  AlgTrace t (->) a b
 monKnotToTrace = evalInto Lift
 
 -- | Embed 'AlgTrace' into 'AlgMonKnot' by constructor injection.

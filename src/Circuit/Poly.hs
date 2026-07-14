@@ -84,7 +84,7 @@ module Circuit.Poly
   )
 where
 
-import Control.Category
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Data.Bifunctor
 import Data.Kind (Type)
 import Data.Void (Void, absurd)
@@ -434,6 +434,7 @@ data Morphism (p :: Poly) (q :: Poly) where
     Morphism ('Tensor (Mono a da) (Mono c dc)) ('Tensor (Mono b db) (Mono d dd))
 
 instance Category Morphism where
+  type Ob Morphism a = ()
   id = Id
   (.) = Compose
 
