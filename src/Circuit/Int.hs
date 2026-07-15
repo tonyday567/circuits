@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | The Int construction: free compact closure over a traced monoidal
@@ -42,13 +43,18 @@ module Circuit.Int
 
     -- * Bridge from Poly monomial lenses
     causal,
+
+    -- * Agent lifecycle spike (Repl dual ↔ Int)
+    AgentVerb (..),
+    verbDelta,
+    agentRoster,
   )
 where
 
 import Circuit.Hyper (Hyper (..), encode, flatten, observe)
 import Circuit.Monoidal qualified as M (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
-import Circuit.Poly (Mono, Morphism, applyLens)
+import Circuit.Poly (Mono, Morphism (Compose), applyLens, lens)
 import Circuit.Classes ((.))
 import Circuit.Classes qualified as Cat (Category (..))
 import Circuit.Trace (Trace (..), Traced (..))
@@ -458,3 +464,73 @@ assocInv = IntMorph $ \((x, (y, x')), ((y', x''), y'')) -> ((y', (x'', y'')), ((
 -- "Knot (tied, trivial)"
 causal :: Morphism (Mono a da) (Mono b db) -> IntMorph (,) (->) a da b db
 causal m = IntMorph (\(a, db) -> let (b, put) = applyLens m a in (put db, b))
+
+-- ** Agent lifecycle as Int (Repl dual spike)
+--
+-- The free dual ends of a Repl (commit / emit) match the polarity pair of an
+-- Int object: commit carries a lifecycle verb into the agent, emit carries the
+-- observed roster size (or status) out. 'agentRoster' is that dual as a
+-- monomial lens; 'causal' embeds it as @'IN' 'Int' 'AgentVerb'@.
+--
+-- Multi-turn sessions are composition under 'Trace'. Because 'causal' is the
+-- causal fragment, the middle knot is tied but does no extra work — the
+-- observed value equals plain lens 'Compose' (same discipline as the trivial-knot
+-- witness above). That is the soundness check for wiring Repl turns through Int.
+
+-- | Lifecycle verbs a bus peer can commit (join / claim / leave).
+--
+-- Encoded as 'Int' deltas on the monomial direction wire so the lens stays in
+-- the @'Mono' 'Int' 'Int'@ fragment ('causal' / 'Netlist' friendly):
+-- 'Join' = @+1@, 'Ack' = @0@, 'Quit' = @-1@.
+data AgentVerb = Join | Ack | Quit
+  deriving (Eq, Show)
+
+-- | Encode a lifecycle verb as a roster delta.
+verbDelta :: AgentVerb -> Int
+verbDelta = \case
+  Join -> 1
+  Ack -> 0
+  Quit -> -1
+
+-- | Roster count as a monomial lens: forward face is the observed count
+-- (emit dual), backward face is a signed delta on that count (commit dual).
+--
+-- >>> let (out, put) = applyLens agentRoster 0 in (out, put 1, put (-1))
+-- (0,1,0)
+agentRoster :: Morphism (Mono Int Int) (Mono Int Int)
+agentRoster = lens (\n -> n) (\n d -> max 0 (n + d))
+
+-- | 'causal' of 'agentRoster': one Repl turn as an Int morphism
+-- @'IN' 'Int' 'Int'@. Commit a delta, emit the pre-image count.
+--
+-- Join at count 0: emit 0, next count 1.
+--
+-- >>> runIntMorph (causal agentRoster) (0, verbDelta Join)
+-- (1,0)
+--
+-- Ack is a no-op on the count.
+--
+-- >>> runIntMorph (causal agentRoster) (2, verbDelta Ack)
+-- (2,2)
+--
+-- Quit undoes a join.
+--
+-- >>> runIntMorph (causal agentRoster) (1, verbDelta Quit)
+-- (0,1)
+--
+-- Two-turn session under 'Trace': join then quit equals plain lens composition
+-- (knot tied, pullback zero — free dual composes with compact-closed dual).
+--
+-- >>> let cz m = IntMorph (Arr (\(a, db) -> let (b, put) = applyLens m a in (put db, b))) :: IntMorph (,) (Trace (,) (->)) Int Int Int Int
+-- >>> let (b, put) = applyLens (Compose agentRoster agentRoster) 0 in (b, put (verbDelta Quit))
+-- (0,0)
+-- >>> run (runIntMorph (comp (cz agentRoster) (cz agentRoster))) (0, verbDelta Quit)
+-- (0,0)
+-- >>> case runIntMorph (comp (cz agentRoster) (cz agentRoster)) of Knot _ -> "Knot (tied, trivial)"; Arr _ -> "Arr"
+-- "Knot (tied, trivial)"
+--
+-- Multi-verb path: join → ack → quit restores zero.
+--
+-- >>> let step n v = fst (runIntMorph (causal agentRoster) (n, verbDelta v))
+-- >>> step (step (step 0 Join) Ack) Quit
+-- 0
