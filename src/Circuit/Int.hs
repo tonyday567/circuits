@@ -46,12 +46,12 @@ module Circuit.Int
   )
 where
 
+import Circuit.Classes ((.))
+import Circuit.Classes qualified as Cat (Category (..))
 import Circuit.Hyper (Hyper (..), encode, flatten, observe)
 import Circuit.Monoidal qualified as M (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Poly (Mono, Morphism (Compose), applyLens, lens)
-import Circuit.Classes ((.))
-import Circuit.Classes qualified as Cat (Category (..))
 import Circuit.Trace (Trace (..), Traced (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))

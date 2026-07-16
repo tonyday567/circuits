@@ -32,10 +32,10 @@ module Circuit.Queue
   )
 where
 
+import Circuit.Classes ((>>>))
 import Circuit.Trace (Trace (..), Traced)
 import Control.Applicative
 import Control.Arrow (Kleisli (..))
-import Circuit.Classes ((>>>))
 import Control.Concurrent.STM
 import Prelude
 

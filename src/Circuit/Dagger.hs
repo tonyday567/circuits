@@ -38,7 +38,6 @@ module Circuit.Dagger
 where
 
 import Circuit.Classes (Category (..), Discrete (..), (>>>))
-
 import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Traced (..))

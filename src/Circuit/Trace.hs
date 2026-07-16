@@ -191,7 +191,6 @@ data Trace (t :: Type -> Type -> Type) arr a b where
 -- >>> let k2 = Knot (\(ns, xs) -> (2 : ns, sum xs))
 -- >>> run (k2 . k1) (0 :: Int)
 -- 3
-
 compD :: forall arr a b c. (Discrete arr) => arr b c -> arr a b -> arr a c
 compD f g = withOb @arr @a $ withOb @arr @b $ withOb @arr @c $ f . g
 
@@ -358,7 +357,7 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) wh
 -- >>> trace (second (+1) . f . second (*2)) 5
 -- 11
 --
--- prop> \x -> trace (second ((+1) :: Int -> Int) . (id :: ((Int, Int) -> (Int, Int))) . second ((*2) :: Int -> Int)) (x :: Int) == x * 2 + 1
+-- prop> \x -> trace (second ((+1) :: Int -> Int) . ((\(a, b) -> (a, b)) :: ((Int, Int) -> (Int, Int))) . second ((*2) :: Int -> Int)) (x :: Int) == x * 2 + 1
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --

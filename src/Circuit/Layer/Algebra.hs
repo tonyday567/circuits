@@ -90,6 +90,7 @@ module Circuit.Layer.Algebra
   )
 where
 
+import Circuit.Classes (Category (..), Discrete (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
 import Circuit.Monoidal (Action (..), Tensor (..))
@@ -97,7 +98,6 @@ import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Net qualified as N
 import Circuit.Trace (Traced (..), compD, traceD)
 import Circuit.Trace qualified as C
-import Circuit.Classes (Category (..), Discrete (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 

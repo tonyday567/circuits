@@ -48,18 +48,19 @@
 -- it is a refinement that lets the two channel ends travel independently
 -- before being plugged together with 'close'.
 --
--- = Free ends only (no cargo wrappers)
+-- = Free ends only
 --
 -- The API is 'In', 'Out', 'open', 'close', and the field runners
--- 'runIn' / 'runOut'.  Unit-grounding is not a second primitive — plug
--- the other end at @()@ with 'runOut' / 'runIn' directly:
+-- 'runIn' / 'runOut'.  There are no unit-ground wrappers — plug the
+-- other end at @()@ directly:
 --
 -- @
 --   runOut inA outU  :: Trace t arr a ()   -- In  at unit  (a → ())
 --   runIn  outA inU  :: Trace t arr () a   -- Out at unit  (() → a)
 -- @
 --
--- Doctests below gate that story (yank + unit plug + polarity + composition laws).
+-- 'Circuit.Queue.Commit' / 'Emit' are historical type aliases for those
+-- port shapes over 'Kleisli'; they are not free ends and not constructors.
 module Circuit.Ends
   ( -- * Free channel ends
     Out (..),
@@ -75,7 +76,7 @@ module Circuit.Ends
 where
 
 import Circuit.Layer (run)
-import Circuit.Trace (Out (..), In (..), Trace (..), close)
+import Circuit.Trace (In (..), Out (..), Trace (..), close)
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
 import Prelude hiding (id, (.))
@@ -85,6 +86,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Classes ((>>>))
 -- >>> import Circuit.Ends
 -- >>> import Circuit.Trace (Out (..), In (..), runIn, runOut)
+-- >>> import Test.QuickCheck (NonNegative(..))
 
 -- | @η@ — the unit of the companion/conjoint adjunction (pure case).
 --
@@ -99,7 +101,7 @@ import Prelude hiding (id, (.))
 -- >>> run (close inA outA) 99
 -- 42
 --
--- Unit plug (Mock 1–2, no wrapper): 'runOut' / 'runIn' at @()@ are the grounded ports.
+-- Unit plug (Mock 1–2): 'runOut' / 'runIn' at @()@ — no wrappers.
 --
 -- >>> let (outA, inA) = open (7 :: Int)
 -- >>> let (outU, inU) = open ()
@@ -119,8 +121,7 @@ import Prelude hiding (id, (.))
 -- >>> run (runIn outP inU) ()
 -- "payload"
 --
--- Unit-grounding composes to 'close' (Mock 4).
--- Boring both ends of a pair and composing them recovers the yank.
+-- Unit plug composes toward 'close' (Mock 4).
 --
 -- >>> let (outA, inA) = open (42 :: Int)
 -- >>> let (outU, inU) = open ()
@@ -129,13 +130,22 @@ import Prelude hiding (id, (.))
 -- >>> run (close inA outA) 99
 -- 42
 --
--- Emit-then-commit loop is identity on @()@ (Mock 5).
--- A boring loop around the unit returns the unit.
+-- Unit loop is identity on @()@ (Mock 5).
 --
 -- >>> let (outA, inA) = open (7 :: Int)
 -- >>> let (outU, inU) = open ()
 -- >>> run (runIn outA inU >>> runOut inA outU) ()
 -- ()
+--
+-- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int) in run (close inA outA) 0 == n
+--
+-- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int); (outU, inU) = open () in run (runOut inA outU >>> runIn outA inU) (0 :: Int) == n
+--
+-- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int); (outU, inU) = open () in run (runIn outA inU >>> runOut inA outU) () == ()
+--
+-- prop> \(NonNegative n) -> let (_outA, inA) = open (n :: Int); (outU, _inU) = open () in run (runOut inA outU) (0 :: Int) == ()
+--
+-- prop> \(NonNegative n) -> let (outA, _inA) = open (n :: Int); (_outU, inU) = open () in run (runIn outA inU) () == n
 open :: a -> (Out (->) (,) a, In (->) (,) a)
 open seed = (outA, inA)
   where

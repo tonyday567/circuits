@@ -33,13 +33,12 @@ module Circuit.Hyper
   )
 where
 
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Trace (..), Traced (..))
 import Prelude hiding (id, (.))
-
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
 #ifdef __GLASGOW_HASKELL__
 import Data.Profunctor
 #else

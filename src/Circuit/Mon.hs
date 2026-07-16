@@ -24,6 +24,7 @@ module Circuit.Mon
   )
 where
 
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr
@@ -32,8 +33,6 @@ import Circuit.Monoidal (Action (..), Tensor (..))
 import Circuit.Monoidal.Category (Monoidal (..))
 import Circuit.Trace (Traced (..), compD)
 import Prelude hiding (id, (.))
-
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
 
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
