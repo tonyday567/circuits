@@ -1,9 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 -- | 'Circuit.Ends' re-exports 'Out' and 'In' from 'Circuit.Trace'
--- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar'),
--- plus pure unit-grounding views used as proof spikes for
--- 'Circuit.Queue.Commit' / 'Circuit.Queue.Emit'.
+-- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar').
 --
 -- = Background
 --
@@ -50,28 +48,26 @@
 -- it is a refinement that lets the two channel ends travel independently
 -- before being plugged together with 'close'.
 --
--- = Proof spikes (pure mocks)
+-- = Free ends only (no cargo wrappers)
 --
--- Design gate: unit-ground 'Commit'/'Emit' /before/ treating them as free ends.
+-- The API is 'In', 'Out', 'open', 'close', and the field runners
+-- 'runIn' / 'runOut'.  Unit-grounding is not a second primitive — plug
+-- the other end at @()@ with 'runOut' / 'runIn' directly:
 --
--- * Mock 0 — yank: @'close' i o@ recovers the seed of @'open'@ (below).
--- * Mock 1–2 — unit-ground: @'asCommit'@ / @'asEmit'@ are @'In'@/@'Out'@
---   plugged at the monoidal unit @()@. Same shapes as 'Circuit.Queue.Commit'
---   / 'Circuit.Queue.Emit' (@a → ()@ / @() → a@).
--- * Mock 3 — polarity: harness write = @'asCommit'@, harness read = @'asEmit'@;
---   re-seat who is \"the process\" and the app names flip — types do not.
+-- @
+--   runOut inA outU  :: Trace t arr a ()   -- In  at unit  (a → ())
+--   runIn  outA inU  :: Trace t arr () a   -- Out at unit  (() → a)
+-- @
+--
+-- Doctests below gate that story (yank + unit plug + polarity).
 module Circuit.Ends
-  ( -- * Channel ends (re-exported from 'Circuit')
+  ( -- * Free channel ends
     Out (..),
     In (..),
     close,
 
-    -- * Unit
+    -- * Unit (matched pair)
     open,
-
-    -- * Unit-grounded views (Commit / Emit shapes)
-    asCommit,
-    asEmit,
 
     -- * Runtime unit
     openSTM,
@@ -87,6 +83,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit (run)
 -- >>> import Circuit.Ends
+-- >>> import Circuit.Trace (Out (..), In (..), runIn, runOut)
 
 -- | @η@ — the unit of the companion/conjoint adjunction (pure case).
 --
@@ -95,67 +92,36 @@ import Prelude hiding (id, (.))
 -- the conjoint calls the companion back, which returns the seed —
 -- the mutual recursion bottoms out because the companion returns first.
 --
--- Mock 0 (yank): close recovers the seed, independent of the payload.
+-- Yank: 'close' recovers the seed, independent of the payload.
 --
 -- >>> let (outA, inA) = open (42 :: Int)
 -- >>> run (close inA outA) 99
 -- 42
+--
+-- Unit plug (no wrapper): 'runOut' / 'runIn' at @()@ are the grounded ports.
+--
+-- >>> let (outA, inA) = open (7 :: Int)
+-- >>> let (outU, inU) = open ()
+-- >>> run (runOut inA outU) 99
+-- ()
+-- >>> run (runIn outA inU) ()
+-- 7
+--
+-- Polarity: feed = 'runOut' (In against unit Out); harvest = 'runIn'
+-- (Out against unit In).  Re-seat who is \"the process\" — verbs flip;
+-- 'In'/'Out' do not.
+--
+-- >>> let (outP, inP) = open ("payload" :: String)
+-- >>> let (outU, inU) = open ()
+-- >>> run (runOut inP outU) "ignored"
+-- ()
+-- >>> run (runIn outP inU) ()
+-- "payload"
 open :: a -> (Out (->) (,) a, In (->) (,) a)
 open seed = (outA, inA)
   where
     outA = Out $ \_ -> Arr (const seed)
     inA = In $ \o -> runIn o inA
-
--- | Unit-grounded /commit/ shape: @'In' a@ plugged against @'Out' ()@.
---
--- @
---   asCommit :: In arr t a -> Out arr t () -> Trace t arr a ()
--- @
---
--- Same port shape as 'Circuit.Queue.Commit' (@a → ()@): feed @a@, discard
--- into the monoidal unit.  Free ends stay @'In'@/@'Out'@; this is a
--- /view/, not a second primitive.
---
--- Mock 2 (unit-ground commit): pure constant channel discards the payload.
---
--- >>> let (outA, inA) = open (7 :: Int)
--- >>> let (outU, _inU) = open ()
--- >>> run (asCommit inA outU) 99
--- ()
-asCommit :: In arr t a -> Out arr t () -> Trace t arr a ()
-asCommit i o = runOut i o
-
--- | Unit-grounded /emit/ shape: @'Out' a@ plugged against @'In' ()@.
---
--- @
---   asEmit :: Out arr t a -> In arr t () -> Trace t arr () a
--- @
---
--- Same port shape as 'Circuit.Queue.Emit' (@() → a@): harvest @a@ from
--- the unit.  Dual of 'asCommit'.
---
--- Mock 2 (unit-ground emit): pure constant channel yields the seed.
---
--- >>> let (outA, _inA) = open (7 :: Int)
--- >>> let (_outU, inU) = open ()
--- >>> run (asEmit outA inU) ()
--- 7
---
--- Mock 3 (polarity / process choice): harness /write/ is 'asCommit',
--- harness /read/ is 'asEmit'.  Face-to-face composition on one cell is
--- the same pair of ends; re-seat who is \"the process\" and Write/Read
--- names flip — @'In'@/@'Out'@ do not.
---
--- >>> let (outP, inP) = open ("payload" :: String)
--- >>> let (outU, inU) = open ()
--- >>> let write = asCommit inP outU   -- feed process
--- >>> let read  = asEmit  outP inU    -- harvest process
--- >>> run write "ignored"
--- ()
--- >>> run read ()
--- "payload"
-asEmit :: Out arr t a -> In arr t () -> Trace t arr () a
-asEmit o i = runIn o i
 
 -- | Runtime unit for an STM 'TVar' cell.
 --
