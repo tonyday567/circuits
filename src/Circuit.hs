@@ -72,6 +72,8 @@ module Circuit
     -- * Channel ends
     open,
     openSTM,
+    asCommit,
+    asEmit,
 
     -- * Queues
     Queue (..),
@@ -158,7 +160,9 @@ import Circuit.Dagger
     transpose,
   )
 import Circuit.Ends
-  ( open,
+  ( asCommit,
+    asEmit,
+    open,
     openSTM,
   )
 import Circuit.Free

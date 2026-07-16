@@ -1,7 +1,9 @@
 {-# LANGUAGE RankNTypes #-}
 
 -- | 'Circuit.Ends' re-exports 'Out' and 'In' from 'Circuit.Trace'
--- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar').
+-- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar'),
+-- plus pure unit-grounding views used as proof spikes for
+-- 'Circuit.Queue.Commit' / 'Circuit.Queue.Emit'.
 --
 -- = Background
 --
@@ -19,7 +21,7 @@
 --
 -- The companion and conjoint form an adjunction @In ⊣ Out@.
 -- The unit @η@ is 'open'; the counit @ε@ is 'close'.  The yanking identity
--- @close contra co = runOut contra co@ is the defining characteristic.
+-- @close i o = runOut i o@ is the defining characteristic.
 --
 -- = Intrinsic vs extrinsic
 --
@@ -47,6 +49,17 @@
 -- and conversely. 'Out'/'In' is not a replacement for 'Knot' —
 -- it is a refinement that lets the two channel ends travel independently
 -- before being plugged together with 'close'.
+--
+-- = Proof spikes (pure mocks)
+--
+-- Design gate: unit-ground 'Commit'/'Emit' /before/ treating them as free ends.
+--
+-- * Mock 0 — yank: @'close' i o@ recovers the seed of @'open'@ (below).
+-- * Mock 1–2 — unit-ground: @'asCommit'@ / @'asEmit'@ are @'In'@/@'Out'@
+--   plugged at the monoidal unit @()@. Same shapes as 'Circuit.Queue.Commit'
+--   / 'Circuit.Queue.Emit' (@a → ()@ / @() → a@).
+-- * Mock 3 — polarity: harness write = @'asCommit'@, harness read = @'asEmit'@;
+--   re-seat who is \"the process\" and the app names flip — types do not.
 module Circuit.Ends
   ( -- * Channel ends (re-exported from 'Circuit')
     Out (..),
@@ -55,6 +68,10 @@ module Circuit.Ends
 
     -- * Unit
     open,
+
+    -- * Unit-grounded views (Commit / Emit shapes)
+    asCommit,
+    asEmit,
 
     -- * Runtime unit
     openSTM,
@@ -67,6 +84,10 @@ import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
 import Prelude hiding (id, (.))
 
+-- $setup
+-- >>> import Circuit (run)
+-- >>> import Circuit.Ends
+
 -- | @η@ — the unit of the companion/conjoint adjunction (pure case).
 --
 -- Create two channel ends from a seed value.  The seed becomes the
@@ -74,15 +95,67 @@ import Prelude hiding (id, (.))
 -- the conjoint calls the companion back, which returns the seed —
 -- the mutual recursion bottoms out because the companion returns first.
 --
--- >>> import Circuit (run)
--- >>> let (co, contra) = open (42 :: Int)
--- >>> run (close contra co) 99
+-- Mock 0 (yank): close recovers the seed, independent of the payload.
+--
+-- >>> let (outA, inA) = open (42 :: Int)
+-- >>> run (close inA outA) 99
 -- 42
 open :: a -> (Out (->) (,) a, In (->) (,) a)
-open seed = (co, contra)
+open seed = (outA, inA)
   where
-    co = Out $ \_ -> Arr (const seed)
-    contra = In $ \c -> runIn c contra
+    outA = Out $ \_ -> Arr (const seed)
+    inA = In $ \o -> runIn o inA
+
+-- | Unit-grounded /commit/ shape: @'In' a@ plugged against @'Out' ()@.
+--
+-- @
+--   asCommit :: In arr t a -> Out arr t () -> Trace t arr a ()
+-- @
+--
+-- Same port shape as 'Circuit.Queue.Commit' (@a → ()@): feed @a@, discard
+-- into the monoidal unit.  Free ends stay @'In'@/@'Out'@; this is a
+-- /view/, not a second primitive.
+--
+-- Mock 2 (unit-ground commit): pure constant channel discards the payload.
+--
+-- >>> let (outA, inA) = open (7 :: Int)
+-- >>> let (outU, _inU) = open ()
+-- >>> run (asCommit inA outU) 99
+-- ()
+asCommit :: In arr t a -> Out arr t () -> Trace t arr a ()
+asCommit i o = runOut i o
+
+-- | Unit-grounded /emit/ shape: @'Out' a@ plugged against @'In' ()@.
+--
+-- @
+--   asEmit :: Out arr t a -> In arr t () -> Trace t arr () a
+-- @
+--
+-- Same port shape as 'Circuit.Queue.Emit' (@() → a@): harvest @a@ from
+-- the unit.  Dual of 'asCommit'.
+--
+-- Mock 2 (unit-ground emit): pure constant channel yields the seed.
+--
+-- >>> let (outA, _inA) = open (7 :: Int)
+-- >>> let (_outU, inU) = open ()
+-- >>> run (asEmit outA inU) ()
+-- 7
+--
+-- Mock 3 (polarity / process choice): harness /write/ is 'asCommit',
+-- harness /read/ is 'asEmit'.  Face-to-face composition on one cell is
+-- the same pair of ends; re-seat who is \"the process\" and Write/Read
+-- names flip — @'In'@/@'Out'@ do not.
+--
+-- >>> let (outP, inP) = open ("payload" :: String)
+-- >>> let (outU, inU) = open ()
+-- >>> let write = asCommit inP outU   -- feed process
+-- >>> let read  = asEmit  outP inU    -- harvest process
+-- >>> run write "ignored"
+-- ()
+-- >>> run read ()
+-- "payload"
+asEmit :: Out arr t a -> In arr t () -> Trace t arr () a
+asEmit o i = runIn o i
 
 -- | Runtime unit for an STM 'TVar' cell.
 --
@@ -90,20 +163,19 @@ open seed = (co, contra)
 -- the cell back through the companion.  This gives 'close' a duplex
 -- (write-then-read) meaning over a shared mutable cell.
 --
--- >>> import Circuit (run)
 -- >>> import Control.Arrow (Kleisli (..), runKleisli)
 -- >>> import Control.Concurrent.STM
 -- >>> t <- newTVarIO "before"
--- >>> (co, contra) <- openSTM t
--- >>> runKleisli (run (close contra co)) "after"
+-- >>> (outA, inA) <- openSTM t
+-- >>> runKleisli (run (close inA outA)) "after"
 -- "after"
 openSTM :: TVar a -> IO (Out (Kleisli IO) (,) a, In (Kleisli IO) (,) a)
-openSTM tvar = pure (co, contra)
+openSTM tvar = pure (outA, inA)
   where
-    co = Out $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
-    contra = In $ \co' ->
+    outA = Out $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
+    inA = In $ \o ->
       Arr
         ( Kleisli $ \a -> do
             atomically (writeTVar tvar a)
-            runKleisli (run (runIn co' contra)) a
+            runKleisli (run (runIn o inA)) a
         )

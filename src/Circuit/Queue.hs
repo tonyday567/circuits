@@ -56,10 +56,18 @@ import Prelude
 -- pins it for readability.
 type WireK m = Trace (,) (Kleisli m)
 
--- | Emit elements of type @a@.
+-- | Emit elements of type @a@ — unit-grounded /out/ leg (@() → a@).
+--
+-- Derived from free ends: same shape as
+-- @'Circuit.Ends.asEmit' out inU@ ( 'Out' @a@ plugged against 'In' @()@ ).
+-- Not a free end; see 'Circuit.Ends' proof spikes.
 type Emit m a = WireK m () a
 
--- | Commit elements of type @a@.
+-- | Commit elements of type @a@ — unit-grounded /in/ leg (@a → ()@).
+--
+-- Derived from free ends: same shape as
+-- @'Circuit.Ends.asCommit' in outU@ ( 'In' @a@ plugged against 'Out' @()@ ).
+-- Not a free end; see 'Circuit.Ends' proof spikes.
 type Commit m a = WireK m a ()
 
 -- ---------------------------------------------------------------------------
