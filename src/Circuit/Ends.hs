@@ -69,6 +69,7 @@ module Circuit.Ends
 
     -- * Unit (matched pair)
     open,
+    openK,
 
     -- * Runtime unit
     openSTM,
@@ -161,6 +162,17 @@ open :: a -> (Out (->) (,) a, In (->) (,) a)
 open seed = (outA, inA)
   where
     outA = Out $ \_ -> Arr (const seed)
+    inA = In $ \o -> runIn o inA
+
+-- | 'open' over 'Kleisli' @m@ — same constant-channel shape as pure 'open'.
+--
+-- Use for unit ends at @()@ when unit-plugging IO free ends
+-- (e.g. 'Circuit.Repl.openRepl' + @openK ()@).
+openK :: (Monad m) => a -> (Out (Kleisli m) (,) a, In (Kleisli m) (,) a)
+openK seed = (outA, inA)
+  where
+    outA = Out $ \_ -> Arr (Kleisli $ \_ -> pure seed)
+    -- Same shape as pure 'open': In continues through the opposing Out.
     inA = In $ \o -> runIn o inA
 
 -- | Runtime unit for an STM 'TVar' cell.

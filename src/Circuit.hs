@@ -71,6 +71,7 @@ module Circuit
 
     -- * Channel ends
     open,
+    openK,
     openSTM,
 
     -- * Queues
@@ -159,6 +160,7 @@ import Circuit.Dagger
   )
 import Circuit.Ends
   ( open,
+    openK,
     openSTM,
   )
 import Circuit.Free

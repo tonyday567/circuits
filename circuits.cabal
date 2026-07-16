@@ -70,6 +70,7 @@ library
     Circuit.Classes
     Circuit.Dagger
     Circuit.Ends
+    Circuit.Ends.File
     Circuit.Ends.Net
     Circuit.Free
     Circuit.Hyper

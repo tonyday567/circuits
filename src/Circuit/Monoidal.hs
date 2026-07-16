@@ -47,7 +47,8 @@ import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Layer (run)
 import Circuit.Monoidal.Category qualified as MC
 import Circuit.Trace (Trace (..), Traced (..), untraceD)
-import Control.Arrow (Kleisli)
+import Control.Arrow (Kleisli (..))
+import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.Profunctor (Profunctor, dimap)
@@ -292,6 +293,27 @@ instance Tensor (,) (->) where
 -- | Cartesian symmetry on functions.
 instance Action (,) (->) where
   swap (a, b) = (b, a)
+  {-# INLINE swap #-}
+
+-- | Cartesian tensor on 'Kleisli' (effectful sequential product).
+instance (Monad m) => Tensor (,) (Kleisli m) where
+  par (Kleisli f) (Kleisli g) =
+    Kleisli $ \(a, c) -> do
+      b <- f a
+      d <- g c
+      pure (b, d)
+  {-# INLINE par #-}
+  unitl = Kleisli $ \((), a) -> pure a
+  {-# INLINE unitl #-}
+  unitl' = Kleisli $ \a -> pure ((), a)
+  {-# INLINE unitl' #-}
+  unitr = Kleisli $ \(a, ()) -> pure a
+  {-# INLINE unitr #-}
+  unitr' = Kleisli $ \a -> pure (a, ())
+  {-# INLINE unitr' #-}
+
+instance (Monad m) => Action (,) (Kleisli m) where
+  swap = Kleisli $ \(a, b) -> pure (b, a)
   {-# INLINE swap #-}
 
 type instance Unit Either = Void
