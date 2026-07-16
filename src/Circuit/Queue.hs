@@ -56,18 +56,37 @@ import Prelude
 -- pins it for readability.
 type WireK m = Trace (,) (Kleisli m)
 
--- | Emit elements of type @a@ — unit-grounded /out/ leg (@() → a@).
+-- | Emit elements of type @a@ — unit-grounded witness of free 'Out'.
 --
--- Derived from free ends: same shape as
--- @'Circuit.Ends.asEmit' out inU@ ( 'Out' @a@ plugged against 'In' @()@ ).
--- Not a free end; see 'Circuit.Ends' proof spikes.
+-- @'Emit' m a = 'Trace' (,) ('Kleisli' m) () a@  ≅  @() → a@.
+--
+-- Not a free end: same port shape as pure
+-- @'Circuit.Ends.asEmit' outA inU@ ('Out' @a@ plugged against 'In' @()@).
+-- Queue uses this shape for extrinsic (IO) wires; free ends remain
+-- 'Circuit.Ends.In' / 'Circuit.Ends.Out'.
+--
+-- >>> import Circuit (run)
+-- >>> import Circuit.Ends (asEmit, open)
+-- >>> let (outA, _inA) = open ("emit me" :: String)
+-- >>> let (_outU, inU) = open ()
+-- >>> run (asEmit outA inU) ()
+-- "emit me"
 type Emit m a = WireK m () a
 
--- | Commit elements of type @a@ — unit-grounded /in/ leg (@a → ()@).
+-- | Commit elements of type @a@ — unit-grounded witness of free 'In'.
 --
--- Derived from free ends: same shape as
--- @'Circuit.Ends.asCommit' in outU@ ( 'In' @a@ plugged against 'Out' @()@ ).
--- Not a free end; see 'Circuit.Ends' proof spikes.
+-- @'Commit' m a = 'Trace' (,) ('Kleisli' m) a ()@  ≅  @a → ()@.
+--
+-- Not a free end: same port shape as pure
+-- @'Circuit.Ends.asCommit' inA outU@ ('In' @a@ plugged against 'Out' @()@).
+-- See 'Circuit.Ends.asCommit' for the pure proof spike.
+--
+-- >>> import Circuit (run)
+-- >>> import Circuit.Ends (asCommit, open)
+-- >>> let (_outA, inA) = open ("consume me" :: String)
+-- >>> let (outU, _inU) = open ()
+-- >>> run (asCommit inA outU) "payload"
+-- ()
 type Commit m a = WireK m a ()
 
 -- ---------------------------------------------------------------------------
