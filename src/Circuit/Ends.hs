@@ -137,6 +137,17 @@ import Prelude hiding (id, (.))
 -- >>> run (runIn outA inU >>> runOut inA outU) ()
 -- ()
 --
+-- Compound (Mock 6): cross-close two independent 'open' pairs. An
+-- @'In' a@ closes with /any/ @'Out' a@ — ends are independent horizontal
+-- arrows, not a matched session.
+--
+-- >>> let (out10, in10) = open (10 :: Int)
+-- >>> let (out20, in20) = open (20 :: Int)
+-- >>> run (close in20 out10) 99
+-- 10
+-- >>> run (close in10 out20) 99
+-- 20
+--
 -- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int) in run (close inA outA) 0 == n
 --
 -- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int); (outU, inU) = open () in run (runOut inA outU >>> runIn outA inU) (0 :: Int) == n
