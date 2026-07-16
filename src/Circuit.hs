@@ -61,8 +61,8 @@ module Circuit
   ( -- * Trace
     Trace (..),
     Traced,
-    Co (..),
-    Contra (..),
+    Out (..),
+    In (..),
     close,
     -- | Close a feedback loop. See "Circuit.Trace".
     trace,
@@ -209,8 +209,8 @@ import Circuit.Queue
   )
 import Circuit.Classes (Ob)
 import Circuit.Trace
-  ( Co (..),
-    Contra (..),
+  ( Out (..),
+    In (..),
     Trace (..),
     Traced,
     close,

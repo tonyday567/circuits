@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | 'Circuit.Ends' re-exports 'Co' and 'Contra' from 'Circuit.Trace'
+-- | 'Circuit.Ends' re-exports 'Out' and 'In' from 'Circuit.Trace'
 -- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar').
 --
 -- = Background
@@ -11,20 +11,20 @@
 -- identity functor @id@, these specialise to:
 --
 -- @
---   Companion(id)(x, a) = p(x, a)      -- 'Co'
---   Conjoint(id)(a, x)  = p(a, x)      -- 'Contra'
+--   Companion(id)(x, a) = p(x, a)      -- 'Out'
+--   Conjoint(id)(a, x)  = p(a, x)      -- 'In'
 -- @
 --
 -- where @p@ is the hom-profunctor ('Circuit' @arr@ @t@).
 --
--- The companion and conjoint form an adjunction @Contra ⊣ Co@.
+-- The companion and conjoint form an adjunction @In ⊣ Out@.
 -- The unit @η@ is 'open'; the counit @ε@ is 'close'.  The yanking identity
--- @close contra co = runCo contra co@ is the defining characteristic.
+-- @close contra co = runOut contra co@ is the defining characteristic.
 --
 -- = Intrinsic vs extrinsic
 --
 -- When the channel is structural (pure 'Circuit's with 'Knot' feedback),
--- 'Co' and 'Contra' are genuinely different roles — the 'forall x'
+-- 'Out' and 'In' are genuinely different roles — the 'forall x'
 -- forces mutual recursion.  This is the /intrinsic/ case.
 --
 -- When the channel is a runtime object (an 'IORef', 'TChan', socket), both
@@ -36,7 +36,7 @@
 -- Slogan: @close@ is the dual-end analogue of 'trace'. 'Knot' introduces
 -- feedback and 'trace' resolves it; 'open' introduces a matched pair of
 -- channel ends and 'close' resolves them. The matched pair lives on one
--- facet: both 'Co' and 'Contra' refer to the same hidden channel.
+-- facet: both 'Out' and 'In' refer to the same hidden channel.
 --
 -- By the spider lemma of proarrow equipment, any 'Knot' factors as:
 --
@@ -44,13 +44,13 @@
 --   Knot body = open >>> body' >>> close
 -- @
 --
--- and conversely. 'Co'/'Contra' is not a replacement for 'Knot' —
+-- and conversely. 'Out'/'In' is not a replacement for 'Knot' —
 -- it is a refinement that lets the two channel ends travel independently
 -- before being plugged together with 'close'.
 module Circuit.Ends
   ( -- * Channel ends (re-exported from 'Circuit')
-    Co (..),
-    Contra (..),
+    Out (..),
+    In (..),
     close,
 
     -- * Unit
@@ -62,7 +62,7 @@ module Circuit.Ends
 where
 
 import Circuit.Layer (run)
-import Circuit.Trace (Co (..), Contra (..), Trace (..), close)
+import Circuit.Trace (Out (..), In (..), Trace (..), close)
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
 import Prelude hiding (id, (.))
@@ -78,11 +78,11 @@ import Prelude hiding (id, (.))
 -- >>> let (co, contra) = open (42 :: Int)
 -- >>> run (close contra co) 99
 -- 42
-open :: a -> (Co (->) (,) a, Contra (->) (,) a)
+open :: a -> (Out (->) (,) a, In (->) (,) a)
 open seed = (co, contra)
   where
-    co = Co $ \_ -> Arr (const seed)
-    contra = Contra $ \c -> runContra c contra
+    co = Out $ \_ -> Arr (const seed)
+    contra = In $ \c -> runIn c contra
 
 -- | Runtime unit for an STM 'TVar' cell.
 --
@@ -97,13 +97,13 @@ open seed = (co, contra)
 -- >>> (co, contra) <- openSTM t
 -- >>> runKleisli (run (close contra co)) "after"
 -- "after"
-openSTM :: TVar a -> IO (Co (Kleisli IO) (,) a, Contra (Kleisli IO) (,) a)
+openSTM :: TVar a -> IO (Out (Kleisli IO) (,) a, In (Kleisli IO) (,) a)
 openSTM tvar = pure (co, contra)
   where
-    co = Co $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
-    contra = Contra $ \co' ->
+    co = Out $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
+    contra = In $ \co' ->
       Arr
         ( Kleisli $ \a -> do
             atomically (writeTVar tvar a)
-            runKleisli (run (runContra co' contra)) a
+            runKleisli (run (runIn co' contra)) a
         )

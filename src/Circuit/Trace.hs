@@ -34,7 +34,7 @@
 --
 --   * 'Knot' introduces feedback; 'trace' resolves it. This is the gold
 --     type-changing pair; composition fuses 'Knot's.
---   * 'Co' and 'Contra' introduce the two polar ends of a channel;
+--   * 'Out' and 'In' introduce the two polar ends of a channel;
 --     'close' resolves them.
 --
 -- Slogan: @close@ is the dual-end analogue of 'trace'. By the spider lemma,
@@ -45,7 +45,7 @@
 -- @
 --
 -- where @open@ creates the matched pair of ends and @close@ plugs them
--- together. The matched pair lives on one facet: both 'Co' and 'Contra'
+-- together. The matched pair lives on one facet: both 'Out' and 'In'
 -- refer to the same hidden channel.
 --
 -- == Three moves on monoidal structure
@@ -89,8 +89,8 @@ module Circuit.Trace
     compD,
 
     -- * Channel ends
-    Co (..),
-    Contra (..),
+    Out (..),
+    In (..),
     close,
 
     -- * Stateful IO stages
@@ -650,20 +650,20 @@ instance Layer (Trace t) where
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
 
--- | 'Co' is the companion of the identity functor in the proarrow equipment
+-- | 'Out' is the companion of the identity functor in the proarrow equipment
 -- over 'Trace'.  Covariant in @a@ (sits in the output position).
-newtype Co arr t a = Co
+newtype Out arr t a = Out
   { -- | Run the companion, supplying the other end.
-    runContra :: forall x. Contra arr t x -> Trace t arr x a
+    runIn :: forall x. In arr t x -> Trace t arr x a
   }
 
--- | 'Contra' is the conjoint of the identity functor.  Contravariant in
+-- | 'In' is the conjoint of the identity functor.  Contravariant in
 -- @a@ (sits in the input position).
-newtype Contra arr t a = Contra
+newtype In arr t a = In
   { -- | Run the conjoint, supplying the other end.
-    runCo :: forall x. Co arr t x -> Trace t arr a x
+    runOut :: forall x. Out arr t x -> Trace t arr a x
   }
 
 -- | Plug two channel ends together, producing a circuit from @a@ to @a@.
-close :: Contra arr t a -> Co arr t a -> Trace t arr a a
-close contra = runCo contra
+close :: In arr t a -> Out arr t a -> Trace t arr a a
+close contra = runOut contra
