@@ -96,7 +96,8 @@ data Queue a
     Unbounded
   | -- | Bounded FIFO with backpressure (write blocks when full).
     Bounded Int
-  | -- | Single-slot buffer (write overwrites, read empties).
+  | -- | Single-slot buffer (write rejects when full — MVar-style A).
+    -- Overwrite-on-full (B) will be a separate SwapQ row (future).
     Single
   | -- | Always holds the latest value (overwrites, never blocks).
     Latest a
@@ -148,11 +149,77 @@ endsSTM = \case
 -- All strategies operate on a @[a]@ buffer.  'Bool' signals write
 -- acceptance; 'Maybe' signals value availability.
 --
--- >>> let (write, read) = endsPure Unbounded
--- >>> let (b1, _) = write 1 []
--- >>> let (b2, _) = write 2 b1
--- >>> read b2
+-- === Unbounded
+--
+-- >>> let (w_ub, r_ub) = endsPure (Unbounded :: Queue Int)
+-- >>> let (ub1, ow1) = w_ub 1 []
+-- >>> ow1
+-- True
+-- >>> let (ub2, ow2) = w_ub 2 ub1
+-- >>> ow2
+-- True
+-- >>> r_ub ub2
 -- ([2],Just 1)
+-- >>> r_ub []
+-- ([],Nothing)
+--
+-- === Bounded
+--
+-- >>> let (w_b, r_b) = endsPure (Bounded 2 :: Queue Int)
+-- >>> let (bb1, bw1) = w_b 1 []
+-- >>> bw1
+-- True
+-- >>> let (bb2, bw2) = w_b 2 bb1
+-- >>> bw2
+-- True
+-- >>> let (bb3, bw3) = w_b 3 bb2
+-- >>> bw3
+-- False
+-- >>> r_b bb2
+-- ([2],Just 1)
+-- >>> r_b []
+-- ([],Nothing)
+--
+-- === Single (A: MVar-style — write rejects when full)
+--
+-- >>> let (w_s, r_s) = endsPure (Single :: Queue Int)
+-- >>> let (sb1, sw1) = w_s 1 []
+-- >>> sw1
+-- True
+-- >>> let (sb2, sw2) = w_s 2 sb1
+-- >>> sw2
+-- False
+-- >>> sb2
+-- [1]
+-- >>> r_s sb1
+-- ([],Just 1)
+-- >>> r_s []
+-- ([],Nothing)
+--
+-- === Latest (read never empties; returns seed when empty)
+--
+-- >>> let (w_l, r_l) = endsPure (Latest 0 :: Queue Int)
+-- >>> r_l []
+-- ([],Just 0)
+-- >>> let (lb1, _) = w_l 5 []
+-- >>> r_l lb1
+-- ([5],Just 5)
+-- >>> let (lb2, _) = w_l 7 lb1
+-- >>> r_l lb2
+-- ([7],Just 7)
+--
+-- === Newest (bounded; drops oldest when full)
+--
+-- >>> let (w_n, r_n) = endsPure (Newest 2 :: Queue Int)
+-- >>> let (nb1, _) = w_n 1 []
+-- >>> let (nb2, _) = w_n 2 nb1
+-- >>> nb2
+-- [1,2]
+-- >>> let (nb3, _) = w_n 3 nb2
+-- >>> nb3
+-- [2,3]
+-- >>> r_n nb3
+-- ([3],Just 2)
 endsPure :: Queue a -> (a -> [a] -> ([a], Bool), [a] -> ([a], Maybe a))
 endsPure = \case
   Unbounded ->
@@ -163,8 +230,10 @@ endsPure = \case
     ( \x buf -> if length buf < n then (buf ++ [x], True) else (buf, False),
       \case [] -> ([], Nothing); x : xs -> (xs, Just x)
     )
+  -- Single: MVar-style (A).  Write succeeds only when empty;
+  -- overwrite-on-full (B) will live in the future SwapQ row.
   Single ->
-    ( \x _ -> ([x], True),
+    ( \x buf -> case buf of [] -> ([x], True); _ -> (buf, False),
       \case [] -> ([], Nothing); x : _ -> ([], Just x)
     )
   Latest d ->
