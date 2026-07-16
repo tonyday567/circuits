@@ -228,6 +228,10 @@ endsQueue q = do
 --
 -- This is the extrinsic analogue of 'Circuit.Ends.close': two ends
 -- that share an STM channel are composed into @Circuit a a@.
+--
+-- >>> (pushA, popA) <- atomically (endsQueue Unbounded :: STM (WireK IO Int (), WireK IO () Int))
+-- >>> runKleisli (run (closeQueue pushA popA)) 42
+-- 42
 closeQueue ::
   (Traced t (Kleisli IO)) =>
   Trace t (Kleisli IO) a () ->

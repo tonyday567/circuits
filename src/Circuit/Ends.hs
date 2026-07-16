@@ -59,7 +59,7 @@
 --   runIn  outA inU  :: Trace t arr () a   -- Out at unit  (() → a)
 -- @
 --
--- Doctests below gate that story (yank + unit plug + polarity).
+-- Doctests below gate that story (yank + unit plug + polarity + composition laws).
 module Circuit.Ends
   ( -- * Free channel ends
     Out (..),
@@ -82,6 +82,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit (run)
+-- >>> import Circuit.Classes ((>>>))
 -- >>> import Circuit.Ends
 -- >>> import Circuit.Trace (Out (..), In (..), runIn, runOut)
 
@@ -92,13 +93,13 @@ import Prelude hiding (id, (.))
 -- the conjoint calls the companion back, which returns the seed —
 -- the mutual recursion bottoms out because the companion returns first.
 --
--- Yank: 'close' recovers the seed, independent of the payload.
+-- Yank (Mock 0): 'close' recovers the seed, independent of the payload.
 --
 -- >>> let (outA, inA) = open (42 :: Int)
 -- >>> run (close inA outA) 99
 -- 42
 --
--- Unit plug (no wrapper): 'runOut' / 'runIn' at @()@ are the grounded ports.
+-- Unit plug (Mock 1–2, no wrapper): 'runOut' / 'runIn' at @()@ are the grounded ports.
 --
 -- >>> let (outA, inA) = open (7 :: Int)
 -- >>> let (outU, inU) = open ()
@@ -107,7 +108,7 @@ import Prelude hiding (id, (.))
 -- >>> run (runIn outA inU) ()
 -- 7
 --
--- Polarity: feed = 'runOut' (In against unit Out); harvest = 'runIn'
+-- Polarity (Mock 3): feed = 'runOut' (In against unit Out); harvest = 'runIn'
 -- (Out against unit In).  Re-seat who is \"the process\" — verbs flip;
 -- 'In'/'Out' do not.
 --
@@ -117,6 +118,24 @@ import Prelude hiding (id, (.))
 -- ()
 -- >>> run (runIn outP inU) ()
 -- "payload"
+--
+-- Unit-grounding composes to 'close' (Mock 4).
+-- Boring both ends of a pair and composing them recovers the yank.
+--
+-- >>> let (outA, inA) = open (42 :: Int)
+-- >>> let (outU, inU) = open ()
+-- >>> run (runOut inA outU >>> runIn outA inU) 99
+-- 42
+-- >>> run (close inA outA) 99
+-- 42
+--
+-- Emit-then-commit loop is identity on @()@ (Mock 5).
+-- A boring loop around the unit returns the unit.
+--
+-- >>> let (outA, inA) = open (7 :: Int)
+-- >>> let (outU, inU) = open ()
+-- >>> run (runIn outA inU >>> runOut inA outU) ()
+-- ()
 open :: a -> (Out (->) (,) a, In (->) (,) a)
 open seed = (outA, inA)
   where
