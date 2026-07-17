@@ -339,6 +339,20 @@ pop f = Arr (\(s, ()) -> f s)
 
 -- | Create a dual pair: push end and pop end sharing a single STM channel.
 --
+-- Each operation is wrapped in its own 'atomically'.  You cannot batch
+-- multiple writes or a write-plus-read into a single STM transaction.
+--
+-- For atomic composition use 'endsSTM' directly:
+--
+-- >>> (w, r) <- atomically (endsSTM Unbounded :: STM (Int -> STM (), STM Int))
+-- >>> atomically $ w 1 >> w 2 >> r  -- both writes + read in ONE transaction
+-- 1
+--
+-- 'endsQueue' bakes 'atomically' into each circuit step.  The same work
+-- would require three separate 'atomically' calls — visible to concurrent
+-- writers.  When you need multi-op atomicity, reach for 'endsSTM' and wrap
+-- in 'atomically' yourself.
+--
 -- Use 'WireK' to pin the tensor for readability:
 --
 -- >>> (pushA, popA) <- atomically (endsQueue Unbounded :: STM (WireK IO Int (), WireK IO () Int))
