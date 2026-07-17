@@ -35,7 +35,7 @@ readFileStrict path = do
   length s `seq` hClose h
   pure s
 
--- | Extrinsic free ends for one file path (same shape as 'openSTM').
+-- | Extrinsic free ends for one file path (same shape as 'openK').
 --
 -- * 'Out' — read whole file contents
 -- * 'In' — write whole file, then continue through the opposing 'Out'
