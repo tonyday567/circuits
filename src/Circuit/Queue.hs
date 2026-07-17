@@ -115,12 +115,70 @@ data Queue a
 -- endsSTM :: Queue a -> STM (a -> STM (), STM a)
 -- @
 --
--- The read end blocks until a value is available.
+-- The read end blocks until a value is available.  Write behaviour
+-- varies by strategy:
+--
+-- [/Unbounded/] Never blocks on write.
+-- [/Bounded n/] Blocks on write when @n@ items are queued.
+-- [/Single/] MVar-style: blocks on write when full (A semantics).
+-- [/Latest a/] Never blocks; always holds a value (seed @a@ initially).
+-- [/Newest n/] Never blocks on write (drops oldest); blocks on empty read.
+--
+-- === Unbounded
 --
 -- >>> (w, r) <- atomically (endsSTM Unbounded :: STM (Int -> STM (), STM Int))
 -- >>> atomically $ w 1 >> w 2
 -- >>> atomically r
 -- 1
+-- >>> atomically r
+-- 2
+--
+-- Multi-op compose in one transaction:
+--
+-- >>> (w, r) <- atomically (endsSTM Unbounded :: STM (Int -> STM (), STM Int))
+-- >>> atomically $ w 1 >> w 2 >> r
+-- 1
+--
+-- === Bounded
+--
+-- >>> (w, r) <- atomically (endsSTM (Bounded 2) :: STM (Int -> STM (), STM Int))
+-- >>> atomically $ w 1 >> w 2
+-- >>> atomically r
+-- 1
+-- >>> atomically r
+-- 2
+-- >>> atomically (w 3)  -- succeeds: reads drained the queue
+-- >>> atomically r
+-- 3
+--
+-- === Single (A: MVar-style — write blocks when full)
+--
+-- >>> (w, r) <- atomically (endsSTM (Single :: Queue Int) :: STM (Int -> STM (), STM Int))
+-- >>> atomically $ w 42
+-- >>> atomically r
+-- 42
+-- >>> atomically $ w 99 >> r  -- compose: write then read in one transaction
+-- 99
+--
+-- === Latest (always holds a value, never blocks)
+--
+-- >>> (w, r) <- atomically (endsSTM (Latest 0) :: STM (Int -> STM (), STM Int))
+-- >>> atomically r
+-- 0
+-- >>> atomically $ w 5
+-- >>> atomically r
+-- 5
+-- >>> atomically $ w 7 >> r  -- compose: overwrite then read
+-- 7
+--
+-- === Newest (bounded; drops oldest when full)
+--
+-- >>> (w, r) <- atomically (endsSTM (Newest 2) :: STM (Int -> STM (), STM Int))
+-- >>> atomically $ w 1 >> w 2 >> w 3  -- 3rd write drops oldest (1)
+-- >>> atomically r
+-- 2
+-- >>> atomically r
+-- 3
 endsSTM :: Queue a -> STM (a -> STM (), STM a)
 endsSTM = \case
   Bounded n -> do
