@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 -- | 'Circuit.Ends' re-exports 'Out' and 'In' from 'Circuit.Trace'
--- and provides the units 'open' (pure) and 'openSTM' (runtime 'TVar').
+-- and provides the unit 'open' (pure) and its Kleisli lift 'openK'.
 --
 -- = Background
 --
@@ -70,16 +70,12 @@ module Circuit.Ends
     -- * Unit (matched pair)
     open,
     openK,
-
-    -- * Runtime unit
-    openSTM,
   )
 where
 
 import Circuit.Layer (run)
 import Circuit.Trace (In (..), Out (..), Trace (..), close)
 import Control.Arrow (Kleisli (..))
-import Control.Concurrent.STM
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -174,26 +170,3 @@ openK seed = (outA, inA)
     outA = Out $ \_ -> Arr (Kleisli $ \_ -> pure seed)
     -- Same shape as pure 'open': In continues through the opposing Out.
     inA = In $ \o -> runIn o inA
-
--- | Runtime unit for an STM 'TVar' cell.
---
--- The companion reads the cell; the conjoint writes its input and then reads
--- the cell back through the companion.  This gives 'close' a duplex
--- (write-then-read) meaning over a shared mutable cell.
---
--- >>> import Control.Arrow (Kleisli (..), runKleisli)
--- >>> import Control.Concurrent.STM
--- >>> t <- newTVarIO "before"
--- >>> (outA, inA) <- openSTM t
--- >>> runKleisli (run (close inA outA)) "after"
--- "after"
-openSTM :: TVar a -> IO (Out (Kleisli IO) (,) a, In (Kleisli IO) (,) a)
-openSTM tvar = pure (outA, inA)
-  where
-    outA = Out $ \_ -> Arr (Kleisli $ \_ -> readTVarIO tvar)
-    inA = In $ \o ->
-      Arr
-        ( Kleisli $ \a -> do
-            atomically (writeTVar tvar a)
-            runKleisli (run (runIn o inA)) a
-        )

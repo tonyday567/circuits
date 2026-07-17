@@ -550,6 +550,6 @@ owns.** Same packing, different 2-cell.
 - Stroiński, [*Module categories, internal bimodules and Tambara modules*](https://arxiv.org/abs/2210.13443v1)  
 - [proequip.md](proequip.md) — foldH, Cell, Knot as 2-cell  
 - [proarrow.md](proarrow.md) — Traced ≅ Strong + Costrong  
-- `Circuit.Ends` — `open` / `openSTM`, spider lemma  
+- `Circuit.Ends` — `open` / `openK`, spider lemma  
 - `Circuit.Trace` — `Co`, `Contra`, `close`, `Knot`  
 - nLab: [equipment](https://ncatlab.org/nlab/show/equipment), [Tambara module](https://ncatlab.org/nlab/show/Tambara+module)
