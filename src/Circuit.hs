@@ -82,6 +82,7 @@ module Circuit
     endsPure,
     endsQueue,
     closeQueue,
+    boxOf,
 
     -- * Free
     Free,
@@ -202,6 +203,7 @@ import Circuit.Queue
     Emit,
     Queue (..),
     WireK,
+    boxOf,
     closeQueue,
     endsPure,
     endsQueue,

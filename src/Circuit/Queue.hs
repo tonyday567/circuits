@@ -33,28 +33,37 @@ module Circuit.Queue
     -- * State-threading lifters
     push,
     pop,
+    drain,
+    snapshot,
+
+    -- * Box view
+    boxOf,
   )
 where
 
 import Circuit.Classes ((>>>))
+import Circuit.Ends (openK)
 import Circuit.Layer (run)
-import Circuit.Trace (In (..), Out (..), Trace (..), Traced)
+import Circuit.Monoidal (Tensor (..))
+import Circuit.Trace (In (..), Out (..), Trace (..), Traced, runIn, runOut)
 import Control.Applicative
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
 import Control.Monad (void)
+import Control.Monad.Fix (MonadFix)
 import Prelude
 
 -- $setup
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XNondecreasingIndentation
--- >>> import Circuit (Trace(..), run)
--- >>> import Circuit.Ends (openK)
--- >>> import Circuit.Queue
--- >>> import Circuit.Trace (runIn, runOut, close)
--- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> import Circuit (Trace(..), run, par)
 -- >>> import Circuit.Classes ((>>>))
+-- >>> import Circuit.Ends (open, openK)
+-- >>> import Circuit.Queue
+-- >>> import Circuit.Trace (In(..), Out(..), runIn, runOut, close)
+-- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Control.Concurrent.STM (STM, TQueue, atomically, newTQueueIO, readTQueue, writeTQueue)
+-- >>> import Data.Profunctor (lmap, rmap)
 
 -- ---------------------------------------------------------------------------
 -- Type aliases
@@ -382,6 +391,188 @@ push f = Arr (uncurry f)
 pop :: (s -> (s, Maybe a)) -> Trace t (->) (s, ()) (s, Maybe a)
 pop f = Arr (\(s, ()) -> f s)
 
+-- | Drain all available values from the state, returning them in order.
+--
+-- Unlike 'pop', which removes one value, 'drain' empties the buffer in a
+-- single step. Use with the batch reader from 'endsPureBatch' or a custom
+-- log cursor.
+--
+-- >>> let qdrain = drain (\buf -> ([], buf))
+-- >>> run (qdrain :: Trace (,) (->) ([Int], ()) ([Int], [Int])) ([1,2,3], ())
+-- ([],[1,2,3])
+drain :: (s -> (s, [a])) -> Trace t (->) (s, ()) (s, [a])
+drain f = Arr (\(s, ()) -> f s)
+
+-- | Read all available values from the state without emptying it.
+--
+-- >>> let qsnap = snapshot (\buf -> (buf, buf))
+-- >>> run (qsnap :: Trace (,) (->) ([Int], ()) ([Int], [Int])) ([1,2,3], ())
+-- ([1,2,3],[1,2,3])
+snapshot :: (s -> (s, [a])) -> Trace t (->) (s, ()) (s, [a])
+snapshot f = Arr (\(s, ()) -> f s)
+
+-- ---------------------------------------------------------------------------
+-- Box view — monoidal packaging of a free dual pair
+-- ---------------------------------------------------------------------------
+
+-- | Box as a monoidal view of a free dual pair.
+--
+-- The primary store is the 'Ends' record (the pair of free ends). 'boxOf'
+-- packages the unit-plugged halves into one morphism @(a, ()) → ((), b)@
+-- for wiring into larger monoidal diagrams. Keep the 'Ends' record if you
+-- need independent async access; 'boxOf' is lossy as a view of the pair.
+--
+-- * Law 2 (splay): from 'boxOf ends' you cannot recover the independent free
+--   halves.
+-- * Law 3 (bifunctor / dimap): contramap on the commit side is
+--   pre-composition with 'first'; postmap on the emit side is
+--   post-composition with 'second'.
+-- * Law 5 (queue instance): unit-plugged queue wires already have the box
+--   shape, so their view is just 'par'.
+--
+-- >>> import Data.Bifunctor (first, second)
+-- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (,) (Kleisli STM) Int Int))
+-- >>> let box = boxOf ends
+-- >>> :t box
+-- box :: Trace (,) (Kleisli STM) (Int, ()) ((), Int)
+-- >>> let commit' = In (\o -> lmap (+10) (runOut (commit ends) o))
+-- >>> let box' = boxOf (Ends commit' (emit ends))
+-- >>> :t box'
+-- box' :: Trace (,) (Kleisli STM) (Int, ()) ((), Int)
+-- >>> (push, pop) <- atomically (endsQueue Unbounded :: STM (WireK IO Int (), WireK IO () Int))
+-- >>> let queueBox = par push pop :: Trace (,) (Kleisli IO) (Int, ()) ((), Int)
+-- >>> :t queueBox
+-- queueBox :: Trace (,) (Kleisli IO) (Int, ()) ((), Int)
+boxOf :: (MonadFix m) => Ends (,) (Kleisli m) a b -> Trace (,) (Kleisli m) (a, ()) ((), b)
+boxOf ends = par (runOut (commit ends) outU) (runIn (emit ends) inU)
+  where
+    (outU, inU) = openK ()
+
+-- ---------------------------------------------------------------------------
+-- Box Maybe/Bool signalling translated up into Trace
+-- ---------------------------------------------------------------------------
+
+-- | Old @box@ used doors that signalled on every step:
+--
+-- @
+--   emit   :: m (Maybe a)   -- Nothing = closed / empty
+--   commit :: a -> m Bool   -- False   = reject / stop
+-- @
+--
+-- In Trace the channel doors are total; the same behaviour is recovered
+-- by carrying Bool/Maybe as payload values, and by treating close/stop as
+-- a separate lifecycle. A 'Single' queue strategy already gives the right
+-- state functions.
+--
+-- >>> let (w, r) = endsPure (Single :: Queue Int)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([], 1)
+-- ([1],True)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([1], 2)
+-- ([1],False)
+-- >>> run (pop r :: Trace (,) (->) ([Int], ()) ([Int], Maybe Int)) ([1], ())
+-- ([],Just 1)
+-- >>> run (pop r :: Trace (,) (->) ([Int], ()) ([Int], Maybe Int)) ([], ())
+-- ([],Nothing)
+--
+-- The free ends still have the total box shape @(a, ()) -> ((), b)@;
+-- signalling never appears in the channel type:
+--
+-- >>> let (outA, inA) = open (1 :: Int) :: (Out (->) (,) Int, In (->) (,) Int)
+-- >>> let (outU, inU) = open () :: (Out (->) (,) (), In (->) (,) ())
+-- >>> let commit = In (\o -> lmap (const ()) (runOut inU o)) :: In (->) (,) Int
+-- >>> :t par (runOut commit outU) (runIn outA inU) :: Trace (,) (->) (Int, ()) ((), Int)
+-- par (runOut commit outU) (runIn outA inU) :: Trace (,) (->) (Int, ()) ((), Int)
+--   :: Trace (,) (->) (Int, ()) ((), Int)
+--
+-- Closure or stop is 'close', 'replClose', or a runner turn — not a value
+-- returned on every emit/commit.
+
+-- ---------------------------------------------------------------------------
+-- Type ladder examples (Trace (t a c) (t d b) claims)
+-- ---------------------------------------------------------------------------
+
+-- | E1 — Unit specialisation is real. 'boxOf' packages the free pair into
+-- the boring box shape @(a, ()) -> ((), b)@; the free pair remains available
+-- beside the view.
+--
+-- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (,) (Kleisli STM) Int Int))
+-- >>> :t boxOf ends
+-- boxOf ends :: Trace (,) (Kleisli STM) (Int, ()) ((), Int)
+-- >>> :t (commit ends, emit ends)
+-- (commit ends, emit ends)
+--   :: (In (Kleisli STM) (,) Int, Out (Kleisli STM) (,) Int)
+
+-- | E2 — Free 'par' has open @c@ / @d@ legs. It does not force unit.
+--
+-- >>> let both = par ((+1) :: Int -> Int) ((*2) :: Int -> Int)
+-- >>> both (3, 4) :: (Int, Int)
+-- (4,8)
+--
+-- The same combinator specialises to the unit-grounded box shape when the
+-- legs are plugged at '()':
+--
+-- >>> let left = const () :: Int -> ()
+-- >>> let right = const (7 :: Int) :: () -> Int
+-- >>> let box = Arr (par left right) :: Trace (,) (->) (Int, ()) ((), Int)
+-- >>> :t box
+-- box :: Trace (,) (->) (Int, ()) ((), Int)
+
+-- | E3 — 'Bool' as commit-ack status payload, not a door type. The channel
+-- stays total; rejection is observed as a returned 'Bool'.
+--
+-- >>> let (w, _r) = endsPure (Single :: Queue Int)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([], 1)
+-- ([1],True)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([1], 2)
+-- ([1],False)
+
+-- | E4 — 'Maybe' as emit partiality payload, not an 'Emitter' door. Empty is
+-- 'Nothing'; a value is 'Just'. (See the Maybe/Bool block above for the full
+-- Single-queue narrative.)
+--
+-- >>> let (_w, r) = endsPure (Single :: Queue Int)
+-- >>> run (pop r :: Trace (,) (->) ([Int], ()) ([Int], Maybe Int)) ([7], ())
+-- ([],Just 7)
+-- >>> run (pop r :: Trace (,) (->) ([Int], ()) ([Int], Maybe Int)) ([], ())
+-- ([],Nothing)
+
+-- | E5 — Stop on empty or reject is a runner decision, not a channel door.
+-- The runner observes the 'Bool'/'Maybe' payloads and decides whether to
+-- continue; the free halves remain total.
+--
+-- >>> let (w, r) = endsPure (Single :: Queue Int)
+-- >>> run (pop r :: Trace (,) (->) ([Int], ()) ([Int], Maybe Int)) ([9], ())
+-- ([],Just 9)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([], 9)
+-- ([9],True)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([9], 5)
+-- ([9],False)
+
+-- | E6 — Withering is pre/post composition on payload legs, not a second
+-- theory. Emit-side wither filters the harvested list; commit-side wither
+-- is the dual 'lmap'/'first' construction.
+--
+-- >>> let (w, r) = endsPure (Unbounded :: Queue Int)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([], 1)
+-- ([1],True)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([1], 2)
+-- ([1,2],True)
+-- >>> run (push (flip w) :: Trace (,) (->) ([Int], Int) ([Int], Bool)) ([1,2], 3)
+-- ([1,2,3],True)
+-- >>> run (rmap (\(s, xs) -> (s, filter even xs)) (drain (\buf -> ([], buf))) :: Trace (,) (->) ([Int], ()) ([Int], [Int])) ([1,2,3], ())
+-- ([],[2])
+
+-- | E7 — @c@ can carry control without being unit. A demand 'Bool' on the
+-- left leg decides whether to emit on the right leg.
+--
+-- >>> let demandEmit = Arr (\((), demand) -> ((), if demand then Just (1 :: Int) else Nothing))
+-- >>> :t demandEmit
+-- demandEmit :: Trace t (->) ((), Bool) ((), Maybe Int)
+-- >>> run (demandEmit :: Trace (,) (->) ((), Bool) ((), Maybe Int)) ((), True)
+-- ((),Just 1)
+-- >>> run (demandEmit :: Trace (,) (->) ((), Bool) ((), Maybe Int)) ((), False)
+-- ((),Nothing)
+
 -- ---------------------------------------------------------------------------
 -- STM queue ends
 -- ---------------------------------------------------------------------------
@@ -507,7 +698,7 @@ openSTM = \case
   Latest a -> do
     t <- newTVar a
     let outA = Out $ \_ -> Arr (Kleisli $ \_ -> readTVar t)
-        inA = In $ \o -> Arr (Kleisli $ \a -> writeTVar t a >> runKleisli (run (runIn o inA)) a)
+        inA = In $ \o -> Arr (Kleisli $ \x -> writeTVar t x >> runKleisli (run (runIn o inA)) x)
     pure (Ends inA outA)
   Newest n -> do
     q <- newTBQueue (fromIntegral n)
