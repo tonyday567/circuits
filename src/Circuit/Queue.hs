@@ -175,30 +175,28 @@ openIO q = do
 -- Collector ends
 -- ---------------------------------------------------------------------------
 
--- | Drain every element currently readable by the given single-value read
--- action.  The read action is assumed to retry when the buffer is empty;
--- 'orElse' catches that retry and terminates the list.
-drainRead :: STM a -> STM [a]
-drainRead read' = (read' >>= \x -> (x :) <$> drainRead read') `orElse` pure []
-
--- | Internal STM primitive for a collector strategy.
+-- | Drain every element currently readable by a single-value 'Out' end.
 --
--- Like 'endsSTM', but reads drain the whole buffer as a list.  The write
--- action uses the queue's normal strategy; the read action returns every
--- element currently stored and clears it.
+-- The read action is assumed to retry when the buffer is empty;
+-- 'orElse' (via the 'Alternative' instance for 'STM') catches that retry
+-- and terminates the list.  Strategies whose read never retries (e.g.
+-- 'Latest') are not suitable for collection.
 --
--- This assumes the underlying read action retries when empty.  Strategies
--- whose read never retries (e.g. 'Latest') are not suitable for collection.
-collectSTM :: Queue a -> STM (a -> STM (), STM [a])
-collectSTM q = do
-  (write, read') <- endsSTM q
-  pure (write, drainRead read')
+-- This is a compositional transformer on 'Out' ends: it turns an
+-- @'Out' ('Kleisli' STM) a@ into an @'Out' ('Kleisli' STM) [a]@ without
+-- reaching behind the 'Ends' abstraction.
+collectOut :: Out (Kleisli STM) a -> Out (Kleisli STM) [a]
+collectOut o = Out $ \i -> Kleisli $ \x -> drain (runKleisli (emit o i) x)
+  where
+    drain r = (r >>= \y -> (y :) <$> drain r) `orElse` pure []
 
 -- | Open a queue strategy as a collector 'Ends'.
 --
 -- Single @a@s go in through 'commit'; the accumulated @[a]@ is drained
 -- through 'emit'.  The read clears the buffer, so each 'emit' returns only
 -- the elements written since the last read.
+--
+-- Built compositionally from 'openSTM' and 'collectOut'.
 --
 -- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli STM) () ()
@@ -209,17 +207,13 @@ collectSTM q = do
 -- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- [1,2,3]
 openCollectSTM :: Queue a -> STM (Ends (Kleisli STM) a [a])
-openCollectSTM q = do
-  (write, drain) <- collectSTM q
-  let endsU = open :: Ends (Kleisli STM) () ()
-      outA = suffixOut (companion endsU) (Kleisli $ \_ -> drain)
-      inA = prefixIn (Kleisli write) (conjoint endsU)
-  pure (Ends inA outA)
+openCollectSTM q = (\ends -> Ends (conjoint ends) (collectOut (companion ends))) <$> openSTM q
 
 -- | Open a queue strategy as an IO collector 'Ends'.
 --
 -- Like 'openCollectSTM', but each operation is wrapped in its own
--- 'atomically'.
+-- 'atomically'.  The collector drain is still an STM transaction, so this
+-- allocates the raw STM actions and wraps them in IO.
 --
 -- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli IO) () ()
@@ -230,8 +224,9 @@ openCollectSTM q = do
 -- [1,2]
 openCollectIO :: Queue a -> IO (Ends (Kleisli IO) a [a])
 openCollectIO q = do
-  (write, drain) <- atomically (collectSTM q)
-  let endsU = open :: Ends (Kleisli IO) () ()
+  (write, read') <- atomically (endsSTM q)
+  let drain = (read' >>= \x -> (x :) <$> drain) `orElse` pure []
+      endsU = open :: Ends (Kleisli IO) () ()
       outA = suffixOut (companion endsU) (Kleisli $ \_ -> atomically drain)
       inA = prefixIn (Kleisli (atomically . write)) (conjoint endsU)
   pure (Ends inA outA)
