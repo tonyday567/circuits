@@ -8,7 +8,6 @@
 -- are pure morphisms on that buffer.
 module Circuit.Queue.Batch
   ( -- * Batch queues
-    openBatchWith,
     openBatchSTM,
     openBatchMaybeSTM,
 
@@ -20,7 +19,7 @@ module Circuit.Queue.Batch
 where
 
 import Circuit.Classes ((>>>))
-import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), commit, companion, conjoint, emit)
+import Circuit.Ends (Ends (..), HasUnit (..), endsK)
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
 import Prelude
@@ -50,16 +49,6 @@ pop buf =
     Nothing -> retry
     Just a -> pure a
 
--- | Build a batch-queue 'Ends' from an existing 'TVar' [a] buffer and a
--- single-element read action.
---
--- The caller allocates the 'TVar'; this function is pure in the buffer.
-openBatchWith :: TVar [a] -> (TVar [a] -> STM b) -> Ends (Kleisli STM) [a] b
-openBatchWith buf readOne =
-  Ends
-    (In $ \o -> Kleisli $ \as -> pushAll buf as >> runKleisli (emit o (conjoint open)) ())
-    (Out $ \i -> Kleisli $ \x -> readOne buf >>= \b -> runKleisli (commit i (companion (open :: Ends (Kleisli STM) () ()))) x >> pure b)
-
 -- | Open a batch queue with blocking single-element reads.
 --
 -- 'commit' appends a whole list to the buffer; 'emit' pops the head,
@@ -74,7 +63,7 @@ openBatchWith buf readOne =
 -- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 2
 openBatchSTM :: TVar [a] -> Ends (Kleisli STM) [a] a
-openBatchSTM buf = openBatchWith buf pop
+openBatchSTM buf = endsK (pushAll buf) (pop buf)
 
 -- | Open a batch queue with non-blocking single-element reads.
 --
@@ -92,4 +81,4 @@ openBatchSTM buf = openBatchWith buf pop
 -- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- Nothing
 openBatchMaybeSTM :: TVar [a] -> Ends (Kleisli STM) [a] (Maybe a)
-openBatchMaybeSTM buf = openBatchWith buf popMaybe
+openBatchMaybeSTM buf = endsK (pushAll buf) (popMaybe buf)

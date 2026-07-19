@@ -32,6 +32,10 @@ module Circuit.Ends
     -- * Suffixing an action to an 'Out'
     suffixOut,
 
+    -- * Build an 'Ends' from primitive actions
+    ends,
+    endsK,
+
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
 
@@ -161,6 +165,38 @@ class (Category arr) => HasUnit u arr where
   -- >>> emit (companion endsA) (conjoint endsU) ()
   -- ()
   open :: Ends arr u u
+
+-- | Build an 'Ends' from a write morphism and a read morphism.
+--
+-- @write :: arr a ()@ consumes the input payload and produces the unit;
+-- @read :: arr () b@ consumes the unit and produces the output payload.
+-- The unit ends wire the two halves together.
+--
+-- This is the canonical way to turn a pair of primitive channel actions
+-- into a matched pair of 'In' and 'Out' ends.
+ends ::
+  forall arr a b.
+  (Discrete arr, HasUnit () arr) =>
+  arr a () ->
+  arr () b ->
+  Ends arr a b
+ends write receive =
+  Ends
+    (In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @() $ withOb @arr @x $ write >>> emit o (conjoint open))
+    (Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @() $ withOb @arr @b $ commit i (companion open) >>> receive)
+
+-- | Specialization of 'ends' for 'Kleisli' actions.
+--
+-- @write :: a -> m ()@ consumes the input payload; @receive :: m b@
+-- produces the output payload. The unit handling is hidden inside the
+-- 'Kleisli' wrappers.
+endsK ::
+  forall m a b.
+  (Monad m) =>
+  (a -> m ()) ->
+  m b ->
+  Ends (Kleisli m) a b
+endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
 
 -- | Unit ends for @(->)@ with unit @()@.
 --
