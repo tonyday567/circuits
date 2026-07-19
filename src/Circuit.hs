@@ -78,7 +78,6 @@ module Circuit
 
     -- * Queues
     Queue (..),
-    WireK,
     openSTM,
     openIO,
     openCollectSTM,
@@ -208,7 +207,6 @@ import Circuit.Net
   )
 import Circuit.Queue
   ( Queue (..),
-    WireK,
     openCollectIO,
     openCollectSTM,
     openIO,

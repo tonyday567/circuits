@@ -20,9 +20,6 @@ module Circuit.Queue
 
     -- * IO collector 'Ends'
     openCollectIO,
-
-    -- * Type alias
-    WireK,
   )
 where
 
@@ -47,15 +44,6 @@ import Prelude
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Control.Concurrent.STM (STM, atomically)
 -- >>> import Data.Profunctor (lmap)
-
--- ---------------------------------------------------------------------------
--- Type aliases
--- ---------------------------------------------------------------------------
-
--- | A wire over 'Kleisli' @m@ with the @(,)@ tensor, by convention.
--- 'openSTM' and 'openIO' fix the tensor to @(,)@; this alias pins it for
--- readability.
-type WireK m = Trace (,) (Kleisli m)
 
 -- ---------------------------------------------------------------------------
 -- Queue strategies
