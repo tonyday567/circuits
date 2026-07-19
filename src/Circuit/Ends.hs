@@ -1,172 +1,76 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | 'Circuit.Ends' re-exports 'Out' and 'In' from 'Circuit.Trace'
--- and provides the unit 'open' (pure) and its Kleisli lift 'openK'.
+-- | Free channel ends over a base arrow.
 --
--- = Background
+-- A channel has exactly two ends:
 --
--- In a proarrow equipment (Bartosz Milewski, 2026), every vertical arrow
--- @f@ has a /companion/ @B(f,1)@ and a /conjoint/ @B(1,f)@, which are
--- horizontal arrows (profunctors) going in opposite directions.  For the
--- identity functor @id@, these specialise to:
+--   * 'Out' — the companion (read / emit end), covariant in the payload.
+--   * 'In'  — the conjoint (write / commit end), contravariant in the payload.
 --
--- @
---   Companion(id)(x, a) = p(x, a)      -- 'Out'
---   Conjoint(id)(a, x)  = p(a, x)      -- 'In'
--- @
---
--- where @p@ is the hom-profunctor ('Circuit' @arr@ @t@).
+-- 'Ends' is the record that pairs one 'In' with one 'Out'.  The ends are
+-- defined purely in terms of the base arrow @arr@; wiring into a traced
+-- monoidal category is performed by separate machinery (e.g. "Circuit.Trace").
 --
 -- The companion and conjoint form an adjunction @In ⊣ Out@.
--- The unit @η@ is 'open'; the counit @ε@ is 'close'.  The yanking identity
--- @close i o = runOut i o@ is the defining characteristic.
---
--- = Intrinsic vs extrinsic
---
--- When the channel is structural (pure 'Circuit's with 'Knot' feedback),
--- 'Out' and 'In' are genuinely different roles — the 'forall x'
--- forces mutual recursion.  This is the /intrinsic/ case.
---
--- When the channel is a runtime object (an 'IORef', 'TChan', socket), both
--- ends collapse to the same handle on the mutable cell.  That is the
--- /extrinsic/ case, served by 'Circuit.Queue.makeQueue'.
---
--- = close ≅ trace
---
--- Slogan: @close@ is the dual-end analogue of 'trace'. 'Knot' introduces
--- feedback and 'trace' resolves it; 'open' introduces a matched pair of
--- channel ends and 'close' resolves them. The matched pair lives on one
--- facet: both 'Out' and 'In' refer to the same hidden channel.
---
--- By the spider lemma of proarrow equipment, any 'Knot' factors as:
---
--- @
---   Knot body = open >>> body' >>> close
--- @
---
--- and conversely. 'Out'/'In' is not a replacement for 'Knot' —
--- it is a refinement that lets the two channel ends travel independently
--- before being plugged together with 'close'.
---
--- = Free ends only
---
--- The API is 'In', 'Out', 'open', 'close', and the field runners
--- 'runIn' / 'runOut'.  There are no unit-ground wrappers — plug the
--- other end at @()@ directly:
---
--- @
---   runOut inA outU  :: Trace t arr a ()   -- In  at unit  (a → ())
---   runIn  outA inU  :: Trace t arr () a   -- Out at unit  (() → a)
--- @
---
--- 'Circuit.Queue.Commit' / 'Emit' are historical type aliases for those
--- port shapes over 'Kleisli'; they are not free ends and not constructors.
+-- The unit @η@ is 'Circuit.Ends.Unit.open', producing a matched pair;
+-- the counit @ε@ is 'close', plugging the pair back together.  The
+-- yanking identity @close i o = commit i o@ is the defining characteristic.
 module Circuit.Ends
-  ( -- * Free channel ends
+  ( -- * Channel ends (bi-polar contract)
     Out (..),
     In (..),
-    close,
 
-    -- * Unit (matched pair)
-    open,
-    openK,
+    -- * Matched pair
+    Ends (..),
+
+    -- * Counit
+    close,
   )
 where
 
-import Circuit.Layer (run)
-import Circuit.Trace (In (..), Out (..), Trace (..), close)
-import Control.Arrow (Kleisli (..))
-import Prelude hiding (id, (.))
-
 -- $setup
--- >>> import Circuit (run)
 -- >>> import Circuit.Classes ((>>>))
 -- >>> import Circuit.Ends
--- >>> import Circuit.Trace (Out (..), In (..), runIn, runOut)
--- >>> import Test.QuickCheck (NonNegative(..))
+-- >>> import Circuit.Ends.Unit (open)
 
--- | @η@ — the unit of the companion/conjoint adjunction (pure case).
---
--- Create two channel ends from a seed value.  The seed becomes the
--- channel's initial state.  The companion always returns the seed;
--- the conjoint calls the companion back, which returns the seed —
--- the mutual recursion bottoms out because the companion returns first.
---
--- Yank (Mock 0): 'close' recovers the seed, independent of the payload.
---
--- >>> let (outA, inA) = open (42 :: Int)
--- >>> run (close inA outA) 99
--- 42
---
--- Unit plug (Mock 1–2): 'runOut' / 'runIn' at @()@ — no wrappers.
---
--- >>> let (outA, inA) = open (7 :: Int)
--- >>> let (outU, inU) = open ()
--- >>> run (runOut inA outU) 99
--- ()
--- >>> run (runIn outA inU) ()
--- 7
---
--- Polarity (Mock 3): feed = 'runOut' (In against unit Out); harvest = 'runIn'
--- (Out against unit In).  Re-seat who is \"the process\" — verbs flip;
--- 'In'/'Out' do not.
---
--- >>> let (outP, inP) = open ("payload" :: String)
--- >>> let (outU, inU) = open ()
--- >>> run (runOut inP outU) "ignored"
--- ()
--- >>> run (runIn outP inU) ()
--- "payload"
---
--- Unit plug composes toward 'close' (Mock 4).
---
--- >>> let (outA, inA) = open (42 :: Int)
--- >>> let (outU, inU) = open ()
--- >>> run (runOut inA outU >>> runIn outA inU) 99
--- 42
--- >>> run (close inA outA) 99
--- 42
---
--- Unit loop is identity on @()@ (Mock 5).
---
--- >>> let (outA, inA) = open (7 :: Int)
--- >>> let (outU, inU) = open ()
--- >>> run (runIn outA inU >>> runOut inA outU) ()
--- ()
---
--- Compound (Mock 6): cross-close two independent 'open' pairs. An
--- @'In' a@ closes with /any/ @'Out' a@ — ends are independent horizontal
--- arrows, not a matched session.
---
--- >>> let (out10, in10) = open (10 :: Int)
--- >>> let (out20, in20) = open (20 :: Int)
--- >>> run (close in20 out10) 99
--- 10
--- >>> run (close in10 out20) 99
--- 20
---
--- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int) in run (close inA outA) 0 == n
---
--- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int); (outU, inU) = open () in run (runOut inA outU >>> runIn outA inU) (0 :: Int) == n
---
--- prop> \(NonNegative n) -> let (outA, inA) = open (n :: Int); (outU, inU) = open () in run (runIn outA inU >>> runOut inA outU) () == ()
---
--- prop> \(NonNegative n) -> let (_outA, inA) = open (n :: Int); (outU, _inU) = open () in run (runOut inA outU) (0 :: Int) == ()
---
--- prop> \(NonNegative n) -> let (outA, _inA) = open (n :: Int); (_outU, inU) = open () in run (runIn outA inU) () == n
-open :: a -> (Out (->) (,) a, In (->) (,) a)
-open seed = (outA, inA)
-  where
-    outA = Out $ \_ -> Arr (const seed)
-    inA = In $ \o -> runIn o inA
+-- ---------------------------------------------------------------------------
+-- Channel ends — the companion and conjoint of the identity functor.
+-- ---------------------------------------------------------------------------
 
--- | 'open' over 'Kleisli' @m@ — same constant-channel shape as pure 'open'.
+-- | 'Out' is the companion of the identity functor.  Covariant in @a@
+-- (sits in the output position).
+newtype Out arr a = Out
+  { -- | Emit through the companion, supplying the other end.
+    emit :: forall x. In arr x -> arr x a
+  }
+
+-- | 'In' is the conjoint of the identity functor.  Contravariant in
+-- @a@ (sits in the input position).
+newtype In arr a = In
+  { -- | Commit through the conjoint, supplying the other end.
+    commit :: forall x. Out arr x -> arr a x
+  }
+
+-- | A matched pair of channel ends: one 'In' and one 'Out'.
 --
--- Use for unit ends at @()@ when unit-plugging IO free ends
--- (e.g. 'Circuit.Repl.openRepl' + @openK ()@).
-openK :: (Monad m) => a -> (Out (Kleisli m) (,) a, In (Kleisli m) (,) a)
-openK seed = (outA, inA)
-  where
-    outA = Out $ \_ -> Arr (Kleisli $ \_ -> pure seed)
-    -- Same shape as pure 'open': In continues through the opposing Out.
-    inA = In $ \o -> runIn o inA
+-- This is the bi-polar communication contract.  The conjoint ('In')
+-- consumes payloads of type @a@; the companion ('Out') produces payloads
+-- of type @b@.  For symmetric channels such as queues @a = b@.
+data Ends arr a b = Ends
+  { conjoint  :: In arr a   -- ^ Write end (producer), the conjoint.
+  , companion :: Out arr b  -- ^ Read end  (consumer), the companion.
+  }
+
+-- | Counit of the companion / conjoint adjunction.
+--
+-- Plug an 'In' and an 'Out' of the same payload type together to produce
+-- a morphism of @arr@ from @a@ to @a@.
+--
+-- 'close' is literally 'commit': the 'In' end already carries the
+-- morphism that consumes the payload and produces the result, so
+-- plugging just means applying that morphism to the supplied 'Out'.
+--
+-- Yanking: for the unit ends from "Circuit.Ends.Unit",
+-- @close (conjoint ends) (companion ends) = id@.
+close :: In arr a -> Out arr a -> arr a a
+close contra = commit contra

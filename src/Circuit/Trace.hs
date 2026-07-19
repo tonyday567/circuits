@@ -34,19 +34,9 @@
 --
 --   * 'Knot' introduces feedback; 'trace' resolves it. This is the gold
 --     type-changing pair; composition fuses 'Knot's.
---   * 'Out' and 'In' introduce the two polar ends of a channel;
---     'close' resolves them.
 --
--- Slogan: @close@ is the dual-end analogue of 'trace'. By the spider lemma,
--- every 'Knot' factors as:
---
--- @
---   Knot body = open >>> body' >>> close
--- @
---
--- where @open@ creates the matched pair of ends and @close@ plugs them
--- together. The matched pair lives on one facet: both 'Out' and 'In'
--- refer to the same hidden channel.
+-- The polar channel ends ('Out', 'In') and their counit ('close')
+-- live in "Circuit.Ends"; the unit ('open') lives in "Circuit.Ends.Unit".
 --
 -- == Three moves on monoidal structure
 --
@@ -87,11 +77,6 @@ module Circuit.Trace
     untraceD,
     traceD,
     compD,
-
-    -- * Channel ends
-    Out (..),
-    In (..),
-    close,
 
     -- * Stateful IO stages
     cellIO,
@@ -646,23 +631,4 @@ instance Layer (Trace t) where
   bind h (Arr f) = h f
   bind h (Knot f) = traceD (h f)
 
--- ---------------------------------------------------------------------------
--- Channel ends — the companion and conjoint of the identity functor.
 
--- | 'Out' is the companion of the identity functor in the proarrow equipment
--- over 'Trace'.  Covariant in @a@ (sits in the output position).
-newtype Out arr t a = Out
-  { -- | Run the companion, supplying the other end.
-    runIn :: forall x. In arr t x -> Trace t arr x a
-  }
-
--- | 'In' is the conjoint of the identity functor.  Contravariant in
--- @a@ (sits in the input position).
-newtype In arr t a = In
-  { -- | Run the conjoint, supplying the other end.
-    runOut :: forall x. Out arr t x -> Trace t arr a x
-  }
-
--- | Plug two channel ends together, producing a circuit from @a@ to @a@.
-close :: In arr t a -> Out arr t a -> Trace t arr a a
-close contra = runOut contra

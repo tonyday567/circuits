@@ -61,28 +61,28 @@ module Circuit
   ( -- * Trace
     Trace (..),
     Traced,
-    Out (..),
-    In (..),
-    close,
     -- | Close a feedback loop. See "Circuit.Trace".
     trace,
     -- | Open a feedback loop. See "Circuit.Trace".
     untrace,
 
     -- * Channel ends
-    open,
-    openK,
+    Out (..),
+    In (..),
+    Ends (..),
+    close,
+
+    -- * Boxes
+    HasUnit (..),
+    box,
 
     -- * Queues
     Queue (..),
     WireK,
-    Emit,
-    Commit,
-    endsSTM,
-    endsPure,
-    endsQueue,
-    closeQueue,
-    boxOf,
+    openSTM,
+    openIO,
+    openCollectSTM,
+    openCollectIO,
 
     -- * Free
     Free,
@@ -151,6 +151,9 @@ module Circuit
   )
 where
 
+import Circuit.Box
+  ( box,
+  )
 import Circuit.Dagger
   ( Bimonoid,
     Comonoid (..),
@@ -159,8 +162,13 @@ import Circuit.Dagger
     transpose,
   )
 import Circuit.Ends
-  ( open,
-    openK,
+  ( Ends (..),
+    In (..),
+    Out (..),
+    close,
+  )
+import Circuit.Ends.Unit
+  ( HasUnit (..),
   )
 import Circuit.Free
   ( Free (..),
@@ -199,23 +207,17 @@ import Circuit.Net
     melt,
   )
 import Circuit.Queue
-  ( Commit,
-    Emit,
-    Queue (..),
+  ( Queue (..),
     WireK,
-    boxOf,
-    closeQueue,
-    endsPure,
-    endsQueue,
-    endsSTM,
+    openCollectIO,
+    openCollectSTM,
+    openIO,
+    openSTM,
   )
 import Circuit.Classes (Ob)
 import Circuit.Trace
-  ( Out (..),
-    In (..),
-    Trace (..),
+  ( Trace (..),
     Traced,
-    close,
   )
 import Circuit.Trace qualified as Trace
 import Prelude hiding (Monoid)

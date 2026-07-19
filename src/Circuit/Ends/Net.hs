@@ -43,7 +43,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XOverloadedStrings
 -- >>> import Circuit.Dagger (Bimonoid, Dagger (..), copy, discard, plus, zero)
--- >>> import Circuit.Ends (Out (..), In (..), close, open)
+-- >>> import Circuit.Ends (Out (..), In (..), close)
 -- >>> import Circuit.Ends.Net
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Net (Net (..), enrich, melt)
@@ -54,27 +54,27 @@ import Prelude hiding (id, (.))
 --
 -- Companion of identity in the proarrow equipment over 'Net'.
 -- Covariant in @a@ (sits in the output position).
-newtype NetOut arr t a = NetOut
-  { runNetIn :: forall x. NetIn arr t x -> Net t arr x a
+newtype NetOut t arr a = NetOut
+  { emitNet :: forall x. NetIn t arr x -> Net t arr x a
   }
 
 -- | 'NetIn' is the Net analog of 'Circuit.Ends.In'.
 --
 -- Conjoint of identity.  Contravariant in @a@ (sits in the input position).
-newtype NetIn arr t a = NetIn
-  { runNetOut :: forall x. NetOut arr t x -> Net t arr a x
+newtype NetIn t arr a = NetIn
+  { commitNet :: forall x. NetOut t arr x -> Net t arr a x
   }
 
 -- | Plug two Net channel ends together.
 --
 -- @
--- netClose i o = runNetOut i o
+-- netClose i o = commitNet i o
 -- @
 --
 -- Same shape as 'Circuit.Ends.close' but produces an inspectable 'Net'
 -- instead of a 'Trace' in normal form.
-netClose :: NetIn arr t a -> NetOut arr t a -> Net t arr a a
-netClose i = runNetOut i
+netClose :: NetIn t arr a -> NetOut t arr a -> Net t arr a a
+netClose i = commitNet i
 
 -- | @η@ — the unit of the Net companion/conjoint adjunction.
 --
@@ -82,19 +82,19 @@ netClose i = runNetOut i
 -- returns the seed; the conjoint calls the companion back — mutual
 -- recursion bottoms out because the companion returns first.
 --
--- Mock 0 (yank over Net): 'netClose' recovers the seed, same as
--- 'Circuit.Ends.open' over 'Trace'.
+-- Mock 0 (yank over Net): 'netClose' recovers the seed, same yanking
+-- pattern as 'Circuit.Ends.Unit.open' over 'Trace'.
 --
 -- >>> let (co, contra) = netOpen (42 :: Int)
 -- >>> run (netClose contra co) 99
 -- 42
 --
 -- The seed is recovered independent of the payload — yanking holds.
-netOpen :: a -> (NetOut (->) (,) a, NetIn (->) (,) a)
+netOpen :: a -> (NetOut (,) (->) a, NetIn (,) (->) a)
 netOpen seed = (co, contra)
   where
     co = NetOut $ \_ -> Lift (const seed)
-    contra = NetIn $ \o -> runNetIn o contra
+    contra = NetIn $ \o -> emitNet o contra
 
 -- $mock1
 -- Mock 1 — composition with Net structure
@@ -118,8 +118,7 @@ netOpen seed = (co, contra)
 -- Net structure, and melts back to Trace.  Round-trip preserves
 -- observable behaviour.
 --
--- >>> let (traceCo, traceContra) = open (5 :: Int)
--- >>> let traceCircuit = close traceContra traceCo :: Trace (,) (->) Int Int
+-- >>> let traceCircuit = Arr (const 5) :: Trace (,) (->) Int Int
 -- >>> -- Lift to Net
 -- >>> let netCircuit = enrich traceCircuit :: Net (,) (->) Int Int
 -- >>> -- Compose with Net structure (using Compose, not .)

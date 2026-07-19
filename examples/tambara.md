@@ -151,10 +151,10 @@ lens/prism distinction at the level of `leftAct`.
 ### 2b. Co / Contra — companion & conjoint of `id`
 
 ```haskell
--- open / close are η / ε of Contra ⊣ Co (see Circuit.Ends)
--- >>> let (co, contra) = open (0 :: Int)
--- >>> run (close contra co) 99
--- 0
+-- open / close are η / ε of Contra ⊣ Co (see Circuit.Ends.Unit)
+-- >>> let ends = open
+-- >>> run (close (conjoint ends) (companion ends)) ()
+-- ()
 ```
 
 Spider lemma (equipment):
@@ -550,6 +550,6 @@ owns.** Same packing, different 2-cell.
 - Stroiński, [*Module categories, internal bimodules and Tambara modules*](https://arxiv.org/abs/2210.13443v1)  
 - [proequip.md](proequip.md) — foldH, Cell, Knot as 2-cell  
 - [proarrow.md](proarrow.md) — Traced ≅ Strong + Costrong  
-- `Circuit.Ends` — `open` / `openK`, spider lemma  
+- `Circuit.Ends.Unit` — `HasUnit` / `open`, spider lemma  
 - `Circuit.Trace` — `Co`, `Contra`, `close`, `Knot`  
 - nLab: [equipment](https://ncatlab.org/nlab/show/equipment), [Tambara module](https://ncatlab.org/nlab/show/Tambara+module)

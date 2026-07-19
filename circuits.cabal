@@ -67,11 +67,12 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Box
     Circuit.Classes
     Circuit.Dagger
     Circuit.Ends
-    Circuit.Ends.File
     Circuit.Ends.Net
+    Circuit.Ends.Unit
     Circuit.Free
     Circuit.Hyper
     Circuit.Int
