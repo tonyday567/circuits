@@ -11,7 +11,7 @@ module Circuit.Box
   )
 where
 
-import Circuit.Classes (Category (..))
+import Circuit.Category (Category (..))
 import Circuit.Ends (Ends (..), HasUnit (..), commit, conjoint, companion, emit)
 import Circuit.Tensor (Tensor (..), Unit)
 import Circuit.Trace (Trace (..))

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -24,7 +23,7 @@ module Circuit.Mon
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr

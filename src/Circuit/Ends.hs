@@ -45,12 +45,12 @@ module Circuit.Ends
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Control.Arrow (Kleisli (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Classes ((>>>))
+-- >>> import Circuit.Category ((>>>))
 -- >>> import Circuit.Ends
 
 -- ---------------------------------------------------------------------------

@@ -90,7 +90,7 @@ module Circuit.Algebra
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
 import Circuit.Monoidal (Monoidal (..))

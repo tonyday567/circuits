@@ -20,11 +20,11 @@ module Circuit.Monoidal
   )
 where
 
-import Circuit.Classes (Category (..))
+import Circuit.Category (Category (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Classes ((>>>))
+-- >>> import Circuit.Category ((>>>))
 
 -- | A monoidal structure on the tensor @t@ internal to the category @arr@.
 --

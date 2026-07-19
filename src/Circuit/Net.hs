@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
@@ -41,7 +40,7 @@ module Circuit.Net
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Mon qualified as M
@@ -140,7 +139,6 @@ instance (Category arr) => Category (Net t arr) where
 transpose ::
   Net t (Dg.Dagger arr) a b ->
   Net t (Dg.Dagger arr) b a
-#ifdef __GLASGOW_HASKELL__
 transpose = \case
   Lift (Dg.Dagger f g) -> Lift (Dg.Dagger g f)
   Compose g f -> Compose (transpose f) (transpose g)
@@ -151,9 +149,6 @@ transpose = \case
   Discard -> Zero
   Zero -> Discard
   Knot f -> Knot (transpose f)
-#else
-transpose = undefined
-#endif
 
 -- | Upgrade a 'C.Trace' to a 'Net' — constructor-to-constructor.
 --

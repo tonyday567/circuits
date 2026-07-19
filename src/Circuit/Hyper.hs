@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -33,21 +32,17 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Monoidal (Monoidal (..))
 import Circuit.Trace (Trace (..), Traced (..))
 import Prelude hiding (id, (.))
-#ifdef __GLASGOW_HASKELL__
 import Data.Profunctor
-#else
-import Circuit.Classes (Profunctor (..))
-#endif
 
 -- $setup
 -- >>> import Prelude hiding (id, (.))
--- >>> import Circuit.Classes (Category (..), Discrete (..), (>>>))
+-- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Data.Profunctor
 -- >>> import Circuit.Trace (Trace (..), Traced (..))
 -- >>> import Circuit.Layer (run)

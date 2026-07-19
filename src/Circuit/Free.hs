@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -17,7 +16,7 @@ module Circuit.Free
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Layer (Layer (..), run)
 import Circuit.Monoidal (Monoidal (..))
 import Circuit.Trace (Traced (..), compD)

@@ -13,7 +13,7 @@ import Circuit
 
 That's it.  `Circuit` brings in `Trace(..)`, `Traced`, `Co(..)`, `Contra(..)`, `close`, `trace`, `untrace`, `Free`, `Layer(..)`, `Cat2`, `NT`, `HNT`, `(:~>)`, `(:~~>)`, `lower`, `run`, `hmap`, `join`, `Monoid(..)`, `Comonoid(..)`, `Dagger(..)`, `Bimonoid`, `transpose`, `Mon`, `Net`, `enrich`, `melt`, `Hyper(..)`, `lift`, `observe`, `base`, `push`, `runHyper`, `encode`, `encodeEither`, `encodeFree`, `runEither`, `flatten`, `Braided(..)`, `ambient`, `assoc`, `assoc'`, `seed`, `absorb`, `release`, `coassoc`, `coassoc'`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`, `ambientBy`, `Action(..)`.
 
-LANGUAGE pragmas used internally: `CPP`, `RankNTypes`, `UndecidableInstances`, `ConstraintKinds`, `GADTs`, `FlexibleInstances`.
+LANGUAGE pragmas used internally: `RankNTypes`, `UndecidableInstances`, `ConstraintKinds`, `GADTs`, `FlexibleInstances`.
 
 For user code: `GHC2021` covers most, add `BlockArguments` if you want `\\case` style.  `Prelude hiding (Monoid)` if you bring in `Circuit` unqualified.
 

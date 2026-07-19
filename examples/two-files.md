@@ -36,7 +36,7 @@ Two **`openFileEnds`**, two **`open ()`**. Not a sequential copy.
 {-# LANGUAGE OverloadedStrings #-}
 
 import Circuit
-import Circuit.Classes ((>>>))
+import Circuit.Category ((>>>))
 import Control.Arrow (Kleisli (..), runKleisli)
 import System.IO (IOMode (..), hClose, hGetContents, openFile)
 

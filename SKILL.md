@@ -33,6 +33,8 @@ symbols                           notation table
 Recommended reading order for the source (core concepts first):
 
 ```
+Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
+                      'Discrete', and composition helpers.
 Circuit.Trace       — Trace GADT (Arr, Knot), the Traced class, channel
                       ends (Co/Contra), and base instances: (,) lazy knot,
                       Either iteration, Kleisli IO via delimited

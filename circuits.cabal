@@ -69,7 +69,7 @@ library
     Circuit
     Circuit.Algebra
     Circuit.Box
-    Circuit.Classes
+    Circuit.Category
     Circuit.Dagger
     Circuit.Ends
     Circuit.Free

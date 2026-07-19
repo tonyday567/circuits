@@ -43,7 +43,7 @@ module Circuit.Tensor
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Layer (run)
 import Circuit.Monoidal qualified as M
 import Circuit.Trace (Trace (..), Traced (..), untraceD)

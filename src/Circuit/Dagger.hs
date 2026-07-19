@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -37,7 +36,7 @@ module Circuit.Dagger
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Monoidal (Monoidal (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Traced (..))
@@ -47,7 +46,7 @@ import Prelude hiding (Monoid, id, (.))
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Circuit.Trace (Traced (..))
--- >>> import Circuit.Classes (Category (..), Discrete (..), (>>>))
+-- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Prelude hiding (id, (.), Monoid)
 
 -- ---------------------------------------------------------------------------

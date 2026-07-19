@@ -17,6 +17,10 @@ single module.*
 superclass lives in `Circuit.Monoidal`. `Traced` is now a subclass of
 `Monoidal`; the `Trace`/`Net` `Category` instances require only `Traced t arr`.*
 
+*BREAKING: **`Circuit.Classes` is renamed to `Circuit.Category`.** MicroHs
+support and CPP shims are removed; `Category`, `Discrete`, `Ob`, `(>>>)`, and
+`(<<<)` now live in the GHC-only `Circuit.Category` module.*
+
 *BREAKING: **The free-layer vocabulary is unified under `Circuit.Layer`.*
 `FreeLayer` is renamed to `Layer`; `Lawful` is renamed to `Law`.
 `rightAdjunct` becomes `bind`; `leftAdjunct` becomes `lower`.

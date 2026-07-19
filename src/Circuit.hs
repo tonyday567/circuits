@@ -220,7 +220,7 @@ import Circuit.Queue
     openIO,
     openSTM,
   )
-import Circuit.Classes (Ob)
+import Circuit.Category (Ob)
 import Circuit.Trace
   ( Trace (..),
     Traced,

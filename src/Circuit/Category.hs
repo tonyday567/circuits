@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,37 +9,24 @@
 
 -- | Local category hierarchy with object constraints.
 --
--- On GHC, 'Bifunctor' and 'Profunctor' still come from packages.
--- 'Category' is always local so morphisms can carry an associated 'Ob'
+-- 'Category' is local so morphisms can carry an associated 'Ob'
 -- constraint (e.g. 'Finite' for matrices, 'KnownNat' for harpie mats).
 --
 -- 'Discrete' marks categories whose 'Ob' is trivial for every object
 -- (@Ob = ()@). Free constructions that fuse existential channels
 -- (notably 'Trace') require 'Discrete' on the base.
-module Circuit.Classes
+module Circuit.Category
   ( Category (..),
     Discrete (..),
     (>>>),
     (<<<),
-#ifdef __GLASGOW_HASKELL__
-    Bifunctor (..),
-    Profunctor (..),
-#else
-    Bifunctor (..),
-    Profunctor (..),
-#endif
   )
 where
 
-import Data.Kind (Constraint, Type)
-import Prelude hiding (id, (.))
-
-#ifdef __GLASGOW_HASKELL__
 import Control.Arrow (Kleisli (..))
 import Control.Monad ((<=<))
-import Data.Bifunctor (Bifunctor (..))
-import Data.Profunctor (Profunctor (..))
-#endif
+import Data.Kind (Constraint, Type)
+import Prelude hiding (id, (.))
 
 -- | A category whose objects may carry a constraint.
 --
@@ -86,7 +72,6 @@ instance Category (->) where
 instance Discrete (->) where
   withOb x = x
 
-#ifdef __GLASGOW_HASKELL__
 -- | Kleisli arrows of a monad (unconstrained objects).
 instance (Monad m) => Category (Kleisli m) where
   type Ob (Kleisli m) a = ()
@@ -95,29 +80,3 @@ instance (Monad m) => Category (Kleisli m) where
 
 instance (Monad m) => Discrete (Kleisli m) where
   withOb x = x
-#else
-
-class Bifunctor p where
-  bimap :: (a -> b) -> (c -> d) -> p a c -> p b d
-  first :: (a -> b) -> p a c -> p b c
-  second :: (b -> c) -> p a b -> p a c
-  bimap f g = first f . second g
-  first f = bimap f id
-  second = bimap id
-
-instance Bifunctor (,) where
-  bimap f g (a, b) = (f a, g b)
-
-instance Bifunctor Either where
-  bimap f _ (Left a) = Left (f a)
-  bimap _ g (Right b) = Right (g b)
-
-class Profunctor p where
-  dimap :: (a -> b) -> (c -> d) -> p b c -> p a d
-  lmap :: (a -> b) -> p b c -> p a c
-  rmap :: (b -> c) -> p a b -> p a c
-  dimap f g = lmap f . rmap g
-  lmap f = dimap f id
-  rmap = dimap id
-
-#endif

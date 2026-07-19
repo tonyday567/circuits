@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
@@ -86,7 +85,7 @@ module Circuit.Trace
   )
 where
 
-import Circuit.Classes (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Layer (Layer (..), run)
 import Circuit.Monoidal (Monoidal (..))
 import Control.Arrow (Kleisli (..))
@@ -103,7 +102,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Tensor (Tensor (..))
 -- >>> import Control.Arrow (Kleisli (..), second)
--- >>> import Circuit.Classes ((.), (>>>))
+-- >>> import Circuit.Category ((.), (>>>))
 -- >>> import Data.Either (fromRight)
 -- >>> import Data.Profunctor (dimap)
 -- >>> import Data.Void (Void)
