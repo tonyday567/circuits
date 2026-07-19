@@ -35,8 +35,8 @@
 --   * 'Knot' introduces feedback; 'trace' resolves it. This is the gold
 --     type-changing pair; composition fuses 'Knot's.
 --
--- The polar channel ends ('Out', 'In') and their counit ('close')
--- live in "Circuit.Ends"; the unit ('open') lives in "Circuit.Ends.Unit".
+-- The polar channel ends ('Out', 'In'), their counit ('close'), and
+-- their unit ('open') all live in "Circuit.Ends".
 --
 -- == Three moves on monoidal structure
 --

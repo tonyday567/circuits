@@ -73,9 +73,9 @@ module Circuit
     close,
     prefixIn,
     suffixOut,
+    HasUnit (..),
 
     -- * Boxes
-    HasUnit (..),
     box,
 
     -- * Queues
@@ -164,14 +164,12 @@ import Circuit.Dagger
   )
 import Circuit.Ends
   ( Ends (..),
+    HasUnit (..),
     In (..),
     Out (..),
     close,
     prefixIn,
     suffixOut,
-  )
-import Circuit.Ends.Unit
-  ( HasUnit (..),
   )
 import Circuit.Free
   ( Free (..),

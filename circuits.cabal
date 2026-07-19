@@ -71,8 +71,6 @@ library
     Circuit.Classes
     Circuit.Dagger
     Circuit.Ends
-    Circuit.Ends.Net
-    Circuit.Ends.Unit
     Circuit.Free
     Circuit.Hyper
     Circuit.Int

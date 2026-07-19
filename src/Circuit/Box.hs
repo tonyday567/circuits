@@ -12,17 +12,15 @@ module Circuit.Box
 where
 
 import Circuit.Classes (Category (..))
-import Circuit.Ends (Ends (..), commit, conjoint, companion, emit)
-import Circuit.Ends.Unit (HasUnit (..))
+import Circuit.Ends (Ends (..), HasUnit (..), commit, conjoint, companion, emit)
 import Circuit.Monoidal (Tensor (..), Unit)
 import Circuit.Trace (Trace (..))
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XTypeApplications
--- >>> import Circuit.Ends (Ends(..), In(..), Out(..), commit, conjoint, companion, emit)
+-- >>> import Circuit.Ends (Ends(..), HasUnit(..), In(..), Out(..), commit, conjoint, companion, emit)
 -- >>> import Circuit.Box (box)
--- >>> import Circuit.Ends.Unit (HasUnit(..))
 -- >>> import Circuit.Trace (Trace(..))
 
 -- | Embed an 'Ends' into a 'Trace' morphism with unit wires.

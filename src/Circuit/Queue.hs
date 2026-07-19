@@ -24,8 +24,7 @@ module Circuit.Queue
 where
 
 import Circuit.Classes ((>>>))
-import Circuit.Ends (Ends (..), In (..), Out (..), commit, emit, prefixIn, suffixOut)
-import Circuit.Ends.Unit (HasUnit (..))
+import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), commit, emit, prefixIn, suffixOut)
 import Circuit.Trace (Trace (..))
 import Control.Applicative
 import Control.Arrow (Kleisli (..))
@@ -39,7 +38,7 @@ import Prelude
 -- >>> import Circuit
 -- >>> import Circuit.Classes ((>>>))
 -- >>> import Circuit.Ends (Ends(..), In(..), Out(..), commit, emit, close)
--- >>> import Circuit.Ends.Unit (HasUnit (..))
+-- >>> import Circuit.Ends (HasUnit(..))
 -- >>> import Circuit.Queue
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Control.Concurrent.STM (STM, atomically)
@@ -118,7 +117,7 @@ endsSTM = \case
 --
 -- === Unbounded
 --
--- >>> import Circuit.Ends.Unit (HasUnit (..))
+-- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
@@ -158,7 +157,7 @@ openSTM q = do
 -- into a single STM transaction; for that use 'openSTM' and wrap in
 -- 'atomically' yourself.
 --
--- >>> import Circuit.Ends.Unit (HasUnit (..))
+-- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
@@ -201,7 +200,7 @@ collectSTM q = do
 -- through 'emit'.  The read clears the buffer, so each 'emit' returns only
 -- the elements written since the last read.
 --
--- >>> import Circuit.Ends.Unit (HasUnit (..))
+-- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> ends <- atomically (openCollectSTM Unbounded :: STM (Ends (Kleisli STM) Int [Int]))
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1
@@ -222,7 +221,7 @@ openCollectSTM q = do
 -- Like 'openCollectSTM', but each operation is wrapped in its own
 -- 'atomically'.
 --
--- >>> import Circuit.Ends.Unit (HasUnit (..))
+-- >>> import Circuit.Ends (HasUnit(..))
 -- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openCollectIO Unbounded :: IO (Ends (Kleisli IO) Int [Int])
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 1
