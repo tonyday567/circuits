@@ -78,6 +78,7 @@ The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
 - Boundary rule: symbols in tables/axioms only; names everywhere else.
 - `Either` iteration convention: `Left` = feedback (continue), `Right` = exit.
 - Push is Hyper-only — no direct GADT counterpart.
-- Axiom doctests and QuickCheck properties for JSV laws and Hyper embedding/functoriality.
+- Axiom doctests and documented property laws for JSV laws and Hyper embedding/functoriality.
+- Removed `QuickCheck` dependency; properties are stated in source comments and skipped by `cabal-docspec`.
 - No Applicative or Monad instances — these collapse feedback structure.
 - README: tank mode, Hackage/CI badges, paper link.

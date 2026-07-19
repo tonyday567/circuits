@@ -81,7 +81,7 @@ Trace collapsed to normal form: two constructors, laws in the instances, one cal
 
 ## install
 
-Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14). One dependency beyond base: `profunctors`.
+Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14). Dependencies beyond base: `profunctors` and `stm`.
 
 ## examples
 
