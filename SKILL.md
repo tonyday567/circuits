@@ -75,14 +75,10 @@ cabal-docspec
 # Single module doctests
 cabal-docspec -m Circuit.Hyper
 
-# Test an example card compiles
-cabal repl
-# then paste code blocks from examples/*.md in order
 ```
 
-Example cards are markdown with fenced Haskell blocks. They are NOT
-compiled by `cabal build` — they're validated by pasting into `cabal repl`
-or via `cabal-docspec` (for doctests in library modules only).
+Example cards now live in the `circuits-examples` repository. They are
+markdown with fenced Haskell blocks, validated by pasting into `cabal repl`.
 
 ## notation
 
@@ -151,8 +147,8 @@ sessions — not automated tests.
 
 `Traced Either (->)` uses `Left` = feedback (continue), `Right` = exit.
 User-facing code often uses the opposite convention — `Left` = result
-(done), `Right` = continue (next state). See `examples/while.md` for an
-`Either` iteration type and the `swapRL` bridge.
+(done), `Right` = continue (next state). See `while.md` in `circuits-examples`
+for an `Either` iteration type and the `swapRL` bridge.
 
 When a `Trace` body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
@@ -180,14 +176,14 @@ Some cards require packages not in circuits' dependency tree. The
 card declares this at the top. Start repl with `-b`:
 
 ```bash
-cabal repl -b yaya     # for yaya.md
+cabal repl -b yaya     # for yaya.md in circuits-examples
 ```
 
 The dependency lives in the command, not in circuits.cabal.
 
 ## example authoring
 
-New example cards go in `examples/`. A good card:
+New example cards live in the `circuits-examples` repository. A good card:
 
 - **Repl-verifiable.** Paste code blocks into `cabal repl` and they work.
   Verify before committing — `run` where `runHyper` or `observe` belongs is a

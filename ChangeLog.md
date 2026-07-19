@@ -74,7 +74,7 @@ The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
 - Canonical API uses lowercase names: `lift`, `lower`, `realise`, `encode`, `push`, `run`, `trace`, `untrace`.
 - Notation conventions in `other/symbols.md`. No `Circuit.Symbols` module — symbols are prose notation, not Haskell identifiers.
 - Narrative arc in `other/`: marks → GADT → Hyper → tensors → Mendler case → making stuff.
-- 15+ example cards: parsers, pipes, while-loops, Elgot iteration, delimited continuations, proequipment, ambient, hyper-chain, state, pure-queue, etc.
+- 15+ example cards moved to the new `circuits-examples` repository: parsers, pipes, while-loops, Elgot iteration, delimited continuations, proequipment, ambient, hyper-chain, state, pure-queue, etc.
 - Boundary rule: symbols in tables/axioms only; names everywhere else.
 - `Either` iteration convention: `Left` = feedback (continue), `Right` = exit.
 - Push is Hyper-only — no direct GADT counterpart.

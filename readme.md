@@ -85,28 +85,11 @@ Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14). One depend
 
 ## examples
 
-Every file in `examples/` is a card: a short, paste-into-GHCi walkthrough with YAML front matter (`name`, `description`, `tags`).
+The example cards now live in the separate `circuits-examples` repository. Each `.md` file is a short, paste-into-GHCi walkthrough with YAML front matter (`name`, `description`, `tags`).
 
-### structural choice
+Cards are not a secondary dump for outdated material — they are the *development surface* of the library. Stable cards document supported API; experimental cards grow ideas that are not yet in the API. When a card matures, it gets promoted into `src/` and the public API.
 
-`examples/` is not a secondary dump for outdated material — it is the *development surface* of the library.
-
-- **Stable cards** document API that is exported and supported.
-- **Experimental cards** grow ideas that are not yet in the API. They are leads for future work, not maintenance contracts.
-- When an experimental card matures, it gets promoted into `src/` and the public API. Until then it lives in `examples/` where it can be read, copied, and improved without breaking anyone.
-
-This is gradual API design: develop in the open, promote only what is fully spec'd, and keep dead ends visible but clearly marked. If you want to explore an extension, contribute a card.
-
-### the cards
-
-| category | cards | what they cover |
-|---|---|---|
-| **core** | `setup.md`, `circuit.md`, `traced.md`, `while.md`, `reader-monad.md` | imports, the `Trace` GADT, the `Traced` class, loops, monadic escape hatches |
-| **hyper** | `hyper.md`, `hyper-chain.md`, `encode-either.md`, `lift-trace-commute.md` | the final `Hyper` encoding and the lemmas that connect it to `Trace` |
-| **narrative** | `marks-and-stacks.md`, `knot-and-fix.md`, `hyper-buries-the-knot.md`, `tensors.md` | the story arc: from hyperfunctions to traced categories and back |
-| **state** | `state.md`, `ambient.md`, `debug-trace.md` | visible, ambient, and hidden state patterns |
-| **io** | `resource-io.md` | resource lifecycles as Either-trace loops |
-| **advanced** | `proarrow.md`, `proequip.md`, `tambara.md`, `pca.md` | equipment, free Tambara → optics, PCA as dagger + `Optic (,)` residual (experimental) |
+See <https://github.com/tonyday567/circuits-examples> for the full set of cards.
 
 For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
 
