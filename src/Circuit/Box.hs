@@ -19,17 +19,17 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XTypeApplications
--- >>> import Circuit.Ends (Ends(..), HasUnit(..), In(..), Out(..), commit, conjoint, companion, emit)
+-- >>> import Circuit.Ends (Ends, ends)
 -- >>> import Circuit.Box (box)
--- >>> import Circuit.Trace (Trace(..))
+-- >>> import Circuit.Layer (run)
 
 -- | Embed an 'Ends' into a 'Trace' morphism with unit wires.
 --
 -- Uses 'par' at the base arrow level and lifts the result with 'Arr'.
 --
--- >>> let ends = open :: Ends (->) () ()
--- >>> :t box @(,) ends
--- box @(,) ends :: Trace (,) (->) ((), ()) ((), ())
+-- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- >>> run (box @(,) e) ((), ())
+-- ((),42)
 box ::
   forall t arr a b.
   (HasUnit (Unit t) arr, Tensor t arr) =>

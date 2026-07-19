@@ -1,4 +1,4 @@
--- | Trace: free traced monoidal categories and hyperfunctions.
+-- | Circuit: free traced monoidal categories and hyperfunctions.
 --
 -- == Usage
 --
@@ -25,10 +25,11 @@
 --
 -- === Switching between representations
 --
--- 'Trace' is the inspectable GADT form. 'Hyper' is the efficient final
--- encoding. Convert with 'encode' and 'run'.
+-- 'Trace' is the inspectable GADT form. 'Hyper' is the final, coinductive
+-- encoding. Convert a 'Trace' to a 'Hyper' with 'encode', and observe it
+-- with 'observe' (or eliminate it with 'runHyper').
 --
--- >>> observe (encode (Arr (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> observe (encode (Circuit.Trace.Arr (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
@@ -42,7 +43,7 @@
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
--- 'ambientBy' state-threading combinator, lives in "Circuit.Monoidal".
+-- 'ambientBy' state-threading combinator, lives in "Circuit.Tensor".
 --
 -- == Core Concepts
 --

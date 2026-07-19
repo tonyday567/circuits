@@ -17,8 +17,7 @@
 -- The goal is to keep the core 'Trace' GADT and 'run' mechanism
 -- independent of these structural details.
 --
--- 'Tensor' / 'Action' are kind-polymorphic so @(+)@ can be a tensor for
--- @MatH@ alongside @Either@ for @Mat@ / @(->)@.
+-- 'Tensor' / 'Action' are kind-polymorphic.
 module Circuit.Tensor
   ( Braided (..),
     ambient,
@@ -56,6 +55,7 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> :set -XLambdaCase
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Trace (Trace (..))
 -- >>> import Prelude hiding (id, (.))
@@ -236,9 +236,8 @@ type family Unit (t :: k -> k -> k) :: k
 --
 -- 'par' is the tensor product of morphisms (parallel composition on
 -- disjoint wires). 'unitl' and 'unitr' witness that the tensor has a unit
--- object. This is the planar fragment: consumers constrained to 'Tensor'
--- cannot invoke a symmetry, even if the underlying value still contains
--- one.
+-- object. This is the planar fragment: 'Tensor' only provides the
+-- associator and unitors, not a braiding.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 class (Category arr) => Tensor t arr where
@@ -386,26 +385,10 @@ instance (Monad m) => Action Either (Kleisli m) where
 -- where @pre@ and @post@ rearrange the paired channel via associators
 -- and braiding.
 --
--- [Lazy patterns absorbed] For the @(,)@ tensor, the paired channel is a
--- tuple. The lazy-knot 'trace' diverges if any stage on the recursive path
--- forces the channel before emitting its result constructor. All structure
--- maps on the @(,)@ route are irrefutable, and 'untrace' re-emits the
--- channel as a manifest pair of projections, so /top-level strict tuple
--- patterns in user bodies are absorbed at the fusion boundary/ and do not
--- cause a black hole. Bodies that genuinely force the channel's contents
--- before producing output still diverge correctly, and 'cellIO' remains the
--- right tool for strict accumulators.
---
--- [Instance selection] The fused instance is selected when the action tensor
--- equals the feedback tensor. Code polymorphic in the tensor resolves the
--- fallback, so fusion depends on where the 'Action' constraint is discharged.
---
 -- >>> let k1 = Circuit.Trace.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Trace.Trace (,) (->) [Int] [Int]
 -- >>> let k2 = Circuit.Trace.Knot (\(ns, _) -> (2 : ns, take 3 ns))
 -- >>> Circuit.Layer.run (par k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
--- >>> case par k1 k2 :: Trace (,) (->) ([Int], [Int]) ([Int], [Int]) of Knot _ -> "fused"; Arr _ -> "melted"
--- "fused"
 instance {-# OVERLAPPING #-} (Tensor t (->), Traced t (->), M.Monoidal t (->)) => Tensor t (Trace t (->)) where
   par (Knot f) (Knot g) = Knot $ pre >>> par f g >>> post
     where

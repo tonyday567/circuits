@@ -15,7 +15,7 @@
 -- Net  = Mon + Knot + Copy + Discard + Plus + Zero
 -- @
 --
--- The tensor is fixed to @(,)@, matching 'Circuit.Monoidal.Action'.
+-- The tensor is fixed to @(,)@, matching 'Circuit.Tensor.Action'.
 module Circuit.Mon
   ( Mon (..),
     freeToMon,
@@ -91,11 +91,9 @@ instance (Category arr, Monoidal t arr) => Monoidal t (Mon arr) where
   assoc' = Arr assoc'
   braid = Arr braid
 
--- | Free symmetric monoidal category.
---
--- The target only needs 'Action'; the sequential structure is folded
--- with the target's category composition.
 -- | 'Action' plus 'Discrete' so free 'Mon' can fold intermediate objects.
+--
+-- Sequential structure is folded with the target's category composition.
 class (Action (,) arr, Discrete arr) => FreeMon arr
 
 instance (Action (,) arr, Discrete arr) => FreeMon arr
@@ -139,8 +137,7 @@ monTranspose Swap = Swap
 -- | Lift the 'Traced' structure through 'Mon'.
 --
 -- Loop bodies are 'run' into the base arrow before tracing, just as for
--- 'Free'.  This instance makes 'Mon' a valid target for 'Net.bind',
--- yielding the forgetful map @Net t arr -> Mon arr@ via @bind unit@.
+-- 'Free'.
 instance (Traced t arr, Action (,) arr, Discrete arr) => Traced t (Mon arr) where
   trace = Arr . trace . run
   untrace = Arr . untrace . run

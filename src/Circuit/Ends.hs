@@ -13,8 +13,8 @@
 --
 -- The companion and conjoint form an adjunction @In ⊣ Out@.
 -- The unit @η@ is 'open', producing a matched pair; the counit @ε@ is
--- 'close', plugging the pair back together.  The yanking identity
--- @close i o = commit i o@ is the defining characteristic.
+-- 'close', plugging the pair back together by feeding the 'Out' into the
+-- 'In'.
 module Circuit.Ends
   ( -- * Channel ends (bi-polar contract)
     Out (..),
@@ -79,9 +79,8 @@ newtype In arr a = In
 --
 -- Together with 'prefixIn' and 'suffixOut', 'Ends' carries an /enriched/
 -- profunctor structure over the base category @arr@: 'prefixIn' is the
--- left (contravariant) action by an @arr@-morphism, and 'suffixOut' is
--- the right (covariant) action.  The usual 'Data.Profunctor.dimap' uses
--- functions @(->)@; here the action is by morphisms of @arr@ itself.
+-- left action of @arr@ on 'In' ends, and 'suffixOut' is the right action
+-- of @arr@ on 'Out' ends.
 data Ends arr a b = Ends
   { conjoint  :: In arr a   -- ^ Write end (producer), the conjoint.
   , companion :: Out arr b  -- ^ Read end  (consumer), the companion.
@@ -92,9 +91,8 @@ data Ends arr a b = Ends
 -- Plug an 'In' and an 'Out' of the same payload type together to produce
 -- a morphism of @arr@ from @a@ to @a@.
 --
--- 'close' is literally 'commit': the 'In' end already carries the
--- morphism that consumes the payload and produces the result, so
--- plugging just means applying that morphism to the supplied 'Out'.
+-- 'close' feeds the 'Out' into the 'In' end, producing a morphism
+-- @arr a a@ from the paired payload type.
 --
 -- Yanking: for the unit ends from 'open',
 -- @close (conjoint ends) (companion ends) = id@.

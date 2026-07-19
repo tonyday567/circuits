@@ -6,16 +6,16 @@
 
 -- | The free-layer / free-forgetful adjunction tower.
 --
--- Each layer @f@ is a free construction over a base arrow.  The single
--- 'Layer' class replaces the per-layer folds:
+-- Each layer @f@ is a free construction over a base arrow:
 --
 -- * @run@ @Free@       — free category
+-- * @run@ @Mon@        — free symmetric monoidal category
 -- * @run@ @(Trace t)@  — free traced monoidal category
 -- * @run@ @(Net t)@    — free traced PROP with bimonoid
 --
--- with one associated constraint ('Law') saying what the target category
--- must satisfy, and two combinators ('unit' and 'bind') that package the
--- universal property.
+-- Each layer has one associated constraint ('Law') saying what the target
+-- category must satisfy, and two combinators ('unit' and 'bind') that
+-- package the universal property.
 --
 -- The hom-set isomorphism is stated once, generically:
 --
@@ -25,8 +25,7 @@
 -- @
 --
 -- Composition of layers is just nesting — no new operator, no bespoke
--- coherence lemmas.  Hand-inlined joins such as @run . melt@ are
--- recovered as @bind id@.
+-- coherence lemmas.
 module Circuit.Layer
   ( -- * Free-layer class
     Cat2,
@@ -49,7 +48,8 @@ import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Free
+-- >>> import Circuit.Category (Category(..))
+-- >>> import Circuit.Free (Free)
 
 -- | The kind of Haskell categories: type-to-type hom-sets.
 type Cat2 = Type -> Type -> Type
@@ -96,11 +96,12 @@ lower g = g . unit
 --
 -- @
 -- run @Free
+-- run @Mon
 -- run @(Trace t)
 -- run @(Net t)
 -- @
 --
--- >>> run (Lift (+1) :: Free (->) Int Int) 5
+-- >>> lower (run @Free) (+1) 5
 -- 6
 run :: (Layer f, Law f arr) => f arr :~> arr
 run = bind id
@@ -111,6 +112,7 @@ run = bind id
 --
 -- @
 -- hmap @Free h
+-- hmap @Mon h
 -- hmap @(Trace t) h
 -- hmap @(Net t) h
 -- @

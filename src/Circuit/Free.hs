@@ -5,11 +5,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | The free category over a base arrow — just 'Lift' and 'Compose'.
+-- | The free category over a base arrow.
 --
--- Free is Trace without the knot constructor.  Where Trace is the free /traced/
--- category, Free is the free category.  The universal fold out of Free
--- is 'run'; it is also 'bind' of the 'Layer' instance.
+-- The two constructors are 'Lift', which embeds a base arrow, and
+-- 'Compose', which sequences two free morphisms.  The universal fold out
+-- of 'Free' is 'run'.
 module Circuit.Free
   ( Free (..),
     freeze,
@@ -24,7 +24,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Free
--- >>> import Circuit.Layer (hmap, run)
+-- >>> import Circuit.Layer (run)
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free category over a base arrow @arr@.
@@ -36,6 +36,8 @@ import Prelude hiding (id, (.))
 --
 -- >>> run (Lift (+1) :: Free (->) Int Int) 5
 -- 6
+-- >>> run (Compose (Lift (+1)) (Lift (*2)) :: Free (->) Int Int) 5
+-- 11
 data Free arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Free arr a b
@@ -47,7 +49,7 @@ instance (Category arr) => Category (Free arr) where
   id = Lift id
   (.) = Compose
 
--- | Free category over a graph.
+-- | Layer instance for the free category.
 --
 -- 'Law' requires 'Discrete' so intermediate objects in 'Compose' can
 -- discharge 'Ob' when folding.

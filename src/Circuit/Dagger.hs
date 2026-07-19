@@ -8,7 +8,7 @@
 -- This module collects the algebraic structure that every wire carries in a
 -- circuit category:
 --
--- * 'Monoid' — the monoid on channel objects (fan-in of cotangents).
+-- * 'Monoid' — the monoid on channel objects (fan-in of contributions).
 -- * 'Comonoid' — the comonoid on channel objects (fan-out of values).
 -- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
 -- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
@@ -56,8 +56,8 @@ import Prelude hiding (Monoid, id, (.))
 -- | A commutative monoid on channel objects.
 --
 -- Not the same as arithmetic '+'; this is the operation by which parallel
--- contributions to the same wire combine.  In reverse-mode AD, fan-out on
--- the forward pass becomes fan-in (summation) on the backward pass.
+-- contributions to the same wire combine.  Fan-out on the forward pass
+-- becomes fan-in (summation) on the backward pass.
 class Monoid arr a where
   -- | Combine two values of the channel type.
   plus :: arr (a, a) a
@@ -113,10 +113,7 @@ instance Monoid (->) Float where
 
 -- | Boolean monoid under disjunction.
 --
--- Idempotent: @plus . copy = id@ — the relations/Boolean profile where
--- @True || True = True@.  'Circuit.Trace.Trace' 'Either' loops terminate without
--- truncated iteration because countable sums in an idempotent monoid
--- converge.
+-- Idempotent because @True || True = True@.
 --
 -- >>> plus (True, False) :: Bool
 -- True
@@ -128,7 +125,7 @@ instance Monoid (->) Bool where
   zero _ = False
   {-# INLINE zero #-}
 
--- | Componentwise addition on pairs.  Vanishing depends on this.
+-- | Componentwise 'plus' on pairs.
 --
 -- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
@@ -141,8 +138,7 @@ instance (Monoid (->) a, Monoid (->) b) => Monoid (->) (a, b) where
 -- | Lists via elementwise 'plus', padded with 'zero'.
 --
 -- For lists of unequal length, the shorter list is implicitly extended
--- with the element 'zero' — the cotangent of an absent value makes no
--- contribution. The unit is the empty list.
+-- with the element 'zero'. The unit is the empty list.
 --
 -- >>> plus ([1, 2], [3, 4, 5]) :: [Int]
 -- [4,6,5]

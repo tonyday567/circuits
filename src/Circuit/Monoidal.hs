@@ -10,11 +10,9 @@
 --
 -- This is the minimal structure needed to compose feedback loops: an
 -- associator and a braiding for the tensor @t@, expressed as morphisms in
--- @arr@. For @arr = (->)@ this collapses to the value-level combinators in
--- "Circuit.Tensor".
+-- @arr@. For @arr = (->)@ these are ordinary functions on tensor values.
 --
--- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds),
--- so @(+)@ can be a tensor for @MatH@ alongside @Either@ for @Mat@ / @(->)@.
+-- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 module Circuit.Monoidal
   ( Monoidal (..),
   )

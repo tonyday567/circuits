@@ -1,13 +1,14 @@
 -- | Queue strategies and STM 'Ends' for circuits.
 --
 -- The 'Queue' type describes buffering semantics (Unbounded, Bounded,
--- Single, Latest, Newest).  The canonical API is 'openSTM' and 'openIO',
--- which return a matched pair of free ends sharing a single STM channel.
--- 'openCollectSTM' and 'openCollectIO' provide a collector view where
--- single elements go in and the collected list is drained on demand.
+-- Single, SwapQ, Latest, Newest).  The canonical API is 'openSTM' and
+-- 'openIO', which return a matched pair of free ends sharing a single
+-- STM channel.  'openCollectSTM' and 'openCollectIO' provide a collector
+-- view where single elements go in and the collected list is drained on
+-- demand.
 --
 -- The batch-queue helpers ('openBatchSTM', 'openBatchMaybeSTM') provide a
--- hand-drawn list-backed buffer: write whole lists, read single elements.
+-- list-backed buffer: write whole lists, read single elements.
 module Circuit.Queue
   ( -- * Queue strategies
     Queue (..),
@@ -45,7 +46,6 @@ import Prelude
 -- $setup
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XNondecreasingIndentation
--- >>> import Circuit
 -- >>> import Circuit.Ends (Ends(..), In(..), Out(..), commit, emit, close)
 -- >>> import Circuit.Ends (HasUnit(..))
 -- >>> import Circuit.Queue
@@ -62,10 +62,9 @@ data Queue a
     Unbounded
   | -- | Bounded FIFO with backpressure (write blocks when full).
     Bounded Int
-  | -- | Single-slot buffer (write rejects when full — MVar-style A).
-    -- Overwrite-on-full (B) is 'SwapQ'.
+  | -- | Single-slot buffer (write blocks when full).
     Single
-  | -- | Single-slot buffer, overwrite-on-full (B semantics — swapTMVar).
+  | -- | Single-slot buffer, overwrite-on-full.
     -- Write always succeeds; read empties.
     SwapQ
   | -- | Always holds the latest value (overwrites, never blocks).
@@ -114,13 +113,6 @@ endsSTM = \case
 -- Allocates STM primitives and returns a matched pair of ends sharing
 -- the same mutable channel.  Both ends live in 'STM', so you can compose
 -- operations across channels in a single 'atomically' block.
---
--- @
--- ends <- atomically (openSTM Unbounded)
--- atomically $ do
---   msg <- runKleisli (emit (companion ends) (conjoint endsU)) ()
---   runKleisli (commit (conjoint ends) (companion endsU)) msg
--- @
 --
 -- === Unbounded
 --
@@ -234,11 +226,11 @@ openCollectIO q = do
 -- Batch queues
 -- ---------------------------------------------------------------------------
 
--- | Hand-drawn batch collector: write lists, read single elements.
+-- | Batch collector: write lists, read single elements.
 --
--- Unlike the strategy-based queues in "Circuit.Queue", this is a direct
--- STM implementation of a list-backed buffer.  The write end consumes a
--- whole @[a]@ at once; the read end pops one element at a time.
+-- Unlike the strategy-based queues above, this is a direct STM
+-- implementation of a list-backed buffer.  The write end consumes a whole
+-- @[a]@ at once; the read end pops one element at a time.
 --
 -- The buffer is supplied by the caller as a 'TVar' [a]; the constructors
 -- are pure morphisms on that buffer.

@@ -30,10 +30,11 @@
 -- design space a lattice: start with the features you need, add more
 -- when you need them, and forget them via algebras.
 --
--- This module is a /design tool/, not the working API. The direct
--- GADTs in "Circuit.Trace" and "Circuit.Net" remain the canonical
--- implementation. Signatures are useful for prototyping new features
--- and making the adjunction lattice explicit.
+-- Signatures expose the design space as a lattice: start with the
+-- features you need, add more when you need them, and forget them via
+-- algebras. The direct GADTs in "Circuit.Trace" and "Circuit.Net" are
+-- the canonical circuit types; this module gives those constructions as
+-- compositional syntax.
 --
 -- The signatures are:
 --
@@ -73,6 +74,7 @@ module Circuit.Algebra
     AlgMonoidal,
     AlgBimonoidal,
     AlgNet,
+    AlgMonKnot,
 
     -- * Forgetful algebras
     algFreeze,
@@ -84,7 +86,7 @@ module Circuit.Algebra
     netToAlg,
     algToNet,
 
-    -- * TraceMon <-> algebra maps
+    -- * AlgMonKnot <-> AlgTrace maps
     monKnotToTrace,
     traceToMonKnot,
   )
@@ -204,7 +206,7 @@ instance (Action (,) arr') => Algebra SigSwap arr arr' where
 -- | Bimonoid operations: copy, discard, plus, zero.
 --
 -- Each constructor carries its own 'Dg.Bimonoid' constraint, resolved at
--- pattern-match time rather than in the algr context.
+-- pattern-match time rather than in the algebra context.
 data SigBimonoid arr rec a b where
   SigCopy :: (Dg.Bimonoid arr a) => SigBimonoid arr rec a (a, a)
   SigDiscard :: (Dg.Bimonoid arr a) => SigBimonoid arr rec a ()
@@ -241,7 +243,7 @@ type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigBimono
 -- | Free traced PROP with bimonoid.
 type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigBimonoid) arr
 
--- | Free traced monoidal category — the 'TraceMon' layer made real.
+-- | Free traced monoidal category with explicit monoidal rows.
 --
 -- Both the trace ('SigKnot') and the monoidal product ('SigPar'/'SigSwap')
 -- are explicit syntax.  This is the conceptual middle ground between
@@ -296,7 +298,7 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) whe
   untrace f = Lift (untrace (eval f))
 
 -- ---------------------------------------------------------------------------
--- Forgetful algrs
+-- Forgetful algebras
 
 -- | Dissolve 'SigKnot' into 'SigCompose' by calling the base 'trace' on the
 -- free category.  This is the forgetful map from the free traced
@@ -345,8 +347,8 @@ algToTrace (Op op) = go op
 -- | Forget the explicit monoidal rows of 'AlgMonKnot', collapsing them
 -- into the base arrow and leaving only 'SigCompose' and 'SigKnot'.
 --
--- This is the signature-based version of 'melt' restricted to the
--- TraceMon layer.
+-- This folds 'AlgMonKnot' monoidal structure back into 'AlgTrace',
+-- leaving only sequential composition and feedback.
 monKnotToTrace ::
   forall t a b.
   (Traced t (->), Action (,) (->)) =>

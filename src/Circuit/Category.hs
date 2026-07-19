@@ -10,7 +10,7 @@
 -- | Local category hierarchy with object constraints.
 --
 -- 'Category' is local so morphisms can carry an associated 'Ob'
--- constraint (e.g. 'Finite' for matrices, 'KnownNat' for harpie mats).
+-- constraint.
 --
 -- 'Discrete' marks categories whose 'Ob' is trivial for every object
 -- (@Ob = ()@). Free constructions that fuse existential channels
@@ -31,8 +31,8 @@ import Prelude hiding (id, (.))
 -- | A category whose objects may carry a constraint.
 --
 -- @Ob arr a@ is the evidence required to mention object @a@ in @arr@.
--- Unconstrained categories use the default @()@. Constrained ones
--- specialise it (e.g. @Ob (Mat s) a = Finite a@).
+-- Unconstrained categories use the default @()@. Constrained categories
+-- specialise the associated type to whatever their objects require.
 class Category (arr :: k -> k -> Type) where
   -- | Object constraint for this category.
   type Ob arr (a :: k) :: Constraint
@@ -48,8 +48,8 @@ class Category (arr :: k -> k -> Type) where
 -- | Categories with a trivial object constraint for every type.
 --
 -- 'withOb' discharges @Ob arr a@ at an arbitrary @a@. Free constructions
--- that hide existential channels use this instead of
--- @forall x. Ob arr x@ (illegal on associated types).
+-- that bind an existential object (notably 'Trace' in "Circuit.Trace")
+-- use it where a polymorphic @Ob@ constraint cannot be written.
 class (Category arr) => Discrete arr where
   withOb :: forall a r. (Ob arr a => r) -> r
 

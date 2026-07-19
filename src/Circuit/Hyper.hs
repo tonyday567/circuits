@@ -138,10 +138,7 @@ runHyper h = invoke h (Hyper runHyper)
 
 -- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
 --
--- Transcribes the lazy-knot trace from @(->)@ into Hyper's continuation
--- language. Where @Trace (->) (,)@ can write @let (a, c) = f (a, b) in c@
--- directly, Hyper must route the self-reference through explicit 'Hyper'
--- values:
+-- Routes the self-reference through explicit 'Hyper' values:
 --
 --   1. @invoke body cont@ calls the body, which will eventually ask @cont@
 --      for an @(a, b)@ — the feedback pair.
@@ -150,8 +147,6 @@ runHyper h = invoke h (Hyper runHyper)
 --      cycles through @body → pair → cont → body@.
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
---
--- Law: @observe (trace (lift f)) x = trace \@ (->) f x@
 --
 -- >>> import Circuit.Trace (Traced (..))
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
@@ -187,17 +182,14 @@ encodeFree :: F.Free (->) a b -> Hyper a b
 encodeFree (F.Lift f) = lift f
 encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 
--- | Encode a Trace into a Hyper. Symbol: @(⇨)@.
+-- | Encode a Trace into a Hyper.
 --
 -- This is the unique traced functor from the initial object ('Trace')
 -- to the final object ('Hyper'), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'run'@.
 --
--- Under the hood it is just 'bind' 'lift': a 'Layer' fold from
--- @'Trace' (,) (->)@ into @'Hyper'@, using @lift :: (->) ':~>' 'Hyper'@
--- as the base-arrow map.  In other words, it is the non-standard
--- instantiation of the free-forgetful machinery that lands in
--- coinductive-land.
+-- 'Arr' constructors embed directly via 'lift'; 'Knot' constructors
+-- become 'trace' over a hyperfunction.
 --
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Trace (Trace (..))
@@ -236,9 +228,8 @@ encodeEither f = h
 
 -- | Run an 'encodeEither'-encoded circuit from initial input @b@.
 --
--- @runEither@ is to @encodeEither@ what @runHyper . lift@ is to plain functions:
--- 'encodeEither' embeds the Either state machine into Hyper, @runHyper@ ties the
--- self-referential knot, and @Right b@ injects the initial state.
+-- 'encodeEither' embeds the Either state machine into Hyper, @runHyper@ ties
+-- the self-referential knot, and @Right b@ injects the initial state.
 --
 -- >>> :{
 -- let step = \case
@@ -279,25 +270,34 @@ instance Category Hyper where
 
 -- | 'Profunctor' instance for 'Hyper'.
 --
--- 'rmap' is not a composition of 'push'; it acts directly on the
--- hyperfunction's output. 'dimap' routes both input and output
--- through the continuation structure.
+-- 'dimap' routes both input and output through the continuation
+-- structure.
 --
 -- Profunctor identity: dimap id id = id
 --
--- prop> \x -> observe (dimap id id h) (x :: Int) == x + 1
+-- >>> observe (dimap id id h) 5
+-- 6
 --
 -- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
 --
--- prop> \x -> observe (dimap f1 g1 (dimap f2 g2 h)) (x :: Int) == observe (dimap (f2 . f1) (g1 . g2) h) x
+-- >>> observe (dimap f1 g1 (dimap f2 g2 h)) 5
+-- 1410
+-- >>> observe (dimap (f2 . f1) (g1 . g2) h) 5
+-- 1410
 --
 -- lmap f = dimap f id
 --
--- prop> \x -> observe (lmap ((*2) :: Int -> Int) h) (x :: Int) == observe (dimap ((*2) :: Int -> Int) id h) x
+-- >>> observe (lmap ((*2) :: Int -> Int) h) 5
+-- 11
+-- >>> observe (dimap ((*2) :: Int -> Int) id h) 5
+-- 11
 --
 -- rmap g = dimap id g
 --
--- prop> \x -> observe (rmap ((*2) :: Int -> Int) h) (x :: Int) == observe (dimap id ((*2) :: Int -> Int) h) x
+-- >>> observe (rmap ((*2) :: Int -> Int) h) 5
+-- 12
+-- >>> observe (dimap id ((*2) :: Int -> Int) h) 5
+-- 12
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f
   lmap f h = Hyper $ invoke h . rmap f

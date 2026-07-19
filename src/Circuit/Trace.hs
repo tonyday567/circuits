@@ -21,8 +21,7 @@
 --
 -- The laws of traced monoidal categories are performed by the 'Category'
 -- and 'Traced' instances, so every value is already in normal form: at most
--- one 'Knot' at the top, over a base-arrow body. There is no separate
--- quotient step and no "Mendler case" in an interpreter.
+-- one 'Knot' at the top, over a base-arrow body.
 --
 -- For example, a @Trace (,) (->)@ is the initial traced monoidal cartesian
 -- category over Haskell functions.
@@ -37,19 +36,11 @@
 -- The polar channel ends ('Out', 'In'), their counit ('close'), and
 -- their unit ('open') all live in "Circuit.Ends".
 --
--- == Three moves on monoidal structure
+-- == Interpreting a 'Trace'
 --
--- When navigating the tower of monoidal structure, three different moves
--- appear:
---
---   * __Planar fragment__ — never introduce 'swap'/'braid'. Fewer morphisms,
---     polar dual ends, planar 'Par'.
---   * __Forget braiding as structure__ (@U : SMC -> MC@) — same arrows, but
---     consumers are constrained to a 'Tensor'-only class so they cannot
---     invoke 'swap' even if the value still contains Swap constructors.
---   * __Run / bind__ — leave free monoidal syntax and interpret into a target
---     category. 'melt' interprets 'Net' rows into 'Trace'; the
---     @Action (,) (Trace t arr)@ instance is what absorbs parallel 'Knot's.
+-- Use 'run' or 'bind' to interpret a 'Trace' into a target category.  The
+-- 'Category' and 'Traced' instances of the target discharge the knot; for
+-- @(->)@ this is lazy knot-tying, and for 'Either' it is iteration.
 --
 -- == Core Concepts
 --
@@ -101,10 +92,8 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Tensor (Tensor (..))
--- >>> import Control.Arrow (Kleisli (..), second)
+-- >>> import Control.Arrow (Kleisli (..))
 -- >>> import Circuit.Category ((.), (>>>))
--- >>> import Data.Either (fromRight)
--- >>> import Data.Profunctor (dimap)
 -- >>> import Data.Void (Void)
 -- >>> import Prelude hiding (id, (.))
 
@@ -167,9 +156,8 @@ data Trace (t :: Type -> Type -> Type) arr a b where
   -- (@forall x. Ob arr x@), discharged by unconstrained categories.
   Knot :: arr (t s a) (t s b) -> Trace t arr a b
 
--- | Fusing two '(,)'-'Knot's into one loop. Top-level strict tuple
--- patterns are absorbed because 'untrace' re-emits the channel as a
--- manifest pair of projections.
+-- | Discrete composition: compose two arrows while discharging 'Ob'
+-- constraints with 'withOb'.
 --
 -- >>> let k1 = Knot (\(ns, x) -> (1 : ns, take 3 ns ++ [x])) :: Trace (,) (->) Int [Int]
 -- >>> let k2 = Knot (\(ns, xs) -> (2 : ns, sum xs))
@@ -325,7 +313,8 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) wh
 -- >>> trace (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
 -- 6
 --
--- prop> \n -> trace ((unitl' . (+ n) . unitl) :: ((), Int) -> ((), Int)) (0 :: Int) == (n :: Int)
+-- >>> trace ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
+-- 3
 --
 -- Yanking: tracing a swap is the identity.
 --
@@ -333,26 +322,23 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) wh
 -- >>> trace swap 42
 -- 42
 --
--- prop> \x -> trace ((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int))) (x :: Int) == x
+-- >>> trace ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
+-- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
 -- >>> let f (x, a) = (x, a)
--- >>> trace (second (+1) . f . second (*2)) 5
+-- >>> trace ((\(x, a) -> (x, a + 1)) . f . (\(x, a) -> (x, a * 2))) 5
 -- 11
---
--- prop> \x -> trace (second ((+1) :: Int -> Int) . ((\(a, b) -> (a, b)) :: ((Int, Int) -> (Int, Int))) . second ((*2) :: Int -> Int)) (x :: Int) == x * 2 + 1
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --
 -- >>> let swap (x, y) = (y, x)
--- >>> trace (second (+1) . swap) 5
+-- >>> trace ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
--- >>> trace (swap . second (+1)) 5
+-- >>> trace ((\(a, b) -> (b + 1, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
---
--- prop> \x -> trace (second ((+1) :: Int -> Int) . ((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int)))) (x :: Int) == trace (((\(a, b) -> (b, a)) :: ((Int, Int) -> (Int, Int))) . second ((+1) :: Int -> Int)) x
 --
 -- Strength: an independent payload wire is invisible to the trace.
 --
@@ -361,7 +347,8 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) wh
 -- >>> trace g (3, 5)
 -- (6,6)
 --
--- prop> \a c -> trace ((\(x, (p, q)) -> (x, (p + a, q + 1))) :: ((Int, (Int, Int)) -> (Int, (Int, Int)))) (0 :: Int, c :: Int) == (a :: Int, c + 1)
+-- >>> trace ((\(x, (p, q)) -> (x, (p + 7, q + 1))) :: (Int, (Int, Int)) -> (Int, (Int, Int))) (0, 5)
+-- (7,6)
 instance Traced (,) (->) where
   trace f b = let ~(a, c) = f (a, b) in c
 
@@ -404,7 +391,8 @@ instance Traced (,) (->) where
 -- >>> trace (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
 -- 6
 --
--- prop> \n -> trace ((unitl' . (+ n) . unitl) :: Either Void Int -> Either Void Int) (0 :: Int) == (n :: Int)
+-- >>> trace ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
+-- 3
 --
 -- Yanking: tracing a swap is the identity.
 --
@@ -416,7 +404,8 @@ instance Traced (,) (->) where
 -- >>> trace swapEither 42
 -- 42
 --
--- prop> \x -> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: (Either Int Int -> Either Int Int)) (x :: Int) == x
+-- >>> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: Either Int Int -> Either Int Int) 42
+-- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
@@ -424,7 +413,8 @@ instance Traced (,) (->) where
 -- >>> trace (f :: Either Void Int -> Either Void Int) 5
 -- 11
 --
--- prop> \x -> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) (x :: Int) == x * 2 + 1
+-- >>> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) 5
+-- 11
 instance Traced Either (->) where
   trace f b = go (Right b)
     where

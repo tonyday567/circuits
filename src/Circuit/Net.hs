@@ -21,8 +21,7 @@
 -- @
 --
 -- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' interprets the
--- structural rows into the normal form of 'C.Trace'; the overlapping
--- @Action (,) (C.Trace t arr)@ instance is what absorbs parallel 'Knot's.
+-- structural rows into the normal form of 'C.Trace'.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -51,8 +50,6 @@ import Data.Kind (Type)
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
--- >>> 1 + 1 :: Int
--- 2
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Layer (bind, run, unit)
 -- >>> import Circuit.Mon qualified as M
@@ -101,10 +98,9 @@ data Net (t :: Type -> Type -> Type) arr a b where
 -- 'Plus', 'Par', and 'Knot' stay visible.  'melt' collapses the
 -- structure when the normal form is needed.
 --
--- For the @(,)@ feedback tensor, composing two 'Knot's fuses their
--- channels into a pair. This terminates when the structure maps and the
--- user knot bodies match the channel lazily; strict bodies still
--- diverge, as documented in "Circuit.Monoidal".
+-- Composition uses the explicit 'Compose' constructor so structural
+-- rows remain inspectable.  'melt' collapses them to the normal form of
+-- 'C.Trace' when needed.
 instance (Category arr) => Category (Net t arr) where
   type Ob (Net t arr) a = Ob arr a
   id = Lift id
@@ -181,7 +177,7 @@ enrich (C.Knot f) = Knot (Lift f)
 --
 -- >>> run (melt (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- >>> run (bind unit m :: Trace (,) (->) Int Int) 5
+-- >>> run (bind (C.Arr :: forall x y. (x -> y) -> Trace (,) (->) x y) m :: Trace (,) (->) Int Int) 5
 -- 11
 --
 -- Coherence: 'Net' folds through 'widen' match 'Mon' folds.
@@ -210,7 +206,7 @@ widen M.Swap = Swap
 --
 -- 'sift' is 'bind unit', so it collapses 'Knot' and the bimonoid rows
 -- into 'M.Arr' while leaving 'Compose', 'Par', and 'Swap' inspectable.
--- Together with 'widen' it gives the layer inclusion @Mon ↪ Net@.
+-- Together with 'widen' it gives the adjunction between 'M.Mon' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets knots and bimonoid structure.
 sift ::
@@ -225,10 +221,8 @@ sift = bind unit
 -- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
 -- etc.) become opaque base-arrow operations wrapped in 'C.Arr'; 'Compose'
 -- and 'C.Knot' use the 'Category' and 'Traced' instances of 'C.Trace'.
--- Parallel 'Knot's are absorbed by the overlapping
--- @Action (,) (C.Trace t arr)@ instance, not by 'melt' alone.
 --
--- @'run' @Net = 'C.run' . 'melt'@.
+-- @'run' @Net = 'run' . 'melt'@.
 --
 -- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
@@ -246,6 +240,11 @@ melt Plus = C.Arr Dg.plus
 melt Zero = C.Arr Dg.zero
 melt (Knot f) = trace (melt f)
 
+-- | 'Traced' + 'Action' + 'Discrete' — free 'Net' fold needs trivial 'Ob'.
+class (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
+
+instance (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
+
 -- | Free traced PROP with a bimonoid.
 --
 -- Structural rows are interpreted in the target category: parallel
@@ -257,11 +256,6 @@ melt (Knot f) = trace (melt f)
 -- @h@ of the source arrow's dictionaries.  This is the free-PROP fold
 -- only when @h@ is a bimonoid homomorphism (automatic for 'unit' and
 -- 'hmap', but must be verified for custom @h@).
--- | 'Traced' + 'Action' + 'Discrete' — free 'Net' fold needs trivial 'Ob'.
-class (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
-
-instance (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
-
 instance Layer (Net t) where
   type Law (Net t) arr' = FreeNet t arr'
   unit = Lift
