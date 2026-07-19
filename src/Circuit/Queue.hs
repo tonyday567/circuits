@@ -23,9 +23,7 @@ module Circuit.Queue
   )
 where
 
-import Circuit.Classes ((>>>))
-import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), commit, emit, endsK)
-import Circuit.Trace (Trace (..))
+import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), commit, emit, endsK, toActions)
 import Control.Applicative
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
@@ -36,13 +34,11 @@ import Prelude
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XNondecreasingIndentation
 -- >>> import Circuit
--- >>> import Circuit.Classes ((>>>))
 -- >>> import Circuit.Ends (Ends(..), In(..), Out(..), commit, emit, close)
 -- >>> import Circuit.Ends (HasUnit(..))
 -- >>> import Circuit.Queue
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
 -- >>> import Control.Concurrent.STM (STM, atomically)
--- >>> import Data.Profunctor (lmap)
 
 -- ---------------------------------------------------------------------------
 -- Queue strategies
@@ -72,9 +68,8 @@ data Queue a
 
 -- | Internal STM primitive for a queue strategy.
 --
--- Returns the raw write/read actions used by 'openSTM' and 'openIO'.
--- Exported only for advanced multi-op atomicity; the canonical API is
--- 'openSTM'.
+-- Returns the raw write/read actions used by 'openSTM'.  Not exported;
+-- the canonical API is 'openSTM'.
 endsSTM :: Queue a -> STM (a -> STM (), STM a)
 endsSTM = \case
   Bounded n -> do
@@ -104,8 +99,8 @@ endsSTM = \case
 
 -- | Open a queue strategy as STM 'Ends'.
 --
--- Allocates STM primitives and returns the dual ends sharing the same
--- mutable channel.  Both ends live in 'STM', so you can compose
+-- Allocates STM primitives and returns a matched pair of ends sharing
+-- the same mutable channel.  Both ends live in 'STM', so you can compose
 -- operations across channels in a single 'atomically' block.
 --
 -- @
@@ -162,8 +157,9 @@ openSTM q = do
 -- 42
 openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
 openIO q = do
-  (write, read') <- atomically (endsSTM q)
-  pure (endsK (atomically . write) (atomically read'))
+  e <- atomically (openSTM q)
+  let (Kleisli write, Kleisli receive) = toActions e
+  pure (endsK (atomically . write) (atomically (receive ())))
 
 -- ---------------------------------------------------------------------------
 -- Collector ends
@@ -218,6 +214,6 @@ openCollectSTM q = (\ends -> Ends (conjoint ends) (collectOut (companion ends)))
 -- [1,2]
 openCollectIO :: Queue a -> IO (Ends (Kleisli IO) a [a])
 openCollectIO q = do
-  (write, read') <- atomically (endsSTM q)
-  let drain = (read' >>= \x -> (x :) <$> drain) `orElse` pure []
-  pure (endsK (atomically . write) (atomically drain))
+  e <- atomically (openCollectSTM q)
+  let (Kleisli write, Kleisli receive) = toActions e
+  pure (endsK (atomically . write) (atomically (receive ())))

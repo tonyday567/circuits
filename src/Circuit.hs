@@ -73,6 +73,9 @@ module Circuit
     close,
     prefixIn,
     suffixOut,
+    ends,
+    endsK,
+    toActions,
     HasUnit (..),
 
     -- * Boxes
@@ -168,8 +171,11 @@ import Circuit.Ends
     In (..),
     Out (..),
     close,
+    ends,
+    endsK,
     prefixIn,
     suffixOut,
+    toActions,
   )
 import Circuit.Free
   ( Free (..),

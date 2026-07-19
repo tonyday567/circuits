@@ -36,6 +36,9 @@ module Circuit.Ends
     ends,
     endsK,
 
+    -- * Extract primitive actions from an 'Ends'
+    toActions,
+
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
 
@@ -98,41 +101,39 @@ data Ends arr a b = Ends
 close :: In arr a -> Out arr a -> arr a a
 close contra = commit contra
 
--- | Precompose an action with a unit 'In' end.
+-- | Precompose an @arr@-morphism with an 'In' end.
 --
--- Given @prefix :: arr a ()@ and the conjoint of the unit ends
--- @'open' :: Ends arr () ()@, produce an 'In' end at type @a@.  Running
--- the resulting end first executes @prefix@ and then delegates to the
--- unit behaviour (which emits through the supplied companion).
+-- Given @f :: arr a b@ and an 'In' end at type @b@, produce an 'In' end
+-- at type @a@.  Running the resulting end first executes @f@ and then
+-- commits through the original end.
 --
--- This is the canonical way to build effectful write ends: the unit
--- carries the recursive "continue" part, and @prefix@ is the side effect
--- performed before continuing.
+-- This is the left (contravariant) action of the base category on 'In'
+-- ends.  Specialised to unit ends it is the canonical way to build
+-- effectful write ends.
 --
 -- >>> let endsU = open :: Ends (->) () ()
 -- >>> let inA = prefixIn (const ()) (conjoint endsU) :: In (->) Int
 -- >>> commit inA (companion endsU) 42
 -- ()
-prefixIn :: forall arr a. (Discrete arr) => arr a () -> In arr () -> In arr a
-prefixIn prefix i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @() $ withOb @arr @x $ prefix >>> commit i o
+prefixIn :: forall arr a b. (Discrete arr) => arr a b -> In arr b -> In arr a
+prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withOb @arr @x $ f >>> commit i o
 
--- | Postcompose an action with a unit 'Out' end.
+-- | Postcompose an @arr@-morphism with an 'Out' end.
 --
--- Given @suffix :: arr () b@ and the companion of the unit ends
--- @'open' :: Ends arr () ()@, produce an 'Out' end at type @b@.  Running
--- the resulting end first emits through the unit behaviour (which ignores
--- the supplied conjoint) and then executes @suffix@ on the emitted value.
+-- Given an 'Out' end at type @a@ and @g :: arr a b@, produce an 'Out'
+-- end at type @b@.  Running the resulting end first emits through the
+-- original end and then executes @g@ on the emitted value.
 --
--- This is the canonical way to build effectful read ends: the unit
--- carries the recursive "ignore input" part, and @suffix@ is the side
--- effect performed after reading.
+-- This is the right (covariant) action of the base category on 'Out'
+-- ends.  Specialised to unit ends it is the canonical way to build
+-- effectful read ends.
 --
 -- >>> let endsU = open :: Ends (->) () ()
 -- >>> let outA = suffixOut (companion endsU) (const 42) :: Out (->) Int
 -- >>> emit outA (conjoint endsU) ()
 -- 42
-suffixOut :: forall arr b. (Discrete arr) => Out arr () -> arr () b -> Out arr b
-suffixOut o suffix = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @() $ withOb @arr @b $ emit o i >>> suffix
+suffixOut :: forall arr a b. (Discrete arr) => Out arr a -> arr a b -> Out arr b
+suffixOut o g = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @a $ withOb @arr @b $ emit o i >>> g
 
 -- ---------------------------------------------------------------------------
 -- Unit ends
@@ -174,6 +175,13 @@ class (Category arr) => HasUnit u arr where
 --
 -- This is the canonical way to turn a pair of primitive channel actions
 -- into a matched pair of 'In' and 'Out' ends.
+--
+-- Compositional spelling:
+--
+-- @
+-- ends write receive =
+--   Ends (prefixIn write (conjoint open)) (suffixOut (companion open) receive)
+-- @
 ends ::
   forall arr a b.
   (Discrete arr, HasUnit () arr) =>
@@ -182,8 +190,8 @@ ends ::
   Ends arr a b
 ends write receive =
   Ends
-    (In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @() $ withOb @arr @x $ write >>> emit o (conjoint open))
-    (Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @() $ withOb @arr @b $ commit i (companion open) >>> receive)
+    (prefixIn write (conjoint open))
+    (suffixOut (companion open) receive)
 
 -- | Specialization of 'ends' for 'Kleisli' actions.
 --
@@ -197,6 +205,26 @@ endsK ::
   m b ->
   Ends (Kleisli m) a b
 endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
+
+-- | Extract the primitive write and read actions from an 'Ends' by
+-- plugging each end with the unit ends.
+--
+-- For an 'Ends' built with 'ends', this recovers the original
+-- @write :: arr a ()@ and @receive :: arr () b@.
+--
+-- >>> let e = ends (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
+-- >>> let (write, receive) = toActions e
+-- >>> (write (), receive ())
+-- ((),42)
+toActions ::
+  forall arr a b.
+  (HasUnit () arr) =>
+  Ends arr a b ->
+  (arr a (), arr () b)
+toActions e =
+  ( commit (conjoint e) (companion (open :: Ends arr () ()))
+  , emit (companion e) (conjoint (open :: Ends arr () ()))
+  )
 
 -- | Unit ends for @(->)@ with unit @()@.
 --

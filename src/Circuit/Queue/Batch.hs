@@ -18,7 +18,6 @@ module Circuit.Queue.Batch
   )
 where
 
-import Circuit.Classes ((>>>))
 import Circuit.Ends (Ends (..), HasUnit (..), endsK)
 import Control.Arrow (Kleisli (..))
 import Control.Concurrent.STM
