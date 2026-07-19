@@ -73,14 +73,12 @@ library
     Circuit.Ends
     Circuit.Free
     Circuit.Hyper
-    Circuit.Int
     Circuit.Layer
     Circuit.Layer.Algebra
     Circuit.Mon
     Circuit.Monoidal
     Circuit.Monoidal.Category
     Circuit.Net
-    Circuit.Poly
     Circuit.Queue
     Circuit.Queue.Batch
     Circuit.Trace
