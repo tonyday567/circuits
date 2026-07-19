@@ -143,39 +143,11 @@ endsSTM = \case
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 2
 openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
-openSTM = \case
-  Unbounded -> do
-    q <- newTQueue
-    let outA = Out $ \_ -> Kleisli $ \_ -> readTQueue q
-        inA = In $ \o -> Kleisli $ \a -> writeTQueue q a >> runKleisli (emit o inA) a
-    pure (Ends inA outA)
-  Bounded n -> do
-    q <- newTBQueue (fromIntegral n)
-    let outA = Out $ \_ -> Kleisli $ \_ -> readTBQueue q
-        inA = In $ \o -> Kleisli $ \a -> writeTBQueue q a >> runKleisli (emit o inA) a
-    pure (Ends inA outA)
-  Single -> do
-    v <- newEmptyTMVar
-    let outA = Out $ \_ -> Kleisli $ \_ -> takeTMVar v
-        inA = In $ \o -> Kleisli $ \a -> putTMVar v a >> runKleisli (emit o inA) a
-    pure (Ends inA outA)
-  SwapQ -> do
-    v <- newEmptyTMVar
-    let write x = tryPutTMVar v x >>= \case True -> pure (); False -> void (swapTMVar v x)
-        outA = Out $ \_ -> Kleisli $ \_ -> takeTMVar v
-        inA = In $ \o -> Kleisli $ \a -> write a >> runKleisli (emit o inA) a
-    pure (Ends inA outA)
-  Latest a -> do
-    t <- newTVar a
-    let outA = Out $ \_ -> Kleisli $ \_ -> readTVar t
-        inA = In $ \o -> Kleisli $ \x -> writeTVar t x >> runKleisli (emit o inA) x
-    pure (Ends inA outA)
-  Newest n -> do
-    q <- newTBQueue (fromIntegral n)
-    let write x = writeTBQueue q x <|> (tryReadTBQueue q *> write x)
-        outA = Out $ \_ -> Kleisli $ \_ -> readTBQueue q
-        inA = In $ \o -> Kleisli $ \a -> write a >> runKleisli (emit o inA) a
-    pure (Ends inA outA)
+openSTM q = do
+  (write, read') <- endsSTM q
+  let outA = Out $ \_ -> Kleisli $ \_ -> read'
+      inA = In $ \o -> Kleisli $ \a -> write a >> runKleisli (emit o inA) a
+  pure (Ends inA outA)
 
 
 -- | Open a queue strategy as IO 'Ends'.
@@ -186,7 +158,6 @@ openSTM = \case
 -- 'atomically' yourself.
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
@@ -249,7 +220,6 @@ openCollectSTM q = do
 -- 'atomically'.
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openCollectIO Unbounded :: IO (Ends (Kleisli IO) Int [Int])
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 1
