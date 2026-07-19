@@ -34,6 +34,7 @@ module Circuit.Ends
 
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
+
   )
 where
 

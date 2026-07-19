@@ -82,6 +82,7 @@ library
     Circuit.Net
     Circuit.Poly
     Circuit.Queue
+    Circuit.Queue.Batch
     Circuit.Trace
 
   build-depends:
