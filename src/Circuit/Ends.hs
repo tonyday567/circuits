@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Free channel ends over a base arrow.
 --
@@ -25,8 +26,13 @@ module Circuit.Ends
 
     -- * Counit
     close,
+
+    -- * Prefixing an action to an 'In'
+    prefixIn,
   )
 where
+
+import Circuit.Classes (Category (..), Discrete (..), (>>>))
 
 -- $setup
 -- >>> import Circuit.Classes ((>>>))
@@ -74,3 +80,23 @@ data Ends arr a b = Ends
 -- @close (conjoint ends) (companion ends) = id@.
 close :: In arr a -> Out arr a -> arr a a
 close contra = commit contra
+
+-- | Precompose an action with a unit 'In' end.
+--
+-- Given @prefix :: arr a ()@ and the conjoint of the unit ends
+-- @'Circuit.Ends.Unit.open' :: Ends arr () ()@, produce an 'In' end at
+-- type @a@.  Running the resulting end first executes @prefix@ and then
+-- delegates to the unit behaviour (which emits through the supplied
+-- companion).
+--
+-- This is the canonical way to build effectful write ends: the unit
+-- carries the recursive "continue" part, and @prefix@ is the side effect
+-- performed before continuing.
+--
+-- >>> import Circuit.Ends.Unit (open)
+-- >>> let endsU = open :: Ends (->) () ()
+-- >>> let inA = prefixIn (const ()) (conjoint endsU) :: In (->) Int
+-- >>> commit inA (companion endsU) 42
+-- ()
+prefixIn :: forall arr a. (Discrete arr) => arr a () -> In arr () -> In arr a
+prefixIn prefix i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @() $ withOb @arr @x $ prefix >>> commit i o

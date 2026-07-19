@@ -24,7 +24,7 @@ module Circuit.Queue
 where
 
 import Circuit.Classes ((>>>))
-import Circuit.Ends (Ends (..), In (..), Out (..), commit, emit)
+import Circuit.Ends (Ends (..), In (..), Out (..), commit, emit, prefixIn)
 import Circuit.Ends.Unit (HasUnit (..))
 import Circuit.Trace (Trace (..))
 import Control.Applicative
@@ -146,7 +146,7 @@ openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
 openSTM q = do
   (write, read') <- endsSTM q
   let outA = Out $ \_ -> Kleisli $ \_ -> read'
-      inA = In $ \o -> Kleisli $ \a -> write a >> runKleisli (emit o inA) a
+      inA = prefixIn (Kleisli write) (conjoint (open :: Ends (Kleisli STM) () ()))
   pure (Ends inA outA)
 
 
@@ -167,7 +167,7 @@ openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
 openIO q = do
   (write, read') <- atomically (endsSTM q)
   let outA = Out $ \_ -> Kleisli $ \_ -> atomically read'
-      inA = In $ \o -> Kleisli $ \a -> atomically (write a) >> runKleisli (emit o inA) a
+      inA = prefixIn (Kleisli (atomically . write)) (conjoint (open :: Ends (Kleisli IO) () ()))
   pure (Ends inA outA)
 
 -- ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ openCollectSTM :: Queue a -> STM (Ends (Kleisli STM) a [a])
 openCollectSTM q = do
   (write, drain) <- collectSTM q
   let outA = Out $ \_ -> Kleisli $ \_ -> drain
-      inA = In $ \o -> Kleisli $ \a -> write a >> runKleisli (emit o inA) a
+      inA = prefixIn (Kleisli write) (conjoint (open :: Ends (Kleisli STM) () ()))
   pure (Ends inA outA)
 
 -- | Open a queue strategy as an IO collector 'Ends'.
@@ -230,5 +230,5 @@ openCollectIO :: Queue a -> IO (Ends (Kleisli IO) a [a])
 openCollectIO q = do
   (write, drain) <- atomically (collectSTM q)
   let outA = Out $ \_ -> Kleisli $ \_ -> atomically drain
-      inA = In $ \o -> Kleisli $ \a -> atomically (write a) >> runKleisli (emit o inA) a
+      inA = prefixIn (Kleisli (atomically . write)) (conjoint (open :: Ends (Kleisli IO) () ()))
   pure (Ends inA outA)
