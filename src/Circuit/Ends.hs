@@ -65,6 +65,12 @@ newtype In arr a = In
 -- This is the bi-polar communication contract.  The conjoint ('In')
 -- consumes payloads of type @a@; the companion ('Out') produces payloads
 -- of type @b@.  For symmetric channels such as queues @a = b@.
+--
+-- Together with 'prefixIn' and 'suffixOut', 'Ends' carries an /enriched/
+-- profunctor structure over the base category @arr@: 'prefixIn' is the
+-- left (contravariant) action by an @arr@-morphism, and 'suffixOut' is
+-- the right (covariant) action.  The usual 'Data.Profunctor.dimap' uses
+-- functions @(->)@; here the action is by morphisms of @arr@ itself.
 data Ends arr a b = Ends
   { conjoint  :: In arr a   -- ^ Write end (producer), the conjoint.
   , companion :: Out arr b  -- ^ Read end  (consumer), the companion.
