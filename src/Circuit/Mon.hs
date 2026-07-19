@@ -29,8 +29,8 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal (Action (..), Tensor (..))
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
+import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Traced (..), compD)
 import Prelude hiding (id, (.))
 
@@ -38,7 +38,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Free qualified as Fr
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Monoidal (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category over a base arrow @arr@.

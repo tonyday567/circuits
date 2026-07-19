@@ -32,7 +32,7 @@ explicit.
 
 ```haskell
 import Circuit (Trace, run, ambient)
-import Circuit.Monoidal (ambientBy)
+import Circuit.Tensor (ambientBy)
 import qualified Circuit.Trace as T
 
 -- A simple increment circuit
@@ -56,7 +56,7 @@ payload, so the input and output are nested `Either` values.
 
 ```haskell
 import Circuit (Trace, run, ambient)
-import Circuit.Monoidal (ambientBy, braid)
+import Circuit.Tensor (ambientBy, braid)
 import qualified Circuit.Trace as T
 
 -- A counting loop that also accumulates a log

@@ -14,9 +14,8 @@ single module.*
 `Traced t arr` (was `Traced arr t`), matching `Trace t arr a b`.*
 
 *BREAKING: **`Channelled` is replaced by `Monoidal`.** The structural
-superclass lives in the new `Circuit.Monoidal.Category` module. `Traced` is
-now a subclass of `Monoidal`; the `Trace`/`Net` `Category` instances require
-only `Traced t arr`.*
+superclass lives in `Circuit.Monoidal`. `Traced` is now a subclass of
+`Monoidal`; the `Trace`/`Net` `Category` instances require only `Traced t arr`.*
 
 *BREAKING: **The free-layer vocabulary is unified under `Circuit.Layer`.*
 `FreeLayer` is renamed to `Layer`; `Lawful` is renamed to `Law`.
@@ -32,7 +31,7 @@ The per-layer folds are now `run` with a type application:*
 All instances are now orphan `Layer` instances in `Circuit.Free`, `Circuit.Trace`,
 and `Circuit.Net`.*
 
-*BREAKING: **`Circuit.Signature` is renamed to `Circuit.Layer.Algebra`.**
+*BREAKING: **`Circuit.Signature` is renamed to `Circuit.Algebra`.**
 The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
 `handle` becomes `alg`, and the folds become `eval`/`evalInto`.*
 

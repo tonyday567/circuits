@@ -38,14 +38,14 @@ module Circuit.Dagger
 where
 
 import Circuit.Classes (Category (..), Discrete (..), (>>>))
-import Circuit.Monoidal (Action (..), Tensor (..))
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
+import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Traced (..))
 import Prelude hiding (Monoid, id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
--- >>> import Circuit.Monoidal (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Circuit.Trace (Traced (..))
 -- >>> import Circuit.Classes (Category (..), Discrete (..), (>>>))
 -- >>> import Prelude hiding (id, (.), Monoid)

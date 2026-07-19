@@ -207,7 +207,7 @@ import Circuit.Layer
     (:~~>),
   )
 import Circuit.Mon
-import Circuit.Monoidal
+import Circuit.Tensor
 import Circuit.Net
   ( Net,
     enrich,

@@ -49,7 +49,7 @@
 -- * @'Syntax' ('SigCompose' ':+:' 'SigKnot' t) arr@          — free traced category
 -- * @'Syntax' ('SigCompose' ':+:' 'SigPar' ':+:' 'SigSwap') arr@ — free monoidal category
 -- * @'Syntax' ('SigCompose' ':+:' 'SigKnot' t ':+:' 'SigPar' ':+:' 'SigSwap' ':+:' 'SigBimonoid') arr@ — Net
-module Circuit.Layer.Algebra
+module Circuit.Algebra
   ( -- * Signatures
     Sig,
     (:+:) (..),
@@ -93,8 +93,8 @@ where
 import Circuit.Classes (Category (..), Discrete (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
-import Circuit.Monoidal (Action (..), Tensor (..))
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
+import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Net qualified as N
 import Circuit.Trace (Traced (..), compD, traceD)
 import Circuit.Trace qualified as C

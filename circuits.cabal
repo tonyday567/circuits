@@ -67,6 +67,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Algebra
     Circuit.Box
     Circuit.Classes
     Circuit.Dagger
@@ -74,13 +75,11 @@ library
     Circuit.Free
     Circuit.Hyper
     Circuit.Layer
-    Circuit.Layer.Algebra
     Circuit.Mon
     Circuit.Monoidal
-    Circuit.Monoidal.Category
     Circuit.Net
     Circuit.Queue
-    Circuit.Queue.Batch
+    Circuit.Tensor
     Circuit.Trace
 
   build-depends:

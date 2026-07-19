@@ -19,7 +19,7 @@ where
 
 import Circuit.Classes (Category (..), Discrete (..))
 import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
 import Circuit.Trace (Traced (..), compD)
 import Prelude hiding (id, (.))
 

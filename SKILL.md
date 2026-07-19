@@ -37,19 +37,18 @@ Circuit.Trace       — Trace GADT (Arr, Knot), the Traced class, channel
                       ends (Co/Contra), and base instances: (,) lazy knot,
                       Either iteration, Kleisli IO via delimited
                       continuations, cellIO helper.
-Circuit.Monoidal    — Braided, Cartesian and Cocartesian structure over the
+Circuit.Monoidal    — Monoidal superclass (associator + braiding) for traced
+                      categories.
+Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over the
                       standard tensors, plus ambient / ambientBy state
                       threading.
-Circuit.Monoidal.Category
-                    — Monoidal superclass (associator + braiding) for
-                      traced categories.
 Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift, observe,
                       base, push, encode, encodeEither, runEither, flatten.
 Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
                       Plus, Zero, Knot. enrich, melt, transpose.
 Circuit.Layer       — Layer tower. unit, bind, run, hmap, join, lower;
                       NT, HNT, (:~>), (:~~>).
-Circuit.Layer.Algebra — change-of-base algebras for modular circuit syntax (optional).
+Circuit.Algebra     — change-of-base algebras for modular circuit syntax (optional).
 Circuit.Dagger      — Monoid, Comonoid, Bimonoid, Dagger, transpose.
 Circuit.Free        — Free category: Lift, Compose.
 Circuit.Mon         — Free symmetric monoidal category: Arr, Compose, Par,

@@ -13,7 +13,7 @@ where
 
 import Circuit.Classes (Category (..))
 import Circuit.Ends (Ends (..), HasUnit (..), commit, conjoint, companion, emit)
-import Circuit.Monoidal (Tensor (..), Unit)
+import Circuit.Tensor (Tensor (..), Unit)
 import Circuit.Trace (Trace (..))
 import Prelude hiding (id, (.))
 

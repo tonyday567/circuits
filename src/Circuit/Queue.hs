@@ -5,6 +5,9 @@
 -- which return a matched pair of free ends sharing a single STM channel.
 -- 'openCollectSTM' and 'openCollectIO' provide a collector view where
 -- single elements go in and the collected list is drained on demand.
+--
+-- The batch-queue helpers ('openBatchSTM', 'openBatchMaybeSTM') provide a
+-- hand-drawn list-backed buffer: write whole lists, read single elements.
 module Circuit.Queue
   ( -- * Queue strategies
     Queue (..),
@@ -20,6 +23,15 @@ module Circuit.Queue
 
     -- * IO collector 'Ends'
     openCollectIO,
+
+    -- * Batch queues
+    openBatchSTM,
+    openBatchMaybeSTM,
+
+    -- * Raw list-buffer primitives
+    pushAll,
+    pop,
+    popMaybe,
   )
 where
 
@@ -38,7 +50,7 @@ import Prelude
 -- >>> import Circuit.Ends (HasUnit(..))
 -- >>> import Circuit.Queue
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> import Control.Concurrent.STM (STM, atomically)
+-- >>> import Control.Concurrent.STM (STM, TVar, atomically, newTVar)
 
 -- ---------------------------------------------------------------------------
 -- Queue strategies
@@ -217,3 +229,69 @@ openCollectIO q = do
   e <- atomically (openCollectSTM q)
   let (Kleisli write, Kleisli receive) = toActions e
   pure (endsK (atomically . write) (atomically (receive ())))
+
+-- ---------------------------------------------------------------------------
+-- Batch queues
+-- ---------------------------------------------------------------------------
+
+-- | Hand-drawn batch collector: write lists, read single elements.
+--
+-- Unlike the strategy-based queues in "Circuit.Queue", this is a direct
+-- STM implementation of a list-backed buffer.  The write end consumes a
+-- whole @[a]@ at once; the read end pops one element at a time.
+--
+-- The buffer is supplied by the caller as a 'TVar' [a]; the constructors
+-- are pure morphisms on that buffer.
+
+-- | Append a whole list to the back of a list-buffer.
+pushAll :: TVar [a] -> [a] -> STM ()
+pushAll buf as = modifyTVar' buf (++ as)
+
+-- | Pop one element from the front of a list-buffer, returning 'Nothing'
+-- when empty.
+popMaybe :: TVar [a] -> STM (Maybe a)
+popMaybe buf =
+  readTVar buf >>= \case
+    [] -> pure Nothing
+    (a : as') -> writeTVar buf as' >> pure (Just a)
+
+-- | Pop one element from the front of a list-buffer, retrying when empty.
+pop :: TVar [a] -> STM a
+pop buf =
+  popMaybe buf >>= \case
+    Nothing -> retry
+    Just a -> pure a
+
+-- | Open a batch queue with blocking single-element reads.
+--
+-- 'commit' appends a whole list to the buffer; 'emit' pops the head,
+-- retrying when the buffer is empty.
+--
+-- >>> buf <- atomically (newTVar [] :: STM (TVar [Int]))
+-- >>> let ends = openBatchSTM buf
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) [1,2,3]
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 1
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 2
+openBatchSTM :: TVar [a] -> Ends (Kleisli STM) [a] a
+openBatchSTM buf = endsK (pushAll buf) (pop buf)
+
+-- | Open a batch queue with non-blocking single-element reads.
+--
+-- 'commit' appends a whole list to the buffer; 'emit' pops the head and
+-- returns 'Just' it, or 'Nothing' when the buffer is empty.
+--
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> buf <- atomically (newTVar [] :: STM (TVar [Int]))
+-- >>> let ends = openBatchMaybeSTM buf
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) [1,2]
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Just 1
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Just 2
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Nothing
+openBatchMaybeSTM :: TVar [a] -> Ends (Kleisli STM) [a] (Maybe a)
+openBatchMaybeSTM buf = endsK (pushAll buf) (popMaybe buf)

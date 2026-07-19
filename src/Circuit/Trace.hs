@@ -88,7 +88,7 @@ where
 
 import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
@@ -101,7 +101,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Monoidal (Tensor (..))
+-- >>> import Circuit.Tensor (Tensor (..))
 -- >>> import Control.Arrow (Kleisli (..), second)
 -- >>> import Circuit.Classes ((.), (>>>))
 -- >>> import Data.Either (fromRight)

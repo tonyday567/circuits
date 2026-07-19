@@ -36,7 +36,7 @@ where
 import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
 import Circuit.Trace (Trace (..), Traced (..))
 import Prelude hiding (id, (.))
 #ifdef __GLASGOW_HASKELL__

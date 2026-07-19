@@ -45,7 +45,7 @@ import Circuit.Classes (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Mon qualified as M
-import Circuit.Monoidal (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Traced (..), compD, traceD)
 import Circuit.Trace qualified as C
 import Data.Kind (Type)
