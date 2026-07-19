@@ -72,6 +72,7 @@ module Circuit
     Ends (..),
     close,
     prefixIn,
+    suffixOut,
 
     -- * Boxes
     HasUnit (..),
@@ -167,6 +168,7 @@ import Circuit.Ends
     Out (..),
     close,
     prefixIn,
+    suffixOut,
   )
 import Circuit.Ends.Unit
   ( HasUnit (..),

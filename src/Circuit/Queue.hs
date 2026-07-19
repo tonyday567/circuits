@@ -24,7 +24,7 @@ module Circuit.Queue
 where
 
 import Circuit.Classes ((>>>))
-import Circuit.Ends (Ends (..), In (..), Out (..), commit, emit, prefixIn)
+import Circuit.Ends (Ends (..), In (..), Out (..), commit, emit, prefixIn, suffixOut)
 import Circuit.Ends.Unit (HasUnit (..))
 import Circuit.Trace (Trace (..))
 import Control.Applicative
@@ -145,8 +145,9 @@ endsSTM = \case
 openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
 openSTM q = do
   (write, read') <- endsSTM q
-  let outA = Out $ \_ -> Kleisli $ \_ -> read'
-      inA = prefixIn (Kleisli write) (conjoint (open :: Ends (Kleisli STM) () ()))
+  let endsU = open :: Ends (Kleisli STM) () ()
+      outA = suffixOut (companion endsU) (Kleisli $ \_ -> read')
+      inA = prefixIn (Kleisli write) (conjoint endsU)
   pure (Ends inA outA)
 
 
@@ -166,8 +167,9 @@ openSTM q = do
 openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
 openIO q = do
   (write, read') <- atomically (endsSTM q)
-  let outA = Out $ \_ -> Kleisli $ \_ -> atomically read'
-      inA = prefixIn (Kleisli (atomically . write)) (conjoint (open :: Ends (Kleisli IO) () ()))
+  let endsU = open :: Ends (Kleisli IO) () ()
+      outA = suffixOut (companion endsU) (Kleisli $ \_ -> atomically read')
+      inA = prefixIn (Kleisli (atomically . write)) (conjoint endsU)
   pure (Ends inA outA)
 
 -- ---------------------------------------------------------------------------
@@ -210,8 +212,9 @@ collectSTM q = do
 openCollectSTM :: Queue a -> STM (Ends (Kleisli STM) a [a])
 openCollectSTM q = do
   (write, drain) <- collectSTM q
-  let outA = Out $ \_ -> Kleisli $ \_ -> drain
-      inA = prefixIn (Kleisli write) (conjoint (open :: Ends (Kleisli STM) () ()))
+  let endsU = open :: Ends (Kleisli STM) () ()
+      outA = suffixOut (companion endsU) (Kleisli $ \_ -> drain)
+      inA = prefixIn (Kleisli write) (conjoint endsU)
   pure (Ends inA outA)
 
 -- | Open a queue strategy as an IO collector 'Ends'.
@@ -229,6 +232,7 @@ openCollectSTM q = do
 openCollectIO :: Queue a -> IO (Ends (Kleisli IO) a [a])
 openCollectIO q = do
   (write, drain) <- atomically (collectSTM q)
-  let outA = Out $ \_ -> Kleisli $ \_ -> atomically drain
-      inA = prefixIn (Kleisli (atomically . write)) (conjoint (open :: Ends (Kleisli IO) () ()))
+  let endsU = open :: Ends (Kleisli IO) () ()
+      outA = suffixOut (companion endsU) (Kleisli $ \_ -> atomically drain)
+      inA = prefixIn (Kleisli (atomically . write)) (conjoint endsU)
   pure (Ends inA outA)

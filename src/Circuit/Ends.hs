@@ -29,6 +29,9 @@ module Circuit.Ends
 
     -- * Prefixing an action to an 'In'
     prefixIn,
+
+    -- * Suffixing an action to an 'Out'
+    suffixOut,
   )
 where
 
@@ -100,3 +103,23 @@ close contra = commit contra
 -- ()
 prefixIn :: forall arr a. (Discrete arr) => arr a () -> In arr () -> In arr a
 prefixIn prefix i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @() $ withOb @arr @x $ prefix >>> commit i o
+
+-- | Postcompose an action with a unit 'Out' end.
+--
+-- Given @suffix :: arr () b@ and the companion of the unit ends
+-- @'Circuit.Ends.Unit.open' :: Ends arr () ()@, produce an 'Out' end at
+-- type @b@.  Running the resulting end first emits through the unit
+-- behaviour (which ignores the supplied conjoint) and then executes
+-- @suffix@ on the emitted value.
+--
+-- This is the canonical way to build effectful read ends: the unit
+-- carries the recursive "ignore input" part, and @suffix@ is the side
+-- effect performed after reading.
+--
+-- >>> import Circuit.Ends.Unit (open)
+-- >>> let endsU = open :: Ends (->) () ()
+-- >>> let outA = suffixOut (companion endsU) (const 42) :: Out (->) Int
+-- >>> emit outA (conjoint endsU) ()
+-- 42
+suffixOut :: forall arr b. (Discrete arr) => Out arr () -> arr () b -> Out arr b
+suffixOut o suffix = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @() $ withOb @arr @b $ emit o i >>> suffix
