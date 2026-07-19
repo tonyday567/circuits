@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | String-diagram boxes from channel ends.
 --
@@ -13,11 +14,12 @@ where
 import Circuit.Classes (Category (..))
 import Circuit.Ends (Ends (..), commit, conjoint, companion, emit)
 import Circuit.Ends.Unit (HasUnit (..))
-import Circuit.Monoidal (Tensor (..))
+import Circuit.Monoidal (Tensor (..), Unit)
 import Circuit.Trace (Trace (..))
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> :set -XTypeApplications
 -- >>> import Circuit.Ends (Ends(..), In(..), Out(..), commit, conjoint, companion, emit)
 -- >>> import Circuit.Box (box)
 -- >>> import Circuit.Ends.Unit (HasUnit(..))
@@ -27,12 +29,14 @@ import Prelude hiding (id, (.))
 --
 -- Uses 'par' at the base arrow level and lifts the result with 'Arr'.
 --
--- >>> let ends = open
--- >>> :t box ends
--- box ends
---   :: (HasUnit arr, Circuit.Monoidal.Tensor (,) arr) =>
---      Trace (,) arr ((), ()) ((), ())
-box :: (HasUnit arr, Tensor (,) arr) => Ends arr a b -> Trace (,) arr (a, ()) ((), b)
+-- >>> let ends = open :: Ends (->) () ()
+-- >>> :t box @(,) ends
+-- box @(,) ends :: Trace (,) (->) ((), ()) ((), ())
+box ::
+  forall t arr a b.
+  (HasUnit (Unit t) arr, Tensor t arr) =>
+  Ends arr a b ->
+  Trace t arr (t a (Unit t)) (t (Unit t) b)
 box ends =
   Arr $
     par

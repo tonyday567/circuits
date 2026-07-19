@@ -131,7 +131,7 @@ endsSTM = \case
 -- === Unbounded
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
 -- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
@@ -198,7 +198,8 @@ openSTM = \case
 -- 'atomically' yourself.
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
 -- >>> runKleisli (emit (companion ends) (conjoint endsU)) ()
@@ -240,7 +241,7 @@ collectSTM q = do
 -- the elements written since the last read.
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
 -- >>> ends <- atomically (openCollectSTM Unbounded :: STM (Ends (Kleisli STM) Int [Int]))
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1
 -- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 2
@@ -260,7 +261,8 @@ openCollectSTM q = do
 -- 'atomically'.
 --
 -- >>> import Circuit.Ends.Unit (HasUnit (..))
--- >>> let endsU = open
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> let endsU = open :: Ends (Kleisli IO) () ()
 -- >>> ends <- openCollectIO Unbounded :: IO (Ends (Kleisli IO) Int [Int])
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 1
 -- >>> runKleisli (commit (conjoint ends) (companion endsU)) 2
