@@ -347,6 +347,35 @@ instance Action Either (->) where
     Right b -> Left b
   {-# INLINE swap #-}
 
+-- | Coproduct tensor action on 'Kleisli' @m@.
+--
+-- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> let f = Kleisli (\n -> pure (n + 1)) :: Kleisli IO Int Int
+-- >>> let g = Kleisli (\n -> pure (n * 2)) :: Kleisli IO Int Int
+-- >>> runKleisli (par f g) (Left 3 :: Either Int Int)
+-- Left 4
+-- >>> runKleisli (par f g) (Right 3 :: Either Int Int)
+-- Right 6
+instance (Monad m) => Tensor Either (Kleisli m) where
+  par (Kleisli f) (Kleisli g) =
+    Kleisli $ \case
+      Left a -> Left <$> f a
+      Right c -> Right <$> g c
+  {-# INLINE par #-}
+  unitl = Kleisli $ either absurd pure
+  {-# INLINE unitl #-}
+  unitl' = Kleisli $ pure . Right
+  {-# INLINE unitl' #-}
+  unitr = Kleisli $ either pure absurd
+  {-# INLINE unitr #-}
+  unitr' = Kleisli $ pure . Left
+  {-# INLINE unitr' #-}
+
+-- | Coproduct symmetry on 'Kleisli' @m@.
+instance (Monad m) => Action Either (Kleisli m) where
+  swap = Kleisli $ pure . swap
+  {-# INLINE swap #-}
+
 -- | Lift 'Tensor'/'Action' through 'Trace' when the feedback tensor matches.
 --
 -- Two 'Knot's in parallel superpose into one 'Knot' over a paired channel,
