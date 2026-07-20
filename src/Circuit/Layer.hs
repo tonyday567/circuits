@@ -44,8 +44,8 @@ import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Category (Category(..))
--- >>> import Circuit.Free (Free)
+-- .> import Circuit.Category (Category(..))
+-- .> import Circuit.Free (Free)
 
 -- | The kind of Haskell categories: type-to-type hom-sets.
 type Cat2 = Type -> Type -> Type

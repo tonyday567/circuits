@@ -18,11 +18,22 @@
 -- 'Net', and the syntax in "Circuit.Algebra") additionally requires
 -- 'Discrete', because compound tensor objects (e.g. @t s a@ inside a
 -- 'Loop.Knot') carry no 'Ob' evidence and must be manufactured on demand.
+--
+-- == Operator convention
+--
+-- The tip of the operator points in the direction of data flow.
+--
+-- * @|@ means /apply/ to a value: @('|>')@ feeds a value into a function
+--   (forward application, like @('&')@), and @('<|')@ applies a function
+--   to a value (backward application, like @('$')@).
+-- * @.@ means /compose/ morphisms: @('.>')@ is forward composition and
+--   @('.')@ is backward composition as usual.
 module Circuit.Category
   ( Category (..),
     Discrete (..),
-    (>>>),
-    (<<<),
+    (.>),
+    (|>),
+    (<|),
   )
 where
 
@@ -56,15 +67,22 @@ class Category (arr :: k -> k -> Type) where
 class (Category arr) => Discrete arr where
   withOb :: forall a r. (Ob arr a => r) -> r
 
--- | Left-to-right composition.
-(>>>) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr a b -> arr b c -> arr a c
-f >>> g = g . f
-{-# INLINE (>>>) #-}
+-- | Forward composition. @f .> g = g . f@
+(.>) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr a b -> arr b c -> arr a c
+f .> g = g . f
+{-# INLINE (.>) #-}
 
--- | Right-to-left composition (synonym for '(.)').
-(<<<) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr b c -> arr a b -> arr a c
-(<<<) = (.)
-{-# INLINE (<<<) #-}
+-- | Forward application. @x |> f = f x@
+(|>) :: a -> (a -> b) -> b
+x |> f = f x
+{-# INLINE (|>) #-}
+infixl 1 |>
+
+-- | Backward application. @f <| x = f x@
+(<|) :: (a -> b) -> a -> b
+f <| x = f x
+{-# INLINE (<|) #-}
+infixr 0 <|
 
 -- | Unconstrained function category.
 instance Category (->) where

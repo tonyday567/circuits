@@ -37,17 +37,17 @@ module Circuit.Dagger
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Dagger
--- >>> import Circuit.Tensor (Action (..), Tensor (..))
--- >>> import Circuit.Channel (Traced (..))
--- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
--- >>> import Prelude hiding (id, (.))
+-- .> import Circuit.Dagger
+-- .> import Circuit.Tensor (Action (..), Tensor (..))
+-- .> import Circuit.Channel (Traced (..))
+-- .> import Circuit.Category (Category (..), Discrete (..), (.>))
+-- .> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
 -- MergeZero: monoid structure on channel objects
@@ -67,9 +67,9 @@ class MergeZero arr a where
 
 -- | The unit type carries the trivial monoid.
 --
--- >>> plus ((), ()) :: ()
+-- .> plus ((), ()) :: ()
 -- ()
--- >>> zero () :: ()
+-- .> zero () :: ()
 -- ()
 instance MergeZero (->) () where
   plus _ = ()
@@ -79,13 +79,13 @@ instance MergeZero (->) () where
 
 -- | Numeric carriers.  'plus' is addition, 'zero' is 0.
 --
--- >>> plus (1, 2) :: Int
+-- .> plus (1, 2) :: Int
 -- 3
--- >>> zero () :: Int
+-- .> zero () :: Int
 -- 0
--- >>> plus (1.0, 2.0) :: Double
+-- .> plus (1.0, 2.0) :: Double
 -- 3.0
--- >>> zero () :: Double
+-- .> zero () :: Double
 -- 0.0
 instance MergeZero (->) Int where
   plus = uncurry (+)
@@ -115,9 +115,9 @@ instance MergeZero (->) Float where
 --
 -- Idempotent because @True || True = True@.
 --
--- >>> plus (True, False) :: Bool
+-- .> plus (True, False) :: Bool
 -- True
--- >>> zero () :: Bool
+-- .> zero () :: Bool
 -- False
 instance MergeZero (->) Bool where
   plus = uncurry (||)
@@ -127,7 +127,7 @@ instance MergeZero (->) Bool where
 
 -- | Componentwise 'plus' on pairs.
 --
--- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
+-- .> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
 instance (MergeZero (->) a, MergeZero (->) b) => MergeZero (->) (a, b) where
   plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
@@ -140,9 +140,9 @@ instance (MergeZero (->) a, MergeZero (->) b) => MergeZero (->) (a, b) where
 -- For lists of unequal length, the shorter list is implicitly extended
 -- with the element 'zero'. The unit is the empty list.
 --
--- >>> plus ([1, 2], [3, 4, 5]) :: [Int]
+-- .> plus ([1, 2], [3, 4, 5]) :: [Int]
 -- [4,6,5]
--- >>> plus ([], [3, 4, 5]) :: [Int]
+-- .> plus ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
 instance (MergeZero (->) a) => MergeZero (->) [a] where
   plus (xs, ys) = go xs ys
@@ -185,9 +185,9 @@ type Bimonoid arr a = (CopyDiscard arr a, MergeZero arr a)
 
 -- | Every type copies for free in a cartesian category (Fox's theorem).
 --
--- >>> copy (42 :: Int)
+-- .> copy (42 :: Int)
 -- (42,42)
--- >>> discard (42 :: Int)
+-- .> discard (42 :: Int)
 -- ()
 instance CopyDiscard (->) a where
   copy a = (a, a)
@@ -205,10 +205,10 @@ instance CopyDiscard (->) a where
 -- @arr b a@ (backward).  Composition is covariant forward, contravariant
 -- backward: @Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)@.
 --
--- >>> let d = Dagger (+1) (subtract 1) :: Dagger (->) Int Int
--- >>> front d 5
+-- .> let d = Dagger (+1) (subtract 1) :: Dagger (->) Int Int
+-- .> front d 5
 -- 6
--- >>> back d 6
+-- .> back d 6
 -- 5
 data Dagger arr a b = Dagger
   { -- | The forward direction.

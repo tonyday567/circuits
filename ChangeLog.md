@@ -2,6 +2,10 @@
 
 ## 0.2.0.0 — current
 
+*BREAKING: **Operator convention switched.** `(>>>)` is renamed to `(.>)`,
+`(<<<)` is removed in favour of `(.)`, and forward/backward application
+operators `(|>)` and `(<|)` are added in `Circuit.Category`.*
+
 *BREAKING: **Structural semantics move to `Circuit.Channel`.** The `Channel`,
 `Strength`, and `Traced` classes and all base instances for `(->)` and
 `Kleisli m` now live in `Circuit.Channel`. `Circuit.Strength` is removed.
@@ -36,8 +40,9 @@ superclass lives in `Circuit.Monoidal`. `Traced` is now a subclass of
 `Monoidal`; the `Trace`/`Net` `Category` instances require only `Traced t arr`.*
 
 *BREAKING: **`Circuit.Classes` is renamed to `Circuit.Category`.** MicroHs
-support and CPP shims are removed; `Category`, `Discrete`, `Ob`, `(>>>)`, and
-`(<<<)` now live in the GHC-only `Circuit.Category` module.*
+support and CPP shims are removed; `Category`, `Discrete`, `Ob`, `(.>)`, `(|>)`,
+and `(<|)` now live in the GHC-only `Circuit.Category` module. `(>>>)` and
+`(<<<)` are removed; use `(.>)` and `(.)` for composition.*
 
 *BREAKING: **The free-layer vocabulary is unified under `Circuit.Layer`.*
 `FreeLayer` is renamed to `Layer`; `Lawful` is renamed to `Law`.

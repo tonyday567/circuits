@@ -64,7 +64,7 @@ module Circuit.Loop
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Control.Arrow (Kleisli (..))
@@ -74,12 +74,12 @@ import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Layer (run)
--- >>> import Circuit.Tensor (Tensor (..))
--- >>> import Control.Arrow (Kleisli (..))
--- >>> import Circuit.Category ((.), (>>>))
--- >>> import Data.Void (Void)
--- >>> import Prelude hiding (id, (.))
+-- .> import Circuit.Layer (run)
+-- .> import Circuit.Tensor (Tensor (..))
+-- .> import Control.Arrow (Kleisli (..))
+-- .> import Circuit.Category ((.), (.>))
+-- .> import Data.Void (Void)
+-- .> import Prelude hiding (id, (.))
 
 -- | The free traced monoidal category over base morphism @arr@ and tensor @t@,
 -- in existential normal form.
@@ -142,7 +142,7 @@ instance (Strength t arr, Discrete arr) => Category (Loop t arr) where
                       withOb @arr @(t s2 c) $
                         withOb @arr @(t s1 (t s2 c)) $
                           withOb @arr @(t (t s2 s1) c) $
-                            Knot (assoc >>> strength g >>> slide >>> strength f >>> slide >>> assoc')
+                            Knot (assoc .> strength g .> slide .> strength f .> slide .> assoc')
 
 -- | A discrete base yields a discrete free traced category.
 instance (Strength t arr, Discrete arr) => Discrete (Loop t arr) where
@@ -218,7 +218,7 @@ instance (Strength t arr, Discrete arr) => Strength t (Loop t arr) where
       withOb @arr @(t s b) $
         withOb @arr @(t s c) $
           withOb @arr @(t s (t a c)) $
-            Knot (slide >>> strength f >>> slide)
+            Knot (slide .> strength f .> slide)
 
 -- | Lift the 'Traced' class through 'Loop t'.
 --
@@ -236,7 +236,7 @@ instance (Traced t arr, Discrete arr) => Traced t (Loop t arr) where
         withOb @arr @(t s (t a c)) $
           withOb @arr @(t (t s a) c) $
             withOb @arr @(t s a) $
-              Knot (assoc >>> f >>> assoc')
+              Knot (assoc .> f .> assoc')
 
 -- | 'Traced' plus 'Discrete' — required to fold free 'Loop'
 -- (existential feedback channels need trivial 'Ob' on every type).

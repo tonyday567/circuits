@@ -12,7 +12,6 @@ It's off the beaten track but absolutely core Haskell: traced monoidal categorie
 import Circuit
 import qualified Circuit.Loop as T
 import Control.Arrow (Kleisli (..))
-import Control.Category ((>>>))
 import Data.Bool (bool)
 import System.IO (IOMode (ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
@@ -28,7 +27,7 @@ countLines = T.Knot (Kleisli step)
     step (Right h) = pure (Left (h, 0))
 
 pipeline :: T.Trace Either (Kleisli IO) FilePath Int
-pipeline = openf >>> countLines >>> T.Lift (Kleisli (\(h, n) -> hClose h >> pure n))
+pipeline = openf .> countLines .> T.Lift (Kleisli (\(h, n) -> hClose h >> pure n))
 
 -- paste into ghci:  runKleisli (run pipeline) "readme.md"
 ```

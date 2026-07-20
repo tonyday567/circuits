@@ -65,7 +65,7 @@ module Circuit.Ends
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Loop (Loop (..))
 import Circuit.Tensor (Tensor (..), Unit)
 import Control.Applicative
@@ -75,12 +75,12 @@ import Control.Monad (void)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> :set -XTypeApplications
--- >>> import Circuit.Category ((>>>))
--- >>> import Circuit.Ends
--- >>> import Circuit.Layer (run)
--- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> import Control.Concurrent.STM (STM, atomically)
+-- .> :set -XTypeApplications
+-- .> import Circuit.Category ((.>))
+-- .> import Circuit.Ends
+-- .> import Circuit.Layer (run)
+-- .> import Control.Arrow (Kleisli(..), runKleisli)
+-- .> import Control.Concurrent.STM (STM, atomically)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
@@ -138,12 +138,12 @@ close contra = commit contra
 -- ends.  Specialised to unit ends it is the canonical way to build
 -- effectful write ends.
 --
--- >>> let endsU = open :: Ends (->) () ()
--- >>> let inA = prefixIn (const ()) (conjoint endsU) :: In (->) Int
--- >>> commit inA (companion endsU) 42
+-- .> let endsU = open :: Ends (->) () ()
+-- .> let inA = prefixIn (const ()) (conjoint endsU) :: In (->) Int
+-- .> commit inA (companion endsU) 42
 -- ()
 prefixIn :: forall arr a b. (Discrete arr) => arr a b -> In arr b -> In arr a
-prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withOb @arr @x $ f >>> commit i o
+prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withOb @arr @x $ f .> commit i o
 
 -- | Postcompose an @arr@-morphism with an 'Out' end.
 --
@@ -155,12 +155,12 @@ prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withO
 -- ends.  Specialised to unit ends it is the canonical way to build
 -- effectful read ends.
 --
--- >>> let endsU = open :: Ends (->) () ()
--- >>> let outA = suffixOut (companion endsU) (const 42) :: Out (->) Int
--- >>> emit outA (conjoint endsU) ()
+-- .> let endsU = open :: Ends (->) () ()
+-- .> let outA = suffixOut (companion endsU) (const 42) :: Out (->) Int
+-- .> emit outA (conjoint endsU) ()
 -- 42
 suffixOut :: forall arr a b. (Discrete arr) => Out arr a -> arr a b -> Out arr b
-suffixOut o g = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @a $ withOb @arr @b $ emit o i >>> g
+suffixOut o g = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @a $ withOb @arr @b $ emit o i .> g
 
 -- ---------------------------------------------------------------------------
 -- Unit ends
@@ -239,9 +239,9 @@ endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
 -- For an 'Ends' built with 'ends', this recovers the original
 -- @write :: arr a ()@ and @receive :: arr () b@.
 --
--- >>> let e = ends (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
--- >>> let (write, receive) = toActions e
--- >>> (write (), receive ())
+-- .> let e = ends (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
+-- .> let (write, receive) = toActions e
+-- .> (write (), receive ())
 -- ((),42)
 toActions ::
   forall arr a b.
@@ -289,8 +289,8 @@ instance (Monad m) => HasUnit () (Kleisli m) where
 -- @Loop t arr a b@. This is the version most users expect: input on the
 -- left, output on the right, with the unit plumbing hidden.
 --
--- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
--- >>> run (box @(,) e) ()
+-- .> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- .> run (box @(,) e) ()
 -- 42
 box ::
   forall t arr a b.
@@ -300,7 +300,7 @@ box ::
 box ends' =
   Lift $
     commit (conjoint ends') (companion (open :: Ends arr (Unit t) (Unit t)))
-      >>> emit (companion ends') (conjoint (open :: Ends arr (Unit t) (Unit t)))
+      .> emit (companion ends') (conjoint (open :: Ends arr (Unit t) (Unit t)))
 
 -- | Asymmetric box with units exposed on opposite sides.
 --
@@ -308,8 +308,8 @@ box ends' =
 -- The input carries the unit on the right and the output carries the unit
 -- on the left; most users will prefer the unit-normalised 'box'.
 --
--- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
--- >>> run (boxAsymmetric @(,) e) ((), ())
+-- .> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- .> run (boxAsymmetric @(,) e) ((), ())
 -- ((),42)
 boxAsymmetric ::
   forall t arr a b.
@@ -386,28 +386,28 @@ endsSTM = \case
 --
 -- === Unbounded
 --
--- >>> let endsU = open :: Ends (Kleisli STM) () ()
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
--- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- .> let endsU = open :: Ends (Kleisli STM) () ()
+-- .> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- .> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
+-- .> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 42
 --
 -- Multi-op compose in one 'atomically' (both writes + read):
 --
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- .> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- .> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 1
 --
 -- 'close' recovers the value through the queue:
 --
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (close (conjoint ends) (companion ends)) 7
+-- .> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- .> atomically $ runKleisli (close (conjoint ends) (companion ends)) 7
 -- 7
 --
 -- === SwapQ (overwrite on write)
 --
--- >>> ends <- atomically (openSTM SwapQ :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- .> ends <- atomically (openSTM SwapQ :: STM (Ends (Kleisli STM) Int Int))
+-- .> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 2
 openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
 openSTM q = do
@@ -421,10 +421,10 @@ openSTM q = do
 -- into a single STM transaction; for that use 'openSTM' and wrap in
 -- 'atomically' yourself.
 --
--- >>> let endsU = open :: Ends (Kleisli IO) () ()
--- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
--- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
--- >>> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- .> let endsU = open :: Ends (Kleisli IO) () ()
+-- .> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+-- .> runKleisli (commit (conjoint ends) (companion endsU)) 42
+-- .> runKleisli (emit (companion ends) (conjoint endsU)) ()
 -- 42
 openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
 openIO q = do

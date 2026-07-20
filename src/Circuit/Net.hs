@@ -45,7 +45,7 @@ module Circuit.Net
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Layer qualified as Layer
@@ -57,13 +57,13 @@ import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Dagger qualified as Dg
--- >>> import Circuit.Layer (bind, run, unit)
--- >>> import Circuit.Sym qualified as M
--- >>> import Circuit.Net
--- >>> import Circuit.Loop (Loop (Knot))
--- >>> import Circuit.Loop qualified as C
--- >>> import Prelude hiding (id, (.))
+-- .> import Circuit.Dagger qualified as Dg
+-- .> import Circuit.Layer (bind, run, unit)
+-- .> import Circuit.Sym qualified as M
+-- .> import Circuit.Net
+-- .> import Circuit.Loop (Loop (Knot))
+-- .> import Circuit.Loop qualified as C
+-- .> import Prelude hiding (id, (.))
 
 -- | The free traced PROP with a bimonoid.
 --
@@ -143,19 +143,19 @@ instance (Category arr, Discrete arr) => Discrete (Net t arr) where
 --
 -- Law: @transpose . transpose = id@.
 --
--- >>> import Circuit.Dagger qualified as Dg
--- >>> let n1 = Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
--- >>> let n2 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
--- >>> Dg.front (run (transpose (transpose n1))) 5
+-- .> import Circuit.Dagger qualified as Dg
+-- .> let n1 = Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
+-- .> let n2 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
+-- .> Dg.front (run (transpose (transpose n1))) 5
 -- 6
--- >>> Dg.front (run (transpose (transpose n2))) 5
+-- .> Dg.front (run (transpose (transpose n2))) 5
 -- 7
 --
 -- Asymmetric factors catch the direction of 'Compose' reversal:
 -- forward is @(*2) . (+1)@, backward is @(subtract 1) . (`div` 2)@.
 --
--- >>> let n3 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Net (,) (Dg.Dagger (->)) Int Int
--- >>> Dg.front (run (transpose n3)) 10
+-- .> let n3 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Net (,) (Dg.Dagger (->)) Int Int
+-- .> Dg.front (run (transpose n3)) 10
 -- 4
 transpose ::
   Net t (Dg.Dagger arr) a b ->
@@ -187,37 +187,37 @@ enrich (C.Knot f) = Knot (Lift f)
 -- 'Swap') so that structural wiring stays inspectable.  This is the
 -- injection of the 'Sym' layer into the 'Net' layer.
 --
--- >>> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
--- >>> run (widen m :: Net (,) (->) Int Int) 5
+-- .> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
+-- .> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
 -- Coherence: 'sift' projects 'widen' back to the original 'Sym'.
 --
--- >>> run (sift (widen m :: Net (,) (->) Int Int)) 5
+-- .> run (sift (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- >>> run m 5
+-- .> run m 5
 -- 11
 --
 -- Coherence: 'melt' agrees with the function fold on 'Sym' circuits.
 --
--- >>> run (melt (widen m :: Net (,) (->) Int Int)) 5
+-- .> run (melt (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- >>> let h f = f
--- >>> (bind h m :: Int -> Int) 5
+-- .> let h f = f
+-- .> (bind h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: 'Net' folds through 'widen' match 'Sym' folds.
 --
--- >>> let h f = f
--- >>> (bind h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
+-- .> let h f = f
+-- .> (bind h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
 -- 11
--- >>> (bind h m :: Int -> Int) 5
+-- .> (bind h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: transposition commutes with 'widen'.
 --
--- >>> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
--- >>> Dg.front (run (transpose (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
+-- .> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
+-- .> Dg.front (run (transpose (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
 widen :: M.Sym arr a b -> Net t arr a b
 widen (M.Lift f) = Lift f
@@ -262,7 +262,7 @@ sift n@(Knot @_ @s @_ @_ @_ _) =
 --
 -- @'run' @Net = 'run' . 'melt'@.
 --
--- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
+-- .> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
   forall t arr a b.

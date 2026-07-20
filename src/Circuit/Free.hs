@@ -24,9 +24,9 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Free
--- >>> import Circuit.Layer (run)
--- >>> import Prelude hiding (id, (.))
+-- .> import Circuit.Free
+-- .> import Circuit.Layer (run)
+-- .> import Prelude hiding (id, (.))
 
 -- | The free category over a base arrow @arr@.
 --
@@ -35,9 +35,9 @@ import Prelude hiding (id, (.))
 --   * 'Lift' — embed a base arrow.
 --   * 'Compose' — sequential composition.
 --
--- >>> run (Lift (+1) :: Free (->) Int Int) 5
+-- .> run (Lift (+1) :: Free (->) Int Int) 5
 -- 6
--- >>> run (Compose (Lift (+1)) (Lift (*2)) :: Free (->) Int Int) 5
+-- .> run (Compose (Lift (+1)) (Lift (*2)) :: Free (->) Int Int) 5
 -- 11
 data Free arr a b where
   -- | Embed a base arrow.
@@ -78,7 +78,7 @@ instance Layer Free where
 --
 -- This is a synonym for 'run' @Free@.
 --
--- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
+-- .> freeze (Lift (+1) :: Free (->) Int Int) 5
 -- 6
 freeze :: (Category arr, Ob arr a, Ob arr b) => Free arr a b -> arr a b
 freeze (Lift f) = f

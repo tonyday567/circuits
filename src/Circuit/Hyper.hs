@@ -32,7 +32,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
@@ -41,17 +41,17 @@ import Prelude hiding (id, (.))
 import Data.Profunctor
 
 -- $setup
--- >>> import Prelude hiding (id, (.))
--- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
--- >>> import Data.Profunctor
--- >>> import Circuit.Channel (Traced (..))
--- >>> import Circuit.Loop (Loop (..))
--- >>> import Circuit.Layer (run)
--- >>> let h = lift (+1) :: Hyper Int Int
--- >>> let f1 = (*2) :: Int -> Int
--- >>> let g1 = (+10) :: Int -> Int
--- >>> let f2 = (+3) :: Int -> Int
--- >>> let g2 = (*100) :: Int -> Int
+-- .> import Prelude hiding (id, (.))
+-- .> import Circuit.Category (Category (..), Discrete (..), (.>))
+-- .> import Data.Profunctor
+-- .> import Circuit.Channel (Traced (..))
+-- .> import Circuit.Loop (Loop (..))
+-- .> import Circuit.Layer (run)
+-- .> let h = lift (+1) :: Hyper Int Int
+-- .> let f1 = (*2) :: Int -> Int
+-- .> let g1 = (+10) :: Int -> Int
+-- .> let f2 = (+3) :: Int -> Int
+-- .> let g2 = (*100) :: Int -> Int
 
 -- | A hyperfunction from @a@ to @b@.
 --
@@ -60,10 +60,10 @@ import Data.Profunctor
 --
 -- Two small examples:
 --
--- >>> observe (lift (+1)) 41
+-- .> observe (lift (+1)) 41
 -- 42
 --
--- >>> runHyper (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
+-- .> runHyper (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
 -- 1
 newtype Hyper a b = Hyper
   { -- | Feed a continuation of type @Hyper b a@ into the hyperfunction.
@@ -78,7 +78,7 @@ newtype Hyper a b = Hyper
 -- @lift f@ creates a hyperfunction by recursively pushing @f@ onto
 -- every future continuation that will ever be supplied.
 --
--- >>> observe (lift (+1)) 5
+-- .> observe (lift (+1)) 5
 -- 6
 lift :: (a -> b) -> Hyper a b
 lift f = push f (lift f)
@@ -89,14 +89,14 @@ lift f = push f (lift f)
 -- (@invoke h (Hyper (const a))@), asking: "what output do you produce
 -- when the feedback channel feeds back the input @a@?"
 --
--- >>> observe (lift reverse) "hello"
+-- .> observe (lift reverse) "hello"
 -- "olleh"
 observe :: Hyper a b -> (a -> b)
 observe h a = invoke h (Hyper (const a))
 
 -- | Ignores the input and returns a constant value.
 --
--- >>> observe (base 42) undefined
+-- .> observe (base 42) undefined
 -- 42
 base :: a -> Hyper b a
 base a = Hyper (const a)
@@ -107,7 +107,7 @@ base a = Hyper (const a)
 -- eventually produces. This threads @f@ through the continuation,
 -- enabling feedback-aware composition.
 --
--- >>> observe (push (+1) (lift (*2))) 5
+-- .> observe (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push f h = Hyper (\k -> f (invoke k h))
@@ -117,10 +117,10 @@ push f h = Hyper (\k -> f (invoke k h))
 -- @runHyper h@ feeds the hyperfunction back into itself, tying the knot.
 -- This is the fundamental way to eliminate a 'Hyper'.
 --
--- >>> runHyper (Hyper $ \_ -> 42 :: Int)
+-- .> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
 --
--- >>> runHyper (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
+-- .> runHyper (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
 -- 1
 runHyper :: Hyper a a -> a
 runHyper h = invoke h (Hyper runHyper)
@@ -149,9 +149,9 @@ runHyper h = invoke h (Hyper runHyper)
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
 --
--- >>> import Circuit.Channel (Traced (..))
--- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
--- >>> observe (trace body) ()
+-- .> import Circuit.Channel (Traced (..))
+-- .> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
+-- .> observe (trace body) ()
 -- [0,0,0]
 instance Channel (,) Hyper where
   assoc = lift $ \((a, b), c) -> (a, (b, c))
@@ -178,8 +178,8 @@ instance Traced (,) Hyper where
 -- Law: @'observe' . 'encodeFree' = 'run'@ — the two interpreters
 -- from Free agree.
 --
--- >>> import Circuit.Free qualified as F
--- >>> observe (encodeFree (F.Lift (+1))) 5
+-- .> import Circuit.Free qualified as F
+-- .> observe (encodeFree (F.Lift (+1))) 5
 -- 6
 encodeFree :: F.Free (->) a b -> Hyper a b
 encodeFree (F.Lift f) = lift f
@@ -194,9 +194,9 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 -- 'Lift' constructors embed directly via 'lift'; 'Knot' constructors
 -- become 'trace' over a hyperfunction.
 --
--- >>> import Circuit.Layer (run)
--- >>> import Circuit.Loop (Loop (..))
--- >>> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
+-- .> import Circuit.Layer (run)
+-- .> import Circuit.Loop (Loop (..))
+-- .> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
 -- 6
 encode :: Loop (,) (->) a b -> Hyper a b
 encode (Lift f) = lift f
@@ -208,7 +208,7 @@ encode (Knot f) = trace (lift f)
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
--- >>> :{
+-- .> :{
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
@@ -216,7 +216,7 @@ encode (Knot f) = trace (lift f)
 --       Left n          -> Right n
 -- :}
 --
--- >>> runEither step (0 :: Int)
+-- .> runEither step (0 :: Int)
 -- 3
 encodeEither :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
 encodeEither f = h
@@ -234,7 +234,7 @@ encodeEither f = h
 -- 'encodeEither' embeds the Either state machine into Hyper, @runHyper@ ties
 -- the self-referential knot, and @Right b@ injects the initial state.
 --
--- >>> :{
+-- .> :{
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
@@ -242,7 +242,7 @@ encodeEither f = h
 --       Left n          -> Right n
 -- :}
 --
--- >>> runEither step (0 :: Int)
+-- .> runEither step (0 :: Int)
 -- 3
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
@@ -252,14 +252,14 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- This is the forgetful map from the final encoding to the initial encoding.
 -- All feedback structure is lost; only the observable behaviour remains.
 --
--- >>> let h = lift (+ 1)
--- >>> run (flatten h) 5
+-- .> let h = lift (+ 1)
+-- .> run (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:
 --
--- >>> let h = lift (+ 1)
--- >>> observe (encode (flatten h)) 5
+-- .> let h = lift (+ 1)
+-- .> observe (encode (flatten h)) 5
 -- 6
 flatten :: Hyper a b -> Loop (,) (->) a b
 flatten h = Lift (observe h)
@@ -278,28 +278,28 @@ instance Category Hyper where
 --
 -- Profunctor identity: dimap id id = id
 --
--- >>> observe (dimap id id h) 5
+-- .> observe (dimap id id h) 5
 -- 6
 --
 -- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
 --
--- >>> observe (dimap f1 g1 (dimap f2 g2 h)) 5
+-- .> observe (dimap f1 g1 (dimap f2 g2 h)) 5
 -- 1410
--- >>> observe (dimap (f2 . f1) (g1 . g2) h) 5
+-- .> observe (dimap (f2 . f1) (g1 . g2) h) 5
 -- 1410
 --
 -- lmap f = dimap f id
 --
--- >>> observe (lmap ((*2) :: Int -> Int) h) 5
+-- .> observe (lmap ((*2) :: Int -> Int) h) 5
 -- 11
--- >>> observe (dimap ((*2) :: Int -> Int) id h) 5
+-- .> observe (dimap ((*2) :: Int -> Int) id h) 5
 -- 11
 --
 -- rmap g = dimap id g
 --
--- >>> observe (rmap ((*2) :: Int -> Int) h) 5
+-- .> observe (rmap ((*2) :: Int -> Int) h) 5
 -- 12
--- >>> observe (dimap id ((*2) :: Int -> Int) h) 5
+-- .> observe (dimap id ((*2) :: Int -> Int) h) 5
 -- 12
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f
