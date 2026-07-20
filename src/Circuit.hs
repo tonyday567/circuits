@@ -92,7 +92,7 @@ module Circuit
     suffixOut,
     ends,
     endsK,
-    toActions,
+    splay,
     HasUnit (..),
 
     -- * Boxes
@@ -194,7 +194,7 @@ import Circuit.Ends
     endsK,
     prefixIn,
     suffixOut,
-    toActions,
+    splay,
     Queue (..),
     openIO,
     openSTM,

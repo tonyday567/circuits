@@ -45,7 +45,7 @@ module Circuit.Ends
     endsK,
 
     -- * Extract primitive actions from an 'Ends'
-    toActions,
+    splay,
 
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
@@ -240,15 +240,15 @@ endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
 -- @write :: arr a ()@ and @receive :: arr () b@.
 --
 -- .> let e = ends (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
--- .> let (write, receive) = toActions e
+-- .> let (write, receive) = splay e
 -- .> (write (), receive ())
 -- ((),42)
-toActions ::
+splay ::
   forall arr a b.
   (HasUnit () arr) =>
   Ends arr a b ->
   (arr a (), arr () b)
-toActions e =
+splay e =
   ( commit (conjoint e) (companion (open :: Ends arr () ()))
   , emit (companion e) (conjoint (open :: Ends arr () ()))
   )
@@ -429,6 +429,6 @@ openSTM q = do
 openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
 openIO q = do
   e <- atomically (openSTM q)
-  let (Kleisli write, Kleisli receive) = toActions e
+  let (Kleisli write, Kleisli receive) = splay e
   pure (endsK (atomically . write) (atomically (receive ())))
 
