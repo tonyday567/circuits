@@ -75,16 +75,12 @@ module Circuit.Algebra
     AlgSym,
     AlgBimonoidal,
     AlgNet,
-    AlgSymKnot,
 
     -- * Direct <-> algebra isomorphisms
     algLoop,
     runAlgLoop,
     algNet,
     runAlgNet,
-
-    -- * AlgSymKnot <-> AlgLoop maps
-    loopToSymKnot,
   )
 where
 
@@ -151,7 +147,7 @@ instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig
 --
 -- This is the à la carte analogue of 'Circuit.Layer.bind': @evalInto emb@
 -- folds syntax into a target just as @bind h@ folds a 'Circuit.Layer.Layer'
--- construction. For example, folding 'AlgSymKnot' into 'AlgLoop' is just
+-- construction. For example, folding 'AlgNet' into 'AlgLoop' is just
 -- @'evalInto' 'Lift'@, playing the same role as a structural forgetting map
 -- built with @bind unit@.
 --
@@ -276,13 +272,6 @@ type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigBimono
 -- | Free traced PROP with bimonoid.
 type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigBimonoid) arr
 
--- | Free traced monoidal category with explicit monoidal rows.
---
--- Both the trace ('SigKnot') and the monoidal product ('SigPar'/'SigSwap')
--- are explicit syntax.  This is the conceptual middle ground between
--- 'AlgSym' and 'AlgLoop'.
-type AlgSymKnot t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap) arr
-
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
 
@@ -364,23 +353,6 @@ runAlgLoop (Op op) = go op
       C.Loop t (->) x y
     go (L (SigCompose g f)) = runAlgLoop g . runAlgLoop f
     go (R (SigKnot @_ f)) = C.Knot (run (runAlgLoop f))
-
--- | Embed 'AlgLoop' into 'AlgSymKnot' by constructor injection.
-loopToSymKnot ::
-  forall t arr a b.
-  AlgLoop t arr a b ->
-  AlgSymKnot t arr a b
-loopToSymKnot (Lift f) = Lift f
-loopToSymKnot (Op op) = goOp op
-  where
-    goOp ::
-      forall x y.
-      (SigCompose :+: SigKnot t) arr (AlgLoop t arr) x y ->
-      AlgSymKnot t arr x y
-    goOp (L (SigCompose g f)) =
-      Op (L (SigCompose (loopToSymKnot g) (loopToSymKnot f)))
-    goOp (R (SigKnot @_ f)) =
-      Op (R (L (SigKnot (loopToSymKnot f))))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 algNet :: forall t arr a b. N.Net t arr a b -> AlgNet t arr a b
