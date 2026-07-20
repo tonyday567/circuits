@@ -77,10 +77,6 @@ module Circuit.Algebra
     AlgNet,
     AlgSymKnot,
 
-    -- * Forgetful algebras
-    algLoopToCat,
-    algNetToLoop,
-
     -- * Direct <-> algebra isomorphisms
     loopToAlg,
     algToLoop,
@@ -88,7 +84,6 @@ module Circuit.Algebra
     algToNet,
 
     -- * AlgSymKnot <-> AlgLoop maps
-    symKnotToLoop,
     loopToSymKnot,
   )
 where
@@ -156,8 +151,9 @@ instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig
 --
 -- This is the à la carte analogue of 'Circuit.Layer.bind': @evalInto emb@
 -- folds syntax into a target just as @bind h@ folds a 'Circuit.Layer.Layer'
--- construction. For example, @'symKnotToLoop' = 'evalInto' 'Lift'@ plays the
--- same role as a structural forgetting map built with @bind unit@.
+-- construction. For example, folding 'AlgSymKnot' into 'AlgLoop' is just
+-- @'evalInto' 'Lift'@, playing the same role as a structural forgetting map
+-- built with @bind unit@.
 --
 -- A signature like @'SigKnot' t@ is best read as a type-level tag that tracks
 -- which constructors are present in the union; the coproduct @(':+:')@ is the
@@ -334,34 +330,13 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) whe
 
 -- | A discrete base yields discrete syntax.
 --
--- These instances are needed so that the forgetful folds 'algLoopToCat',
--- 'algNetToLoop', and 'symKnotToLoop' can interpret syntax into syntax using
--- 'evalInto'.
+-- These instances are needed so that 'evalInto Lift' can fold richer syntax
+-- into poorer syntax (e.g. 'AlgLoop' into 'AlgCat', 'AlgNet' into 'AlgLoop').
 instance (Category arr, Discrete arr) => Discrete (AlgCat arr) where
   withOb @a x = withOb @arr @a x
 
 instance (Category arr, Discrete arr) => Discrete (AlgLoop t arr) where
   withOb @a x = withOb @arr @a x
-
--- ---------------------------------------------------------------------------
--- Forgetful algebras
-
--- | Dissolve 'SigKnot' into 'SigCompose' by calling the base 'trace' on the
--- free category.  This is the forgetful map from the free traced
--- category to the free category.
-algLoopToCat ::
-  (Traced t (->)) =>
-  AlgLoop t (->) a b ->
-  AlgCat (->) a b
-algLoopToCat = evalInto Lift
-
--- | Melt structural rows ('SigPar', 'SigSwap', 'SigBimonoid') into 'Lift'
--- calls.  This is the forgetful map from 'AlgNet' to 'AlgLoop'.
-algNetToLoop ::
-  (Traced t (->)) =>
-  AlgNet t (->) a b ->
-  AlgLoop t (->) a b
-algNetToLoop = evalInto Lift
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> signature isomorphisms
@@ -389,18 +364,6 @@ algToLoop (Op op) = go op
       C.Loop t (->) x y
     go (L (SigCompose g f)) = algToLoop g . algToLoop f
     go (R (SigKnot @_ f)) = C.Knot (run (algToLoop f))
-
--- | Forget the explicit monoidal rows of 'AlgSymKnot', collapsing them
--- into the base arrow and leaving only 'SigCompose' and 'SigKnot'.
---
--- This folds 'AlgSymKnot' monoidal structure back into 'AlgLoop',
--- leaving only sequential composition and feedback.
-symKnotToLoop ::
-  forall t a b.
-  (Traced t (->)) =>
-  AlgSymKnot t (->) a b ->
-  AlgLoop t (->) a b
-symKnotToLoop = evalInto Lift
 
 -- | Embed 'AlgLoop' into 'AlgSymKnot' by constructor injection.
 loopToSymKnot ::
