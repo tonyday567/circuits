@@ -9,9 +9,9 @@ author: Tony Day
 maintainer: tonyday567@gmail.com
 homepage: https://github.com/tonyday567/circuits#readme
 bug-reports: https://github.com/tonyday567/circuits/issues
-synopsis: traced categories and circuits
+synopsis: first-class circuits
 description:
-  circuits is a Haskell library that makes feedback first-class, by providing Circuit, the initial traced category over a base category, hyperfunctions via Hyper, and combinators and interpreters. It is experimental, but could be a promising approach to programming circuits that is intensional, ergonomic and performant.
+  circuits provides a suite of tools that make coding with circuits first-class.
 
 build-type: Simple
 tested-with:
@@ -22,6 +22,7 @@ tested-with:
 extra-doc-files:
   ChangeLog.md
   LICENSE
+  other/*.html
   readme.md
 
 source-repository head
@@ -39,29 +40,9 @@ common ghc-options-stanza
     -Wpartial-fields
     -Wredundant-constraints
 
-common ghc2024-additions
-  default-extensions:
-    DataKinds
-    DerivingStrategies
-    DisambiguateRecordFields
-    ExplicitNamespaces
-    GADTs
-    LambdaCase
-    MonoLocalBinds
-    RoleAnnotations
-
-common ghc2024-stanza
-  if impl(ghc >=9.10)
-    default-language:
-      GHC2024
-  else
-    import: ghc2024-additions
-    default-language:
-      GHC2021
-
 library
   import: ghc-options-stanza
-  import: ghc2024-stanza
+  default-language: GHC2024
   hs-source-dirs: src
   exposed-modules:
     Circuit
