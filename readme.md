@@ -6,7 +6,7 @@ It's off the beaten track but absolutely core Haskell: traced monoidal categorie
 
 ## what is it?
 
-`Trace t arr a b` is the free traced monoidal category over a base arrow `arr`, with feedback tensor `t`. In plain English: a circuit is either a base arrow or a feedback loop, and composing circuits already applies the trace axioms, so every value is in normal form (at most one `Knot`, at the top).
+`Loop t arr a b` is the free traced monoidal category over a base arrow `arr`, with feedback tensor `t`. In plain English: a circuit is either a base arrow or a feedback loop, and composing circuits already applies the trace axioms, so every value is in normal form (at most one `Knot`, at the top).
 
 ```haskell
 import Circuit
@@ -15,10 +15,10 @@ import Control.Arrow (Kleisli (..))
 import Data.Bool (bool)
 import System.IO (IOMode (ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
-openf :: T.Trace Either (Kleisli IO) FilePath Handle
+openf :: T.Loop Either (Kleisli IO) FilePath Handle
 openf = T.Lift (Kleisli (\fp -> openFile fp ReadMode))
 
-countLines :: T.Trace Either (Kleisli IO) Handle (Handle, Int)
+countLines :: T.Loop Either (Kleisli IO) Handle (Handle, Int)
 countLines = T.Knot (Kleisli step)
   where
     step (Left (h, n)) = hIsEOF h >>= bool
@@ -26,7 +26,7 @@ countLines = T.Knot (Kleisli step)
       (pure (Right (h, n)))
     step (Right h) = pure (Left (h, 0))
 
-pipeline :: T.Trace Either (Kleisli IO) FilePath Int
+pipeline :: T.Loop Either (Kleisli IO) FilePath Int
 pipeline = openf .> countLines .> T.Lift (Kleisli (\(h, n) -> hClose h >> pure n))
 
 -- paste into ghci:  runKleisli (run pipeline) "readme.md"
@@ -50,7 +50,7 @@ import Circuit
 import qualified Circuit.Loop as T
 
 -- Lazy streaming with (,):
-powers :: T.Trace (,) (->) () [Integer]
+powers :: T.Loop (,) (->) () [Integer]
 powers = T.Knot (\(ns, ()) -> (1 : map (*2) ns, take 5 ns))
 run powers ()  -- [1,2,4,8,16]
 
@@ -58,7 +58,7 @@ run powers ()  -- [1,2,4,8,16]
 step :: Int -> Either Int Int
 step n = if n < 5 then Left (n + 1) else Right n
 
-countToFive :: T.Trace Either (->) Int Int
+countToFive :: T.Loop Either (->) Int Int
 countToFive = T.Lift (either step step)
 run countToFive 0  -- 5
 ```
@@ -68,8 +68,8 @@ run countToFive 0  -- 5
 The library layers free constructions over a base arrow:
 
 - `Free` — the free category (lift and compose).
-- `Trace t` — `Free` plus feedback (`Knot`). Every value is already in normal form; the `Category` instance performs the sliding axiom.
-- `Net t` — `Trace` plus inspectable wiring: parallel composition, copy, discard, add, zero. Transposition over a `Dagger` base swaps wiring rows.
+- `Loop t` — `Free` plus feedback (`Knot`). Every value is already in normal form; the `Category` instance performs the sliding axiom.
+- `Net t` — `Loop` plus inspectable wiring: parallel composition, copy, discard, add, zero. Transposition over a `Dagger` base swaps wiring rows.
 - `Hyper` — the final, coinductive encoding. Convert with `encode` / `observe`.
 
 Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical fold.
@@ -78,8 +78,8 @@ Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical
 
 The API separates semantic structure from syntactic construction, with `Loop`
 (the normal-form `Lift`/`Knot` GADT) as the point where the two monoidal
-tracks converge. See the diagram cards in `mg/loom/`: `circuits-class.html`,
-`circuits-streams.html`, and `circuits-module.html`.
+tracks converge. See the diagram cards in `other/`: `circuits-class.html` and
+`circuits-module.html`.
 
 - **Structural semantics**: `Category → Channel → Strength → Traced`
 - **Functorial semantics**: `Category → Tensor → Action`

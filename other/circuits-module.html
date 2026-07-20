@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#21252d',
+        primaryTextColor: '#c8ccd4',
+        primaryBorderColor: '#373c45',
+        lineColor: '#c8ccd4',
+        secondaryColor: '#21252d',
+        tertiaryColor: '#21252d',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+      },
+      flowchart: {
+        curve: 'basis'
+      }
+    });
+  </script>
+  <style>
+    body {
+      background: #1b1e23;
+      color: #c8ccd4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      padding: 2rem;
+    }
+    h1 {
+      color: #dfe2e8;
+    }
+    .mermaid {
+      background: #21252d;
+      border: 1px solid #373c45;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+<h1>circuits — module view</h1>
+<div class="mermaid">
+graph LR
+  Category["Circuit.Category"]
+
+  subgraph Channel ["Circuit.Channel"]
+    ChannelClass["Channel"]
+    Strength["Strength"]
+    Traced["Traced"]
+  end
+
+  subgraph Tensor ["Circuit.Tensor"]
+    TensorClass["Tensor"]
+    Action["Action"]
+  end
+
+  Free["Circuit.Free"]
+  Sym["Circuit.Sym"]
+  Net["Circuit.Net"]
+  Loop["Circuit.Loop"]
+  Hyper["Circuit.Hyper"]
+  Dagger["Circuit.Dagger"]
+  Ends["Circuit.Ends"]
+
+  Category --> ChannelClass --> Strength --> Traced
+  Category --> TensorClass --> Action
+  Free --> Sym --> Net
+  Loop --> Net
+  Loop --> Hyper
+  Dagger --> Net
+  Ends --> Loop
+
+  linkStyle 0,1,2,3 stroke:#4B7FBD,stroke-width:2px
+  linkStyle 4,5 stroke:#4B9680,stroke-width:2px
+  linkStyle 6,7 stroke:#8FB83A,stroke-width:2px
+  linkStyle 8,9 stroke:#9B6BC0,stroke-width:2px
+  linkStyle 10 stroke:#4B96B0,stroke-width:2px
+
+  style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
+  style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
+  style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
+  style ChannelClass fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style TensorClass fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Sym fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
+  style Ends fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+</div>
+</body>
+</html>

@@ -74,12 +74,7 @@ import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Layer (run)
--- .> import Circuit.Tensor (Tensor (..))
--- .> import Control.Arrow (Kleisli (..))
--- .> import Circuit.Category ((.), (.>))
--- .> import Data.Void (Void)
--- .> import Prelude hiding (id, (.))
+-- >>> import Circuit.Layer (run)
 
 -- | The free traced monoidal category over base morphism @arr@ and tensor @t@,
 -- in existential normal form.
@@ -90,28 +85,29 @@ import Prelude hiding (id, (.))
 --   * 'Knot' — a feedback loop with hidden channel @s@.
 data Loop (t :: Type -> Type -> Type) arr a b where
   -- | A plain base arrow.
-  --
-  -- >>> run (Lift (+1) :: Loop (,) (->) Int Int) 5
-  -- 6
   Lift :: arr a b -> Loop t arr a b
   -- | Tie a feedback loop. The tensor @t@ carries the hidden channel type @s@.
   --
-  -- The argument is the base arrow itself, /not/ a 'Lift'-wrapped stage:
-  --
-  -- >>> run (Knot (\(acc, x) -> (x, acc)) :: Loop (,) (->) Int Int) 42
-  -- 42
-  --
-  -- For the @(,)@ tensor the channel value is self-referential, so the body
-  -- must use an irrefutable pattern or otherwise avoid forcing the channel
-  -- before producing its constructor:
-  --
-  -- >>> run (Knot (\ ~(ns, ()) -> (0 : ns, take 3 ns)) :: Loop (,) (->) () [Int]) ()
-  -- [0,0,0]
-  --
+  -- The argument is the base arrow itself, /not/ a 'Lift'-wrapped stage.
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.  Folding into a different target still needs
   -- 'Discrete' to manufacture the corresponding 'Ob' evidence there.
   Knot :: Ob arr s => arr (t s a) (t s b) -> Loop t arr a b
+
+-- $examples
+--
+-- >>> run (Lift (+1) :: Loop (,) (->) Int Int) 5
+-- 6
+--
+-- >>> run (Knot (\(acc, x) -> (x, acc)) :: Loop (,) (->) Int Int) 42
+-- 42
+--
+-- For the @(,)@ tensor the channel value is self-referential, so the body
+-- must use an irrefutable pattern or otherwise avoid forcing the channel
+-- before producing its constructor:
+--
+-- >>> run (Knot (\ ~(ns, ()) -> (0 : ns, take 3 ns)) :: Loop (,) (->) () [Int]) ()
+-- [0,0,0]
 
 instance (Strength t arr, Discrete arr) => Category (Loop t arr) where
   type Ob (Loop t arr) a = Ob arr a

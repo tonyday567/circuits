@@ -37,21 +37,22 @@ import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Loop (Loop (..))
-import Prelude hiding (id, (.))
+import Data.Bifunctor (second)
 import Data.Profunctor
+import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Prelude hiding (id, (.))
--- .> import Circuit.Category (Category (..), Discrete (..), (.>))
--- .> import Data.Profunctor
--- .> import Circuit.Channel (Traced (..))
--- .> import Circuit.Loop (Loop (..))
--- .> import Circuit.Layer (run)
--- .> let h = lift (+1) :: Hyper Int Int
--- .> let f1 = (*2) :: Int -> Int
--- .> let g1 = (+10) :: Int -> Int
--- .> let f2 = (+3) :: Int -> Int
--- .> let g2 = (*100) :: Int -> Int
+-- >> import Prelude hiding (id, (.))
+-- >> import Circuit.Category (Category (..), Discrete (..), (.>))
+-- >> import Data.Profunctor
+-- >> import Circuit.Channel (Traced (..))
+-- >> import Circuit.Loop (Loop (..))
+-- >> import Circuit.Layer (run)
+-- >> let h = lift (+1) :: Hyper Int Int
+-- >> let f1 = (*2) :: Int -> Int
+-- >> let g1 = (+10) :: Int -> Int
+-- >> let f2 = (+3) :: Int -> Int
+-- >> let g2 = (*100) :: Int -> Int
 
 -- | A hyperfunction from @a@ to @b@.
 --
@@ -159,7 +160,7 @@ instance Channel (,) Hyper where
   slide = lift $ \(a, (b, c)) -> (b, (a, c))
 
 instance Strength (,) Hyper where
-  strength h = lift (\p -> (fst p, observe h (snd p)))
+  strength h = lift (second (observe h))
 
 instance Traced (,) Hyper where
   trace body = Hyper $ \k ->

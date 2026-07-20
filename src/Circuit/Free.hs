@@ -24,9 +24,9 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Free
--- .> import Circuit.Layer (run)
--- .> import Prelude hiding (id, (.))
+-- >> import Circuit.Free
+-- >> import Circuit.Layer (run)
+-- >> import Prelude hiding (id, (.))
 
 -- | The free category over a base arrow @arr@.
 --

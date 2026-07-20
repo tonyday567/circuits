@@ -46,7 +46,7 @@ import GHC.IO (IO (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Category ((.>))
+-- >> import Circuit.Category ((.>))
 
 -- ===========================================================================
 -- Channel

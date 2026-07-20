@@ -75,12 +75,12 @@ import Control.Monad (void)
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> :set -XTypeApplications
--- .> import Circuit.Category ((.>))
--- .> import Circuit.Ends
--- .> import Circuit.Layer (run)
--- .> import Control.Arrow (Kleisli(..), runKleisli)
--- .> import Control.Concurrent.STM (STM, atomically)
+-- >> :set -XTypeApplications
+-- >> import Circuit.Category ((.>))
+-- >> import Circuit.Ends
+-- >> import Circuit.Layer (run)
+-- >> import Control.Arrow (Kleisli(..), runKleisli)
+-- >> import Control.Concurrent.STM (STM, atomically)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.

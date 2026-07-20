@@ -57,13 +57,13 @@ import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Dagger qualified as Dg
--- .> import Circuit.Layer (bind, run, unit)
--- .> import Circuit.Sym qualified as M
--- .> import Circuit.Net
--- .> import Circuit.Loop (Loop (Knot))
--- .> import Circuit.Loop qualified as C
--- .> import Prelude hiding (id, (.))
+-- >> import Circuit.Dagger qualified as Dg
+-- >> import Circuit.Layer (bind, run, unit)
+-- >> import Circuit.Sym qualified as M
+-- >> import Circuit.Net
+-- >> import Circuit.Loop (Loop (Knot))
+-- >> import Circuit.Loop qualified as C
+-- >> import Prelude hiding (id, (.))
 
 -- | The free traced PROP with a bimonoid.
 --

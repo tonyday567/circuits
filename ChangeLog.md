@@ -1,107 +1,77 @@
 # Revision history for circuits
 
-## 0.2.0.0 — current
+## 0.2.0.0 — 2026-07-20
 
-*BREAKING: **Operator convention switched.** `(>>>)` is renamed to `(.>)`,
-`(<<<)` is removed in favour of `(.)`, and forward/backward application
-operators `(|>)` and `(<|)` are added in `Circuit.Category`.*
+Total revamp of the API around a single normal-form GADT and a clearer
+separation between syntax and semantics.
 
-*BREAKING: **Structural semantics move to `Circuit.Channel`.** The `Channel`,
-`Strength`, and `Traced` classes and all base instances for `(->)` and
-`Kleisli m` now live in `Circuit.Channel`. `Circuit.Strength` is removed.
-`Circuit.Loop` retains only the `Loop` GADT, its structural instances, and
-`FreeLoop` witness.*
+*New core vocabulary*
 
-*BREAKING: **`Circuit.Box` and `Circuit.Queue` are merged into `Circuit.Ends`.**
-`box`, `boxAsymmetric`, `Queue(..)`, `openSTM`, and `openIO` now live in and
-are re-exported from `Circuit.Ends`.*
+- `Circuit.Loop.Loop t arr a b` is the free traced monoidal category in
+  normal form: either `Lift` (a base arrow) or `Knot` (a feedback loop).
+  Composition fuses via the `Category` instance, so every value has at most
+  one `Knot` at the top.
+- `Circuit.Free.Free` is the free category (`Lift`, `Compose`).
+- `Circuit.Sym.Sym` is the free symmetric monoidal category (`Lift`,
+  `Compose`, `Par`, `Swap`).
+- `Circuit.Net.Net` is the free traced PROP with a bimonoid: `Lift`,
+  `Compose`, `Par`, `Swap`, `Knot`, `Copy`, `Discard`, `Plus`, `Zero`.
+  Wiring stays inspectable for `transpose`, metering, and fusion.
+- `Circuit.Hyper.Hyper` is the final coinductive encoding; `encode` and
+  `observe` move between `Loop` and `Hyper`.
 
-*BREAKING: **API trim.** `cellIO`, `openCollectSTM`, `openCollectIO`,
-`openBatchSTM`, and `openBatchMaybeSTM` are removed from the core library;
-`cellIO` moves to a `circuits-examples` card. `Circuit.Channel` no longer
-exports delimited-continuation internals. `Circuit.Tensor` no longer exports
-cartesian/cocartesian plumbing helpers.*
+*Semantics split across two tracks*
 
-## 0.2.0.0 — 2026-07-09
+- Structural semantics: `Circuit.Category.Category` → `Circuit.Channel.Channel`
+  → `Circuit.Channel.Strength` → `Circuit.Channel.Traced`.
+- Functorial semantics: `Circuit.Category.Category` → `Circuit.Tensor.Tensor`
+  → `Circuit.Tensor.Action`.
 
-*BREAKING: **The GADT is renamed from `Circuit` to `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructors are now `Arr` (plain base arrow) and `Knot` (feedback loop). The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*
+*Layer tower*
 
-*BREAKING: **Normal-form `Trace`.** Composition fuses via the `Category` instance, so every `Trace` is in normal form: at most one `Knot` at the top over a base-arrow body. There is no explicit `Compose` constructor and no Mendler case in `run`.*
+- `Circuit.Layer.Layer` unifies the free-forgetful folds: `unit`, `run`,
+  `bind`, `lower`. `Law`, `Run`, and `Bind` associated types capture what
+  each layer needs from its target and source categories.
 
-*BREAKING: **`Circuit.Loopd` is merged into `Circuit.Loop`.** The `Traced`
-class and base instances now live alongside the `Trace` GADT in a single
-module.*
+*Ends, boxes, and queues*
 
-*BREAKING: **`Traced` takes the tensor first.** The class is now
-`Traced t arr` (was `Traced arr t`), matching `Trace t arr a b`.*
+- `Circuit.Ends` replaces the old `Circuit.Box` and `Circuit.Queue` modules.
+  Companion/conjoint ends (`Out`, `In`), matched `Ends`, `box`,
+  `boxAsymmetric`, `Queue` strategies, `openSTM`, and `openIO` all live here.
 
-*BREAKING: **`Channelled` is replaced by `Monoidal`.** The structural
-superclass lives in `Circuit.Monoidal`. `Traced` is now a subclass of
-`Monoidal`; the `Trace`/`Net` `Category` instances require only `Traced t arr`.*
+*Dagger and bimonoid*
 
-*BREAKING: **`Circuit.Classes` is renamed to `Circuit.Category`.** MicroHs
-support and CPP shims are removed; `Category`, `Discrete`, `Ob`, `(.>)`, `(|>)`,
-and `(<|)` now live in the GHC-only `Circuit.Category` module. `(>>>)` and
-`(<<<)` are removed; use `(.>)` and `(.)` for composition.*
+- `Circuit.Dagger` consolidates `CopyDiscard`, `MergeZero`, `Bimonoid`,
+  `Dagger`, and `transpose`.
 
-*BREAKING: **The free-layer vocabulary is unified under `Circuit.Layer`.*
-`FreeLayer` is renamed to `Layer`; `Lawful` is renamed to `Law`.
-`rightAdjunct` becomes `bind`; `leftAdjunct` becomes `lower`.
-The per-layer folds are now `run` with a type application:*
+*À-la-carte syntax*
 
-  * `run @Free` (was `runFree`)
-  * `run @(Trace t)` (was `run`)
-  * `run @(Net t)` (was `weave`)
+- `Circuit.Algebra` provides compositional signatures (`SigCompose`,
+  `SigKnot`, `SigPar`, `SigSwap`, `SigBimonoid`) and direct GADT ↔ syntax
+  isomorphisms (`algLoop`, `runAlgLoop`, `algNet`, `runAlgNet`).
 
-*`hoist` becomes `hmap`; `realise` becomes `run`; `Hyper.lower` becomes `observe`.
-`Circuit.Adjunction` is removed; `Circuit.Layer` is the canonical module.
-All instances are now orphan `Layer` instances in `Circuit.Free`, `Circuit.Loop`,
-and `Circuit.Net`.*
+*Operators*
 
-*BREAKING: **`Circuit.Signature` is renamed to `Circuit.Algebra`.**
-The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
-`handle` becomes `alg`, and the folds become `eval`/`evalInto`.*
+- Forward composition is `(.>)`; backward composition is `(.)` from
+  `Control.Category`.
+- Forward/backward application operators `(|>)` and `(<|)` live in
+  `Circuit.Category`.
 
-*New: **Circuit.Net** — the free traced PROP with a bimonoid. Structural rows: `Par`, `Swap` (monoidal), `Copy`, `Discard` (comonoid), `Plus`, `Zero` (monoid), all inspectable before interpretation. `Net.Knot` takes a `Net` body so `transpose` can recurse into loops. Transposition is structural recursion: `Compose` reverses, `Copy↔Plus`, `Discard↔Zero`, `Knot↔Knot`.*
+*Removed*
 
-*New: **Circuit.Dagger** — consolidated module for `CopyDiscard`, `MergeZero`, `Dagger`, and `Bimonoid`. `CopyDiscard` (was `Dup`) provides `copy` and `discard`; `MergeZero` (was `Additive`) provides channel-object addition; `Dagger` (was `Duplex`) is the free dagger category with `transpose` (was `transposeDuplex`); `Bimonoid` (was `Linear`) is the constraint synonym.*
+- `Circuit.Trace` / `Circuit` GADT name retired to `Circuit.Loop`.
+- `Circuit.Strength`, `Circuit.Monoidal`, `Circuit.Classes`,
+  `Circuit.Adjunction`, `Circuit.Signature`, `Circuit.Box`, `Circuit.Queue`,
+  `Circuit.Loopd`, and `Circuit.Dup` are gone; their contents are merged or
+  renamed as above.
+- `cellIO`, `openCollectSTM`, `openCollectIO`, `openBatchSTM`,
+  `openBatchMaybeSTM`, `freeToMon`, `monTranspose`, `AlgSymKnot`,
+  `loopToSymKnot`, and the old `traceToAlg` / `algToTrace` names are removed.
+  Helpers that are not core API moved to `circuits-examples`.
+- The `signature-tests` Cabal test suite is removed; verification is via
+  `cabal-docspec` and `cabal check`.
 
-*New: **Co/Contra** — companion/conjoint channel ends, exported from `Circuit.Loop`.*
+*Examples and companion libraries*
 
-*New: **Circuit.Int** — intensional morphism constructors over polynomial channel shapes, with `IntMorph` composition via `par`, `braid`, and `trace`.*
-
-*New: **Circuit.Poly** — polynomial object kind for channel shapes (`Y`, `Const`, `Exp`, `Sum`, `Prod`, `Tensor`, `Comp`) with `Netlist` conversion to position/direction pairs.*
-
-*Removed: **Circuit.AD** moved to circuits-ad package. The Diff arrow, backprop, traceStar, and Oracle live there.*
-
-*Removed: The `signature-tests` Cabal test suite. Verification is now via
-`cabal-docspec` (doctests) and `cabal check`.*
-
-*Fixed: README updated to the `Arr`/`Knot` normal form and the `Layer` tower.*
-
-*Quality: ormolu-formatted, hlint-clean, 100% Haddock coverage on library modules, 249 examples and 75 setup blocks pass `cabal-docspec`, 12 property laws documented in source. GHC 9.14 backend.*
-
-## 0.1.0.0 — 2025-05-26
-
-- Initial release (not yet published to Hackage).
-- **Trace** — GADT: Lift, Compose, Trace. Free traced monoidal category with Profunctor instance.
-- **Hyper** — final coinductive encoding. Category, Profunctor, Functor instances. Feedback dissolves into the type.
-- **Trace** class with `(,)` (lazy knot) and `Either` (iteration) tensors. `Trace (Kleisli IO) Either` via delimited continuations.
-- Triangle identity: `realise = lower . encode`. `flatten` for the reverse direction (lossy).
-- `ambient` / `ambientBy` — state wire threading through feedback loops.
-- Cocartesian combinators in `Circuit.Monoidal`: `coassoc`, `coassoc'`, `coseed`, `coabsorbL`, `coabsorbR`, `coreleaseL`, `coreleaseR`.
-- `Braided` class with instances for `(,)` and `Either` — merged with cartesian/cocartesian structure into `Circuit.Monoidal`.
-- `cellIO` — stateful `Kleisli IO` arrow via `IORef` for strict accumulators in `(,)`-traced pipelines.
-- Removed `Circuit.Queue` and `these` dependency — consolidated into `circuits-io`.
-- Removed `Iter`/`loopIter` — duplicates `Trace (Kleisli m) Either`.
-- Canonical API uses lowercase names: `lift`, `lower`, `realise`, `encode`, `push`, `run`, `trace`, `untrace`.
-- Notation conventions in `other/symbols.md`. No `Circuit.Symbols` module — symbols are prose notation, not Haskell identifiers.
-- Narrative arc in `other/`: marks → GADT → Hyper → tensors → Mendler case → making stuff.
-- 15+ example cards moved to the new `circuits-examples` repository: parsers, pipes, while-loops, Elgot iteration, delimited continuations, proequipment, ambient, hyper-chain, state, pure-queue, etc.
-- Boundary rule: symbols in tables/axioms only; names everywhere else.
-- `Either` iteration convention: `Left` = feedback (continue), `Right` = exit.
-- Push is Hyper-only — no direct GADT counterpart.
-- Axiom doctests and documented property laws for JSV laws and Hyper embedding/functoriality.
-- Removed `QuickCheck` dependency; properties are stated in source comments and skipped by `cabal-docspec`.
-- No Applicative or Monad instances — these collapse feedback structure.
-- README: tank mode, Hackage/CI badges, paper link.
+- Example cards moved to the separate `circuits-examples` repository.
+- `Circuit.AD` moved to the `circuits-ad` package.

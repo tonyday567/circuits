@@ -1,9 +1,25 @@
 # HLint configuration for circuits.
 #
-# Two eta-reduce hints are suppressed because the suggested point-free
-# forms do not type-check: both 'close' (rank-2 'runCo') and the
-# 'FreeLayer (Trace t)' instance's 'rightAdjunct' (the tensor 't' must be
-# fixed by the surrounding instance head).
+# Eta-reduction hints are suppressed where the point-free form would not
+# type-check. 'close' in Circuit.Ends is rank-2 over the companion/conjoint
+# ends, so keeping the explicit argument is required.
 
+- ignore: {name: "Eta reduce", within: Circuit.Ends}
+
+# The withOb definitions below delegate to the base category's withOb while
+# fixing the arr type parameter. Eta-reducing the value argument is rejected
+# by GHC because it leaves an ambiguous type variable in the rank-2 context.
+- ignore: {name: "Eta reduce", within: Circuit.Algebra}
+- ignore: {name: "Eta reduce", within: Circuit.Dagger}
+- ignore: {name: "Eta reduce", within: Circuit.Free}
 - ignore: {name: "Eta reduce", within: Circuit.Loop}
-- ignore: {name: "Eta reduce", within: Circuit.Adjunction}
+- ignore: {name: "Eta reduce", within: Circuit.Net}
+- ignore: {name: "Eta reduce", within: Circuit.Sym}
+
+# InstanceSigs is kept for documentation even when no explicit signature is
+# required in a given module.
+- ignore: {name: "Unused LANGUAGE pragma", within: Circuit.Channel}
+
+# Channel's cartesian strength is intentionally written with fst/snd rather
+# than Data.Bifunctor.second to keep the import set minimal.
+- ignore: {name: "Use second", within: Circuit.Channel}

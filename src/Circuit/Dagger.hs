@@ -43,11 +43,11 @@ import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Dagger
--- .> import Circuit.Tensor (Action (..), Tensor (..))
--- .> import Circuit.Channel (Traced (..))
--- .> import Circuit.Category (Category (..), Discrete (..), (.>))
--- .> import Prelude hiding (id, (.))
+-- >> import Circuit.Dagger
+-- >> import Circuit.Tensor (Action (..), Tensor (..))
+-- >> import Circuit.Channel (Traced (..))
+-- >> import Circuit.Category (Category (..), Discrete (..), (.>))
+-- >> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
 -- MergeZero: monoid structure on channel objects

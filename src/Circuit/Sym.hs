@@ -33,9 +33,9 @@ import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> import Circuit.Layer (run)
--- .> import Circuit.Tensor (Action (..), Tensor (..))
--- .> import Prelude hiding (id, (.))
+-- >> import Circuit.Layer (run)
+-- >> import Circuit.Tensor (Action (..), Tensor (..))
+-- >> import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category over a base arrow @arr@.
 --

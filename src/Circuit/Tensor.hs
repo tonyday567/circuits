@@ -57,12 +57,12 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
--- .> :set -XLambdaCase
--- .> import Circuit.Layer (run)
--- .> import Circuit.Loop (Loop (..))
--- .> import Control.Arrow (Kleisli (..), runKleisli)
--- .> import Data.Functor.Identity (Identity)
--- .> import Prelude hiding (id, (.))
+-- >> :set -XLambdaCase
+-- >> import Circuit.Layer (run)
+-- >> import Circuit.Loop (Loop (..))
+-- >> import Control.Arrow (Kleisli (..), runKleisli)
+-- >> import Data.Functor.Identity (Identity)
+-- >> import Prelude hiding (id, (.))
 
 -- ===========================================================================
 -- BRAIDING
