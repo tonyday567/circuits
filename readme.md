@@ -79,8 +79,8 @@ Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical
 
 The API separates semantic structure from syntactic construction, with `Loop`
 (the normal-form `Lift`/`Knot` GADT) as the point where the two monoidal
-tracks converge. See [`other/circuits-dag.md`](other/circuits-dag.md) for three
-views: class relationships, semantic/syntax streams, and the module view.
+tracks converge. See the diagram cards in `mg/loom/`: `circuits-class.html`,
+`circuits-streams.html`, and `circuits-module.html`.
 
 - **Structural semantics**: `Category → Channel → Strength → Traced`
 - **Functorial semantics**: `Category → Tensor → Action`
