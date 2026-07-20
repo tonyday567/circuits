@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeAbstractions #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -13,17 +15,17 @@
 -- | The free traced monoidal category, in existential normal form, and the
 -- 'Traced' class that gives feedback-loop semantics to a base category.
 --
--- @Trace t arr a b@ is the free traced monoidal category over a base
+-- @Loop t arr a b@ is the free traced monoidal category over a base
 -- morphism @arr@ with tensor @t@. The two constructors encode:
 --
---   * 'Arr' — a plain base arrow.
+--   * 'Lift' — a plain base arrow.
 --   * 'Knot' — a feedback loop with a hidden feedback channel.
 --
 -- The laws of traced monoidal categories are performed by the 'Category'
 -- and 'Traced' instances, so every value is already in normal form: at most
 -- one 'Knot' at the top, over a base-arrow body.
 --
--- For example, a @Trace (,) (->)@ is the initial traced monoidal cartesian
+-- For example, a @Loop (,) (->)@ is the initial traced monoidal cartesian
 -- category over Haskell functions.
 --
 -- = Introduce / resolve
@@ -36,9 +38,9 @@
 -- The polar channel ends ('Out', 'In'), their counit ('close'), and
 -- their unit ('open') all live in "Circuit.Ends".
 --
--- == Interpreting a 'Trace'
+-- == Interpreting a 'Loop'
 --
--- Use 'run' or 'bind' to interpret a 'Trace' into a target category.  The
+-- Use 'run' or 'bind' to interpret a 'Loop' into a target category.  The
 -- 'Category' and 'Traced' instances of the target discharge the knot; for
 -- @(->)@ this is lazy knot-tying, and for 'Either' it is iteration.
 --
@@ -57,28 +59,27 @@
 -- * __Feedback channel__: The hidden type @s@ in a 'Knot'. It is the value
 --   the abstraction hides.
 module Circuit.Trace
-  ( -- * Trace
-    Trace (..),
+  ( -- * Loop
+    Loop (..),
 
     -- * Traced class
     Traced (..),
 
-    -- * Discrete helpers (Ob discharge for free constructions)
-    untraceD,
-    traceD,
-    compD,
+    -- * Strength class
+    Strength (..),
 
     -- * Stateful IO stages
     cellIO,
 
     -- * Layer witness
-    FreeTraced,
+    FreeLoop,
   )
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
-import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal (Monoidal (..))
+import Circuit.Layer (Layer (..), run, (:~>))
+import Circuit.Channel (Channel (..))
+import Circuit.Strength (Strength (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
@@ -100,12 +101,12 @@ import Prelude hiding (id, (.))
 -- | A trace over a morphism @arr@ and tensor @t@.
 --
 -- @trace@ closes the feedback loop, eliminating the tensor channel.
--- @untrace@ opens the loop, lifting a plain morphism into the tensor.
+-- It extends the 'Strength' structure with the feedback-fixing operation.
 --
 -- Object constraints on the feedback channel (@a@) let constrained
 -- categories (e.g. matrices needing 'Finite' / 'KnownNat') instance
 -- this class lawfully.
-class (Monoidal t arr) => Traced t arr where
+class (Strength t arr) => Traced t arr where
   trace ::
     ( Ob arr a,
       Ob arr b,
@@ -115,172 +116,175 @@ class (Monoidal t arr) => Traced t arr where
     ) =>
     arr (t a b) (t a c) ->
     arr b c
-  untrace ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (t a c)
-    ) =>
-    arr b c ->
-    arr (t a b) (t a c)
 
 -- | The free traced monoidal category over base morphism @arr@ and tensor @t@,
 -- in existential normal form.
 --
 -- Two constructors:
 --
---   * 'Arr' — a plain base arrow.
+--   * 'Lift' — a plain base arrow.
 --   * 'Knot' — a feedback loop with hidden channel @s@.
-data Trace (t :: Type -> Type -> Type) arr a b where
+data Loop (t :: Type -> Type -> Type) arr a b where
   -- | A plain base arrow.
   --
-  -- >>> run (Arr (+1) :: Trace (,) (->) Int Int) 5
+  -- >>> run (Lift (+1) :: Loop (,) (->) Int Int) 5
   -- 6
-  Arr :: arr a b -> Trace t arr a b
+  Lift :: arr a b -> Loop t arr a b
   -- | Tie a feedback loop. The tensor @t@ carries the hidden channel type @s@.
   --
-  -- The argument is the base arrow itself, /not/ an 'Arr'-wrapped stage:
+  -- The argument is the base arrow itself, /not/ a 'Lift'-wrapped stage:
   --
-  -- >>> run (Knot (\(acc, x) -> (x, acc)) :: Trace (,) (->) Int Int) 42
+  -- >>> run (Knot (\(acc, x) -> (x, acc)) :: Loop (,) (->) Int Int) 42
   -- 42
   --
   -- For the @(,)@ tensor the channel value is self-referential, so the body
   -- must use an irrefutable pattern or otherwise avoid forcing the channel
   -- before producing its constructor:
   --
-  -- >>> run (Knot (\ ~(ns, ()) -> (0 : ns, take 3 ns)) :: Trace (,) (->) () [Int]) ()
+  -- >>> run (Knot (\ ~(ns, ()) -> (0 : ns, take 3 ns)) :: Loop (,) (->) () [Int]) ()
   -- [0,0,0]
   --
-  -- Free composition of 'Knot's requires quantified 'Ob' on the base
-  -- (@forall x. Ob arr x@), discharged by unconstrained categories.
-  Knot :: arr (t s a) (t s b) -> Trace t arr a b
+  -- The constructor carries the 'Ob' evidence for the feedback channel in
+  -- the /source/ category.  Folding into a different target still needs
+  -- 'Discrete' to manufacture the corresponding 'Ob' evidence there.
+  Knot :: Ob arr s => arr (t s a) (t s b) -> Loop t arr a b
 
--- | Discrete composition: compose two arrows while discharging 'Ob'
--- constraints with 'withOb'.
---
--- >>> let k1 = Knot (\(ns, x) -> (1 : ns, take 3 ns ++ [x])) :: Trace (,) (->) Int [Int]
--- >>> let k2 = Knot (\(ns, xs) -> (2 : ns, sum xs))
--- >>> run (k2 . k1) (0 :: Int)
--- 3
-compD :: forall arr a b c. (Discrete arr) => arr b c -> arr a b -> arr a c
-compD f g = withOb @arr @a $ withOb @arr @b $ withOb @arr @c $ f . g
+instance (Strength t arr, Discrete arr) => Category (Loop t arr) where
+  type Ob (Loop t arr) a = Ob arr a
+  id :: forall a. (Ob arr a) => Loop t arr a a
+  id = Lift id
+  (.) :: forall a b c. (Ob arr a, Ob arr b, Ob arr c) => Loop t arr b c -> Loop t arr a b -> Loop t arr a c
+  Lift f . Lift g = Lift (f . g)
+  Knot @_ @s @_ @_ @_ f . Lift g =
+    withOb @arr @(t s a) $
+      withOb @arr @(t s b) $
+        withOb @arr @(t s c) $
+          Knot (f . strength g)
+  Lift f . Knot @_ @s @_ @_ @_ g =
+    withOb @arr @(t s a) $
+      withOb @arr @(t s b) $
+        withOb @arr @(t s c) $
+          Knot (strength f . g)
+  Knot @_ @s2 @_ @_ @_ f . Knot @_ @s1 @_ @_ @_ g =
+    withOb @arr @(t s2 s1) $
+      withOb @arr @(t (t s2 s1) a) $
+        withOb @arr @(t s2 (t s1 a)) $
+          withOb @arr @(t s2 (t s1 b)) $
+            withOb @arr @(t s2 (t s1 c)) $
+              withOb @arr @(t s1 a) $
+                withOb @arr @(t s1 b) $
+                  withOb @arr @(t s1 (t s2 b)) $
+                    withOb @arr @(t s2 b) $
+                      withOb @arr @(t s2 c) $
+                        withOb @arr @(t s1 (t s2 c)) $
+                          withOb @arr @(t (t s2 s1) c) $
+                            Knot (assoc >>> strength g >>> slide >>> strength f >>> slide >>> assoc')
 
-idD :: forall arr a. (Discrete arr) => arr a a
-idD = withOb @arr @a id
+-- | A discrete base yields a discrete free traced category.
+instance (Strength t arr, Discrete arr) => Discrete (Loop t arr) where
+  withOb @a x = withOb @arr @a x
 
-untraceD ::
-  forall t arr a b c.
-  (Traced t arr, Discrete arr) =>
-  arr b c ->
-  arr (t a b) (t a c)
-untraceD f =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t a c) $
-            untrace f
-
-traceD ::
-  forall t arr a b c.
-  (Traced t arr, Discrete arr) =>
-  arr (t a b) (t a c) ->
-  arr b c
-traceD f =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t a c) $
-            trace f
-
-assocD ::
-  forall t arr a b c.
-  (Monoidal t arr, Discrete arr) =>
-  arr (t (t a b) c) (t a (t b c))
-assocD =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t b c) $
-            withOb @arr @(t (t a b) c) $
-              withOb @arr @(t a (t b c)) $
-                assoc
-
-assocD' ::
-  forall t arr a b c.
-  (Monoidal t arr, Discrete arr) =>
-  arr (t a (t b c)) (t (t a b) c)
-assocD' =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t b c) $
-            withOb @arr @(t a (t b c)) $
-              withOb @arr @(t (t a b) c) $
-                assoc'
-
-braidD ::
-  forall t arr a b c.
-  (Monoidal t arr, Discrete arr) =>
-  arr (t a (t b c)) (t b (t a c))
-braidD =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @(t b c) $
-          withOb @arr @(t a c) $
-            withOb @arr @(t a (t b c)) $
-              withOb @arr @(t b (t a c)) $
-                braid
-
-instance (Category arr, Traced t arr, Discrete arr) => Category (Trace t arr) where
-  type Ob (Trace t arr) a = Ob arr a
-  id = Arr idD
-  Arr f . Arr g = Arr (compD f g)
-  Knot f . Arr g = Knot (compD f (untraceD g))
-  Arr f . Knot g = Knot (compD (untraceD f) g)
-  Knot f . Knot g =
-    Knot $
-      compD assocD' $
-        compD braidD $
-          compD (untraceD f) $
-            compD braidD $
-              compD (untraceD g) assocD
-
--- | Free Trace over functions is discrete (Ob reduces to @()@).
-instance (Traced t (->)) => Discrete (Trace t (->)) where
-  withOb x = x
-
-instance (Profunctor arr, Bifunctor t) => Profunctor (Trace t arr) where
-  dimap f g (Arr h) = Arr (dimap f g h)
+instance (Profunctor arr, Bifunctor t) => Profunctor (Loop t arr) where
+  dimap f g (Lift h) = Lift (dimap f g h)
   dimap f g (Knot h) = Knot (dimap (second f) (second g) h)
-  lmap f (Arr h) = Arr (lmap f h)
+  lmap f (Lift h) = Lift (lmap f h)
   lmap f (Knot h) = Knot (lmap (second f) h)
-  rmap g (Arr h) = Arr (rmap g h)
+  rmap g (Lift h) = Lift (rmap g h)
   rmap g (Knot h) = Knot (rmap (second g) h)
 
-instance (Bifunctor t) => Functor (Trace t (->) a) where
-  fmap f (Arr g) = Arr (f . g)
+instance (Bifunctor t) => Functor (Loop t (->) a) where
+  fmap f (Lift g) = Lift (f . g)
   fmap f (Knot g) = Knot (second f . g)
 
--- | Lift the 'Monoidal' structure of the base arrow into 'Trace t arr'.
-instance (Category arr, Traced t arr, Discrete arr) => Monoidal t (Trace t arr) where
-  assoc = Arr assocD
-  assoc' = Arr assocD'
-  braid = Arr braidD
-
--- | Lift the 'Traced' class through 'Trace t'.
+-- | Lift the 'Channel' structure of the base arrow into 'Loop t arr'.
 --
--- 'trace' hides a wire as a 'Knot'; 'untrace' exposes it.
-instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) where
-  trace (Arr f) = Knot f
-  trace (Knot f) = Knot (compD assocD' (compD f assocD))
-  untrace (Arr f) = Arr (untraceD f)
-  untrace (Knot f) = Knot (compD braidD (compD (untraceD f) braidD))
+-- The 'withOb' ladder is written out inline rather than using
+-- 'Circuit.Discrete.assocD' / 'slideD' because importing that kit here would
+-- create a cycle: 'Circuit.Discrete' needs 'Traced' (and hence this module).
+instance (Strength t arr, Discrete arr) => Channel t (Loop t arr) where
+  assoc :: forall a b c. Loop t arr (t (t a b) c) (t a (t b c))
+  assoc =
+    Lift $
+      withOb @arr @a $
+        withOb @arr @b $
+          withOb @arr @c $
+            withOb @arr @(t a b) $
+              withOb @arr @(t b c) $
+                withOb @arr @(t (t a b) c) $
+                  withOb @arr @(t a (t b c)) $
+                    assoc
+  assoc' :: forall a b c. Loop t arr (t a (t b c)) (t (t a b) c)
+  assoc' =
+    Lift $
+      withOb @arr @a $
+        withOb @arr @b $
+          withOb @arr @c $
+            withOb @arr @(t a b) $
+              withOb @arr @(t b c) $
+                withOb @arr @(t a (t b c)) $
+                  withOb @arr @(t (t a b) c) $
+                    assoc'
+  slide :: forall a b c. Loop t arr (t a (t b c)) (t b (t a c))
+  slide =
+    Lift $
+      withOb @arr @a $
+        withOb @arr @b $
+          withOb @arr @c $
+            withOb @arr @(t b c) $
+              withOb @arr @(t a c) $
+                withOb @arr @(t a (t b c)) $
+                  withOb @arr @(t b (t a c)) $
+                    slide
+
+-- | Lift the 'Strength' class through 'Loop t'.
+instance (Strength t arr, Discrete arr) => Strength t (Loop t arr) where
+  strength :: forall a b c. (Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) => Loop t arr b c -> Loop t arr (t a b) (t a c)
+  strength (Lift f) =
+    Lift $
+      withOb @arr @a $
+        withOb @arr @b $
+          withOb @arr @c $
+            withOb @arr @(t a b) $
+              withOb @arr @(t a c) $
+                strength f
+  strength (Knot @_ @s @_ @_ @_ f) =
+    withOb @arr @(t s (t a b)) $
+      withOb @arr @(t a (t s b)) $
+        withOb @arr @(t a (t s c)) $
+      withOb @arr @(t s b) $
+        withOb @arr @(t s c) $
+          withOb @arr @(t s (t a c)) $
+            Knot (slide >>> strength f >>> slide)
+
+-- | Lift the 'Traced' class through 'Loop t'.
+--
+-- 'trace' hides a wire as a 'Knot'.
+instance (Traced t arr, Discrete arr) => Traced t (Loop t arr) where
+  trace ::
+    forall a b c.
+    (Ob arr a) =>
+    Loop t arr (t a b) (t a c) ->
+    Loop t arr b c
+  trace (Lift f) = Knot f
+  trace (Knot @_ @s @_ @_ @_ f) =
+    withOb @arr @(t (t s a) b) $
+      withOb @arr @(t s (t a b)) $
+        withOb @arr @(t s (t a c)) $
+          withOb @arr @(t (t s a) c) $
+            withOb @arr @(t s a) $
+              Knot (assoc >>> f >>> assoc')
+
+-- | Cartesian tensorial strength for @(,)@.
+--
+-- The implementation uses explicit projections so that the result pair
+-- constructor exists before the feedback channel is forced; this keeps
+-- fused 'Knot' bodies productive even when the body has a strict
+-- top-level pattern on the recursive channel.
+--
+-- >>> strength (+1) (error "forced" :: (Int, Int)) `seq` ()
+-- ()
+instance Strength (,) (->) where
+  strength f p = (fst p, f (snd p))
 
 -- * Cartesian tensor — lazy knot
 
@@ -352,10 +356,11 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (Trace t arr) wh
 instance Traced (,) (->) where
   trace f b = let ~(a, c) = f (a, b) in c
 
-  -- Projection-based untrace emits a manifest pair, so fused knot bodies
-  -- with strict top-level patterns match the constructor without forcing
-  -- the recursive channel.
-  untrace f p = second f p
+-- | Either tensorial strength for @Either@.
+--
+-- 'strength' is the functorial action under 'Either'.
+instance Strength Either (->) where
+  strength = fmap
 
 -- * Either tensor — iteration
 
@@ -421,18 +426,17 @@ instance Traced Either (->) where
       go x = case f x of
         Right c -> c
         Left a -> go (Left a)
-  untrace = fmap
 
 -- * Kleisli m — monoidal structure
 
 -- | Cartesian monoidal structure for 'Kleisli' @m@ with @(,)@.
-instance (Monad m) => Monoidal (,) (Kleisli m) where
+instance (Monad m) => Channel (,) (Kleisli m) where
   assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
-  braid = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
+  slide = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
 -- | Cocartesian monoidal structure for 'Kleisli' @m@ with 'Either'.
-instance (Monad m) => Monoidal Either (Kleisli m) where
+instance (Monad m) => Channel Either (Kleisli m) where
   assoc = Kleisli $ \case
     Left (Left a) -> pure (Left a)
     Left (Right b) -> pure (Right (Left b))
@@ -441,7 +445,7 @@ instance (Monad m) => Monoidal Either (Kleisli m) where
     Left a -> pure (Left (Left a))
     Right (Left b) -> pure (Left (Right b))
     Right (Right c) -> pure (Right c)
-  braid = Kleisli $ \case
+  slide = Kleisli $ \case
     Left a -> pure (Right (Left a))
     Right (Left b) -> pure (Left b)
     Right (Right c) -> pure (Right (Right c))
@@ -462,19 +466,20 @@ instance (Monad m) => Monoidal Either (Kleisli m) where
 --
 -- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
+instance (Monad m) => Strength (,) (Kleisli m) where
+  strength (Kleisli f) =
+    Kleisli
+      ( \p -> do
+          c <- f (snd p)
+          pure (fst p, c)
+      )
+
 instance (MonadFix m) => Traced (,) (Kleisli m) where
   trace (Kleisli f) =
     Kleisli
       ( \b -> do
           (_, c) <- mfix $ \ ~(s, _) -> f (s, b)
           pure c
-      )
-
-  untrace (Kleisli f) =
-    Kleisli
-      ( \p -> do
-          c <- f (snd p)
-          pure (fst p, c)
       )
 
 -- * Kleisli m Either — iteration for any Monad
@@ -498,6 +503,12 @@ instance (MonadFix m) => Traced (,) (Kleisli m) where
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
 -- priority for 'IO', providing constant-stack iteration via delimited
 -- continuations.
+instance (Monad m) => Strength Either (Kleisli m) where
+  strength (Kleisli f) =
+    Kleisli $ \case
+      Left a -> pure (Left a)
+      Right b -> Right <$> f b
+
 instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
   trace (Kleisli f) =
     Kleisli $ \b -> go (Right b)
@@ -506,11 +517,6 @@ instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
         f x >>= \case
           Right c -> pure c
           Left a -> go (Left a)
-
-  untrace (Kleisli f) =
-    Kleisli $ \case
-      Left a -> pure (Left a)
-      Right b -> Right <$> f b
 
 -- * Kleisli IO Either — delimited continuations (constant stack)
 
@@ -564,13 +570,6 @@ instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
           go (Right initial)
       )
 
-  untrace (Kleisli f) =
-    Kleisli
-      ( \case
-          Left a -> pure (Left a)
-          Right b -> Right <$> f b
-      )
-
 -- * Stateful stages via IORef
 
 -- | Create a stateful 'Kleisli' 'IO' arrow backed by 'IORef'.
@@ -607,17 +606,30 @@ cellIO s0 step = do
       writeIORef ref s'
       pure b
 
--- | 'Traced' plus 'Discrete' — required to fold free 'Trace'
+-- | 'Traced' plus 'Discrete' — required to fold free 'Loop'
 -- (existential feedback channels need trivial 'Ob' on every type).
-class (Traced t arr, Discrete arr) => FreeTraced t arr
+class (Traced t arr, Discrete arr) => FreeLoop t arr
 
-instance (Traced t arr, Discrete arr) => FreeTraced t arr
+instance (Traced t arr, Discrete arr) => FreeLoop t arr
 
 -- | Free traced monoidal category.
-instance Layer (Trace t) where
-  type Law (Trace t) arr' = FreeTraced t arr'
-  unit = Arr
-  bind h (Arr f) = h f
-  bind h (Knot f) = traceD (h f)
+instance Layer (Loop t) where
+  type Law (Loop t) arr' = FreeLoop t arr'
+  type Run (Loop t) arr = (Traced t arr, Discrete arr)
+  type Bind (Loop t) arr = ()
+  unit = Lift
+  run :: forall arr a b. (Run (Loop t) arr, Ob arr a, Ob arr b) => Loop t arr a b -> arr a b
+  run (Lift f) = f
+  run (Knot @_ @s @_ @_ @_ f) =
+    withOb @arr @(t s a) $
+      withOb @arr @(t s b) $
+        trace f
+  bind :: forall arr arr' a b. (Law (Loop t) arr', Ob arr' a, Ob arr' b) => (arr :~> arr') -> Loop t arr a b -> arr' a b
+  bind h (Lift f) = h f
+  bind h (Knot @_ @s @_ @_ @_ f) =
+    withOb @arr' @s $
+      withOb @arr' @(t s a) $
+        withOb @arr' @(t s b) $
+          trace (h f)
 
 

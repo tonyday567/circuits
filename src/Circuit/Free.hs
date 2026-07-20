@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -17,9 +19,9 @@ module Circuit.Free
 where
 
 import Circuit.Category (Category (..), Discrete (..))
-import Circuit.Layer (Layer (..), run)
-import Circuit.Monoidal (Monoidal (..))
-import Circuit.Trace (Traced (..), compD)
+import Circuit.Layer (Layer (..), (:~>))
+import Circuit.Channel (Channel (..))
+import Circuit.Trace (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -42,42 +44,61 @@ data Free arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Free arr a b
   -- | Sequential composition.
-  Compose :: Free arr b c -> Free arr a b -> Free arr a c
+  --
+  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
+  -- constructor so folding does not need a 'Discrete' base.
+  Compose :: Ob arr b => Free arr b c -> Free arr a b -> Free arr a c
 
 instance (Category arr) => Category (Free arr) where
   type Ob (Free arr) a = Ob arr a
   id = Lift id
   (.) = Compose
 
+-- | A discrete base yields a discrete free category.
+instance (Discrete arr) => Discrete (Free arr) where
+  withOb @a x = withOb @arr @a x
+
 -- | Layer instance for the free category.
 --
--- 'Law' requires 'Discrete' so intermediate objects in 'Compose' can
--- discharge 'Ob' when folding.
+-- 'Compose' carries the intermediate 'Ob' evidence of the /source/
+-- category, but folding into a target category @arr'@ still needs to
+-- manufacture the corresponding 'Ob arr' b' evidence.  That is exactly
+-- what 'Discrete arr'' provides, so 'Law' is 'Discrete'.
 instance Layer Free where
   type Law Free arr' = Discrete arr'
+  type Run Free arr = Category arr
+  type Bind Free arr = ()
   unit = Lift
+  run (Lift f) = f
+  run (Compose g f) = run g . run f
+  bind :: forall arr' arr a b. (Law Free arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Free arr a b -> arr' a b
   bind h (Lift f) = h f
-  bind h (Compose g f) = bind h g `compD` bind h f
+  bind h (Compose @_ @b1 g f) = withOb @arr' @b1 (bind h g . bind h f)
 
 -- | Freeze a 'Free' category into its base arrow.
 --
--- This is the concrete specialization of 'run' @Free@.
+-- This is a synonym for 'run' @Free@.
 --
 -- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
 -- 6
-freeze :: (Discrete arr) => Free arr a b -> arr a b
+freeze :: (Category arr, Ob arr a, Ob arr b) => Free arr a b -> arr a b
 freeze (Lift f) = f
-freeze (Compose g f) = freeze g `compD` freeze f
+freeze (Compose g f) = freeze g . freeze f
 
--- | Lift the 'Monoidal' structure through 'Free'.
-instance (Monoidal t arr) => Monoidal t (Free arr) where
+-- | Lift the 'Channel' structure through 'Free'.
+instance (Channel t arr) => Channel t (Free arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
-  braid = Lift braid
+  slide = Lift slide
+
+-- | Lift the 'Strength' class through 'Free'.
+--
+-- A morphism is frozen before tensoring with the feedback channel.
+instance (Strength t arr) => Strength t (Free arr) where
+  strength = Lift . strength . freeze
 
 -- | Lift the 'Traced' class through 'Free'.
 --
 -- A loop body in @Free arr@ is frozen before calling the base 'trace'.
-instance (Discrete arr, Traced t arr) => Traced t (Free arr) where
+instance (Traced t arr) => Traced t (Free arr) where
   trace = Lift . trace . freeze
-  untrace = Lift . untrace . freeze

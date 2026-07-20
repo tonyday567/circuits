@@ -1,6 +1,6 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Trace GADT (Arr/Knot normal form), Hyper (final encoding), Net (inspectable wiring), and the Layer tower. For reading, building, extending, and debugging.
+description: Free traced monoidal categories. Trace GADT (Lift/Knot normal form), Hyper (final encoding), Net (inspectable wiring), and the Layer tower. For reading, building, extending, and debugging.
 ---
 
 # circuits — agent field guide
@@ -35,10 +35,10 @@ Recommended reading order for the source (core concepts first):
 ```
 Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
                       'Discrete', and composition helpers.
-Circuit.Trace       — Trace GADT (Arr, Knot), the Traced class, channel
-                      ends (Co/Contra), and base instances: (,) lazy knot,
-                      Either iteration, Kleisli IO via delimited
-                      continuations, cellIO helper.
+Circuit.Trace       — Trace GADT (Lift, Knot), the Traced class, the
+                      Strength superclass, channel ends, and base
+                      instances: (,) lazy knot, Either iteration, Kleisli
+                      IO via delimited continuations, cellIO helper.
 Circuit.Monoidal    — Monoidal superclass (associator + braiding) for traced
                       categories.
 Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over the
@@ -48,12 +48,11 @@ Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift, obse
                       base, push, encode, encodeEither, runEither, flatten.
 Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
                       Plus, Zero, Knot. enrich, melt, transpose.
-Circuit.Layer       — Layer tower. unit, bind, run, hmap, join, lower;
-                      NT, HNT, (:~>), (:~~>).
+Circuit.Layer       — Layer tower. unit, run, bind, lower; Cat2, (:~>).
 Circuit.Algebra     — change-of-base algebras for modular circuit syntax (optional).
-Circuit.Dagger      — Monoid, Comonoid, Bimonoid, Dagger, transpose.
+Circuit.Dagger      — WireMonoid, Comonoid, Bimonoid, Dagger, transpose.
 Circuit.Free        — Free category: Lift, Compose.
-Circuit.Mon         — Free symmetric monoidal category: Arr, Compose, Par,
+Circuit.Mon         — Free symmetric monoidal category: Lift, Compose, Par,
                       Swap.
 Circuit             — umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use. Submodules are
@@ -88,11 +87,10 @@ mathematical notation — not Haskell identifiers.  See
 worked examples.
 
 The canonical API uses lowercase names: `lift`, `observe`, `encode`,
-`push`, `run`, `runHyper`, `runEither`, `trace`, `untrace`, `melt`,
-`enrich`, `hmap`, `join`, `lower`, etc.
+`push`, `run`, `runHyper`, `runEither`, `trace`, `strength`, `melt`,
+`enrich`, `lower`, etc.
 
-Type-level vocabulary: `Cat2`, `NT` (natural transformation), `HNT`
-(higher natural transformation), `(:~>)`, `(:~~>)`.
+Type-level vocabulary: `Cat2`, `(:~>)` (arrow homomorphism).
 
 Symbols appear in two places only: the notation table (`other/symbols.md`)
 and axiom blocks. Everywhere else — prose, proof steps, explanations,

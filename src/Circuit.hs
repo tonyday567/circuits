@@ -25,18 +25,18 @@
 --
 -- === Switching between representations
 --
--- 'Trace' is the inspectable GADT form. 'Hyper' is the final, coinductive
--- encoding. Convert a 'Trace' to a 'Hyper' with 'encode', and observe it
+-- 'Loop' is the inspectable GADT form. 'Hyper' is the final, coinductive
+-- encoding. Convert a 'Loop' to a 'Hyper' with 'encode', and observe it
 -- with 'observe' (or eliminate it with 'runHyper').
 --
--- >>> observe (encode (Circuit.Trace.Arr (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> observe (encode (Circuit.Trace.Lift (+1) :: Loop (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
 --
 -- This library provides two representations of feedback:
 --
--- * 'Trace' (in "Circuit.Trace") — the initial, inspectable GADT encoding.
+-- * 'Loop' (in "Circuit.Trace") — the initial, inspectable GADT encoding.
 -- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
 --
 -- The 'Traced' class (in "Circuit.Trace") abstracts the choice of tensor,
@@ -48,24 +48,40 @@
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a 'Trace' (currently @(,@) or 'Either').
+--   inside a 'Loop' (currently @(,@) or 'Either').
 --
 -- * __Feedback value__: The component that travels around the loop (first
---   parameter of the tensor in a 'Trace').
+--   parameter of the tensor in a 'Loop').
 --
 -- * __Payload__: The value being transformed and emitted (second parameter
 --   of the tensor).
 --
 -- * __Feedback channel__: The path the feedback value takes when routed back
 --   into the next step.
+--
+-- == Verb glossary
+--
+-- * __Folds__ eliminate a free construction:
+--   'run' (any 'Layer'), 'freeze' ('Free' to its base arrow),
+--   'melt' ('Net' to 'Loop'), 'sift' ('Net' to 'Sym'),
+--   'eval' / 'evalInto' ('Syntax' via an algebra).
+--
+-- * __Injections__ embed one construction into another without eliminating:
+--   'unit' (base arrow into a 'Layer'), 'enrich' ('Loop' into 'Net'),
+--   'widen' ('Sym' into 'Net'), 'freeToMon' ('Free' into 'Sym'),
+--   'traceToAlg' / 'netToAlg' (direct GADT into 'Syntax').
+--
+-- * __Representation changes__: 'encode' ('Loop' to 'Hyper'),
+--   'observe' / 'runHyper' ('Hyper' to function / fixed point).
 module Circuit
-  ( -- * Trace
-    Trace (..),
+  ( -- * Loop
+    Loop (..),
     Traced,
+    Strength,
     -- | Close a feedback loop. See "Circuit.Trace".
     trace,
     -- | Open a feedback loop. See "Circuit.Trace".
-    untrace,
+    strength,
 
     -- * Channel ends
     Out (..),
@@ -81,6 +97,7 @@ module Circuit
 
     -- * Boxes
     box,
+    boxAsymmetric,
 
     -- * Queues
     Queue (..),
@@ -96,24 +113,26 @@ module Circuit
     -- * Layer tower
     Layer (..),
     Cat2,
-    NT,
-    HNT,
     (:~>),
-    (:~~>),
     lower,
-    run,
-    hmap,
-    join,
+
+    -- * Discrete discharge kit
+    compD,
+    assocD,
+    assocD',
+    braidD,
+    strengthD,
+    traceD,
 
     -- * Dagger (bimonoid + dagger)
-    Monoid (..),
+    WireMonoid (..),
     Comonoid (..),
     Dagger (..),
     Bimonoid,
     transpose,
 
-    -- * Mon
-    Mon,
+    -- * Sym
+    Sym,
 
     -- * Net
     Net,
@@ -133,11 +152,11 @@ module Circuit
     runEither,
     flatten,
 
-    -- * Monoidal
+    -- * Channel
     Braided (..),
     ambient,
-    assoc,
-    assoc',
+    assocL,
+    assocR,
     seed,
     absorb,
     release,
@@ -149,8 +168,9 @@ module Circuit
     coreleaseL,
     coreleaseR,
     ambientBy,
+    superpose,
 
-    -- * Monoidal product
+    -- * Channel product
     Tensor (..),
     Action (..),
   )
@@ -158,12 +178,21 @@ where
 
 import Circuit.Box
   ( box,
+    boxAsymmetric,
+  )
+import Circuit.Discrete
+  ( assocD,
+    assocD',
+    braidD,
+    compD,
+    strengthD,
+    traceD,
   )
 import Circuit.Dagger
   ( Bimonoid,
     Comonoid (..),
     Dagger (..),
-    Monoid (..),
+    WireMonoid (..),
     transpose,
   )
 import Circuit.Ends
@@ -197,17 +226,12 @@ import Circuit.Hyper
   )
 import Circuit.Layer
   ( Cat2,
-    HNT,
     Layer (..),
-    NT,
-    hmap,
-    join,
     lower,
     run,
     (:~>),
-    (:~~>),
   )
-import Circuit.Mon
+import Circuit.Sym
 import Circuit.Tensor
 import Circuit.Net
   ( Net,
@@ -223,22 +247,23 @@ import Circuit.Queue
   )
 import Circuit.Category (Ob)
 import Circuit.Trace
-  ( Trace (..),
+  ( Loop (..),
     Traced,
+    Strength,
   )
-import Circuit.Trace qualified as Trace
-import Prelude hiding (Monoid)
+import Circuit.Trace qualified as Loop
+import Prelude
 
 -- | Close a feedback loop. See "Circuit.Trace".
 trace ::
   (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr (t a b) (t a c) ->
   arr b c
-trace = Trace.trace
+trace = Loop.trace
 
 -- | Open a feedback loop. See "Circuit.Trace".
-untrace ::
-  (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
+strength ::
+  (Strength t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr b c ->
   arr (t a b) (t a c)
-untrace = Trace.untrace
+strength = Loop.strength

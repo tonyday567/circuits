@@ -12,9 +12,16 @@
 -- associator and a braiding for the tensor @t@, expressed as morphisms in
 -- @arr@. For @arr = (->)@ these are ordinary functions on tensor values.
 --
+-- Note: 'assoc' and 'assoc'' here reassociate /rightward/ and /leftward/
+-- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
+-- names but the opposite directions. Also, 'slide' here is the slide
+-- @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
+-- lives in 'Circuit.Tensor' as 'swap'. Where both structures exist,
+-- @slide = assoc' '>>>' par swap id '>>>' assoc@.
+--
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
-module Circuit.Monoidal
-  ( Monoidal (..),
+module Circuit.Channel
+  ( Channel (..),
   )
 where
 
@@ -32,7 +39,7 @@ import Prelude hiding (id, (.))
 --
 -- Object constraints live on 'Category' / 'Traced', not on these structure
 -- maps — free constructions over unconstrained bases stay lightweight.
-class (Category arr) => Monoidal t arr where
+class (Category arr) => Channel t arr where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc :: arr (t (t a b) c) (t a (t b c))
 
@@ -41,7 +48,7 @@ class (Category arr) => Monoidal t arr where
 
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
-  braid :: arr (t a (t b c)) (t b (t a c))
+  slide :: arr (t a (t b c)) (t b (t a c))
 
 -- | Cartesian monoidal structure for @(,)@.
 --
@@ -54,12 +61,12 @@ class (Category arr) => Monoidal t arr where
 -- >>> (assoc >>> assoc') ((1, 2), 3) :: ((Int, Int), Int)
 -- ((1,2),3)
 --
--- >>> braid (1, (2, 3)) :: (Int, (Int, Int))
+-- >>> slide (1, (2, 3)) :: (Int, (Int, Int))
 -- (2,(1,3))
-instance Monoidal (,) (->) where
+instance Channel (,) (->) where
   assoc ~(~(a, b), c) = (a, (b, c))
   assoc' ~(a, ~(b, c)) = ((a, b), c)
-  braid ~(a, ~(b, c)) = (b, (a, c))
+  slide ~(a, ~(b, c)) = (b, (a, c))
 
 -- | Cocartesian monoidal structure for @Either@.
 --
@@ -69,15 +76,15 @@ instance Monoidal (,) (->) where
 -- >>> assoc' (Left 1 :: Either Int (Either Bool Char)) :: Either (Either Int Bool) Char
 -- Left (Left 1)
 --
--- >>> braid (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
+-- >>> slide (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
 -- Right (Left 1)
-instance Monoidal Either (->) where
+instance Channel Either (->) where
   assoc (Left (Left a)) = Left a
   assoc (Left (Right b)) = Right (Left b)
   assoc (Right c) = Right (Right c)
   assoc' (Left a) = Left (Left a)
   assoc' (Right (Left b)) = Left (Right b)
   assoc' (Right (Right c)) = Right c
-  braid (Left a) = Right (Left a)
-  braid (Right (Left b)) = Left b
-  braid (Right (Right c)) = Right (Right c)
+  slide (Left a) = Right (Left a)
+  slide (Right (Left b)) = Left b
+  slide (Right (Right c)) = Right (Right c)

@@ -9,19 +9,21 @@
 -- Each layer @f@ is a free construction over a base arrow:
 --
 -- * @run@ @Free@       — free category
--- * @run@ @Mon@        — free symmetric monoidal category
--- * @run@ @(Trace t)@  — free traced monoidal category
+-- * @run@ @Sym@        — free symmetric monoidal category
+-- * @run@ @(Loop t)@  — free traced monoidal category
 -- * @run@ @(Net t)@    — free traced PROP with bimonoid
 --
--- Each layer has one associated constraint ('Law') saying what the target
--- category must satisfy, and two combinators ('unit' and 'bind') that
--- package the universal property.
+-- 'Law' says what the /target/ category must satisfy to receive a 'bind'
+-- fold; 'Run' says what the /base/ category must satisfy for a same-category
+-- 'run'; and 'Bind' captures any extra source constraints needed when the
+-- free syntax has structural rows that do not carry all 'Ob' evidence.
 --
 -- The hom-set isomorphism is stated once, generically:
 --
 -- @
 --   bind h . unit = h              (β)
 --   bind unit      = id            (η)
+--   run            = bind id       (coherence, where both sides are defined)
 -- @
 --
 -- Composition of layers is just nesting — no new operator, no bespoke
@@ -29,17 +31,11 @@
 module Circuit.Layer
   ( -- * Free-layer class
     Cat2,
-    NT,
-    HNT,
     (:~>),
-    (:~~>),
     Layer (..),
 
     -- * Derived vocabulary
-    run,
-    hmap,
     lower,
-    join,
   )
 where
 
@@ -54,75 +50,55 @@ import Prelude hiding (id, (.))
 -- | The kind of Haskell categories: type-to-type hom-sets.
 type Cat2 = Type -> Type -> Type
 
--- | A natural transformation between profunctors (arrow-to-arrow maps).
--- The underlying type of the infix synonym ':~>'.
-type NT (p :: Cat2) (q :: Cat2) = forall x y. p x y -> q x y
-
--- | Infix synonym for 'NT': an arrow-to-arrow mapping.
--- Homomorphisms preserve 'id', @(.)@, and the structure named
--- by the 'Law' constraint of the layer they are folded through.
-type arr :~> arr' = NT arr arr'
-
--- | A higher natural transformation between 2-functors on 'Cat2'.
--- The underlying type of the infix synonym ':~~>'.
-type HNT (f :: Cat2 -> Cat2) (g :: Cat2 -> Cat2) = forall arr. f arr :~> g arr
-
--- | Infix synonym for 'HNT': a layer-to-layer mapping, natural in the
--- base arrow.
-type f :~~> g = HNT f g
+-- | An arrow-to-arrow mapping (a natural transformation between
+-- profunctors).
+type arr :~> arr' = forall x y. arr x y -> arr' x y
 
 -- | A free construction over a base arrow.
 --
 -- * 'unit' includes the generators.
+-- * 'run' folds the free syntax back into the same base category.
 -- * 'bind' folds the free syntax into any 'Law'-abiding target.
 class Layer (f :: Cat2 -> Cat2) where
-  -- | What the target category must satisfy to receive a fold.
+  -- | What the target category must satisfy to receive a 'bind' fold.
+  -- 'run' only needs the base category's own object constraints.
   type Law f (arr' :: Cat2) :: Constraint
+
+  -- | What the base category must satisfy to receive a 'run' fold back into
+  -- itself.  Defaults to no extra constraints.
+  type Run f (arr :: Cat2) :: Constraint
+  type Run f arr = ()
+
+  -- | Extra constraints the /source/ category must satisfy for a 'bind'
+  -- fold.  Defaults to no extra constraints; instances with structural
+  -- rows that do not carry all needed 'Ob' evidence may require 'Discrete'.
+  --
+  -- For example, 'Sym.Par' reuses the base 'Tensor.par' method, which is
+  -- deliberately 'Ob'-free; because 'par = Par' has no object dictionaries
+  -- to stash in the constructor, the source category must be 'Discrete' so
+  -- the missing evidence can be manufactured on demand.
+  type Bind f (arr :: Cat2) :: Constraint
+  type Bind f arr = ()
 
   -- | Include a base arrow as a single generator.
   unit :: (Category arr) => arr :~> f arr
 
-  -- | The universal fold out of the free construction.
-  bind :: (Law f arr') => (arr :~> arr') -> (f arr :~> arr')
+  -- | Fold the free syntax into the same base category.
+  --
+  -- Implemented directly by each instance so that constrained categories
+  -- (e.g. matrices) do not need a 'Discrete' instance for same-category
+  -- folds.
+  run :: (Run f arr, Ob arr a, Ob arr b) => f arr a b -> arr a b
+
+  -- | The universal fold out of the free construction into any
+  -- 'Law'-abiding target category.
+  bind ::
+    (Law f arr', Bind f arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (arr :~> arr') ->
+    f arr a b ->
+    arr' a b
 
 -- | The left direction of the hom-set isomorphism: restrict a map out of
 -- the free layer to the generators.
 lower :: (Layer f, Category arr) => (f arr :~> arr') -> (arr :~> arr')
 lower g = g . unit
-
--- | Fold a free layer into its own target level.
---
--- Use with type application:
---
--- @
--- run @Free
--- run @Mon
--- run @(Trace t)
--- run @(Net t)
--- @
---
--- >>> lower (run @Free) (+1) 5
--- 6
-run :: (Layer f, Law f arr) => f arr :~> arr
-run = bind id
-
--- | Functorial map of a homomorphism through a free layer.
---
--- Use with type application:
---
--- @
--- hmap @Free h
--- hmap @Mon h
--- hmap @(Trace t) h
--- hmap @(Net t) h
--- @
-hmap ::
-  (Layer f, Category arr', Law f (f arr')) =>
-  (arr :~> arr') ->
-  (f arr :~> f arr')
-hmap h = bind (unit . h)
-
--- | Join nested layers.  Each layer is a monad on the category of
--- arrows; 'join' is the multiplication.
-join :: (Layer f, Law f (f arr)) => f (f arr) :~> f arr
-join = bind id

@@ -1,6 +1,6 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-A small Haskell library that makes feedback first-class. Two constructors — a plain arrow (`Arr`) and a feedback loop (`Knot`) — plus composition that fuses as you build. The rest falls out.
+A small Haskell library that makes feedback first-class. Two constructors — a plain arrow (`Lift`) and a feedback loop (`Knot`) — plus composition that fuses as you build. The rest falls out.
 
 It's off the beaten track but absolutely core Haskell: traced monoidal categories, hyperfunctions, and wiring diagrams, packaged so you can paste examples into GHCi.
 
@@ -17,7 +17,7 @@ import Data.Bool (bool)
 import System.IO (IOMode (ReadMode), hClose, hGetLine, hIsEOF, openFile)
 
 openf :: T.Trace Either (Kleisli IO) FilePath Handle
-openf = T.Arr (Kleisli (\fp -> openFile fp ReadMode))
+openf = T.Lift (Kleisli (\fp -> openFile fp ReadMode))
 
 countLines :: T.Trace Either (Kleisli IO) Handle (Handle, Int)
 countLines = T.Knot (Kleisli step)
@@ -28,7 +28,7 @@ countLines = T.Knot (Kleisli step)
     step (Right h) = pure (Left (h, 0))
 
 pipeline :: T.Trace Either (Kleisli IO) FilePath Int
-pipeline = openf >>> countLines >>> T.Arr (Kleisli (\(h, n) -> hClose h >> pure n))
+pipeline = openf >>> countLines >>> T.Lift (Kleisli (\(h, n) -> hClose h >> pure n))
 
 -- paste into ghci:  runKleisli (run pipeline) "readme.md"
 ```
@@ -60,7 +60,7 @@ step :: Int -> Either Int Int
 step n = if n < 5 then Left (n + 1) else Right n
 
 countToFive :: T.Trace Either (->) Int Int
-countToFive = T.Arr (either step step)
+countToFive = T.Lift (either step step)
 run countToFive 0  -- 5
 ```
 
@@ -74,6 +74,20 @@ The library layers free constructions over a base arrow:
 - `Hyper` — the final, coinductive encoding. Convert with `encode` / `observe`.
 
 Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical fold.
+
+## structure
+
+The API separates semantic structure from syntactic construction, with `Loop`
+(the normal-form `Lift`/`Knot` GADT) as the point where the two monoidal
+tracks converge. See [`other/circuits-dag.md`](other/circuits-dag.md) for the
+current structure diagram.
+
+- **Structural semantics**: `Category → Channel → Strength → Traced`
+- **Functorial semantics**: `Category → Tensor → Action`
+- **Syntax**: `Free → Sym → Net`, with `Loop` as the normal form
+- **`Loop → Net`** is `enrich`; `melt` and other folds are not drawn
+- **Thick magenta dashed arrows** are the `Layer` Laws (e.g. `Law (Loop t) = (Traced t, Discrete)`)
+- `Ends`, `Box`/`Queue`, and `Hyper` are omitted from this core view
 
 ## what's new in 0.2
 

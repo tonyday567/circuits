@@ -69,14 +69,16 @@ library
     Circuit.Box
     Circuit.Category
     Circuit.Dagger
+    Circuit.Discrete
     Circuit.Ends
     Circuit.Free
     Circuit.Hyper
     Circuit.Layer
-    Circuit.Mon
-    Circuit.Monoidal
+    Circuit.Sym
+    Circuit.Channel
     Circuit.Net
     Circuit.Queue
+    Circuit.Strength
     Circuit.Tensor
     Circuit.Trace
 

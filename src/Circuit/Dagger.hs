@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -8,7 +9,7 @@
 -- This module collects the algebraic structure that every wire carries in a
 -- circuit category:
 --
--- * 'Monoid' — the monoid on channel objects (fan-in of contributions).
+-- * 'WireMonoid' — the monoid on channel objects (fan-in of contributions).
 -- * 'Comonoid' — the comonoid on channel objects (fan-out of values).
 -- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
 -- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
@@ -21,8 +22,8 @@
 -- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
 module Circuit.Dagger
-  ( -- * Monoid
-    Monoid (..),
+  ( -- * WireMonoid
+    WireMonoid (..),
 
     -- * Comonoid
     Comonoid (..),
@@ -37,20 +38,20 @@ module Circuit.Dagger
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
-import Circuit.Monoidal (Monoidal (..))
+import Circuit.Channel (Channel (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Trace (Traced (..))
-import Prelude hiding (Monoid, id, (.))
+import Circuit.Trace (Strength (..), Traced (..))
+import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Circuit.Trace (Traced (..))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
--- >>> import Prelude hiding (id, (.), Monoid)
+-- >>> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
--- Monoid: monoid structure on channel objects
+-- WireMonoid: monoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
 -- | A commutative monoid on channel objects.
@@ -58,7 +59,7 @@ import Prelude hiding (Monoid, id, (.))
 -- Not the same as arithmetic '+'; this is the operation by which parallel
 -- contributions to the same wire combine.  Fan-out on the forward pass
 -- becomes fan-in (summation) on the backward pass.
-class Monoid arr a where
+class WireMonoid arr a where
   -- | Combine two values of the channel type.
   plus :: arr (a, a) a
 
@@ -71,7 +72,7 @@ class Monoid arr a where
 -- ()
 -- >>> zero () :: ()
 -- ()
-instance Monoid (->) () where
+instance WireMonoid (->) () where
   plus _ = ()
   {-# INLINE plus #-}
   zero _ = ()
@@ -87,25 +88,25 @@ instance Monoid (->) () where
 -- 3.0
 -- >>> zero () :: Double
 -- 0.0
-instance Monoid (->) Int where
+instance WireMonoid (->) Int where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance Monoid (->) Integer where
+instance WireMonoid (->) Integer where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance Monoid (->) Double where
+instance WireMonoid (->) Double where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance Monoid (->) Float where
+instance WireMonoid (->) Float where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
@@ -119,7 +120,7 @@ instance Monoid (->) Float where
 -- True
 -- >>> zero () :: Bool
 -- False
-instance Monoid (->) Bool where
+instance WireMonoid (->) Bool where
   plus = uncurry (||)
   {-# INLINE plus #-}
   zero _ = False
@@ -129,7 +130,7 @@ instance Monoid (->) Bool where
 --
 -- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
-instance (Monoid (->) a, Monoid (->) b) => Monoid (->) (a, b) where
+instance (WireMonoid (->) a, WireMonoid (->) b) => WireMonoid (->) (a, b) where
   plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
   {-# INLINE plus #-}
   zero u = (zero u, zero u)
@@ -144,7 +145,7 @@ instance (Monoid (->) a, Monoid (->) b) => Monoid (->) (a, b) where
 -- [4,6,5]
 -- >>> plus ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
-instance (Monoid (->) a) => Monoid (->) [a] where
+instance (WireMonoid (->) a) => WireMonoid (->) [a] where
   plus (xs, ys) = go xs ys
     where
       go [] [] = []
@@ -181,7 +182,7 @@ class Comonoid arr a where
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
 -- 'Circuit.Net.transpose' to be total.
-type Bimonoid arr a = (Comonoid arr a, Monoid arr a)
+type Bimonoid arr a = (Comonoid arr a, WireMonoid arr a)
 
 -- | Every type copies for free in a cartesian category (Fox's theorem).
 --
@@ -230,25 +231,27 @@ instance (Category arr) => Category (Dagger arr) where
   Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
 
--- | Dagger of functions is discrete (Ob reduces to @()@).
-instance Discrete (Dagger (->)) where
-  withOb x = x
+-- | Dagger of a discrete base is discrete.
+instance (Discrete arr) => Discrete (Dagger arr) where
+  withOb @a x = withOb @arr @a x
+
+instance (Strength t arr) => Strength t (Dagger arr) where
+  strength (Dagger f g) = Dagger (strength f) (strength g)
+  {-# INLINE strength #-}
 
 instance (Traced t arr) => Traced t (Dagger arr) where
   trace (Dagger f g) = Dagger (trace f) (trace g)
   {-# INLINE trace #-}
-  untrace (Dagger f g) = Dagger (untrace f) (untrace g)
-  {-# INLINE untrace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
-instance (Comonoid arr a, Monoid arr a) => Comonoid (Dagger arr) a where
+instance (Comonoid arr a, WireMonoid arr a) => Comonoid (Dagger arr) a where
   copy = Dagger copy plus
   {-# INLINE copy #-}
   discard = Dagger discard zero
   {-# INLINE discard #-}
 
 -- | Forward add, backward copy.
-instance (Comonoid arr a, Monoid arr a) => Monoid (Dagger arr) a where
+instance (Comonoid arr a, WireMonoid arr a) => WireMonoid (Dagger arr) a where
   plus = Dagger plus copy
   {-# INLINE plus #-}
   zero = Dagger zero discard
@@ -271,7 +274,7 @@ instance (Action t arr) => Action t (Dagger arr) where
   {-# INLINE swap #-}
 
 -- | Lift monoidal structure through 'Dagger'.
-instance (Monoidal t arr) => Monoidal t (Dagger arr) where
+instance (Channel t arr) => Channel t (Dagger arr) where
   assoc = Dagger assoc assoc'
   assoc' = Dagger assoc' assoc
-  braid = Dagger braid braid
+  slide = Dagger slide slide

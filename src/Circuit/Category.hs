@@ -13,8 +13,11 @@
 -- constraint.
 --
 -- 'Discrete' marks categories whose 'Ob' is trivial for every object
--- (@Ob = ()@). Free constructions that fuse existential channels
--- (notably 'Trace') require 'Discrete' on the base.
+-- (@Ob = ()@). Constrained bases can implement 'Circuit.Trace.Traced'
+-- directly, but /hosting/ the free constructions ('Free', 'Sym', 'Loop',
+-- 'Net', and the syntax in "Circuit.Algebra") additionally requires
+-- 'Discrete', because compound tensor objects (e.g. @t s a@ inside a
+-- 'Loop.Knot') carry no 'Ob' evidence and must be manufactured on demand.
 module Circuit.Category
   ( Category (..),
     Discrete (..),
@@ -48,7 +51,7 @@ class Category (arr :: k -> k -> Type) where
 -- | Categories with a trivial object constraint for every type.
 --
 -- 'withOb' discharges @Ob arr a@ at an arbitrary @a@. Free constructions
--- that bind an existential object (notably 'Trace' in "Circuit.Trace")
+-- that bind an existential object (notably 'Loop' in "Circuit.Trace")
 -- use it where a polymorphic @Ob@ constraint cannot be written.
 class (Category arr) => Discrete arr where
   withOb :: forall a r. (Ob arr a => r) -> r

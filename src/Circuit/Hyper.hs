@@ -8,7 +8,7 @@
 -- a continuation of type @Hyper b a@.
 --
 -- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
--- category. Its dual, 'Trace' (see "Circuit.Trace"), is the
+-- category. Its dual, 'Loop' (see "Circuit.Trace"), is the
 -- corresponding /initial/ (inductive) encoding. The feedback channel
 -- is not represented by an extra constructor; it is structural in the
 -- type itself.
@@ -35,8 +35,8 @@ where
 import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
-import Circuit.Monoidal (Monoidal (..))
-import Circuit.Trace (Trace (..), Traced (..))
+import Circuit.Channel (Channel (..))
+import Circuit.Trace (Strength (..), Loop (..), Traced (..))
 import Prelude hiding (id, (.))
 import Data.Profunctor
 
@@ -44,7 +44,7 @@ import Data.Profunctor
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Data.Profunctor
--- >>> import Circuit.Trace (Trace (..), Traced (..))
+-- >>> import Circuit.Trace (Loop (..), Traced (..))
 -- >>> import Circuit.Layer (run)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
@@ -134,9 +134,9 @@ runHyper h = invoke h (Hyper runHyper)
 --
 -- prop> \x -> observe (lift (*2) . lift (+1)) (x :: Int) == (x + 1) * 2
 
--- * Trace
+-- * Loop
 
--- | 'Trace' instance for 'Hyper' with the @(,)@ tensor.
+-- | 'Loop' instance for 'Hyper' with the @(,)@ tensor.
 --
 -- Routes the self-reference through explicit 'Hyper' values:
 --
@@ -152,10 +152,13 @@ runHyper h = invoke h (Hyper runHyper)
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> observe (trace body) ()
 -- [0,0,0]
-instance Monoidal (,) Hyper where
+instance Channel (,) Hyper where
   assoc = lift $ \((a, b), c) -> (a, (b, c))
   assoc' = lift $ \(a, (b, c)) -> ((a, b), c)
-  braid = lift $ \(a, (b, c)) -> (b, (a, c))
+  slide = lift $ \(a, (b, c)) -> (b, (a, c))
+
+instance Strength (,) Hyper where
+  strength h = lift (\p -> (fst p, observe h (snd p)))
 
 instance Traced (,) Hyper where
   trace body = Hyper $ \k ->
@@ -164,9 +167,8 @@ instance Traced (,) Hyper where
           let a_val = invoke k (Hyper (const (snd pair)))
            in (fst pair, a_val)
      in snd pair
-  untrace = lift . fmap . observe
 
--- * Encoding Trace into Hyper
+-- * Encoding Loop into Hyper
 
 -- | Encode a Free into a Hyper.
 --
@@ -182,26 +184,26 @@ encodeFree :: F.Free (->) a b -> Hyper a b
 encodeFree (F.Lift f) = lift f
 encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 
--- | Encode a Trace into a Hyper.
+-- | Encode a Loop into a Hyper.
 --
--- This is the unique traced functor from the initial object ('Trace')
+-- This is the unique traced functor from the initial object ('Loop')
 -- to the final object ('Hyper'), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'run'@.
 --
--- 'Arr' constructors embed directly via 'lift'; 'Knot' constructors
+-- 'Lift' constructors embed directly via 'lift'; 'Knot' constructors
 -- become 'trace' over a hyperfunction.
 --
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Trace (Trace (..))
--- >>> observe (encode (Arr (+1) :: Trace (,) (->) Int Int)) 5
+-- >>> import Circuit.Trace (Loop (..))
+-- >>> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
 -- 6
-encode :: Trace (,) (->) a b -> Hyper a b
-encode (Arr f) = lift f
+encode :: Loop (,) (->) a b -> Hyper a b
+encode (Lift f) = lift f
 encode (Knot f) = trace (lift f)
 
 -- | Encode an Either-loop as a self-referential Hyper.
 --
--- Whereas 'encode' handles the @(,)@ tensor using Hyper's own Trace
+-- Whereas 'encode' handles the @(,)@ tensor using Hyper's own Loop
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
@@ -244,7 +246,7 @@ encodeEither f = h
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
 
--- | Flatten a Hyper to a Trace by observing it.
+-- | Flatten a Hyper to a Loop by observing it.
 --
 -- This is the forgetful map from the final encoding to the initial encoding.
 -- All feedback structure is lost; only the observable behaviour remains.
@@ -258,8 +260,8 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- >>> let h = lift (+ 1)
 -- >>> observe (encode (flatten h)) 5
 -- 6
-flatten :: Hyper a b -> Trace (,) (->) a b
-flatten h = Arr (observe h)
+flatten :: Hyper a b -> Loop (,) (->) a b
+flatten h = Lift (observe h)
 
 -- * Instances
 

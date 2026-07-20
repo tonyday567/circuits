@@ -1,27 +1,30 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | The free traced PROP with a bimonoid over a primitive set.
 --
--- 'Net' extends 'C.Trace' with structural rows for the monoidal and
+-- 'Net' extends 'C.Loop' with structural rows for the monoidal and
 -- bimonoid operations: parallel composition, copy, discard, addition,
--- and zero.  Where 'C.Trace' keeps only 'C.Arr' and 'C.Knot' in normal
+-- and zero.  Where 'C.Loop' keeps only 'C.Lift' and 'C.Knot' in normal
 -- form, 'Net' keeps the wiring inspectable — the difference between
 -- wiring you can read backwards and wiring that has been melted into a
 -- single loop.
 --
 -- @
 -- Free = Lift + Compose
--- Mon  = Free + Par + Swap
--- Net  = Mon + Knot + Copy + Discard + Plus + Zero
+-- Sym  = Free + Par + Swap
+-- Net  = Sym + Knot + Copy + Discard + Plus + Zero
 -- @
 --
 -- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' interprets the
--- structural rows into the normal form of 'C.Trace'.
+-- structural rows into the normal form of 'C.Loop'.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -36,27 +39,31 @@ module Circuit.Net
 
     -- * Interpretation
     melt,
+
+    -- * Free Net constraint
+    FreeNet,
   )
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Dagger qualified as Dg
-import Circuit.Layer (Layer (..), run, (:~>))
-import Circuit.Mon qualified as M
+import Circuit.Layer (Layer (..), (:~>))
+import Circuit.Layer qualified as Layer
+import Circuit.Sym qualified as M
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Trace (Traced (..), compD, traceD)
+import Circuit.Trace (Traced (..))
 import Circuit.Trace qualified as C
 import Data.Kind (Type)
-import Prelude hiding (Monoid, id, (.))
+import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Layer (bind, run, unit)
--- >>> import Circuit.Mon qualified as M
+-- >>> import Circuit.Sym qualified as M
 -- >>> import Circuit.Net
--- >>> import Circuit.Trace (Trace (..))
+-- >>> import Circuit.Trace (Loop (Knot))
 -- >>> import Circuit.Trace qualified as C
--- >>> import Prelude hiding (id, (.), Monoid)
+-- >>> import Prelude hiding (id, (.))
 
 -- | The free traced PROP with a bimonoid.
 --
@@ -67,14 +74,25 @@ import Prelude hiding (Monoid, id, (.))
 --   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
 --   * __Feedback__ — 'Knot', with a 'Net' body so 'transpose' can reach inside.
 --
--- 'Dg.Comonoid' and 'Dg.Monoid' constraints ride as dictionary arguments on the
+-- 'Dg.Comonoid' and 'Dg.WireMonoid' (via 'Dg.Bimonoid') constraints ride as dictionary arguments on the
 -- constructors that need them — laws in the typeclass holes, evidence on
 -- the GADT rows.
+--
+-- The wiring monoidal structure ('Par' / 'Swap') is cartesian: it always
+-- uses @(,)@. Only the feedback tensor carried by 'Knot' is polymorphic
+-- in @t@. This is why 'Net' is a PROP over the cartesian wiring category
+-- with feedback supplied by the traced tensor.
+--
+-- 'Net' extends 'C.Loop' inspectably. 'enrich' embeds a 'Loop' into
+-- 'Net', and 'melt' collapses it back; 'melt' . 'enrich' = 'id'.
 data Net (t :: Type -> Type -> Type) arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Net t arr a b
   -- | Sequential composition.
-  Compose :: Net t arr b c -> Net t arr a b -> Net t arr a c
+  --
+  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
+  -- constructor so folding does not need a 'Discrete' base.
+  Compose :: Ob arr b => Net t arr b c -> Net t arr a b -> Net t arr a c
   -- | Parallel composition (monoidal product).
   Par :: Net t arr a b -> Net t arr c d -> Net t arr (a, c) (b, d)
   -- | Symmetric braiding.
@@ -90,7 +108,10 @@ data Net (t :: Type -> Type -> Type) arr a b where
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow —
   -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Plus' within
   -- the loop.
-  Knot :: Net t arr (t a b) (t a c) -> Net t arr b c
+  --
+  -- The constructor carries the 'Ob' evidence for the feedback channel in
+  -- the /source/ category.
+  Knot :: Ob arr s => Net t arr (t s a) (t s b) -> Net t arr a b
 
 -- | The 'Category' instance preserves inspectable wiring.
 --
@@ -100,11 +121,15 @@ data Net (t :: Type -> Type -> Type) arr a b where
 --
 -- Composition uses the explicit 'Compose' constructor so structural
 -- rows remain inspectable.  'melt' collapses them to the normal form of
--- 'C.Trace' when needed.
+-- 'C.Loop' when needed.
 instance (Category arr) => Category (Net t arr) where
   type Ob (Net t arr) a = Ob arr a
   id = Lift id
   g . f = Compose g f
+
+-- | A discrete base yields a discrete free traced PROP.
+instance (Category arr, Discrete arr) => Discrete (Net t arr) where
+  withOb @a x = withOb @arr @a x
 
 -- | Transpose a 'Net' — the backward circuit as inspectable syntax.
 --
@@ -146,99 +171,124 @@ transpose = \case
   Zero -> Discard
   Knot f -> Knot (transpose f)
 
--- | Upgrade a 'C.Trace' to a 'Net' — constructor-to-constructor.
+-- | Upgrade a 'C.Loop' to a 'Net' — constructor-to-constructor.
 --
--- 'C.Trace' is the normal form 'C.Arr' / 'C.Knot' over a base-arrow body;
+-- 'C.Loop' is the normal form 'C.Lift' / 'C.Knot' over a base-arrow body;
 -- 'Net' keeps the same information but can hold more structure.
--- 'C.Arr' lifts to 'Net.Lift'; 'C.Knot' lifts to 'Net.Knot' around a
+-- 'C.Lift' lifts to 'Net.Lift'; 'C.Knot' lifts to 'Net.Knot' around a
 -- 'Lift' body.
-enrich :: C.Trace t arr a b -> Net t arr a b
-enrich (C.Arr f) = Lift f
+enrich :: C.Loop t arr a b -> Net t arr a b
+enrich (C.Lift f) = Lift f
 enrich (C.Knot f) = Knot (Lift f)
 
--- | Include a 'M.Mon' circuit into 'Net' — constructor-to-constructor.
+-- | Include a 'M.Sym' circuit into 'Net' — constructor-to-constructor.
 --
--- 'Net' duplicates the four rows of 'M.Mon' ('Arr', 'Compose', 'Par',
+-- 'Net' duplicates the four rows of 'M.Sym' ('Lift', 'Compose', 'Par',
 -- 'Swap') so that structural wiring stays inspectable.  This is the
--- injection of the 'Mon' layer into the 'Net' layer.
+-- injection of the 'Sym' layer into the 'Net' layer.
 --
--- >>> let m = M.Arr (+1) `M.Compose` M.Arr (*2) :: M.Mon (->) Int Int
+-- >>> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
 -- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
--- Coherence: 'sift' projects 'widen' back to the original 'Mon'.
+-- Coherence: 'sift' projects 'widen' back to the original 'Sym'.
 --
 -- >>> run (sift (widen m :: Net (,) (->) Int Int)) 5
 -- 11
 -- >>> run m 5
 -- 11
 --
--- Coherence: 'melt' and 'bind unit' agree on 'Mon' circuits.
+-- Coherence: 'melt' agrees with the function fold on 'Sym' circuits.
 --
 -- >>> run (melt (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- >>> run (bind (C.Arr :: forall x y. (x -> y) -> Trace (,) (->) x y) m :: Trace (,) (->) Int Int) 5
+-- >>> let h f = f
+-- >>> (bind h m :: Int -> Int) 5
 -- 11
 --
--- Coherence: 'Net' folds through 'widen' match 'Mon' folds.
+-- Coherence: 'Net' folds through 'widen' match 'Sym' folds.
 --
--- >>> let h :: forall x y. (x -> y) -> Trace (,) (->) x y; h f = C.Arr f
--- >>> run (bind h (widen m :: Net (,) (->) Int Int)) 5
+-- >>> let h f = f
+-- >>> (bind h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
 -- 11
--- >>> run (bind h m) 5
+-- >>> (bind h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: transposition commutes with 'widen'.
 --
--- >>> let dm = M.Arr (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Arr (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Mon (Dg.Dagger (->)) Int Int
+-- >>> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
 -- >>> Dg.front (run (transpose (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
 -- >>> Dg.front (run (widen (M.monTranspose dm) :: Net (,) (Dg.Dagger (->)) Int Int)) 10
 -- 4
-widen :: M.Mon arr a b -> Net t arr a b
-widen (M.Arr f) = Lift f
+widen :: M.Sym arr a b -> Net t arr a b
+widen (M.Lift f) = Lift f
 widen (M.Compose g f) = Compose (widen g) (widen f)
 widen (M.Par f g) = Par (widen f) (widen g)
 widen M.Swap = Swap
 
 -- | Forget the feedback and bimonoid rows of a 'Net', keeping only the
--- 'M.Mon' wiring.
+-- 'M.Sym' wiring.
 --
--- 'sift' is 'bind unit', so it collapses 'Knot' and the bimonoid rows
--- into 'M.Arr' while leaving 'Compose', 'Par', and 'Swap' inspectable.
--- Together with 'widen' it gives the adjunction between 'M.Mon' and 'Net'.
+-- 'sift' collapses 'Knot' and the bimonoid rows into 'M.Lift' while
+-- leaving 'Compose', 'Par', and 'Swap' inspectable. Together with 'widen'
+-- it gives the adjunction between 'M.Sym' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets knots and bimonoid structure.
 sift ::
-  (Traced t (->), Action (,) (->)) =>
-  Net t (->) a b ->
-  M.Mon (->) a b
-sift = bind unit
+  forall t arr a b.
+  (Traced t arr, Action (,) arr, Discrete arr) =>
+  Net t arr a b ->
+  M.Sym arr a b
+sift (Lift f) = M.Lift f
+sift (Compose g f) = M.Compose (sift g) (sift f)
+sift (Par f g) = M.Par (sift f) (sift g)
+sift Swap = M.Swap
+sift Copy = M.Lift Dg.copy
+sift Discard = M.Lift Dg.discard
+sift Plus = M.Lift Dg.plus
+sift Zero = M.Lift Dg.zero
+sift n@(Knot @_ @s @_ @_ @_ _) =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @(t s a) $
+        withOb @arr @(t s b) $
+          M.Lift (Layer.run (melt n))
 
--- | Melt the structural rows of a 'Net' into the normal form of 'C.Trace'.
+-- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
 --
 -- The interpretation from the free traced PROP with bimonoid to the free
 -- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
--- etc.) become opaque base-arrow operations wrapped in 'C.Arr'; 'Compose'
--- and 'C.Knot' use the 'Category' and 'Traced' instances of 'C.Trace'.
+-- etc.) become opaque base-arrow operations wrapped in 'C.Lift'; 'Compose'
+-- and 'C.Knot' use the 'Category' and 'Traced' instances of 'C.Loop'.
 --
 -- @'run' @Net = 'run' . 'melt'@.
 --
 -- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
-  (Traced t (->), Action (,) (->), Action (,) (C.Trace t (->))) =>
-  Net t (->) a b ->
-  C.Trace t (->) a b
-melt (Lift f) = C.Arr f
-melt (Compose g f) = melt g . melt f
+  forall t arr a b.
+  (Traced t arr, Action (,) arr, Discrete arr) =>
+  Net t arr a b ->
+  C.Loop t arr a b
+melt (Lift f) = C.Lift f
+melt (Compose @_ @b1 @_ @_ @_ g f) =
+  withOb @arr @a $
+    withOb @arr @b1 $
+      withOb @arr @b $
+        (melt g . melt f)
 melt (Par f g) = par (melt f) (melt g)
-melt Swap = C.Arr swap
-melt Copy = C.Arr Dg.copy
-melt Discard = C.Arr Dg.discard
-melt Plus = C.Arr Dg.plus
-melt Zero = C.Arr Dg.zero
-melt (Knot f) = trace (melt f)
+melt Swap = C.Lift swap
+melt Copy = C.Lift Dg.copy
+melt Discard = C.Lift Dg.discard
+melt Plus = C.Lift Dg.plus
+melt Zero = C.Lift Dg.zero
+melt (Knot @_ @s @_ @_ @_ f) =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @(t s a) $
+        withOb @arr @(t s b) $
+          trace (melt f)
 
 -- | 'Traced' + 'Action' + 'Discrete' — free 'Net' fold needs trivial 'Ob'.
 class (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
@@ -254,18 +304,40 @@ instance (Traced t arr, Action (,) arr, Discrete arr) => FreeNet t arr
 --
 -- [Conditional] 'bind' @h@ interprets bimonoid generators as images under
 -- @h@ of the source arrow's dictionaries.  This is the free-PROP fold
--- only when @h@ is a bimonoid homomorphism (automatic for 'unit' and
--- 'hmap', but must be verified for custom @h@).
+-- only when @h@ is a bimonoid homomorphism (automatic for the generator
+-- embedding, but must be verified for custom @h@).
 instance Layer (Net t) where
   type Law (Net t) arr' = FreeNet t arr'
+  type Run (Net t) arr = (Traced t arr, Action (,) arr, Discrete arr)
+  type Bind (Net t) arr = Discrete arr
   unit = Lift
-  bind :: forall arr' arr. (Law (Net t) arr') => (arr :~> arr') -> (Net t arr :~> arr')
+  run = Layer.run . melt
+  bind :: forall arr' arr a b. (Law (Net t) arr', Bind (Net t) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Net t arr a b -> arr' a b
   bind h (Lift f) = h f
-  bind h (Compose g f) = bind h g `compD` bind h f
-  bind h (Par f g) = par (bind h f) (bind h g)
+  bind h (Compose @_ @b1 @_ @_ @_ g f) =
+    withOb @arr @b1 $
+      withOb @arr' @b1 $
+        (bind h g . bind h f)
+  bind h (Par @_ @_ @a1 @b1 @c @d f g) =
+    withOb @arr @a1 $
+      withOb @arr @b1 $
+        withOb @arr @c $
+          withOb @arr @d $
+            withOb @arr' @a1 $
+              withOb @arr' @b1 $
+                withOb @arr' @c $
+                  withOb @arr' @d $
+                    par (bind h f) (bind h g)
   bind _ Swap = swap
   bind h Copy = h Dg.copy
   bind h Discard = h Dg.discard
   bind h Plus = h Dg.plus
   bind h Zero = h Dg.zero
-  bind h (Knot f) = traceD (bind h f)
+  bind h (Knot @_ @s @_ @_ @_ f) =
+    withOb @arr @s $
+      withOb @arr @(t s a) $
+        withOb @arr @(t s b) $
+          withOb @arr' @s $
+            withOb @arr' @(t s a) $
+              withOb @arr' @(t s b) $
+                trace (bind h f)
