@@ -27,8 +27,8 @@ module Circuit.Sym
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
@@ -52,7 +52,7 @@ data Sym arr a b where
   --
   -- The 'Ob' constraint on the intermediate object @b@ is carried in the
   -- constructor so folding does not need a 'Discrete' base.
-  Compose :: Ob arr b => Sym arr b c -> Sym arr a b -> Sym arr a c
+  Compose :: (Ob arr b) => Sym arr b c -> Sym arr a b -> Sym arr a c
   -- | Tensor product of morphisms (parallel composition on disjoint wires).
   Par :: Sym arr a b -> Sym arr c d -> Sym arr (a, c) (b, d)
   -- | Symmetric braiding.

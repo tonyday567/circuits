@@ -19,8 +19,8 @@ module Circuit.Free
 where
 
 import Circuit.Category (Category (..), Discrete (..))
-import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Layer (Layer (..), (:~>))
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -46,7 +46,7 @@ data Free arr a b where
   --
   -- The 'Ob' constraint on the intermediate object @b@ is carried in the
   -- constructor so folding does not need a 'Discrete' base.
-  Compose :: Ob arr b => Free arr b c -> Free arr a b -> Free arr a c
+  Compose :: (Ob arr b) => Free arr b c -> Free arr a b -> Free arr a c
 
 instance (Category arr) => Category (Free arr) where
   type Ob (Free arr) a = Ob arr a

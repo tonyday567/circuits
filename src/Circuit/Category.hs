@@ -65,7 +65,7 @@ class Category (arr :: k -> k -> Type) where
 -- that bind an existential object (notably 'Loop' in "Circuit.Loop")
 -- use it where a polymorphic @Ob@ constraint cannot be written.
 class (Category arr) => Discrete arr where
-  withOb :: forall a r. (Ob arr a => r) -> r
+  withOb :: forall a r. ((Ob arr a) => r) -> r
 
 -- | Forward composition. @f .> g = g . f@
 (.>) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr a b -> arr b c -> arr a c
@@ -76,12 +76,14 @@ f .> g = g . f
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
 {-# INLINE (|>) #-}
+
 infixl 1 |>
 
 -- | Backward application. @f <| x = f x@
 (<|) :: (a -> b) -> a -> b
 f <| x = f x
 {-# INLINE (<|) #-}
+
 infixr 0 <|
 
 -- | Unconstrained function category.

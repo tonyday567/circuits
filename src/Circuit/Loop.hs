@@ -1,10 +1,10 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -92,7 +92,7 @@ data Loop (t :: Type -> Type -> Type) arr a b where
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.  Folding into a different target still needs
   -- 'Discrete' to manufacture the corresponding 'Ob' evidence there.
-  Knot :: Ob arr s => arr (t s a) (t s b) -> Loop t arr a b
+  Knot :: (Ob arr s) => arr (t s a) (t s b) -> Loop t arr a b
 
 -- $examples
 --
@@ -211,10 +211,10 @@ instance (Strength t arr, Discrete arr) => Strength t (Loop t arr) where
     withOb @arr @(t s (t a b)) $
       withOb @arr @(t a (t s b)) $
         withOb @arr @(t a (t s c)) $
-      withOb @arr @(t s b) $
-        withOb @arr @(t s c) $
-          withOb @arr @(t s (t a c)) $
-            Knot (slide .> strength f .> slide)
+          withOb @arr @(t s b) $
+            withOb @arr @(t s c) $
+              withOb @arr @(t s (t a c)) $
+                Knot (slide .> strength f .> slide)
 
 -- | Lift the 'Traced' class through 'Loop t'.
 --

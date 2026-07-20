@@ -33,9 +33,9 @@ module Circuit.Hyper
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Loop (Loop (..))
 import Data.Bifunctor (second)
 import Data.Profunctor

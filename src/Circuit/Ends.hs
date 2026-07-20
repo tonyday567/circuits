@@ -111,8 +111,10 @@ newtype In arr a = In
 -- left action of @arr@ on 'In' ends, and 'suffixOut' is the right action
 -- of @arr@ on 'Out' ends.
 data Ends arr a b = Ends
-  { conjoint  :: In arr a   -- ^ Write end (producer), the conjoint.
-  , companion :: Out arr b  -- ^ Read end  (consumer), the companion.
+  { -- | Write end (producer), the conjoint.
+    conjoint :: In arr a,
+    -- | Read end  (consumer), the companion.
+    companion :: Out arr b
   }
 
 -- | Counit of the companion / conjoint adjunction.
@@ -249,8 +251,8 @@ splay ::
   Ends arr a b ->
   (arr a (), arr () b)
 splay e =
-  ( commit (conjoint e) (companion (open :: Ends arr () ()))
-  , emit (companion e) (conjoint (open :: Ends arr () ()))
+  ( commit (conjoint e) (companion (open :: Ends arr () ())),
+    emit (companion e) (conjoint (open :: Ends arr () ()))
   )
 
 -- | Unit ends for @(->)@ with unit @()@.
@@ -431,4 +433,3 @@ openIO q = do
   e <- atomically (openSTM q)
   let (Kleisli write, Kleisli receive) = splay e
   pure (endsK (atomically . write) (atomically (receive ())))
-

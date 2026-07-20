@@ -67,6 +67,7 @@ class Layer (f :: Cat2 -> Cat2) where
   -- | What the base category must satisfy to receive a 'run' fold back into
   -- itself.  Defaults to no extra constraints.
   type Run f (arr :: Cat2) :: Constraint
+
   type Run f arr = ()
 
   -- | Extra constraints the /source/ category must satisfy for a 'bind'
@@ -78,6 +79,7 @@ class Layer (f :: Cat2 -> Cat2) where
   -- to stash in the constructor, the source category must be 'Discrete' so
   -- the missing evidence can be manufactured on demand.
   type Bind f (arr :: Cat2) :: Constraint
+
   type Bind f arr = ()
 
   -- | Include a base arrow as a single generator.

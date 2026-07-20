@@ -167,6 +167,16 @@ module Circuit
   )
 where
 
+import Circuit.Category (Ob, (.>), (<|), (|>))
+import Circuit.Channel (Strength, Traced)
+import Circuit.Channel qualified as Channel
+import Circuit.Dagger
+  ( Bimonoid,
+    CopyDiscard (..),
+    Dagger (..),
+    MergeZero (..),
+    transpose,
+  )
 import Circuit.Discrete
   ( assocD,
     assocD',
@@ -175,29 +185,22 @@ import Circuit.Discrete
     strengthD,
     traceD,
   )
-import Circuit.Dagger
-  ( Bimonoid,
-    CopyDiscard (..),
-    Dagger (..),
-    MergeZero (..),
-    transpose,
-  )
 import Circuit.Ends
   ( Ends (..),
     HasUnit (..),
     In (..),
     Out (..),
+    Queue (..),
     box,
     boxAsymmetric,
     close,
     ends,
     endsK,
-    prefixIn,
-    suffixOut,
-    splay,
-    Queue (..),
     openIO,
     openSTM,
+    prefixIn,
+    splay,
+    suffixOut,
   )
 import Circuit.Free
   ( Free (..),
@@ -223,18 +226,15 @@ import Circuit.Layer
     run,
     (:~>),
   )
-import Circuit.Sym
-import Circuit.Tensor
+import Circuit.Loop (Loop (..))
+import Circuit.Loop qualified as Loop
 import Circuit.Net
   ( Net,
     enrich,
     melt,
   )
-import Circuit.Category (Ob, (.>), (|>), (<|))
-import Circuit.Channel (Strength, Traced)
-import Circuit.Channel qualified as Channel
-import Circuit.Loop (Loop (..))
-import Circuit.Loop qualified as Loop
+import Circuit.Sym
+import Circuit.Tensor
 import Prelude
 
 -- | Close a feedback loop. See "Circuit.Channel".

@@ -46,13 +46,13 @@ module Circuit.Net
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Channel (Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Layer qualified as Layer
-import Circuit.Sym qualified as M
-import Circuit.Channel (Traced (..))
-import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Loop qualified as C
+import Circuit.Sym qualified as M
+import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
@@ -92,7 +92,7 @@ data Net (t :: Type -> Type -> Type) arr a b where
   --
   -- The 'Ob' constraint on the intermediate object @b@ is carried in the
   -- constructor so folding does not need a 'Discrete' base.
-  Compose :: Ob arr b => Net t arr b c -> Net t arr a b -> Net t arr a c
+  Compose :: (Ob arr b) => Net t arr b c -> Net t arr a b -> Net t arr a c
   -- | Parallel composition (monoidal product).
   Par :: Net t arr a b -> Net t arr c d -> Net t arr (a, c) (b, d)
   -- | Symmetric braiding.
@@ -111,7 +111,7 @@ data Net (t :: Type -> Type -> Type) arr a b where
   --
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.
-  Knot :: Ob arr s => Net t arr (t s a) (t s b) -> Net t arr a b
+  Knot :: (Ob arr s) => Net t arr (t s a) (t s b) -> Net t arr a b
 
 -- | The 'Category' instance preserves inspectable wiring.
 --

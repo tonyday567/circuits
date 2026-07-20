@@ -5,9 +5,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -85,12 +85,12 @@ module Circuit.Algebra
 where
 
 import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Net qualified as N
 import Circuit.Loop qualified as C
+import Circuit.Net qualified as N
+import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -174,7 +174,7 @@ eval = evalInto id
 
 -- | Sequential composition.
 data SigCompose arr rec a b where
-  SigCompose :: Ob arr b => rec b c -> rec a b -> SigCompose arr rec a c
+  SigCompose :: (Ob arr b) => rec b c -> rec a b -> SigCompose arr rec a c
 
 instance Algebra SigCompose arr arr' where
   type Ctx SigCompose arr arr' = Discrete arr'
@@ -193,7 +193,7 @@ instance Algebra SigCompose arr arr' where
 
 -- | Feedback loop / trace over tensor @t@.
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
-  SigKnot :: Ob arr a => rec (t a b) (t a c) -> SigKnot t arr rec b c
+  SigKnot :: (Ob arr a) => rec (t a b) (t a c) -> SigKnot t arr rec b c
 
 instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
   type Ctx (SigKnot t) arr arr' = (Traced t arr', Discrete arr')
