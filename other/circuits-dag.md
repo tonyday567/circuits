@@ -17,11 +17,7 @@ graph LR
   Category -.-> Free
   Strength -.-> Loop
   Traced -.-> Loop
-  Tensor -.-> Sym
   Action -.-> Sym
-  Tensor -.-> Loop
-  Action -.-> Loop
-  Tensor -.-> Net
   Action -.-> Net
   Traced -.-> Net
 
@@ -44,7 +40,7 @@ family attaches to each syntax constructor:
 - `Law (Net t) = Traced t + Action (,) + Discrete`
 
 **Other dashed arrows** are conceptual consumption / free construction:
-`Category → Free`, `Strength → Loop`, and `Tensor → Sym/Loop/Net`.
+`Category → Free` and `Strength → Loop`.
 
 `Loop → Net` is `enrich` — embedding the normal form into inspectable wiring.
 `melt` (the forgetful fold `Net → Loop`) is one of many folds and is not drawn.
