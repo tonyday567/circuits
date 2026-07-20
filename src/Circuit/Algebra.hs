@@ -153,6 +153,15 @@ instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig
 --
 -- The embedding @emb@ maps base arrows of the source into the target.
 -- For folding to the same arrow, use 'eval'.
+--
+-- This is the à la carte analogue of 'Circuit.Layer.bind': @evalInto emb@
+-- folds syntax into a target just as @bind h@ folds a 'Circuit.Layer.Layer'
+-- construction. For example, @'monKnotToTrace' = 'evalInto' 'Lift'@ plays the
+-- same role as a structural forgetting map built with @bind unit@.
+--
+-- A signature like @'SigKnot' t@ is best read as a type-level tag that tracks
+-- which constructors are present in the union; the coproduct @(':+:')@ is the
+-- union of those tags.
 evalInto ::
   (Category arr', Algebra sig arr arr', Ctx sig arr arr') =>
   (forall x y. arr x y -> arr' x y) ->
