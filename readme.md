@@ -1,125 +1,106 @@
 <p align="center"><strong>⟴ circuits</strong></p>
 
-A small Haskell library that makes feedback first-class. Two constructors — a plain arrow (`Lift`) and a feedback loop (`Knot`) — plus composition that fuses as you build. The rest falls out.
+`circuits` is a toolkit for analysing circuits. A circuit, here, is any
+computation that has direction, sequence, and flow: data moves through arrows,
+feeds back on itself, and forks or joins along the way. The library gives you
+small, composable pieces for building those structures and reasoning about them.
 
-It's off the beaten track but absolutely core Haskell: traced monoidal categories, hyperfunctions, and wiring diagrams, packaged so you can paste examples into GHCi.
+## the shape of the library
 
-## what is it?
+Everything is built over a base arrow that you bring — `(->)`, `Kleisli m`,
+matrices over a semiring. The library does not pick a semantics; it adds
+structure along two ladders, and the diagrams below are maps of those ladders.
 
-`Loop t arr a b` is the free traced monoidal category over a base arrow `arr`, with feedback tensor `t`. In plain English: a circuit is either a base arrow or a feedback loop, and composing circuits already applies the trace axioms, so every value is in normal form (at most one `Knot`, at the top).
+**A ladder of laws.** The type classes form chains out of `Category`:
+`Channel → Strength → Traced` (monoidal structure, tensorial strength, feedback
+via trace) and `Tensor → Action` (the concrete `(,)` and `Either` machinery).
+Each rung is one more law a target category can satisfy. These classes say
+nothing about syntax; they are the contracts that folds have to meet.
 
-```haskell
-import Circuit
-import qualified Circuit.Loop as T
-import Control.Arrow (Kleisli (..))
-import Data.Bool (bool)
-import System.IO (IOMode (ReadMode), hClose, hGetLine, hIsEOF, openFile)
+**A deck of languages.** The GADTs form a parallel chain of free constructions,
+each rung one enrichment of the last:
 
-openf :: T.Loop Either (Kleisli IO) FilePath Handle
-openf = T.Lift (Kleisli (\fp -> openFile fp ReadMode))
+    Free = Lift + Compose
+    Sym  = Free + Par + Swap
+    Net  = Sym + Knot + Copy + Discard + Plus + Zero
 
-countLines :: T.Loop Either (Kleisli IO) Handle (Handle, Int)
-countLines = T.Knot (Kleisli step)
-  where
-    step (Left (h, n)) = hIsEOF h >>= bool
-      (hGetLine h >> pure (Left (h, n + 1)))
-      (pure (Right (h, n)))
-    step (Right h) = pure (Left (h, 0))
+`Free` is the free category; `Sym` the free symmetric monoidal category; `Net`
+the free traced PROP with a bimonoid, where every wire is a constructor you can
+inspect. `Loop` sits to the side of this chain rather than on it: it is the free
+traced monoidal category *in normal form*. Its laws are performed by its
+instances, so every value collapses to at most one `Knot` over a base arrow.
+`Net` and `Loop` are the two poles of the library — wiring you can read
+backwards, and wiring that has been melted into a single loop. `melt` goes from
+one to the other.
 
-pipeline :: T.Loop Either (Kleisli IO) FilePath Int
-pipeline = openf .> countLines .> T.Lift (Kleisli (\(h, n) -> hClose h >> pure n))
+**Between the ladders** there is a family of folds. Each free construction can
+be evaluated into any target category that satisfies the right laws; the GADT's
+constructors are forgotten one at a time. `Layer` captures this pattern
+uniformly, and `Algebra` provides the same deck à la carte from signature
+functors.
 
--- paste into ghci:  runKleisli (run pipeline) "readme.md"
-```
+- [class relationships](other/circuits-class.html)
+- [module view](other/circuits-module.html)
 
-The handle is a visible wire, not a closure. In `Kleisli IO`, the `Either` loop runs in constant stack via GHC's delimited-continuation primops.
+Solid arrows show enrichment — adding structure as you move along the arrow.
+Dashed arrows show which semantic resources a free construction draws on when it
+folds. The class view shows the relationships between names; the module view
+shows where those names live, plus a few satellites around the core. `Hyper` is
+the final (coinductive) encoding of a traced monoidal category, the dual of
+`Loop`'s initial one. `Dagger` names the bimonoid that `Net`'s structural rows
+generate. `Ends` splits a channel into its two ends, an adjunction `In ⊣ Out`,
+and is where circuits meet concrete STM and IO transports.
 
-## two tensors
+In many of the free objects we tag common computation patterns: function
+application, composition, tracing, and type tensoring. This bootstraps a
+first-class foundation for computational circuits — direction, sequence, and
+flow — without baking in a particular semantics too early.
 
-The feedback tensor is the first type argument:
+Applications and closures can be delayed for analysis and measurement, or
+retried. The feedback itself is visible as a wire, not hidden in a closure.
 
-| tensor | feedback | behaviour |
-|--------|----------|-----------|
-| `Either` | `Left` = continue, `Right` = exit | loops that terminate |
-| `(,)` | lazy self-reference | streams, sharing, coinduction |
+## potential uses
 
-Same `Knot` constructor. Different tensor, different universe.
-
-```haskell
-import Circuit
-import qualified Circuit.Loop as T
-
--- Lazy streaming with (,):
-powers :: T.Loop (,) (->) () [Integer]
-powers = T.Knot (\(ns, ()) -> (1 : map (*2) ns, take 5 ns))
-run powers ()  -- [1,2,4,8,16]
-
--- Iteration with Either:
-step :: Int -> Either Int Int
-step n = if n < 5 then Left (n + 1) else Right n
-
-countToFive :: T.Loop Either (->) Int Int
-countToFive = T.Lift (either step step)
-run countToFive 0  -- 5
-```
-
-## the tower
-
-The library layers free constructions over a base arrow:
-
-- `Free` — the free category (lift and compose).
-- `Loop t` — `Free` plus feedback (`Knot`). Every value is already in normal form; the `Category` instance performs the sliding axiom.
-- `Net t` — `Loop` plus inspectable wiring: parallel composition, copy, discard, add, zero. Transposition over a `Dagger` base swaps wiring rows.
-- `Hyper` — the final, coinductive encoding. Convert with `encode` / `observe`.
-
-Each layer is a `Layer` in the free-forgetful adjunction; `run` is the canonical fold.
-
-## structure
-
-The API separates semantic structure from syntactic construction, with `Loop`
-(the normal-form `Lift`/`Knot` GADT) as the point where the two monoidal
-tracks converge. See the diagram cards in `other/`: `circuits-class.html` and
-`circuits-module.html`.
-
-- **Structural semantics**: `Category → Channel → Strength → Traced`
-- **Functorial semantics**: `Category → Tensor → Action`
-- **Syntax**: `Free → Sym → Net`, with `Loop` as the normal form
-- **`Loop → Net`** is `enrich`; `melt` and other folds are not drawn
-- **Thick magenta dashed arrows** are the `Layer` Laws (e.g. `Law (Loop t) = (Traced t, Discrete)`)
-- `Ends` (including boxes and queues) and `Hyper` are omitted from this core view
-
-## what's new in 0.2
-
-Trace collapsed to normal form: two constructors, laws in the instances, one call to the base arrow's `trace` per circuit. Net keeps wiring inspectable for metering, transposition, and (eventually) `circuits-ad`.
-
-## install
-
-Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14). Dependencies beyond base: `profunctors` and `stm`.
-
-## examples
-
-The example cards now live in the separate `circuits-examples` repository. Each `.md` file is a short, paste-into-GHCi walkthrough with YAML front matter (`name`, `description`, `tags`).
-
-Cards are not a secondary dump for outdated material — they are the *development surface* of the library. Stable cards document supported API; experimental cards grow ideas that are not yet in the API. When a card matures, it gets promoted into `src/` and the public API.
-
-See <https://github.com/tonyday567/circuits-examples> for the full set of cards.
-
-For the word-count pipeline with stopwatch/interval metering, see the [circuits-meter](https://github.com/tonyday567/circuits-meter) readme.
-
-## companion libraries
+The core stays small; companion libraries apply it to specific domains.
 
 | library | what it adds |
 |---------|-------------|
-| [circuits-parser](https://github.com/tonyday567/circuits-parser) | parsing as a circuit |
-| [circuits-io](https://github.com/tonyday567/circuits-io) | sockets, queues, servers |
-| [circuits-meter](https://github.com/tonyday567/circuits-meter) | one-line performance metering |
-| [circuits-ad](https://github.com/tonyday567/circuits-ad) | backpropagation as transpose |
+| [circuits-ad](https://github.com/tonyday567/circuits-ad) | reverse-mode automatic differentiation, pullbacks, and star-elimination |
+| [circuits-examples](https://github.com/tonyday567/circuits-examples) | paste-into-GHCi example cards |
+| [circuits-int](https://github.com/tonyday567/circuits-int) | Int construction and polynomial-functor sketches |
+| [circuits-io](https://github.com/tonyday567/circuits-io) | sockets, queues, servers, and concrete IO transports |
+| [circuits-llm](https://github.com/tonyday567/circuits-llm) | small transformer-style language-model experiments |
+| [circuits-mat](https://github.com/tonyday567/circuits-mat) | matrices over a semiring as a traced monoidal category |
+| [circuits-meter](https://github.com/tonyday567/circuits-meter) | one-line performance metering and stopwatch pipelines |
+| [circuits-parser](https://github.com/tonyday567/circuits-parser) | parser combinators over a coinductive stream decomposition |
+| [circuits-pca](https://github.com/tonyday567/circuits-pca) | principal component analysis as a residual-ownership protocol |
+| [circuits-repl](https://github.com/tonyday567/circuits-repl) | REPL primitives: commit/emit dual, turns, channels, sessions |
+
+## install
+
+Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14).
+Dependencies beyond base: `profunctors` and `stm`.
+
+## examples
+
+The example cards live in the separate
+[circuits-examples](https://github.com/tonyday567/circuits-examples) repository.
+Each `.md` file is a short, paste-into-GHCi walkthrough with YAML front matter
+(`name`, `description`, `tags`).
+
+Cards are not a secondary dump for outdated material — they are the development
+surface of the library. Stable cards document supported API; experimental cards
+grow ideas that are not yet in the API. When a card matures, it gets promoted
+into `src/` and the public API.
 
 ## thanks
 
-Built on [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9) and [Kidney & Wu (2026)](https://doi.org/10.1145/3776649). The `Hyper` type is theirs; the normal form that makes it inspectable is ours.
+Built on [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9)
+and [Kidney & Wu (2026)](https://doi.org/10.1145/3776649). The `Hyper` type is
+theirs; the normal form that makes it inspectable is ours.
 
-LLMs and agents helped with category theory, coding, refactoring, and documentation.
+LLMs and agents helped with category theory, coding, refactoring, and
+documentation.
 
 <br>
 
