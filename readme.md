@@ -5,11 +5,113 @@ computation that has direction, sequence, and flow: data moves through arrows,
 feeds back on itself, and forks or joins along the way. The library gives you
 small, composable pieces for building those structures and reasoning about them.
 
+Solid arrows are enrichment; dashed arrows are the laws a free construction
+draws on when it folds. ([open full page](other/circuits-class.html))
+
+```mermaid
+graph LR
+  Category["Category"]
+  Channel["Channel"]
+  Strength["Strength"]
+  Traced["Traced"]
+  Tensor["Tensor"]
+  Action["Action"]
+
+  Free["Free"]
+  Sym["Sym"]
+  Net["Net"]
+  Loop["Loop"]
+
+  Category -.-> Free
+  Strength -.-> Loop
+  Traced -.-> Loop
+  Action -.-> Sym
+  Action -.-> Net
+  Traced -.-> Net
+
+  Category --> Channel --> Strength --> Traced
+  Category --> Tensor --> Action
+  Free --> Sym --> Net
+  Loop --> Net
+
+  linkStyle 0,1,2,3,4,5 stroke:#C44E8A,stroke-width:2px
+  linkStyle 6,7,8,9,10 stroke:#4B7FBD,stroke-width:2px
+  linkStyle 11,12,13 stroke:#8FB83A,stroke-width:2px
+
+  style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
+  style Channel fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style Tensor fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Sym fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+```
+
+The module view groups the classes into their source files and adds the
+satellites around the core. ([open full page](other/circuits-module.html))
+
+```mermaid
+graph LR
+  Category["Circuit.Category"]
+
+  subgraph Channel ["Circuit.Channel"]
+    ChannelClass["Channel"]
+    Strength["Strength"]
+    Traced["Traced"]
+  end
+
+  subgraph Tensor ["Circuit.Tensor"]
+    TensorClass["Tensor"]
+    Action["Action"]
+  end
+
+  Free["Circuit.Free"]
+  Sym["Circuit.Sym"]
+  Net["Circuit.Net"]
+  Loop["Circuit.Loop"]
+  Hyper["Circuit.Hyper"]
+  Dagger["Circuit.Dagger"]
+  Ends["Circuit.Ends"]
+
+  Category --> ChannelClass --> Strength --> Traced
+  Category --> TensorClass --> Action
+  Free --> Sym --> Net
+  Loop --> Net
+  Loop --> Hyper
+  Dagger --> Net
+  Ends --> Loop
+
+  linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
+  linkStyle 3,4 stroke:#4B9680,stroke-width:2px
+  linkStyle 5,6 stroke:#8FB83A,stroke-width:2px
+  linkStyle 7,8 stroke:#9B6BC0,stroke-width:2px
+  linkStyle 9 stroke:#4B96B0,stroke-width:2px
+
+  style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
+  style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
+  style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
+  style ChannelClass fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style TensorClass fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Sym fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
+  style Ends fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+```
+
 ## the shape of the library
 
 Everything is built over a base arrow that you bring — `(->)`, `Kleisli m`,
 matrices over a semiring. The library does not pick a semantics; it adds
-structure along two ladders, and the diagrams below are maps of those ladders.
+structure along two ladders.
 
 **A ladder of laws.** The type classes form chains out of `Category`:
 `Channel → Strength → Traced` (monoidal structure, tensorial strength, feedback
@@ -38,18 +140,6 @@ be evaluated into any target category that satisfies the right laws; the GADT's
 constructors are forgotten one at a time. `Layer` captures this pattern
 uniformly, and `Algebra` provides the same deck à la carte from signature
 functors.
-
-- [class relationships](other/circuits-class.html)
-- [module view](other/circuits-module.html)
-
-Solid arrows show enrichment — adding structure as you move along the arrow.
-Dashed arrows show which semantic resources a free construction draws on when it
-folds. The class view shows the relationships between names; the module view
-shows where those names live, plus a few satellites around the core. `Hyper` is
-the final (coinductive) encoding of a traced monoidal category, the dual of
-`Loop`'s initial one. `Dagger` names the bimonoid that `Net`'s structural rows
-generate. `Ends` splits a channel into its two ends, an adjunction `In ⊣ Out`,
-and is where circuits meet concrete STM and IO transports.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a

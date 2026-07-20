@@ -12,10 +12,8 @@
 -- @Ends@ is the record that pairs one @In@ with one @Out@.  The ends are
 -- defined purely in terms of the base arrow @arr@.
 --
--- The companion and conjoint form an adjunction @In ⊣ Out@.
--- The unit @η@ is 'open', producing a matched pair; the counit @ε@ is
--- 'close', plugging the pair back together by feeding the @Out@ into the
--- @In@.
+-- 'open' produces a matched pair; 'close' plugs the pair back together by
+-- feeding the @Out@ into the @In@.
 --
 -- This module also provides the concrete helpers built on top of channel
 -- ends:
@@ -117,10 +115,7 @@ data Ends arr a b = Ends
     companion :: Out arr b
   }
 
--- | Counit of the companion / conjoint adjunction.
---
--- Plug an @In@ and an @Out@ of the same payload type together to produce
--- a morphism of @arr@ from @a@ to @a@.
+-- | Plug an @In@ and an @Out@ of the same payload type together.
 --
 -- 'close' feeds the @Out@ into the @In@ end, producing a morphism
 -- @arr a a@ from the paired payload type.
