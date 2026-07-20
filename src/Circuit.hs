@@ -69,7 +69,7 @@
 -- * __Injections__ embed one construction into another without eliminating:
 --   'unit' (base arrow into a 'Layer'), 'enrich' ('Loop' into 'Net'),
 --   'widen' ('Sym' into 'Net'), 'freeToMon' ('Free' into 'Sym'),
---   'loopToAlg' / 'netToAlg' (direct GADT into 'Syntax').
+--   'algLoop' / 'algNet' (direct GADT into 'Syntax').
 --
 -- * __Representation changes__: 'encode' ('Loop' to 'Hyper'),
 --   'observe' / 'runHyper' ('Hyper' to function / fixed point).

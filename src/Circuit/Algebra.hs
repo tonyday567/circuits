@@ -78,10 +78,10 @@ module Circuit.Algebra
     AlgSymKnot,
 
     -- * Direct <-> algebra isomorphisms
-    loopToAlg,
-    algToLoop,
-    netToAlg,
-    algToNet,
+    algLoop,
+    runAlgLoop,
+    algNet,
+    runAlgNet,
 
     -- * AlgSymKnot <-> AlgLoop maps
     loopToSymKnot,
@@ -339,31 +339,31 @@ instance (Category arr, Discrete arr) => Discrete (AlgLoop t arr) where
   withOb @a x = withOb @arr @a x
 
 -- ---------------------------------------------------------------------------
--- Direct <-> signature isomorphisms
+-- Direct <-> algebra isomorphisms
 
 -- | Embed the direct 'C.Loop' GADT into the signature-based form.
-loopToAlg :: forall t arr a b. C.Loop t arr a b -> AlgLoop t arr a b
-loopToAlg (C.Lift f) = Lift f
-loopToAlg (C.Knot f) = Op (R (SigKnot (Lift f)))
+algLoop :: forall t arr a b. C.Loop t arr a b -> AlgLoop t arr a b
+algLoop (C.Lift f) = Lift f
+algLoop (C.Knot f) = Op (R (SigKnot (Lift f)))
 
 -- | Project the signature-based circuit back to the direct GADT.
 --
 -- 'SigCompose' nodes are interpreted using the 'Category' instance of
 -- 'C.Loop', so the result is in normal form (at most one 'C.Knot').
-algToLoop ::
+runAlgLoop ::
   forall t a b.
   (Traced t (->)) =>
   AlgLoop t (->) a b ->
   C.Loop t (->) a b
-algToLoop (Lift f) = C.Lift f
-algToLoop (Op op) = go op
+runAlgLoop (Lift f) = C.Lift f
+runAlgLoop (Op op) = go op
   where
     go ::
       forall x y.
       (SigCompose :+: SigKnot t) (->) (AlgLoop t (->)) x y ->
       C.Loop t (->) x y
-    go (L (SigCompose g f)) = algToLoop g . algToLoop f
-    go (R (SigKnot @_ f)) = C.Knot (run (algToLoop f))
+    go (L (SigCompose g f)) = runAlgLoop g . runAlgLoop f
+    go (R (SigKnot @_ f)) = C.Knot (run (runAlgLoop f))
 
 -- | Embed 'AlgLoop' into 'AlgSymKnot' by constructor injection.
 loopToSymKnot ::
@@ -383,20 +383,20 @@ loopToSymKnot (Op op) = goOp op
       Op (R (L (SigKnot (loopToSymKnot f))))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
-netToAlg :: forall t arr a b. N.Net t arr a b -> AlgNet t arr a b
-netToAlg (N.Lift f) = Lift f
-netToAlg (N.Compose g f) = Op (L (SigCompose (netToAlg g) (netToAlg f)))
-netToAlg (N.Par f g) = Op (R (R (L (SigPar (netToAlg f) (netToAlg g)))))
-netToAlg N.Swap = Op (R (R (R (L SigSwap))))
-netToAlg N.Copy = Op (R (R (R (R SigCopy))))
-netToAlg N.Discard = Op (R (R (R (R SigDiscard))))
-netToAlg N.Plus = Op (R (R (R (R SigPlus))))
-netToAlg N.Zero = Op (R (R (R (R SigZero))))
-netToAlg (N.Knot f) = Op (R (L (SigKnot (netToAlg f))))
+algNet :: forall t arr a b. N.Net t arr a b -> AlgNet t arr a b
+algNet (N.Lift f) = Lift f
+algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
+algNet (N.Par f g) = Op (R (R (L (SigPar (algNet f) (algNet g)))))
+algNet N.Swap = Op (R (R (R (L SigSwap))))
+algNet N.Copy = Op (R (R (R (R SigCopy))))
+algNet N.Discard = Op (R (R (R (R SigDiscard))))
+algNet N.Plus = Op (R (R (R (R SigPlus))))
+algNet N.Zero = Op (R (R (R (R SigZero))))
+algNet (N.Knot f) = Op (R (L (SigKnot (algNet f))))
 
 -- | Project the signature-based Net back to the direct GADT.
-algToNet :: forall t arr a b. AlgNet t arr a b -> N.Net t arr a b
-algToNet = goTop
+runAlgNet :: forall t arr a b. AlgNet t arr a b -> N.Net t arr a b
+runAlgNet = goTop
   where
     goTop :: forall x y. AlgNet t arr x y -> N.Net t arr x y
     goTop (Lift f) = N.Lift f
