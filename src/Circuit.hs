@@ -103,8 +103,6 @@ module Circuit
     Queue (..),
     openSTM,
     openIO,
-    openCollectSTM,
-    openCollectIO,
 
     -- * Free
     Free,
@@ -125,8 +123,8 @@ module Circuit
     traceD,
 
     -- * Dagger (bimonoid + dagger)
-    WireMonoid (..),
-    Comonoid (..),
+    CopyDiscard (..),
+    MergeZero (..),
     Dagger (..),
     Bimonoid,
     transpose,
@@ -155,18 +153,6 @@ module Circuit
     -- * Channel
     Braided (..),
     ambient,
-    assocL,
-    assocR,
-    seed,
-    absorb,
-    release,
-    coassoc,
-    coassoc',
-    coseed,
-    coabsorbL,
-    coabsorbR,
-    coreleaseL,
-    coreleaseR,
     ambientBy,
     superpose,
 
@@ -186,9 +172,9 @@ import Circuit.Discrete
   )
 import Circuit.Dagger
   ( Bimonoid,
-    Comonoid (..),
+    CopyDiscard (..),
     Dagger (..),
-    WireMonoid (..),
+    MergeZero (..),
     transpose,
   )
 import Circuit.Ends
@@ -205,8 +191,6 @@ import Circuit.Ends
     suffixOut,
     toActions,
     Queue (..),
-    openCollectIO,
-    openCollectSTM,
     openIO,
     openSTM,
   )

@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- | Channel structure for the tensors used in traced categories.
 --
@@ -32,18 +33,6 @@
 module Circuit.Tensor
   ( Braided (..),
     ambient,
-    assocL,
-    assocR,
-    seed,
-    absorb,
-    release,
-    coassoc,
-    coassoc',
-    coseed,
-    coabsorbL,
-    coabsorbR,
-    coreleaseL,
-    coreleaseR,
     ambientBy,
     superpose,
 

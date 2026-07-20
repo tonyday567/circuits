@@ -5,13 +5,12 @@
 *BREAKING: **Structural semantics move to `Circuit.Channel`.** The `Channel`,
 `Strength`, and `Traced` classes and all base instances for `(->)` and
 `Kleisli m` now live in `Circuit.Channel`. `Circuit.Strength` is removed.
-`Circuit.Loop` retains only the `Loop` GADT, its structural instances, the
-`FreeLoop` witness, and `cellIO`.*
+`Circuit.Loop` retains only the `Loop` GADT, its structural instances, and
+`FreeLoop` witness.*
 
 *BREAKING: **`Circuit.Box` and `Circuit.Queue` are merged into `Circuit.Ends`.**
-`box`, `boxAsymmetric`, `Queue(..)`, `openSTM`, `openIO`, `openCollectSTM`,
-`openCollectIO`, `openBatchSTM`, `openBatchMaybeSTM`, `pushAll`, `pop`, and
-`popMaybe` now live in and are re-exported from `Circuit.Ends`.*
+`box`, `boxAsymmetric`, `Queue(..)`, `openSTM`, and `openIO` now live in and
+are re-exported from `Circuit.Ends`.*
 
 ## 0.2.0.0 — 2026-07-09
 
@@ -20,8 +19,8 @@
 *BREAKING: **Normal-form `Trace`.** Composition fuses via the `Category` instance, so every `Trace` is in normal form: at most one `Knot` at the top over a base-arrow body. There is no explicit `Compose` constructor and no Mendler case in `run`.*
 
 *BREAKING: **`Circuit.Loopd` is merged into `Circuit.Loop`.** The `Traced`
-class, base instances, and `cellIO` now live alongside the `Trace` GADT in a
-single module.*
+class and base instances now live alongside the `Trace` GADT in a single
+module.*
 
 *BREAKING: **`Traced` takes the tensor first.** The class is now
 `Traced t arr` (was `Traced arr t`), matching `Trace t arr a b`.*
@@ -54,7 +53,7 @@ The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
 
 *New: **Circuit.Net** — the free traced PROP with a bimonoid. Structural rows: `Par`, `Swap` (monoidal), `Copy`, `Discard` (comonoid), `Plus`, `Zero` (monoid), all inspectable before interpretation. `Net.Knot` takes a `Net` body so `transpose` can recurse into loops. Transposition is structural recursion: `Compose` reverses, `Copy↔Plus`, `Discard↔Zero`, `Knot↔Knot`.*
 
-*New: **Circuit.Dagger** — consolidated module for `Monoid`, `Comonoid`, `Dagger`, and `Bimonoid`. `Monoid` (was `Additive`) provides channel-object addition; `Comonoid` (was `Dup`) provides `copy` and `discard`; `Dagger` (was `Duplex`) is the free dagger category with `transpose` (was `transposeDuplex`); `Bimonoid` (was `Linear`) is the constraint synonym.*
+*New: **Circuit.Dagger** — consolidated module for `CopyDiscard`, `MergeZero`, `Dagger`, and `Bimonoid`. `CopyDiscard` (was `Dup`) provides `copy` and `discard`; `MergeZero` (was `Additive`) provides channel-object addition; `Dagger` (was `Duplex`) is the free dagger category with `transpose` (was `transposeDuplex`); `Bimonoid` (was `Linear`) is the constraint synonym.*
 
 *New: **Co/Contra** — companion/conjoint channel ends, exported from `Circuit.Loop`.*
 

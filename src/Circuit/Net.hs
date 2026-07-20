@@ -74,7 +74,7 @@ import Prelude hiding (id, (.))
 --   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
 --   * __Feedback__ — 'Knot', with a 'Net' body so 'transpose' can reach inside.
 --
--- 'Dg.Comonoid' and 'Dg.WireMonoid' (via 'Dg.Bimonoid') constraints ride as dictionary arguments on the
+-- 'Dg.CopyDiscard' and 'Dg.MergeZero' (via 'Dg.Bimonoid') constraints ride as dictionary arguments on the
 -- constructors that need them — laws in the typeclass holes, evidence on
 -- the GADT rows.
 --

@@ -9,8 +9,8 @@
 -- This module collects the algebraic structure that every wire carries in a
 -- circuit category:
 --
--- * 'WireMonoid' — the monoid on channel objects (fan-in of contributions).
--- * 'Comonoid' — the comonoid on channel objects (fan-out of values).
+-- * 'CopyDiscard' — the comonoid on channel objects (fan-out of values).
+-- * 'MergeZero' — the monoid on channel objects (fan-in of contributions).
 -- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
 -- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
 --   arrow with a backward arrow.  'transpose' is the dagger operation.
@@ -22,11 +22,11 @@
 -- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
 module Circuit.Dagger
-  ( -- * WireMonoid
-    WireMonoid (..),
+  ( -- * CopyDiscard
+    CopyDiscard (..),
 
-    -- * Comonoid
-    Comonoid (..),
+    -- * MergeZero
+    MergeZero (..),
 
     -- * Bimonoid
     Bimonoid,
@@ -50,7 +50,7 @@ import Prelude hiding (id, (.))
 -- >>> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
--- WireMonoid: monoid structure on channel objects
+-- MergeZero: monoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
 -- | A commutative monoid on channel objects.
@@ -58,7 +58,7 @@ import Prelude hiding (id, (.))
 -- Not the same as arithmetic '+'; this is the operation by which parallel
 -- contributions to the same wire combine.  Fan-out on the forward pass
 -- becomes fan-in (summation) on the backward pass.
-class WireMonoid arr a where
+class MergeZero arr a where
   -- | Combine two values of the channel type.
   plus :: arr (a, a) a
 
@@ -71,7 +71,7 @@ class WireMonoid arr a where
 -- ()
 -- >>> zero () :: ()
 -- ()
-instance WireMonoid (->) () where
+instance MergeZero (->) () where
   plus _ = ()
   {-# INLINE plus #-}
   zero _ = ()
@@ -87,25 +87,25 @@ instance WireMonoid (->) () where
 -- 3.0
 -- >>> zero () :: Double
 -- 0.0
-instance WireMonoid (->) Int where
+instance MergeZero (->) Int where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance WireMonoid (->) Integer where
+instance MergeZero (->) Integer where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance WireMonoid (->) Double where
+instance MergeZero (->) Double where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
   {-# INLINE zero #-}
 
-instance WireMonoid (->) Float where
+instance MergeZero (->) Float where
   plus = uncurry (+)
   {-# INLINE plus #-}
   zero _ = 0
@@ -119,7 +119,7 @@ instance WireMonoid (->) Float where
 -- True
 -- >>> zero () :: Bool
 -- False
-instance WireMonoid (->) Bool where
+instance MergeZero (->) Bool where
   plus = uncurry (||)
   {-# INLINE plus #-}
   zero _ = False
@@ -129,7 +129,7 @@ instance WireMonoid (->) Bool where
 --
 -- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
-instance (WireMonoid (->) a, WireMonoid (->) b) => WireMonoid (->) (a, b) where
+instance (MergeZero (->) a, MergeZero (->) b) => MergeZero (->) (a, b) where
   plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
   {-# INLINE plus #-}
   zero u = (zero u, zero u)
@@ -144,7 +144,7 @@ instance (WireMonoid (->) a, WireMonoid (->) b) => WireMonoid (->) (a, b) where
 -- [4,6,5]
 -- >>> plus ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
-instance (WireMonoid (->) a) => WireMonoid (->) [a] where
+instance (MergeZero (->) a) => MergeZero (->) [a] where
   plus (xs, ys) = go xs ys
     where
       go [] [] = []
@@ -156,7 +156,7 @@ instance (WireMonoid (->) a) => WireMonoid (->) [a] where
   {-# INLINE zero #-}
 
 -- ---------------------------------------------------------------------------
--- Comonoid: comonoid structure on channel objects
+-- CopyDiscard: comonoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
 -- | A cocommutative comonoid on channel objects.
@@ -169,7 +169,7 @@ instance (WireMonoid (->) a) => WireMonoid (->) [a] where
 --   (copy × id) . copy = (id × copy) . copy  -- coassociativity
 --   swap . copy = copy            -- cocommutativity
 -- @
-class Comonoid arr a where
+class CopyDiscard arr a where
   -- | Copy a value into a pair.
   copy :: arr a (a, a)
 
@@ -181,7 +181,7 @@ class Comonoid arr a where
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
 -- 'Circuit.Net.transpose' to be total.
-type Bimonoid arr a = (Comonoid arr a, WireMonoid arr a)
+type Bimonoid arr a = (CopyDiscard arr a, MergeZero arr a)
 
 -- | Every type copies for free in a cartesian category (Fox's theorem).
 --
@@ -189,7 +189,7 @@ type Bimonoid arr a = (Comonoid arr a, WireMonoid arr a)
 -- (42,42)
 -- >>> discard (42 :: Int)
 -- ()
-instance Comonoid (->) a where
+instance CopyDiscard (->) a where
   copy a = (a, a)
   {-# INLINE copy #-}
   discard _ = ()
@@ -243,14 +243,14 @@ instance (Traced t arr) => Traced t (Dagger arr) where
   {-# INLINE trace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
-instance (Comonoid arr a, WireMonoid arr a) => Comonoid (Dagger arr) a where
+instance (CopyDiscard arr a, MergeZero arr a) => CopyDiscard (Dagger arr) a where
   copy = Dagger copy plus
   {-# INLINE copy #-}
   discard = Dagger discard zero
   {-# INLINE discard #-}
 
 -- | Forward add, backward copy.
-instance (Comonoid arr a, WireMonoid arr a) => WireMonoid (Dagger arr) a where
+instance (CopyDiscard arr a, MergeZero arr a) => MergeZero (Dagger arr) a where
   plus = Dagger plus copy
   {-# INLINE plus #-}
   zero = Dagger zero discard

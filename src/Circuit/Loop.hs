@@ -59,9 +59,6 @@ module Circuit.Loop
   ( -- * Loop
     Loop (..),
 
-    -- * Stateful IO stages
-    cellIO,
-
     -- * Layer witness
     FreeLoop,
   )
@@ -72,7 +69,6 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Control.Arrow (Kleisli (..))
 import Data.Bifunctor (Bifunctor (..))
-import Data.IORef
 import Data.Kind (Type)
 import Data.Profunctor
 import Prelude hiding (id, (.))
@@ -241,42 +237,6 @@ instance (Traced t arr, Discrete arr) => Traced t (Loop t arr) where
           withOb @arr @(t (t s a) c) $
             withOb @arr @(t s a) $
               Knot (assoc >>> f >>> assoc')
-
--- * Stateful stages via IORef
-
--- | Create a stateful 'Kleisli' 'IO' arrow backed by 'IORef'.
---
--- Allocates a mutable reference once, then each invocation reads the
--- current state, applies the transfer function, writes the new state
--- back, and returns the output. The 'IORef' is hidden inside the
--- arrow — callers see a pure @Kleisli IO a b@.
---
--- This breaks the circular dependency that 'MonadFix' requires for
--- the 'Traced' @(,)@ instance: the feedback value is stored in the
--- mutable cell rather than being self-referential. Strict accumulators
--- (counters, frequency tables, running sums) work without diverging.
---
--- >>> acc <- cellIO (0 :: Int) (\s a -> let s' = s + a in pure (s', s'))
--- >>> runKleisli acc 5
--- 5
--- >>> runKleisli acc 3
--- 8
--- >>> runKleisli acc 2
--- 10
-cellIO ::
-  -- | initial state
-  s ->
-  -- | transfer: current state and input yield next state and output
-  (s -> a -> IO (s, b)) ->
-  IO (Kleisli IO a b)
-cellIO s0 step = do
-  ref <- newIORef s0
-  pure $
-    Kleisli $ \a -> do
-      s <- readIORef ref
-      (s', b) <- step s a
-      writeIORef ref s'
-      pure b
 
 -- | 'Traced' plus 'Discrete' — required to fold free 'Loop'
 -- (existential feedback channels need trivial 'Ob' on every type).

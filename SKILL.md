@@ -40,8 +40,8 @@ Circuit.Channel    — Structural semantics chain: Channel, Strength,
                       Kleisli m (lazy knot, Either iteration, Kleisli IO
                       via delimited continuations).
 Circuit.Loop       — Loop GADT (Lift, Knot) in normal form, its
-                      Category/Channel/Strength/Traced instances, cellIO
-                      helper, and the Layer witness.
+                      Category/Channel/Strength/Traced instances, and the
+                      Layer witness.
 Circuit.Monoidal    — Monoidal superclass (associator + braiding) for traced
                       categories.
 Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over the
@@ -53,7 +53,7 @@ Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
                       Plus, Zero, Knot. enrich, melt, transpose.
 Circuit.Layer       — Layer tower. unit, run, bind, lower; Cat2, (:~>).
 Circuit.Algebra     — change-of-base algebras for modular circuit syntax (optional).
-Circuit.Dagger      — WireMonoid, Comonoid, Bimonoid, Dagger, transpose.
+Circuit.Dagger      — CopyDiscard, MergeZero, Bimonoid, Dagger, transpose.
 Circuit.Free        — Free category: Lift, Compose.
 Circuit.Mon         — Free symmetric monoidal category: Lift, Compose, Par,
                       Swap.

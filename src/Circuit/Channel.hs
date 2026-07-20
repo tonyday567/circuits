@@ -33,12 +33,6 @@ module Circuit.Channel
     Strength (..),
     strengthD,
     Traced (..),
-
-    -- * Delimited-continuation helpers
-    PromptTag,
-    newPromptTag,
-    prompt,
-    control0,
   )
 where
 
