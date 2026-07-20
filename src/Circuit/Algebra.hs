@@ -71,25 +71,25 @@ module Circuit.Algebra
 
     -- * Common syntax combinations
     AlgCat,
-    AlgTrace,
-    AlgMonoidal,
+    AlgLoop,
+    AlgSym,
     AlgBimonoidal,
     AlgNet,
-    AlgMonKnot,
+    AlgSymKnot,
 
     -- * Forgetful algebras
-    algFreeze,
-    algMelt,
+    algLoopToCat,
+    algNetToLoop,
 
     -- * Direct <-> algebra isomorphisms
-    traceToAlg,
-    algToTrace,
+    loopToAlg,
+    algToLoop,
     netToAlg,
     algToNet,
 
-    -- * AlgMonKnot <-> AlgTrace maps
-    monKnotToTrace,
-    traceToMonKnot,
+    -- * AlgSymKnot <-> AlgLoop maps
+    symKnotToLoop,
+    loopToSymKnot,
   )
 where
 
@@ -156,7 +156,7 @@ instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig
 --
 -- This is the à la carte analogue of 'Circuit.Layer.bind': @evalInto emb@
 -- folds syntax into a target just as @bind h@ folds a 'Circuit.Layer.Layer'
--- construction. For example, @'monKnotToTrace' = 'evalInto' 'Lift'@ plays the
+-- construction. For example, @'symKnotToLoop' = 'evalInto' 'Lift'@ plays the
 -- same role as a structural forgetting map built with @bind unit@.
 --
 -- A signature like @'SigKnot' t@ is best read as a type-level tag that tracks
@@ -269,10 +269,10 @@ instance Algebra SigBimonoid arr arr' where
 type AlgCat arr = Syntax SigCompose arr
 
 -- | Free traced monoidal category over tensor @t@.
-type AlgTrace t arr = Syntax (SigCompose :+: SigKnot t) arr
+type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
 
 -- | Free monoidal category.
-type AlgMonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
+type AlgSym arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
 
 -- | Free bimonoidal category.
 type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigBimonoid) arr
@@ -284,8 +284,8 @@ type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: 
 --
 -- Both the trace ('SigKnot') and the monoidal product ('SigPar'/'SigSwap')
 -- are explicit syntax.  This is the conceptual middle ground between
--- 'AlgMonoidal' and 'AlgTrace'.
-type AlgMonKnot t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap) arr
+-- 'AlgSym' and 'AlgLoop'.
+type AlgSymKnot t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap) arr
 
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
@@ -295,30 +295,30 @@ instance (Category arr) => Category (AlgCat arr) where
   id = Lift id
   f . g = Op (SigCompose f g)
 
-instance (Category arr) => Category (AlgTrace t arr) where
-  type Ob (AlgTrace t arr) a = Ob arr a
+instance (Category arr) => Category (AlgLoop t arr) where
+  type Ob (AlgLoop t arr) a = Ob arr a
   id = Lift id
   f . g = Op (L (SigCompose f g))
 
-instance (Category arr, Channel t arr) => Channel t (AlgTrace t arr) where
+instance (Category arr, Channel t arr) => Channel t (AlgLoop t arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
 
-instance (Category arr, Traced t arr, Discrete arr) => Strength t (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Discrete arr) => Strength t (AlgLoop t arr) where
   strength f = Lift (strength (eval f))
 
-instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgLoop t arr) where
   trace body = Op (R (SigKnot body))
 
-instance (Category arr, Traced t arr, Tensor (,) arr, Discrete arr) => Tensor (,) (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Tensor (,) arr, Discrete arr) => Tensor (,) (AlgLoop t arr) where
   par f g = Lift (par (eval f) (eval g))
   unitl = Lift unitl
   unitl' = Lift unitl'
   unitr = Lift unitr
   unitr' = Lift unitr'
 
-instance (Category arr, Traced t arr, Action (,) arr, Discrete arr) => Action (,) (AlgTrace t arr) where
+instance (Category arr, Traced t arr, Action (,) arr, Discrete arr) => Action (,) (AlgLoop t arr) where
   swap = Lift swap
 
 instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
@@ -334,13 +334,13 @@ instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) whe
 
 -- | A discrete base yields discrete syntax.
 --
--- These instances are needed so that the forgetful folds 'algFreeze',
--- 'algMelt', and 'monKnotToTrace' can interpret syntax into syntax using
+-- These instances are needed so that the forgetful folds 'algLoopToCat',
+-- 'algNetToLoop', and 'symKnotToLoop' can interpret syntax into syntax using
 -- 'evalInto'.
 instance (Category arr, Discrete arr) => Discrete (AlgCat arr) where
   withOb @a x = withOb @arr @a x
 
-instance (Category arr, Discrete arr) => Discrete (AlgTrace t arr) where
+instance (Category arr, Discrete arr) => Discrete (AlgLoop t arr) where
   withOb @a x = withOb @arr @a x
 
 -- ---------------------------------------------------------------------------
@@ -349,75 +349,75 @@ instance (Category arr, Discrete arr) => Discrete (AlgTrace t arr) where
 -- | Dissolve 'SigKnot' into 'SigCompose' by calling the base 'trace' on the
 -- free category.  This is the forgetful map from the free traced
 -- category to the free category.
-algFreeze ::
+algLoopToCat ::
   (Traced t (->)) =>
-  AlgTrace t (->) a b ->
+  AlgLoop t (->) a b ->
   AlgCat (->) a b
-algFreeze = evalInto Lift
+algLoopToCat = evalInto Lift
 
 -- | Melt structural rows ('SigPar', 'SigSwap', 'SigBimonoid') into 'Lift'
--- calls.  This is the forgetful map from 'AlgNet' to 'AlgTrace'.
-algMelt ::
+-- calls.  This is the forgetful map from 'AlgNet' to 'AlgLoop'.
+algNetToLoop ::
   (Traced t (->)) =>
   AlgNet t (->) a b ->
-  AlgTrace t (->) a b
-algMelt = evalInto Lift
+  AlgLoop t (->) a b
+algNetToLoop = evalInto Lift
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> signature isomorphisms
 
 -- | Embed the direct 'C.Loop' GADT into the signature-based form.
-traceToAlg :: forall t arr a b. C.Loop t arr a b -> AlgTrace t arr a b
-traceToAlg (C.Lift f) = Lift f
-traceToAlg (C.Knot f) = Op (R (SigKnot (Lift f)))
+loopToAlg :: forall t arr a b. C.Loop t arr a b -> AlgLoop t arr a b
+loopToAlg (C.Lift f) = Lift f
+loopToAlg (C.Knot f) = Op (R (SigKnot (Lift f)))
 
 -- | Project the signature-based circuit back to the direct GADT.
 --
 -- 'SigCompose' nodes are interpreted using the 'Category' instance of
 -- 'C.Loop', so the result is in normal form (at most one 'C.Knot').
-algToTrace ::
+algToLoop ::
   forall t a b.
   (Traced t (->)) =>
-  AlgTrace t (->) a b ->
+  AlgLoop t (->) a b ->
   C.Loop t (->) a b
-algToTrace (Lift f) = C.Lift f
-algToTrace (Op op) = go op
+algToLoop (Lift f) = C.Lift f
+algToLoop (Op op) = go op
   where
     go ::
       forall x y.
-      (SigCompose :+: SigKnot t) (->) (AlgTrace t (->)) x y ->
+      (SigCompose :+: SigKnot t) (->) (AlgLoop t (->)) x y ->
       C.Loop t (->) x y
-    go (L (SigCompose g f)) = algToTrace g . algToTrace f
-    go (R (SigKnot @_ f)) = C.Knot (run (algToTrace f))
+    go (L (SigCompose g f)) = algToLoop g . algToLoop f
+    go (R (SigKnot @_ f)) = C.Knot (run (algToLoop f))
 
--- | Forget the explicit monoidal rows of 'AlgMonKnot', collapsing them
+-- | Forget the explicit monoidal rows of 'AlgSymKnot', collapsing them
 -- into the base arrow and leaving only 'SigCompose' and 'SigKnot'.
 --
--- This folds 'AlgMonKnot' monoidal structure back into 'AlgTrace',
+-- This folds 'AlgSymKnot' monoidal structure back into 'AlgLoop',
 -- leaving only sequential composition and feedback.
-monKnotToTrace ::
+symKnotToLoop ::
   forall t a b.
   (Traced t (->)) =>
-  AlgMonKnot t (->) a b ->
-  AlgTrace t (->) a b
-monKnotToTrace = evalInto Lift
+  AlgSymKnot t (->) a b ->
+  AlgLoop t (->) a b
+symKnotToLoop = evalInto Lift
 
--- | Embed 'AlgTrace' into 'AlgMonKnot' by constructor injection.
-traceToMonKnot ::
+-- | Embed 'AlgLoop' into 'AlgSymKnot' by constructor injection.
+loopToSymKnot ::
   forall t arr a b.
-  AlgTrace t arr a b ->
-  AlgMonKnot t arr a b
-traceToMonKnot (Lift f) = Lift f
-traceToMonKnot (Op op) = goOp op
+  AlgLoop t arr a b ->
+  AlgSymKnot t arr a b
+loopToSymKnot (Lift f) = Lift f
+loopToSymKnot (Op op) = goOp op
   where
     goOp ::
       forall x y.
-      (SigCompose :+: SigKnot t) arr (AlgTrace t arr) x y ->
-      AlgMonKnot t arr x y
+      (SigCompose :+: SigKnot t) arr (AlgLoop t arr) x y ->
+      AlgSymKnot t arr x y
     goOp (L (SigCompose g f)) =
-      Op (L (SigCompose (traceToMonKnot g) (traceToMonKnot f)))
+      Op (L (SigCompose (loopToSymKnot g) (loopToSymKnot f)))
     goOp (R (SigKnot @_ f)) =
-      Op (R (L (SigKnot (traceToMonKnot f))))
+      Op (R (L (SigKnot (loopToSymKnot f))))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 netToAlg :: forall t arr a b. N.Net t arr a b -> AlgNet t arr a b
