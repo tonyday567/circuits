@@ -5,5 +5,5 @@
 # 'FreeLayer (Trace t)' instance's 'rightAdjunct' (the tensor 't' must be
 # fixed by the surrounding instance head).
 
-- ignore: {name: "Eta reduce", within: Circuit.Trace}
+- ignore: {name: "Eta reduce", within: Circuit.Loop}
 - ignore: {name: "Eta reduce", within: Circuit.Adjunction}

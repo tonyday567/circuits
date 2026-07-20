@@ -58,7 +58,7 @@ import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Discrete (assocD, assocD', braidD)
 import Circuit.Layer (run)
 import Circuit.Strength (Strength (..), strengthD)
-import Circuit.Trace (Loop (..), Traced (..))
+import Circuit.Loop (Loop (..), Traced (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
@@ -70,7 +70,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XLambdaCase
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Trace (Loop (..))
+-- >>> import Circuit.Loop (Loop (..))
 -- >>> import Control.Arrow (Kleisli (..), runKleisli)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
@@ -221,7 +221,7 @@ coreleaseR _ (Left a) = Left a
 -- @\(x, (s, a)) -> (s, (x, a))@.
 --
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Trace (Loop(..))
+-- >>> import Circuit.Loop (Loop(..))
 -- >>> let slide (x, (s, a)) = (s, (x, a))
 -- >>> run (ambientBy slide (Lift (+1) :: Loop (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
@@ -424,16 +424,16 @@ instance (Action t arr, Traced t' arr, Discrete arr) => Action t (Loop t' arr) w
 -- and braiding. This preserves sharing for recursive circuits; the lawful
 -- 'Tensor' instance falls back to independent evaluation.
 --
--- >>> let k1 = Circuit.Trace.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Trace.Loop (,) (->) [Int] [Int]
--- >>> let k2 = Circuit.Trace.Knot (\(ns, _) -> (2 : ns, take 3 ns))
+-- >>> let k1 = Circuit.Loop.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (->) [Int] [Int]
+-- >>> let k2 = Circuit.Loop.Knot (\(ns, _) -> (2 : ns, take 3 ns))
 -- >>> Circuit.Layer.run (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
 -- The same fusion works for 'Kleisli', preserving sharing across the
 -- recursive channels under 'MonadFix'.
 --
--- >>> let k1 = Circuit.Trace.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Trace.Loop (,) (Kleisli Identity) [Int] [Int]
--- >>> let k2 = Circuit.Trace.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))
+-- >>> let k1 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (Kleisli Identity) [Int] [Int]
+-- >>> let k2 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))
 -- >>> runKleisli (Circuit.Layer.run (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 superpose ::

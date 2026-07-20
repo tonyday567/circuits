@@ -8,7 +8,7 @@
 -- a continuation of type @Hyper b a@.
 --
 -- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
--- category. Its dual, 'Loop' (see "Circuit.Trace"), is the
+-- category. Its dual, 'Loop' (see "Circuit.Loop"), is the
 -- corresponding /initial/ (inductive) encoding. The feedback channel
 -- is not represented by an extra constructor; it is structural in the
 -- type itself.
@@ -36,7 +36,7 @@ import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Channel (Channel (..))
-import Circuit.Trace (Strength (..), Loop (..), Traced (..))
+import Circuit.Loop (Strength (..), Loop (..), Traced (..))
 import Prelude hiding (id, (.))
 import Data.Profunctor
 
@@ -44,7 +44,7 @@ import Data.Profunctor
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Data.Profunctor
--- >>> import Circuit.Trace (Loop (..), Traced (..))
+-- >>> import Circuit.Loop (Loop (..), Traced (..))
 -- >>> import Circuit.Layer (run)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
@@ -148,7 +148,7 @@ runHyper h = invoke h (Hyper runHyper)
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
 --
--- >>> import Circuit.Trace (Traced (..))
+-- >>> import Circuit.Loop (Traced (..))
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> observe (trace body) ()
 -- [0,0,0]
@@ -194,7 +194,7 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 -- become 'trace' over a hyperfunction.
 --
 -- >>> import Circuit.Layer (run)
--- >>> import Circuit.Trace (Loop (..))
+-- >>> import Circuit.Loop (Loop (..))
 -- >>> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
 -- 6
 encode :: Loop (,) (->) a b -> Hyper a b

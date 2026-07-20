@@ -58,7 +58,7 @@
 --
 -- * __Feedback channel__: The hidden type @s@ in a 'Knot'. It is the value
 --   the abstraction hides.
-module Circuit.Trace
+module Circuit.Loop
   ( -- * Loop
     Loop (..),
 

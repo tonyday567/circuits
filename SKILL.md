@@ -35,7 +35,7 @@ Recommended reading order for the source (core concepts first):
 ```
 Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
                       'Discrete', and composition helpers.
-Circuit.Trace       — Trace GADT (Lift, Knot), the Traced class, the
+Circuit.Loop       — Trace GADT (Lift, Knot), the Traced class, the
                       Strength superclass, channel ends, and base
                       instances: (,) lazy knot, Either iteration, Kleisli
                       IO via delimited continuations, cellIO helper.
@@ -59,7 +59,7 @@ Circuit             — umbrella re-export. This is the recommended import
                       available when you need to be very precise about scope.
 ```
 
-`Hyper` imports `Circuit.Trace` for the GADT constructors. `Traced` depends
+`Hyper` imports `Circuit.Loop` for the GADT constructors. `Traced` depends
 only on `GHC.Exts` (prompt#/control0#) under GHC.
 
 ## build and test

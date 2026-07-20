@@ -6,7 +6,7 @@
 
 *BREAKING: **Normal-form `Trace`.** Composition fuses via the `Category` instance, so every `Trace` is in normal form: at most one `Knot` at the top over a base-arrow body. There is no explicit `Compose` constructor and no Mendler case in `run`.*
 
-*BREAKING: **`Circuit.Traced` is merged into `Circuit.Trace`.** The `Traced`
+*BREAKING: **`Circuit.Loopd` is merged into `Circuit.Loop`.** The `Traced`
 class, base instances, and `cellIO` now live alongside the `Trace` GADT in a
 single module.*
 
@@ -32,7 +32,7 @@ The per-layer folds are now `run` with a type application:*
 
 *`hoist` becomes `hmap`; `realise` becomes `run`; `Hyper.lower` becomes `observe`.
 `Circuit.Adjunction` is removed; `Circuit.Layer` is the canonical module.
-All instances are now orphan `Layer` instances in `Circuit.Free`, `Circuit.Trace`,
+All instances are now orphan `Layer` instances in `Circuit.Free`, `Circuit.Loop`,
 and `Circuit.Net`.*
 
 *BREAKING: **`Circuit.Signature` is renamed to `Circuit.Algebra`.**
@@ -43,7 +43,7 @@ The generic `Free` construction becomes `Syntax`, `Handler` becomes `Algebra`,
 
 *New: **Circuit.Dagger** — consolidated module for `Monoid`, `Comonoid`, `Dagger`, and `Bimonoid`. `Monoid` (was `Additive`) provides channel-object addition; `Comonoid` (was `Dup`) provides `copy` and `discard`; `Dagger` (was `Duplex`) is the free dagger category with `transpose` (was `transposeDuplex`); `Bimonoid` (was `Linear`) is the constraint synonym.*
 
-*New: **Co/Contra** — companion/conjoint channel ends, exported from `Circuit.Trace`.*
+*New: **Co/Contra** — companion/conjoint channel ends, exported from `Circuit.Loop`.*
 
 *New: **Circuit.Int** — intensional morphism constructors over polynomial channel shapes, with `IntMorph` composition via `par`, `braid`, and `trace`.*
 

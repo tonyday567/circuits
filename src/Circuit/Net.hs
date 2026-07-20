@@ -51,8 +51,8 @@ import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Layer qualified as Layer
 import Circuit.Sym qualified as M
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Trace (Traced (..))
-import Circuit.Trace qualified as C
+import Circuit.Loop (Traced (..))
+import Circuit.Loop qualified as C
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
@@ -61,8 +61,8 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Layer (bind, run, unit)
 -- >>> import Circuit.Sym qualified as M
 -- >>> import Circuit.Net
--- >>> import Circuit.Trace (Loop (Knot))
--- >>> import Circuit.Trace qualified as C
+-- >>> import Circuit.Loop (Loop (Knot))
+-- >>> import Circuit.Loop qualified as C
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free traced PROP with a bimonoid.

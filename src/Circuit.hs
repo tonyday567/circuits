@@ -29,17 +29,17 @@
 -- encoding. Convert a 'Loop' to a 'Hyper' with 'encode', and observe it
 -- with 'observe' (or eliminate it with 'runHyper').
 --
--- >>> observe (encode (Circuit.Trace.Lift (+1) :: Loop (,) (->) Int Int)) 41
+-- >>> observe (encode (Circuit.Loop.Lift (+1) :: Loop (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
 --
 -- This library provides two representations of feedback:
 --
--- * 'Loop' (in "Circuit.Trace") — the initial, inspectable GADT encoding.
+-- * 'Loop' (in "Circuit.Loop") — the initial, inspectable GADT encoding.
 -- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
 --
--- The 'Traced' class (in "Circuit.Trace") abstracts the choice of tensor,
+-- The 'Traced' class (in "Circuit.Loop") abstracts the choice of tensor,
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
@@ -78,9 +78,9 @@ module Circuit
     Loop (..),
     Traced,
     Strength,
-    -- | Close a feedback loop. See "Circuit.Trace".
+    -- | Close a feedback loop. See "Circuit.Loop".
     trace,
-    -- | Open a feedback loop. See "Circuit.Trace".
+    -- | Open a feedback loop. See "Circuit.Loop".
     strength,
 
     -- * Channel ends
@@ -246,22 +246,22 @@ import Circuit.Queue
     openSTM,
   )
 import Circuit.Category (Ob)
-import Circuit.Trace
+import Circuit.Loop
   ( Loop (..),
     Traced,
     Strength,
   )
-import Circuit.Trace qualified as Loop
+import Circuit.Loop qualified as Loop
 import Prelude
 
--- | Close a feedback loop. See "Circuit.Trace".
+-- | Close a feedback loop. See "Circuit.Loop".
 trace ::
   (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr (t a b) (t a c) ->
   arr b c
 trace = Loop.trace
 
--- | Open a feedback loop. See "Circuit.Trace".
+-- | Open a feedback loop. See "Circuit.Loop".
 strength ::
   (Strength t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr b c ->

@@ -8,8 +8,8 @@
 -- | Tensorial strength for a tensor @t@ inside a category @arr@.
 --
 -- 'strength' tensors a plain morphism with a feedback wire. It is the
--- strength structure that 'Circuit.Trace.Traced' categories inherit as a
--- superclass, and it is all that is needed to compose 'Circuit.Trace.Loop'
+-- strength structure that 'Circuit.Loop.Traced' categories inherit as a
+-- superclass, and it is all that is needed to compose 'Circuit.Loop.Loop'
 -- syntax: 'trace' is only required when a knot is eliminated by 'run' or
 -- 'bind'.
 module Circuit.Strength
@@ -27,7 +27,7 @@ import Prelude hiding (id, (.))
 --
 -- 'strength' opens a feedback loop, tensoring a plain morphism with the
 -- feedback channel. It is /not/ a syntactic inverse of
--- 'Circuit.Trace.trace'; it is the strength ("tensorial strength") of the
+-- 'Circuit.Loop.trace'; it is the strength ("tensorial strength") of the
 -- tensor @t@ acting on morphisms.
 class (Channel t arr) => Strength t arr where
   strength ::

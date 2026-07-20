@@ -35,7 +35,7 @@ import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Channel (Channel (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Trace (Strength (..), Traced (..))
+import Circuit.Loop (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup

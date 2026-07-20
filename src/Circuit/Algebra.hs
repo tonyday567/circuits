@@ -33,7 +33,7 @@
 --
 -- Signatures expose the design space as a lattice: start with the
 -- features you need, add more when you need them, and forget them via
--- algebras. The direct GADTs in "Circuit.Trace" and "Circuit.Net" are
+-- algebras. The direct GADTs in "Circuit.Loop" and "Circuit.Net" are
 -- the canonical circuit types; this module gives those constructions as
 -- compositional syntax.
 --
@@ -99,8 +99,8 @@ import Circuit.Layer (Layer, run)
 import Circuit.Channel (Channel (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Net qualified as N
-import Circuit.Trace (Strength (..), Traced (..))
-import Circuit.Trace qualified as C
+import Circuit.Loop (Strength (..), Traced (..))
+import Circuit.Loop qualified as C
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 

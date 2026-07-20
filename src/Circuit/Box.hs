@@ -15,7 +15,7 @@ where
 import Circuit.Category (Category (..), (>>>))
 import Circuit.Ends (Ends (..), HasUnit (..), commit, conjoint, companion, emit)
 import Circuit.Tensor (Tensor (..), Unit)
-import Circuit.Trace (Loop (..))
+import Circuit.Loop (Loop (..))
 import Prelude hiding (id, (.))
 
 -- $setup

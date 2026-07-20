@@ -40,13 +40,13 @@ where
 import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Channel (Channel (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Trace (Strength (..), Traced (..))
+import Circuit.Loop (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
--- >>> import Circuit.Trace (Traced (..))
+-- >>> import Circuit.Loop (Traced (..))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Prelude hiding (id, (.))
 

@@ -21,7 +21,7 @@ where
 import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Channel (Channel (..))
-import Circuit.Trace (Strength (..), Traced (..))
+import Circuit.Loop (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup

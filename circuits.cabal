@@ -80,7 +80,7 @@ library
     Circuit.Queue
     Circuit.Strength
     Circuit.Tensor
-    Circuit.Trace
+    Circuit.Loop
 
   build-depends:
     base >=4.18 && <5,

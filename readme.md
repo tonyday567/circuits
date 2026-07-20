@@ -10,7 +10,7 @@ It's off the beaten track but absolutely core Haskell: traced monoidal categorie
 
 ```haskell
 import Circuit
-import qualified Circuit.Trace as T
+import qualified Circuit.Loop as T
 import Control.Arrow (Kleisli (..))
 import Control.Category ((>>>))
 import Data.Bool (bool)
@@ -48,7 +48,7 @@ Same `Knot` constructor. Different tensor, different universe.
 
 ```haskell
 import Circuit
-import qualified Circuit.Trace as T
+import qualified Circuit.Loop as T
 
 -- Lazy streaming with (,):
 powers :: T.Trace (,) (->) () [Integer]
