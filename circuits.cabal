@@ -67,19 +67,19 @@ library
     Circuit
     Circuit.Algebra
     Circuit.Category
+    Circuit.Channel
     Circuit.Dagger
     Circuit.Discrete
     Circuit.Ends
     Circuit.Free
     Circuit.Hyper
     Circuit.Layer
-    Circuit.Sym
-    Circuit.Channel
-    Circuit.Net
-    Circuit.Tensor
     Circuit.Loop
+    Circuit.Net
+    Circuit.Sym
+    Circuit.Tensor
 
   build-depends:
     base >=4.18 && <5,
     profunctors >=5.0 && <6,
-    stm >=2.5 && <3
+    stm >=2.5 && <3,
