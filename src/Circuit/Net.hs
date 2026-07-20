@@ -69,7 +69,7 @@ import Prelude hiding (id, (.))
 --
 -- Four families of constructor:
 --
---   * __Sequential__ — 'Lift', 'Compose'.
+--   * __Sequential__ — @Lift@, @Compose@.
 --   * __Monoidal__ — 'Par', 'Swap' (parallel composition, braiding).
 --   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
 --   * __Feedback__ — 'Knot', with a 'Net' body so 'transpose' can reach inside.
@@ -115,11 +115,11 @@ data Net (t :: Type -> Type -> Type) arr a b where
 
 -- | The 'Category' instance preserves inspectable wiring.
 --
--- Composition uses the explicit 'Compose' constructor, so 'Copy',
+-- Composition uses the explicit @Compose@ constructor, so 'Copy',
 -- 'Plus', 'Par', and 'Knot' stay visible.  'melt' collapses the
 -- structure when the normal form is needed.
 --
--- Composition uses the explicit 'Compose' constructor so structural
+-- Composition uses the explicit @Compose@ constructor so structural
 -- rows remain inspectable.  'melt' collapses them to the normal form of
 -- 'C.Loop' when needed.
 instance (Category arr) => Category (Net t arr) where
@@ -134,10 +134,10 @@ instance (Category arr, Discrete arr) => Discrete (Net t arr) where
 -- | Transpose a 'Net' — the backward circuit as inspectable syntax.
 --
 -- The structural rows are self-dual under transposition:
--- 'Compose' reverses, 'Par' transposes componentwise, 'Copy' ↔ 'Plus',
+-- @Compose@ reverses, 'Par' transposes componentwise, 'Copy' ↔ 'Plus',
 -- 'Discard' ↔ 'Zero', 'Knot' ↔ 'Knot' (recurring into the body).
 --
--- 'Lift' transposes via 'Dg.Dagger' field swap — only nets over
+-- @Lift@ transposes via 'Dg.Dagger' field swap — only nets over
 -- 'Dg.Dagger' are transposable, since the forward\/backward pairing is
 -- structural in the base arrow.
 --
@@ -151,7 +151,7 @@ instance (Category arr, Discrete arr) => Discrete (Net t arr) where
 -- .> Dg.front (run (transpose (transpose n2))) 5
 -- 7
 --
--- Asymmetric factors catch the direction of 'Compose' reversal:
+-- Asymmetric factors catch the direction of @Compose@ reversal:
 -- forward is @(*2) . (+1)@, backward is @(subtract 1) . (`div` 2)@.
 --
 -- .> let n3 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Net (,) (Dg.Dagger (->)) Int Int
@@ -176,14 +176,14 @@ transpose = \case
 -- 'C.Loop' is the normal form 'C.Lift' / 'C.Knot' over a base-arrow body;
 -- 'Net' keeps the same information but can hold more structure.
 -- 'C.Lift' lifts to 'Net.Lift'; 'C.Knot' lifts to 'Net.Knot' around a
--- 'Lift' body.
+-- @Lift@ body.
 enrich :: C.Loop t arr a b -> Net t arr a b
 enrich (C.Lift f) = Lift f
 enrich (C.Knot f) = Knot (Lift f)
 
 -- | Include a 'M.Sym' circuit into 'Net' — constructor-to-constructor.
 --
--- 'Net' duplicates the four rows of 'M.Sym' ('Lift', 'Compose', 'Par',
+-- 'Net' duplicates the four rows of 'M.Sym' (@Lift@, @Compose@, 'Par',
 -- 'Swap') so that structural wiring stays inspectable.  This is the
 -- injection of the 'Sym' layer into the 'Net' layer.
 --
@@ -229,7 +229,7 @@ widen M.Swap = Swap
 -- 'M.Sym' wiring.
 --
 -- 'sift' collapses 'Knot' and the bimonoid rows into 'M.Lift' while
--- leaving 'Compose', 'Par', and 'Swap' inspectable. Together with 'widen'
+-- leaving @Compose@, 'Par', and 'Swap' inspectable. Together with 'widen'
 -- it gives the adjunction between 'M.Sym' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets knots and bimonoid structure.
@@ -257,7 +257,7 @@ sift n@(Knot @_ @s @_ @_ @_ _) =
 --
 -- The interpretation from the free traced PROP with bimonoid to the free
 -- traced monoidal category.  Structural rows ('Par', 'Copy', 'Plus',
--- etc.) become opaque base-arrow operations wrapped in 'C.Lift'; 'Compose'
+-- etc.) become opaque base-arrow operations wrapped in 'C.Lift'; @Compose@
 -- and 'C.Knot' use the 'Category' and 'Traced' instances of 'C.Loop'.
 --
 -- @'run' @Net = 'run' . 'melt'@.

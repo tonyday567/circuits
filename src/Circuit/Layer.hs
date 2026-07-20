@@ -72,11 +72,11 @@ class Layer (f :: Cat2 -> Cat2) where
 
   -- | Extra constraints the /source/ category must satisfy for a 'bind'
   -- fold.  Defaults to no extra constraints; instances with structural
-  -- rows that do not carry all needed 'Ob' evidence may require 'Discrete'.
+  -- rows that do not carry all needed 'Ob' evidence may require @Discrete@.
   --
   -- For example, 'Sym.Par' reuses the base 'Tensor.par' method, which is
   -- deliberately 'Ob'-free; because 'par = Par' has no object dictionaries
-  -- to stash in the constructor, the source category must be 'Discrete' so
+  -- to stash in the constructor, the source category must be @Discrete@ so
   -- the missing evidence can be manufactured on demand.
   type Bind f (arr :: Cat2) :: Constraint
 
@@ -88,7 +88,7 @@ class Layer (f :: Cat2 -> Cat2) where
   -- | Fold the free syntax into the same base category.
   --
   -- Implemented directly by each instance so that constrained categories
-  -- (e.g. matrices) do not need a 'Discrete' instance for same-category
+  -- (e.g. matrices) do not need a @Discrete@ instance for same-category
   -- folds.
   run :: (Run f arr, Ob arr a, Ob arr b) => f arr a b -> arr a b
 

@@ -12,13 +12,13 @@
 -- * 'CopyDiscard' — the comonoid on channel objects (fan-out of values).
 -- * 'MergeZero' — the monoid on channel objects (fan-in of contributions).
 -- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
--- * 'Dagger' — the free dagger category over a base arrow, pairing a forward
+-- * @Dagger@ — the free dagger category over a base arrow, pairing a forward
 --   arrow with a backward arrow.  'transpose' is the dagger operation.
 --
 -- The four structural rows of 'Circuit.Net' ('Circuit.Net.Copy',
 -- 'Circuit.Net.Discard', 'Circuit.Net.Plus', 'Circuit.Net.Zero') are exactly
 -- the generators of this bimonoid.  In a dagger setting,
--- copy and add are adjoint, as are discard and zero.  'Dagger' makes that
+-- copy and add are adjoint, as are discard and zero.  @Dagger@ makes that
 -- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
 module Circuit.Dagger
@@ -272,7 +272,7 @@ instance (Action t arr) => Action t (Dagger arr) where
   swap = Dagger swap swap
   {-# INLINE swap #-}
 
--- | Lift monoidal structure through 'Dagger'.
+-- | Lift monoidal structure through @Dagger@.
 instance (Channel t arr) => Channel t (Dagger arr) where
   assoc = Dagger assoc assoc'
   assoc' = Dagger assoc' assoc

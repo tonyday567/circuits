@@ -7,7 +7,7 @@
 -- defined by its dual: to produce a result of type @b@ you must supply
 -- a continuation of type @Hyper b a@.
 --
--- 'Hyper' is the /final/ (coinductive) encoding of a traced monoidal
+-- @Hyper@ is the /final/ (coinductive) encoding of a traced monoidal
 -- category. Its dual, 'Loop' (see "Circuit.Loop"), is the
 -- corresponding /initial/ (inductive) encoding. The feedback channel
 -- is not represented by an extra constructor; it is structural in the
@@ -56,7 +56,7 @@ import Prelude hiding (id, (.))
 
 -- | A hyperfunction from @a@ to @b@.
 --
--- A 'Hyper' is completely determined by its dual. To get a @b@ you must
+-- A @Hyper@ is completely determined by its dual. To get a @b@ you must
 -- provide a continuation that can itself produce an @a@.
 --
 -- Two small examples:
@@ -75,7 +75,7 @@ newtype Hyper a b = Hyper
 
 -- | Embed a plain function into a hyperfunction.
 --
--- This is where the coinductive character of 'Hyper' lives:
+-- This is where the coinductive character of @Hyper@ lives:
 -- @lift f@ creates a hyperfunction by recursively pushing @f@ onto
 -- every future continuation that will ever be supplied.
 --
@@ -116,7 +116,7 @@ push f h = Hyper (\k -> f (invoke k h))
 -- | Close the self-referential loop.
 --
 -- @runHyper h@ feeds the hyperfunction back into itself, tying the knot.
--- This is the fundamental way to eliminate a 'Hyper'.
+-- This is the fundamental way to eliminate a @Hyper@.
 --
 -- .> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
@@ -138,9 +138,9 @@ runHyper h = invoke h (Hyper runHyper)
 
 -- * Loop
 
--- | 'Loop' instance for 'Hyper' with the @(,)@ tensor.
+-- | 'Loop' instance for @Hyper@ with the @(,)@ tensor.
 --
--- Routes the self-reference through explicit 'Hyper' values:
+-- Routes the self-reference through explicit @Hyper@ values:
 --
 --   1. @invoke body cont@ calls the body, which will eventually ask @cont@
 --      for an @(a, b)@ — the feedback pair.
@@ -189,7 +189,7 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 -- | Encode a Loop into a Hyper.
 --
 -- This is the unique traced functor from the initial object ('Loop')
--- to the final object ('Hyper'), satisfying the commuting triangle
+-- to the final object (@Hyper@), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'run'@.
 --
 -- 'Lift' constructors embed directly via 'lift'; 'Knot' constructors
@@ -272,7 +272,7 @@ instance Category Hyper where
   id = lift id
   f . g = Hyper $ \h -> invoke f (g . h)
 
--- | 'Profunctor' instance for 'Hyper'.
+-- | 'Profunctor' instance for @Hyper@.
 --
 -- 'dimap' routes both input and output through the continuation
 -- structure.

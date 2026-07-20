@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Discharge kit for authors of 'Discrete' categories and 'Layer' targets.
+-- | Discharge kit for authors of 'Discrete' categories and @Layer@ targets.
 --
 -- Free folds often need 'Ob' evidence at existential or compound objects
 -- (intermediate composition objects, tensor products, feedback channels).

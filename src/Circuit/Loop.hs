@@ -32,8 +32,8 @@
 --   * 'Knot' introduces feedback; 'trace' resolves it. This is the gold
 --     type-changing pair; composition fuses 'Knot's.
 --
--- The polar channel ends ('Out', 'In'), their counit ('close'), and
--- their unit ('open') all live in "Circuit.Ends".
+-- The polar channel ends (@Out@, @In@), their counit (@close@), and
+-- their unit (@open@) all live in "Circuit.Ends".
 --
 -- == Interpreting a 'Loop'
 --
@@ -159,7 +159,7 @@ instance (Bifunctor t) => Functor (Loop t (->) a) where
 -- | Lift the 'Channel' structure of the base arrow into 'Loop t arr'.
 --
 -- The 'withOb' ladder is written out inline rather than using
--- 'Circuit.Discrete.assocD' / 'slideD' because importing that kit here would
+-- 'Circuit.Discrete.assocD' / @Circuit.Discrete.braidD@ because importing that kit here would
 -- create a cycle: 'Circuit.Discrete' needs 'Traced' (and hence this module).
 instance (Strength t arr, Discrete arr) => Channel t (Loop t arr) where
   assoc :: forall a b c. Loop t arr (t (t a b) c) (t a (t b c))

@@ -39,18 +39,18 @@
 --
 -- The signatures are:
 --
--- * 'SigCompose' — sequential composition
--- * 'SigKnot'    — feedback / trace over a tensor @t@
--- * 'SigPar'     — parallel composition
--- * 'SigSwap'    — symmetric braiding
+-- * @SigCompose@ — sequential composition
+-- * @SigKnot@    — feedback / trace over a tensor @t@
+-- * @SigPar@     — parallel composition
+-- * @SigSwap@    — symmetric braiding
 -- * 'SigBimonoid'— copy, discard, plus, zero
 --
 -- Examples:
 --
--- * @'Syntax' 'SigCompose' arr@                              — free category
--- * @'Syntax' ('SigCompose' ':+:' 'SigKnot' t) arr@          — free traced category
--- * @'Syntax' ('SigCompose' ':+:' 'SigPar' ':+:' 'SigSwap') arr@ — free monoidal category
--- * @'Syntax' ('SigCompose' ':+:' 'SigKnot' t ':+:' 'SigPar' ':+:' 'SigSwap' ':+:' 'SigBimonoid') arr@ — Net
+-- * @'Syntax' @SigCompose@ arr@                              — free category
+-- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t) arr@          — free traced category
+-- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@) arr@ — free monoidal category
+-- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigBimonoid') arr@ — Net
 module Circuit.Algebra
   ( -- * Signatures
     Sig,
@@ -151,7 +151,7 @@ instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig
 -- @'evalInto' 'Lift'@, playing the same role as a structural forgetting map
 -- built with @bind unit@.
 --
--- A signature like @'SigKnot' t@ is best read as a type-level tag that tracks
+-- A signature like @@SigKnot@ t@ is best read as a type-level tag that tracks
 -- which constructors are present in the union; the coproduct @(':+:')@ is the
 -- union of those tags.
 evalInto ::
@@ -337,7 +337,7 @@ algLoop (C.Knot f) = Op (R (SigKnot (Lift f)))
 
 -- | Project the signature-based circuit back to the direct GADT.
 --
--- 'SigCompose' nodes are interpreted using the 'Category' instance of
+-- @SigCompose@ nodes are interpreted using the 'Category' instance of
 -- 'C.Loop', so the result is in normal form (at most one 'C.Knot').
 runAlgLoop ::
   forall t a b.

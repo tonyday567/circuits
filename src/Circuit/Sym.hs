@@ -7,9 +7,9 @@
 
 -- | The free symmetric monoidal category over a base arrow.
 --
--- 'Sym' extends the free category ('Circuit.Free.Free') with explicit
+-- 'Sym' extends the free category (@Circuit.Free.Free@) with explicit
 -- monoidal product ('Par') and symmetry ('Swap') syntax.  It is the
--- intermediate layer between 'Circuit.Free.Free' and 'Circuit.Net.Net':
+-- intermediate layer between @Circuit.Free.Free@ and @Circuit.Net.Net@:
 --
 -- @
 -- Free = Lift + Compose
@@ -135,6 +135,6 @@ instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) 
 -- | Lift the 'Traced' structure through 'Sym'.
 --
 -- Loop bodies are 'run' into the base arrow before tracing, just as for
--- 'Free'.
+-- @Free@.
 instance (Traced t arr, Action (,) arr, Discrete arr) => Traced t (Sym arr) where
   trace = Lift . trace . run

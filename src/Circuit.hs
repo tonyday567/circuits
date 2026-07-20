@@ -17,7 +17,7 @@
 --
 -- === Iteration
 --
--- Use the 'Either' tensor for loops that terminate.
+-- Use the `Either` tensor for loops that terminate.
 --
 -- .> let step n = if n < 5 then Left (n + 1) else Right n
 -- .> trace (either step step) (0 :: Int)
@@ -25,9 +25,9 @@
 --
 -- === Switching between representations
 --
--- 'Loop' is the inspectable GADT form. 'Hyper' is the final, coinductive
--- encoding. Convert a 'Loop' to a 'Hyper' with 'encode', and observe it
--- with 'observe' (or eliminate it with 'runHyper').
+-- `Loop` is the inspectable GADT form. @Hyper@ is the final, coinductive
+-- encoding. Convert a `Loop` to a @Hyper@ with `encode`, and observe it
+-- with `observe` (or eliminate it with `runHyper`).
 --
 -- .> observe (encode (Circuit.Loop.Lift (+1) :: Loop (,) (->) Int Int)) 41
 -- 42
@@ -36,22 +36,22 @@
 --
 -- This library provides two representations of feedback:
 --
--- * 'Loop' (in "Circuit.Loop") — the initial, inspectable GADT encoding.
--- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
+-- * `Loop` (in "Circuit.Loop") — the initial, inspectable GADT encoding.
+-- * @Hyper@ (in "Circuit.Hyper") — the final, coinductive encoding.
 --
--- The 'Traced' class (in "Circuit.Channel") abstracts the choice of tensor,
--- currently supporting lazy knots with @(,@) and iteration with 'Either'.
+-- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
+-- currently supporting lazy knots with @(,@) and iteration with `Either`.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
--- 'ambientBy' state-threading combinator, lives in "Circuit.Tensor".
+-- `ambientBy` state-threading combinator, lives in "Circuit.Tensor".
 --
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a 'Loop' (currently @(,@) or 'Either').
+--   inside a `Loop` (currently @(,@) or `Either`).
 --
 -- * __Feedback value__: The component that travels around the loop (first
---   parameter of the tensor in a 'Loop').
+--   parameter of the tensor in a `Loop`).
 --
 -- * __Payload__: The value being transformed and emitted (second parameter
 --   of the tensor).
@@ -62,17 +62,16 @@
 -- == Verb glossary
 --
 -- * __Folds__ eliminate a free construction:
---   'run' (any 'Layer'), 'freeze' ('Free' to its base arrow),
---   'melt' ('Net' to 'Loop'), 'sift' ('Net' to 'Sym'),
---   'eval' / 'evalInto' ('Syntax' via an algebra).
+--   `run` (any `Layer`), `freeze` (`Free` to its base arrow),
+--   `melt` (`Net` to `Loop`), @sift@ (`Net` to `Sym`),
+--   @eval@ / @evalInto@ (@Syntax@ via an algebra).
 --
 -- * __Injections__ embed one construction into another without eliminating:
---   'unit' (base arrow into a 'Layer'), 'enrich' ('Loop' into 'Net'),
---   'widen' ('Sym' into 'Net'), 'freeToMon' ('Free' into 'Sym'),
---   'algLoop' / 'algNet' (direct GADT into 'Syntax').
+--   `unit` (base arrow into a `Layer`), `enrich` (`Loop` into `Net`),
+--   @widen@ (`Sym` into `Net`), @algLoop@ / @algNet@ (direct GADT into @Syntax@).
 --
--- * __Representation changes__: 'encode' ('Loop' to 'Hyper'),
---   'observe' / 'runHyper' ('Hyper' to function / fixed point).
+-- * __Representation changes__: `encode` (`Loop` to @Hyper@),
+--   `observe` / `runHyper` (@Hyper@ to function / fixed point).
 module Circuit
   ( -- * Loop
     Loop (..),

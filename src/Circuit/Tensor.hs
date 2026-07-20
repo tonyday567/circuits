@@ -40,6 +40,12 @@ module Circuit.Tensor
     Unit,
     Tensor (..),
     Action (..),
+
+    -- * Cartesian / cocartesian associators
+    assocL,
+    assocR,
+    coassoc,
+    coassoc',
   )
 where
 
@@ -165,16 +171,16 @@ coseed s = bimap (s,) (s,)
 
 -- | If the left branch is taken, move a value from the payload into the state wire.
 --
--- .> coabsorbL (+) (Left (10, (3, 'x')) :: Either (Int, (Int, Char)) Bool)
--- Left (13,'x')
+-- .> coabsorbL (+) (Left (10, (3, 7)) :: Either (Int, (Int, Int)) Bool)
+-- Left (13,7)
 coabsorbL :: (t -> s -> s') -> Either (s, (t, a)) b -> Either (s', a) b
 coabsorbL f (Left (s, (t, a))) = Left (f t s, a)
 coabsorbL _ (Right b) = Right b
 
 -- | If the right branch is taken, move a value from the payload into the state wire.
 --
--- .> coabsorbR (+) (Right (10, (3, 'x')) :: Either Bool (Int, (Int, Char)))
--- Right (13,'x')
+-- .> coabsorbR (+) (Right (10, (3, 7)) :: Either Bool (Int, (Int, Int)))
+-- Right (13,7)
 coabsorbR :: (t -> s -> s') -> Either a (s, (t, b)) -> Either a (s', b)
 coabsorbR f (Right (s, (t, b))) = Right (f t s, b)
 coabsorbR _ (Left a) = Left a
@@ -298,7 +304,7 @@ instance Action (,) (->) where
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
 
--- | Cartesian tensor on 'Kleisli' (effectful sequential product).
+-- | Cartesian tensor on @Kleisli@ (effectful sequential product).
 instance (Monad m) => Tensor (,) (Kleisli m) where
   par (Kleisli f) (Kleisli g) =
     Kleisli $ \(a, c) -> do
@@ -350,7 +356,7 @@ instance Action Either (->) where
     Right b -> Left b
   {-# INLINE swap #-}
 
--- | Coproduct tensor action on 'Kleisli' @m@.
+-- | Coproduct tensor action on @Kleisli@ @m@.
 --
 -- .> import Control.Arrow (Kleisli(..), runKleisli)
 -- .> let f = Kleisli (\n -> pure (n + 1)) :: Kleisli IO Int Int
@@ -374,7 +380,7 @@ instance (Monad m) => Tensor Either (Kleisli m) where
   unitr' = Kleisli $ pure . Left
   {-# INLINE unitr' #-}
 
--- | Coproduct symmetry on 'Kleisli' @m@.
+-- | Coproduct symmetry on @Kleisli@ @m@.
 instance (Monad m) => Action Either (Kleisli m) where
   swap = Kleisli $ pure . swap
   {-# INLINE swap #-}
@@ -418,8 +424,8 @@ instance (Action t arr, Traced t' arr, Discrete arr) => Action t (Loop t' arr) w
 -- .> Circuit.Layer.run (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
--- The same fusion works for 'Kleisli', preserving sharing across the
--- recursive channels under 'MonadFix'.
+-- The same fusion works for @Kleisli@, preserving sharing across the
+-- recursive channels under @MonadFix@.
 --
 -- .> let k1 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (Kleisli Identity) [Int] [Int]
 -- .> let k2 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))

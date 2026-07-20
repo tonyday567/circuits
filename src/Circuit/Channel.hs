@@ -16,7 +16,7 @@
 --
 -- This module collects the structural superclass chain
 -- @Channel → Strength → Traced@ and all base instances for the standard
--- base arrows @(->)@ and @'Control.Arrow.Kleisli' m@.  These classes
+-- base arrows @(->)@ and @Control.Arrow.Kleisli m@.  These classes
 -- describe the monoidal structure, tensorial strength, and feedback-fixing
 -- trace that underlie the syntax in "Circuit.Loop".
 --
@@ -24,8 +24,8 @@
 -- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
 -- names but the opposite directions. Also, 'slide' here is the slide
 -- @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
--- lives in 'Circuit.Tensor' as 'swap'. Where both structures exist,
--- @slide = assoc' '.>' par swap id '.>' assoc@.
+-- lives in Circuit.Tensor as swap. Where both structures exist,
+-- @slide = assoc' .> par swap id .> assoc@.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 module Circuit.Channel
@@ -172,7 +172,7 @@ instance Strength Either (->) where
 -- It extends the 'Strength' structure with the feedback-fixing operation.
 --
 -- Object constraints on the feedback channel (@a@) let constrained
--- categories (e.g. matrices needing 'Finite' / 'KnownNat') instance
+-- categories (e.g. matrices needing @Finite@ / @KnownNat@) instance
 -- this class lawfully.
 class (Strength t arr) => Traced t arr where
   trace ::
@@ -324,13 +324,13 @@ instance Traced Either (->) where
 -- Kleisli m — monoidal structure
 -- ===========================================================================
 
--- | Cartesian monoidal structure for 'Kleisli' @m@ with @(,)@.
+-- | Cartesian monoidal structure for @Kleisli m@ with @(,)@.
 instance (Monad m) => Channel (,) (Kleisli m) where
   assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
   slide = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
--- | Cocartesian monoidal structure for 'Kleisli' @m@ with 'Either'.
+-- | Cocartesian monoidal structure for @Kleisli m@ with 'Either'.
 instance (Monad m) => Channel Either (Kleisli m) where
   assoc = Kleisli $ \case
     Left (Left a) -> pure (Left a)
@@ -347,7 +347,7 @@ instance (Monad m) => Channel Either (Kleisli m) where
 
 -- * Kleisli m (,) — lazy knot via MonadFix
 
--- | Traced for 'Kleisli' @m@ with the cartesian tensor, requiring @'MonadFix' m@.
+-- | Traced for @Kleisli m@ with the cartesian tensor, requiring @MonadFix m@.
 --
 -- The lazy knot is tied via 'mfix'. The feedback channel is lazy in the
 -- recursive binding — the body must not force the feedback value before
@@ -379,7 +379,7 @@ instance (MonadFix m) => Traced (,) (Kleisli m) where
 
 -- * Kleisli m Either — iteration for any Monad
 
--- | Traced for 'Kleisli' @m@ with the 'Either' tensor, for any @'Monad' m@.
+-- | Traced for @Kleisli m@ with the 'Either' tensor, for any @Monad m@.
 --
 -- Iterates by feeding 'Left' back into the step function until a 'Right'
 -- is produced. Uses plain recursion — builds stack proportional to
@@ -396,7 +396,7 @@ instance (MonadFix m) => Traced (,) (Kleisli m) where
 -- 3
 --
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
--- priority for 'IO', providing constant-stack iteration via delimited
+-- priority for @IO@, providing constant-stack iteration via delimited
 -- continuations.
 instance (Monad m) => Strength Either (Kleisli m) where
   strength (Kleisli f) =
@@ -437,7 +437,7 @@ control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- | Traced for 'Kleisli' 'IO' with 'Either' tensor.
+-- | Traced for @Kleisli IO@ with 'Either' tensor.
 --
 -- Each iteration re-establishes the prompt boundary. When @control0@
 -- fires on @Left a@, it captures the continuation, wraps it around
