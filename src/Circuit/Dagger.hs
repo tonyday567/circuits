@@ -38,15 +38,14 @@ module Circuit.Dagger
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
-import Circuit.Channel (Channel (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Loop (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
--- >>> import Circuit.Loop (Traced (..))
+-- >>> import Circuit.Channel (Traced (..))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Prelude hiding (id, (.))
 

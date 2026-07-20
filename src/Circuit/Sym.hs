@@ -33,9 +33,8 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run, (:~>))
-import Circuit.Channel (Channel (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Loop (Strength (..), Traced (..))
 import Prelude hiding (id, (.))
 
 -- $setup

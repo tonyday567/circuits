@@ -1,5 +1,13 @@
 # Revision history for circuits
 
+## 0.2.0.0 — current
+
+*BREAKING: **Structural semantics move to `Circuit.Channel`.** The `Channel`,
+`Strength`, and `Traced` classes and all base instances for `(->)` and
+`Kleisli m` now live in `Circuit.Channel`. `Circuit.Strength` is removed.
+`Circuit.Loop` retains only the `Loop` GADT, its structural instances, the
+`FreeLoop` witness, and `cellIO`.*
+
 ## 0.2.0.0 — 2026-07-09
 
 *BREAKING: **The GADT is renamed from `Circuit` to `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructors are now `Arr` (plain base arrow) and `Knot` (feedback loop). The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*

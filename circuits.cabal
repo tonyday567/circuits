@@ -78,7 +78,6 @@ library
     Circuit.Channel
     Circuit.Net
     Circuit.Queue
-    Circuit.Strength
     Circuit.Tensor
     Circuit.Loop
 

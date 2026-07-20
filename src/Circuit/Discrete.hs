@@ -26,9 +26,7 @@ module Circuit.Discrete
 where
 
 import Circuit.Category (Category (..), Discrete (..))
-import Circuit.Channel (Channel (..))
-import Circuit.Strength (Strength (..), strengthD)
-import Circuit.Loop (Traced (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..), strengthD)
 import Prelude hiding (id, (.))
 
 -- | Discrete composition: compose two arrows while discharging 'Ob'

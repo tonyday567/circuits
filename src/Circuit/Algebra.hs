@@ -96,10 +96,9 @@ where
 import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
-import Circuit.Channel (Channel (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Net qualified as N
-import Circuit.Loop (Strength (..), Traced (..))
 import Circuit.Loop qualified as C
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))

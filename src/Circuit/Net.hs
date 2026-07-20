@@ -50,8 +50,8 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), (:~>))
 import Circuit.Layer qualified as Layer
 import Circuit.Sym qualified as M
+import Circuit.Channel (Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
-import Circuit.Loop (Traced (..))
 import Circuit.Loop qualified as C
 import Data.Kind (Type)
 import Prelude hiding (id, (.))

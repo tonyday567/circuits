@@ -39,7 +39,7 @@
 -- * 'Loop' (in "Circuit.Loop") — the initial, inspectable GADT encoding.
 -- * 'Hyper' (in "Circuit.Hyper") — the final, coinductive encoding.
 --
--- The 'Traced' class (in "Circuit.Loop") abstracts the choice of tensor,
+-- The 'Traced' class (in "Circuit.Channel") abstracts the choice of tensor,
 -- currently supporting lazy knots with @(,@) and iteration with 'Either'.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
@@ -246,24 +246,22 @@ import Circuit.Queue
     openSTM,
   )
 import Circuit.Category (Ob)
-import Circuit.Loop
-  ( Loop (..),
-    Traced,
-    Strength,
-  )
+import Circuit.Channel (Strength, Traced)
+import Circuit.Channel qualified as Channel
+import Circuit.Loop (Loop (..))
 import Circuit.Loop qualified as Loop
 import Prelude
 
--- | Close a feedback loop. See "Circuit.Loop".
+-- | Close a feedback loop. See "Circuit.Channel".
 trace ::
   (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr (t a b) (t a c) ->
   arr b c
-trace = Loop.trace
+trace = Channel.trace
 
--- | Open a feedback loop. See "Circuit.Loop".
+-- | Open a feedback loop. See "Circuit.Channel".
 strength ::
   (Strength t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
   arr b c ->
   arr (t a b) (t a c)
-strength = Loop.strength
+strength = Channel.strength

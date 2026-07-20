@@ -35,10 +35,13 @@ Recommended reading order for the source (core concepts first):
 ```
 Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
                       'Discrete', and composition helpers.
-Circuit.Loop       — Trace GADT (Lift, Knot), the Traced class, the
-                      Strength superclass, channel ends, and base
-                      instances: (,) lazy knot, Either iteration, Kleisli
-                      IO via delimited continuations, cellIO helper.
+Circuit.Channel    — Structural semantics chain: Channel, Strength,
+                      Traced, plus all base instances for (->) and
+                      Kleisli m (lazy knot, Either iteration, Kleisli IO
+                      via delimited continuations).
+Circuit.Loop       — Loop GADT (Lift, Knot) in normal form, its
+                      Category/Channel/Strength/Traced instances, cellIO
+                      helper, and the Layer witness.
 Circuit.Monoidal    — Monoidal superclass (associator + braiding) for traced
                       categories.
 Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over the
@@ -59,8 +62,10 @@ Circuit             — umbrella re-export. This is the recommended import
                       available when you need to be very precise about scope.
 ```
 
-`Hyper` imports `Circuit.Loop` for the GADT constructors. `Traced` depends
-only on `GHC.Exts` (prompt#/control0#) under GHC.
+`Hyper` imports `Circuit.Loop` for the GADT constructors and
+`Circuit.Channel` for the `Traced`/`Strength` classes. `Traced` depends
+only on `GHC.Exts` (prompt#/control0#) under GHC, encapsulated in
+`Circuit.Channel`.
 
 ## build and test
 

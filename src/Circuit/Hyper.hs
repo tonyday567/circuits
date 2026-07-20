@@ -35,8 +35,8 @@ where
 import Circuit.Category (Category (..), Discrete (..), (>>>))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
-import Circuit.Channel (Channel (..))
-import Circuit.Loop (Strength (..), Loop (..), Traced (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Loop (Loop (..))
 import Prelude hiding (id, (.))
 import Data.Profunctor
 
@@ -44,7 +44,8 @@ import Data.Profunctor
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..), Discrete (..), (>>>))
 -- >>> import Data.Profunctor
--- >>> import Circuit.Loop (Loop (..), Traced (..))
+-- >>> import Circuit.Channel (Traced (..))
+-- >>> import Circuit.Loop (Loop (..))
 -- >>> import Circuit.Layer (run)
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
@@ -148,7 +149,7 @@ runHyper h = invoke h (Hyper runHyper)
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
 --
--- >>> import Circuit.Loop (Traced (..))
+-- >>> import Circuit.Channel (Traced (..))
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> observe (trace body) ()
 -- [0,0,0]
