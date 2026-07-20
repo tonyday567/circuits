@@ -12,6 +12,12 @@
 `box`, `boxAsymmetric`, `Queue(..)`, `openSTM`, and `openIO` now live in and
 are re-exported from `Circuit.Ends`.*
 
+*BREAKING: **API trim.** `cellIO`, `openCollectSTM`, `openCollectIO`,
+`openBatchSTM`, and `openBatchMaybeSTM` are removed from the core library;
+`cellIO` moves to a `circuits-examples` card. `Circuit.Channel` no longer
+exports delimited-continuation internals. `Circuit.Tensor` no longer exports
+cartesian/cocartesian plumbing helpers.*
+
 ## 0.2.0.0 — 2026-07-09
 
 *BREAKING: **The GADT is renamed from `Circuit` to `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructors are now `Arr` (plain base arrow) and `Knot` (feedback loop). The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*
