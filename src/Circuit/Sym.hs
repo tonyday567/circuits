@@ -20,7 +20,6 @@
 -- The tensor is fixed to @(,)@, matching 'Circuit.Tensor.Action'.
 module Circuit.Sym
   ( Sym (..),
-    freeToMon,
 
     -- * Free monoidal constraint
     FreeSym,
@@ -28,15 +27,12 @@ module Circuit.Sym
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
-import Circuit.Free (Free)
-import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Free qualified as Fr
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Prelude hiding (id, (.))
@@ -131,18 +127,6 @@ instance Layer Sym where
                   withOb @arr' @d $
                     par (bind h f) (bind h g)
   bind _ Swap = swap
-
--- | Include a 'Free' category into 'Sym'.
---
--- 'Free' is the sequential fragment of 'Sym'; this is the constructor-to-
--- constructor injection @Free ↪ Sym@.
---
--- >>> let f = Fr.Compose (Fr.Lift (+1)) (Fr.Lift (*2)) :: Fr.Free (->) Int Int
--- >>> run (freeToMon f) 5
--- 11
-freeToMon :: Free arr a b -> Sym arr a b
-freeToMon (Fr.Lift f) = Lift f
-freeToMon (Fr.Compose g f) = Compose (freeToMon g) (freeToMon f)
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where
