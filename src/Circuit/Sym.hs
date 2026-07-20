@@ -21,7 +21,6 @@
 module Circuit.Sym
   ( Sym (..),
     freeToMon,
-    monTranspose,
 
     -- * Free monoidal constraint
     FreeSym,
@@ -29,7 +28,6 @@ module Circuit.Sym
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
-import Circuit.Dagger qualified as Dg
 import Circuit.Free (Free)
 import Circuit.Free qualified as Fr
 import Circuit.Layer (Layer (..), run, (:~>))
@@ -38,7 +36,6 @@ import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Free qualified as Fr
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
@@ -146,22 +143,6 @@ instance Layer Sym where
 freeToMon :: Free arr a b -> Sym arr a b
 freeToMon (Fr.Lift f) = Lift f
 freeToMon (Fr.Compose g f) = Compose (freeToMon g) (freeToMon f)
-
--- | 'Sym' over a 'Dg.Dagger' base is self-dual: reverse 'Compose',
--- transpose 'Par' componentwise, and leave 'Swap' fixed.
---
--- Law: @monTranspose . monTranspose = id@.
---
--- >>> let m = Lift (Dg.Dagger (*2) (\x -> x `div` 2)) `Compose` Lift (Dg.Dagger (+1) (subtract 1)) :: Sym (Dg.Dagger (->)) Int Int
--- >>> Dg.front (run (monTranspose m)) 10
--- 4
-monTranspose ::
-  Sym (Dg.Dagger arr) a b ->
-  Sym (Dg.Dagger arr) b a
-monTranspose (Lift (Dg.Dagger f g)) = Lift (Dg.Dagger g f)
-monTranspose (Compose g f) = Compose (monTranspose f) (monTranspose g)
-monTranspose (Par f g) = Par (monTranspose f) (monTranspose g)
-monTranspose Swap = Swap
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where

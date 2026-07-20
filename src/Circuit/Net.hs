@@ -219,8 +219,6 @@ enrich (C.Knot f) = Knot (Lift f)
 -- >>> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
 -- >>> Dg.front (run (transpose (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
--- >>> Dg.front (run (widen (M.monTranspose dm) :: Net (,) (Dg.Dagger (->)) Int Int)) 10
--- 4
 widen :: M.Sym arr a b -> Net t arr a b
 widen (M.Lift f) = Lift f
 widen (M.Compose g f) = Compose (widen g) (widen f)
