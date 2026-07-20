@@ -47,12 +47,13 @@ family attaches to each syntax constructor:
 `Loop → Net` is `enrich` — embedding the normal form into inspectable wiring.
 `melt` (the forgetful fold `Net → Loop`) is one of many folds and is not drawn.
 
-`Ends` (including boxes and queues), `Hyper`, and `Dagger` are deliberately
-omitted from this core structure diagram.
+`Ends`, `Hyper`, and `Dagger` are deliberately omitted from this core
+structure diagram.
 
 ## semantic and syntax streams
 
-Same structure with the Law/construction dashed lines removed:
+Same structure with the Law/construction dashed lines removed, plus the
+auxiliary `Ends`, `Hyper`, and `Dagger` streams:
 
 ```mermaid
 graph LR
@@ -68,38 +69,52 @@ graph LR
   Net["Net"]
   Loop["Loop"]
 
+  Hyper["Hyper"]
+  Dagger["Dagger"]
+  Ends["Ends"]
+
   Category --> Channel --> Strength --> Traced
   Category --> Tensor --> Action
   Free --> Sym --> Net
   Loop --> Net
+  Loop --> Hyper
+  Dagger --> Net
+  Ends --> Loop
 ```
 
 ## module view
 
-Transparent boxes group the two enrichment zones by module:
+Transparent boxes group the two enrichment zones by module. Singleton modules
+are labeled by module name only:
 
 ```mermaid
 graph LR
-  CategoryMod["Circuit.Category<br/>Category"]
+  Category["Circuit.Category"]
 
-  subgraph ChannelMod ["Circuit.Channel"]
-    Channel["Channel"]
+  subgraph Channel ["Circuit.Channel"]
+    ChannelClass["Channel"]
     Strength["Strength"]
     Traced["Traced"]
   end
 
-  subgraph TensorMod ["Circuit.Tensor"]
-    Tensor["Tensor"]
+  subgraph Tensor ["Circuit.Tensor"]
+    TensorClass["Tensor"]
     Action["Action"]
   end
 
-  FreeMod["Circuit.Free<br/>Free"]
-  SymMod["Circuit.Sym<br/>Sym"]
-  NetMod["Circuit.Net<br/>Net"]
-  LoopMod["Circuit.Loop<br/>Loop"]
+  Free["Circuit.Free"]
+  Sym["Circuit.Sym"]
+  Net["Circuit.Net"]
+  Loop["Circuit.Loop"]
+  Hyper["Circuit.Hyper"]
+  Dagger["Circuit.Dagger"]
+  Ends["Circuit.Ends"]
 
-  CategoryMod --> Channel --> Strength --> Traced
-  CategoryMod --> Tensor --> Action
-  FreeMod --> SymMod --> NetMod
-  LoopMod --> NetMod
+  Category --> ChannelClass --> Strength --> Traced
+  Category --> TensorClass --> Action
+  Free --> Sym --> Net
+  Loop --> Net
+  Loop --> Hyper
+  Dagger --> Net
+  Ends --> Loop
 ```
