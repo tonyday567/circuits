@@ -1,5 +1,7 @@
 # circuits — API structure
 
+## class relationships
+
 ```mermaid
 graph LR
   Category["Category"]
@@ -47,3 +49,57 @@ family attaches to each syntax constructor:
 
 `Ends`, `Box`/`Queue`, `Hyper`, and `Dagger` are deliberately omitted from this
 core structure diagram.
+
+## semantic and syntax streams
+
+Same structure with the Law/construction dashed lines removed:
+
+```mermaid
+graph LR
+  Category["Category"]
+  Channel["Channel"]
+  Strength["Strength"]
+  Traced["Traced"]
+  Tensor["Tensor"]
+  Action["Action"]
+
+  Free["Free"]
+  Sym["Sym"]
+  Net["Net"]
+  Loop["Loop"]
+
+  Category --> Channel --> Strength --> Traced
+  Category --> Tensor --> Action
+  Free --> Sym --> Net
+  Loop --> Net
+```
+
+## module view
+
+Transparent boxes group the two enrichment zones by module:
+
+```mermaid
+graph LR
+  CategoryMod["Circuit.Category<br/>Category"]
+
+  subgraph ChannelMod ["Circuit.Channel"]
+    Channel["Channel"]
+    Strength["Strength"]
+    Traced["Traced"]
+  end
+
+  subgraph TensorMod ["Circuit.Tensor"]
+    Tensor["Tensor"]
+    Action["Action"]
+  end
+
+  FreeMod["Circuit.Free<br/>Free"]
+  SymMod["Circuit.Sym<br/>Sym"]
+  NetMod["Circuit.Net<br/>Net"]
+  LoopMod["Circuit.Loop<br/>Loop"]
+
+  CategoryMod --> Channel --> Strength --> Traced
+  CategoryMod --> Tensor --> Action
+  FreeMod --> SymMod --> NetMod
+  LoopMod --> NetMod
+```
