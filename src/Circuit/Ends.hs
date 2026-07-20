@@ -1,7 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
--- | Free channel ends over a base arrow.
+-- | Free channel ends over a base arrow, plus concrete box and queue helpers.
 --
 -- A channel has exactly two ends:
 --
@@ -15,6 +16,14 @@
 -- The unit @η@ is 'open', producing a matched pair; the counit @ε@ is
 -- 'close', plugging the pair back together by feeding the 'Out' into the
 -- 'In'.
+--
+-- This module also provides the concrete helpers built on top of channel
+-- ends:
+--
+--   * 'box' and 'boxAsymmetric' — embed an 'Ends' into a plain 'Loop'.
+--   * 'Queue' strategies and STM / IO 'Ends' constructors ('openSTM',
+--     'openIO', 'openCollectSTM', 'openCollectIO', 'openBatchSTM',
+--     'openBatchMaybeSTM').
 module Circuit.Ends
   ( -- * Channel ends (bi-polar contract)
     Out (..),
@@ -42,16 +51,52 @@ module Circuit.Ends
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
 
+    -- * Boxes
+    box,
+    boxAsymmetric,
+
+    -- * Queue strategies
+    Queue (..),
+
+    -- * STM 'Ends'
+    openSTM,
+
+    -- * IO 'Ends'
+    openIO,
+
+    -- * STM collector 'Ends'
+    openCollectSTM,
+
+    -- * IO collector 'Ends'
+    openCollectIO,
+
+    -- * Batch queues
+    openBatchSTM,
+    openBatchMaybeSTM,
+
+    -- * Raw list-buffer primitives
+    pushAll,
+    pop,
+    popMaybe,
   )
 where
 
 import Circuit.Category (Category (..), Discrete (..), (>>>))
+import Circuit.Loop (Loop (..))
+import Circuit.Tensor (Tensor (..), Unit)
+import Control.Applicative
 import Control.Arrow (Kleisli (..))
+import Control.Concurrent.STM
+import Control.Monad (void)
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> :set -XTypeApplications
 -- >>> import Circuit.Category ((>>>))
 -- >>> import Circuit.Ends
+-- >>> import Circuit.Layer (run)
+-- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> import Control.Concurrent.STM (STM, TVar, atomically, newTVar)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
@@ -243,3 +288,283 @@ instance (Monad m) => HasUnit () (Kleisli m) where
     where
       outU = Out $ \_ -> Kleisli $ \_ -> pure ()
       inU = In $ \o -> emit o inU
+
+-- ---------------------------------------------------------------------------
+-- Boxes
+-- ---------------------------------------------------------------------------
+
+-- | String-diagram boxes from channel ends.
+--
+-- A matched pair of free ends ('Ends') is a box with one input wire and
+-- one output wire.  The helpers below embed that box into a traced
+-- monoidal category by unit-plugging the remaining two slots.
+
+-- | Embed an 'Ends' into a plain @Loop t arr a b@.
+--
+-- Connects the two channel ends through the unit object, giving a plain
+-- @Loop t arr a b@. This is the version most users expect: input on the
+-- left, output on the right, with the unit plumbing hidden.
+--
+-- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- >>> run (box @(,) e) ()
+-- 42
+box ::
+  forall t arr a b.
+  (HasUnit (Unit t) arr, Ob arr a, Ob arr b, Ob arr (Unit t)) =>
+  Ends arr a b ->
+  Loop t arr a b
+box ends' =
+  Lift $
+    commit (conjoint ends') (companion (open :: Ends arr (Unit t) (Unit t)))
+      >>> emit (companion ends') (conjoint (open :: Ends arr (Unit t) (Unit t)))
+
+-- | Asymmetric box with units exposed on opposite sides.
+--
+-- Uses 'par' at the base arrow level and lifts the result with 'Lift'.
+-- The input carries the unit on the right and the output carries the unit
+-- on the left; most users will prefer the unit-normalised 'box'.
+--
+-- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- >>> run (boxAsymmetric @(,) e) ((), ())
+-- ((),42)
+boxAsymmetric ::
+  forall t arr a b.
+  (HasUnit (Unit t) arr, Tensor t arr) =>
+  Ends arr a b ->
+  Loop t arr (t a (Unit t)) (t (Unit t) b)
+boxAsymmetric ends' =
+  Lift $
+    par
+      (commit (conjoint ends') (companion open))
+      (emit (companion ends') (conjoint open))
+
+-- ---------------------------------------------------------------------------
+-- Queue strategies and STM 'Ends'
+-- ---------------------------------------------------------------------------
+
+-- | How messages are queued between producer and consumer.
+data Queue a
+  = -- | Unbounded FIFO queue.
+    Unbounded
+  | -- | Bounded FIFO with backpressure (write blocks when full).
+    Bounded Int
+  | -- | Single-slot buffer (write blocks when full).
+    Single
+  | -- | Single-slot buffer, overwrite-on-full.
+    -- Write always succeeds; read empties.
+    SwapQ
+  | -- | Always holds the latest value (overwrites, never blocks).
+    Latest a
+  | -- | Like 'Bounded' but drops oldest when full.
+    Newest Int
+  deriving (Show, Eq)
+
+-- ---------------------------------------------------------------------------
+-- STM ends
+-- ---------------------------------------------------------------------------
+
+-- | Internal STM primitive for a queue strategy.
+--
+-- Returns the raw write/read actions used by 'openSTM'.  Not exported;
+-- the canonical API is 'openSTM'.
+endsSTM :: Queue a -> STM (a -> STM (), STM a)
+endsSTM = \case
+  Bounded n -> do
+    q <- newTBQueue (fromIntegral n)
+    pure (writeTBQueue q, readTBQueue q)
+  Unbounded -> do
+    q <- newTQueue
+    pure (writeTQueue q, readTQueue q)
+  Single -> do
+    m <- newEmptyTMVar
+    pure (putTMVar m, takeTMVar m)
+  SwapQ -> do
+    v <- newEmptyTMVar
+    let write x = tryPutTMVar v x >>= \case True -> pure (); False -> void (swapTMVar v x)
+    pure (write, takeTMVar v)
+  Latest a -> do
+    t <- newTVar a
+    pure (writeTVar t, readTVar t)
+  Newest n -> do
+    q <- newTBQueue (fromIntegral n)
+    let write x = writeTBQueue q x <|> (tryReadTBQueue q *> write x)
+    pure (write, readTBQueue q)
+
+-- ---------------------------------------------------------------------------
+-- IO 'Ends'
+-- ---------------------------------------------------------------------------
+
+-- | Open a queue strategy as STM 'Ends'.
+--
+-- Allocates STM primitives and returns a matched pair of ends sharing
+-- the same mutable channel.  Both ends live in 'STM', so you can compose
+-- operations across channels in a single 'atomically' block.
+--
+-- === Unbounded
+--
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 42
+--
+-- Multi-op compose in one 'atomically' (both writes + read):
+--
+-- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 1
+--
+-- 'close' recovers the value through the queue:
+--
+-- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
+-- >>> atomically $ runKleisli (close (conjoint ends) (companion ends)) 7
+-- 7
+--
+-- === SwapQ (overwrite on write)
+--
+-- >>> ends <- atomically (openSTM SwapQ :: STM (Ends (Kleisli STM) Int Int))
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 2
+openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
+openSTM q = do
+  (write, read') <- endsSTM q
+  pure (endsK write read')
+
+-- | Open a queue strategy as IO 'Ends'.
+--
+-- Like 'openSTM', but each primitive operation is wrapped in its own
+-- 'atomically'.  You cannot batch multiple writes or a write-plus-read
+-- into a single STM transaction; for that use 'openSTM' and wrap in
+-- 'atomically' yourself.
+--
+-- >>> let endsU = open :: Ends (Kleisli IO) () ()
+-- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+-- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
+-- >>> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 42
+openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
+openIO q = do
+  e <- atomically (openSTM q)
+  let (Kleisli write, Kleisli receive) = toActions e
+  pure (endsK (atomically . write) (atomically (receive ())))
+
+-- ---------------------------------------------------------------------------
+-- Collector ends
+-- ---------------------------------------------------------------------------
+
+-- | Drain every element currently readable by a single-value 'Out' end.
+--
+-- The read action is assumed to retry when the buffer is empty;
+-- 'orElse' (via the 'Alternative' instance for 'STM') catches that retry
+-- and terminates the list.  Strategies whose read never retries (e.g.
+-- 'Latest') are not suitable for collection.
+--
+-- This is a compositional transformer on 'Out' ends: it turns an
+-- @'Out' ('Kleisli' STM) a@ into an @'Out' ('Kleisli' STM) [a]@ without
+-- reaching behind the 'Ends' abstraction.
+collectOut :: Out (Kleisli STM) a -> Out (Kleisli STM) [a]
+collectOut o = Out $ \i -> Kleisli $ \x -> drain (runKleisli (emit o i) x)
+  where
+    drain r = (r >>= \y -> (y :) <$> drain r) `orElse` pure []
+
+-- | Open a queue strategy as a collector 'Ends'.
+--
+-- Single @a@s go in through 'commit'; the accumulated @[a]@ is drained
+-- through 'emit'.  The read clears the buffer, so each 'emit' returns only
+-- the elements written since the last read.
+--
+-- Built compositionally from 'openSTM' and 'collectOut'.
+--
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> ends <- atomically (openCollectSTM Unbounded :: STM (Ends (Kleisli STM) Int [Int]))
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 2
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 3
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- [1,2,3]
+openCollectSTM :: Queue a -> STM (Ends (Kleisli STM) a [a])
+openCollectSTM q = (\e -> Ends (conjoint e) (collectOut (companion e))) <$> openSTM q
+
+-- | Open a queue strategy as an IO collector 'Ends'.
+--
+-- Like 'openCollectSTM', but each operation is wrapped in its own
+-- 'atomically'.  The collector drain is still an STM transaction, so this
+-- allocates the raw STM actions and wraps them in IO.
+--
+-- >>> let endsU = open :: Ends (Kleisli IO) () ()
+-- >>> ends <- openCollectIO Unbounded :: IO (Ends (Kleisli IO) Int [Int])
+-- >>> runKleisli (commit (conjoint ends) (companion endsU)) 1
+-- >>> runKleisli (commit (conjoint ends) (companion endsU)) 2
+-- >>> runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- [1,2]
+openCollectIO :: Queue a -> IO (Ends (Kleisli IO) a [a])
+openCollectIO q = do
+  e <- atomically (openCollectSTM q)
+  let (Kleisli write, Kleisli receive) = toActions e
+  pure (endsK (atomically . write) (atomically (receive ())))
+
+-- ---------------------------------------------------------------------------
+-- Batch queues
+-- ---------------------------------------------------------------------------
+
+-- | Batch collector: write lists, read single elements.
+--
+-- Unlike the strategy-based queues above, this is a direct STM
+-- implementation of a list-backed buffer.  The write end consumes a whole
+-- @[a]@ at once; the read end pops one element at a time.
+--
+-- The buffer is supplied by the caller as a 'TVar' [a]; the constructors
+-- are pure morphisms on that buffer.
+
+-- | Append a whole list to the back of a list-buffer.
+pushAll :: TVar [a] -> [a] -> STM ()
+pushAll buf as = modifyTVar' buf (++ as)
+
+-- | Pop one element from the front of a list-buffer, returning 'Nothing'
+-- when empty.
+popMaybe :: TVar [a] -> STM (Maybe a)
+popMaybe buf =
+  readTVar buf >>= \case
+    [] -> pure Nothing
+    (a : as') -> writeTVar buf as' >> pure (Just a)
+
+-- | Pop one element from the front of a list-buffer, retrying when empty.
+pop :: TVar [a] -> STM a
+pop buf =
+  popMaybe buf >>= \case
+    Nothing -> retry
+    Just a -> pure a
+
+-- | Open a batch queue with blocking single-element reads.
+--
+-- 'commit' appends a whole list to the buffer; 'emit' pops the head,
+-- retrying when the buffer is empty.
+--
+-- >>> buf <- atomically (newTVar [] :: STM (TVar [Int]))
+-- >>> let ends = openBatchSTM buf
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) [1,2,3]
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 1
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- 2
+openBatchSTM :: TVar [a] -> Ends (Kleisli STM) [a] a
+openBatchSTM buf = endsK (pushAll buf) (pop buf)
+
+-- | Open a batch queue with non-blocking single-element reads.
+--
+-- 'commit' appends a whole list to the buffer; 'emit' pops the head and
+-- returns 'Just' it, or 'Nothing' when the buffer is empty.
+--
+-- >>> let endsU = open :: Ends (Kleisli STM) () ()
+-- >>> buf <- atomically (newTVar [] :: STM (TVar [Int]))
+-- >>> let ends = openBatchMaybeSTM buf
+-- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) [1,2]
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Just 1
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Just 2
+-- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
+-- Nothing
+openBatchMaybeSTM :: TVar [a] -> Ends (Kleisli STM) [a] (Maybe a)
+openBatchMaybeSTM buf = endsK (pushAll buf) (popMaybe buf)

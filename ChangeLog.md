@@ -8,6 +8,11 @@
 `Circuit.Loop` retains only the `Loop` GADT, its structural instances, the
 `FreeLoop` witness, and `cellIO`.*
 
+*BREAKING: **`Circuit.Box` and `Circuit.Queue` are merged into `Circuit.Ends`.**
+`box`, `boxAsymmetric`, `Queue(..)`, `openSTM`, `openIO`, `openCollectSTM`,
+`openCollectIO`, `openBatchSTM`, `openBatchMaybeSTM`, `pushAll`, `pop`, and
+`popMaybe` now live in and are re-exported from `Circuit.Ends`.*
+
 ## 0.2.0.0 — 2026-07-09
 
 *BREAKING: **The GADT is renamed from `Circuit` to `Trace`.** The previous name `Circuit` is retired to the library-level metaphor. Constructors are now `Arr` (plain base arrow) and `Knot` (feedback loop). The trace class is renamed from `Trace` to `Traced`. Type parameter order is now tensor-first: `Trace t arr a b` and `Net t arr a b`.*

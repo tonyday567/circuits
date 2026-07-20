@@ -47,8 +47,8 @@ family attaches to each syntax constructor:
 `Loop → Net` is `enrich` — embedding the normal form into inspectable wiring.
 `melt` (the forgetful fold `Net → Loop`) is one of many folds and is not drawn.
 
-`Ends`, `Box`/`Queue`, `Hyper`, and `Dagger` are deliberately omitted from this
-core structure diagram.
+`Ends` (including boxes and queues), `Hyper`, and `Dagger` are deliberately
+omitted from this core structure diagram.
 
 ## semantic and syntax streams
 

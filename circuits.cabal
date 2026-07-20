@@ -66,7 +66,6 @@ library
   exposed-modules:
     Circuit
     Circuit.Algebra
-    Circuit.Box
     Circuit.Category
     Circuit.Dagger
     Circuit.Discrete
@@ -77,7 +76,6 @@ library
     Circuit.Sym
     Circuit.Channel
     Circuit.Net
-    Circuit.Queue
     Circuit.Tensor
     Circuit.Loop
 

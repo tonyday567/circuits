@@ -176,10 +176,6 @@ module Circuit
   )
 where
 
-import Circuit.Box
-  ( box,
-    boxAsymmetric,
-  )
 import Circuit.Discrete
   ( assocD,
     assocD',
@@ -200,12 +196,19 @@ import Circuit.Ends
     HasUnit (..),
     In (..),
     Out (..),
+    box,
+    boxAsymmetric,
     close,
     ends,
     endsK,
     prefixIn,
     suffixOut,
     toActions,
+    Queue (..),
+    openCollectIO,
+    openCollectSTM,
+    openIO,
+    openSTM,
   )
 import Circuit.Free
   ( Free (..),
@@ -237,13 +240,6 @@ import Circuit.Net
   ( Net,
     enrich,
     melt,
-  )
-import Circuit.Queue
-  ( Queue (..),
-    openCollectIO,
-    openCollectSTM,
-    openIO,
-    openSTM,
   )
 import Circuit.Category (Ob)
 import Circuit.Channel (Strength, Traced)

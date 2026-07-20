@@ -87,7 +87,7 @@ tracks converge. See the diagram cards in `mg/loom/`: `circuits-class.html`,
 - **Syntax**: `Free → Sym → Net`, with `Loop` as the normal form
 - **`Loop → Net`** is `enrich`; `melt` and other folds are not drawn
 - **Thick magenta dashed arrows** are the `Layer` Laws (e.g. `Law (Loop t) = (Traced t, Discrete)`)
-- `Ends`, `Box`/`Queue`, and `Hyper` are omitted from this core view
+- `Ends` (including boxes and queues) and `Hyper` are omitted from this core view
 
 ## what's new in 0.2
 
