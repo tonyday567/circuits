@@ -437,7 +437,7 @@ instance Layer (Loop t) where
   unit = Lift
   bind ::
     forall arr arr' a b.
-    (Law (Loop t) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (Law (Loop t) arr', Ob arr' a, Ob arr' b) =>
     (forall s. ObDict arr s -> ObDict arr' s) ->
     (arr :~> arr') ->
     Loop t arr a b ->
