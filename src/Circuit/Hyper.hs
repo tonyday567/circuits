@@ -63,12 +63,9 @@ module Circuit.Hyper
     push,
     runHyper,
 
-    -- * Encoding
-    encode,
-    encodeFree,
+    -- * Either-loop state machine
     encodeEither,
     runEither,
-    flatten,
 
     -- * Kleisli aliases
     liftArr,
@@ -81,9 +78,6 @@ where
 
 import Circuit.Category (Category (..), ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Free qualified as F
-import Circuit.Layer (Layer, bind, run, (:~>))
-import Circuit.Loop (Loop (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
@@ -93,11 +87,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >> import Prelude hiding (id, (.))
--- >> import Circuit.Category (Category (..), Discrete (..), (.>))
 -- >> import Data.Profunctor
--- >> import Circuit.Channel (Traced (..))
--- >> import Circuit.Layer (run)
--- >> import Circuit.Loop (Loop (..))
 -- >> let h = lift (+1) :: Hyper Int Int
 -- >> let f1 = (*2) :: Int -> Int
 -- >> let g1 = (+10) :: Int -> Int
@@ -305,69 +295,6 @@ push = pushH
 runHyper :: Hyper a a -> a
 runHyper = runIdentity . runHyperH
 
--- * Encoding Loop into Hyper
-
--- | Encode a 'Free' into a 'HyperF'.
---
--- The lift of the canonical fold 'run' into the final encoding.
---
--- Law: @'observe' . 'encodeFree' = 'run'@ — the two interpreters
--- from Free agree.
---
--- .> import Circuit.Free qualified as F
--- .> observe (encodeFree (F.Lift (+1))) 5
--- 6
-encodeFree ::
-  (HyperBase arr, Ob arr a, Ob arr b) =>
-  F.Free arr a b ->
-  HyperF arr a b
-encodeFree (F.Lift f) = liftH f
-encodeFree (F.Compose f g) = encodeFree f . encodeFree g
-
--- | Encode a 'Loop' into a 'HyperF'.
---
--- This is the unique traced functor from the initial object ('Loop')
--- to the final object ('HyperF'), satisfying the commuting triangle
--- @'observe' . 'encode' = 'run'@.
---
--- 'Lift' constructors embed directly via 'liftH'; 'Knot' constructors
--- become 'trace' over a hyperfunction.
---
--- .> import Circuit.Layer (run)
--- .> import Circuit.Loop (Loop (..))
--- .> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
--- 6
-encode ::
-  ( HyperBase arr,
-    Strength (,) arr,
-    Ob arr a,
-    Ob arr b
-  ) =>
-  Loop (,) arr a b ->
-  HyperF arr a b
-encode (Lift f) = liftH f
-encode (Knot f) = trace (liftH f)
-
--- | Flatten a 'HyperF' to a 'Loop' by observing it.
---
--- This is the forgetful map from the final encoding to the initial encoding.
--- All feedback structure is lost; only the observable behaviour remains.
---
--- .> let h = lift (+ 1)
--- .> run (flatten h) 5
--- 6
---
--- Flatten then encode is not identity — the feedback structure is gone:
---
--- .> let h = lift (+ 1)
--- .> observe (encode (flatten h)) 5
--- 6
-flatten ::
-  (HyperBase arr) =>
-  HyperF arr a b ->
-  Loop (,) arr a b
-flatten h = Lift (mkArr (observeH h))
-
 -- | Encode an Either-loop as a self-referential 'Hyper'.
 --
 -- Whereas 'encode' handles the @(,)@ tensor using 'Hyper''s own 'Traced'
@@ -417,7 +344,7 @@ runEither f b = runHyper (encodeEither f) (Right b)
 
 -- * Instances
 
--- | 'Loop' instance for @Hyper@ with the @(,)@ tensor.
+-- | 'Traced' instance for @Hyper@ with the @(,)@ tensor.
 --
 -- Routes the self-reference through explicit @Hyper@ values:
 --

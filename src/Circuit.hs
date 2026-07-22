@@ -210,15 +210,17 @@ import Circuit.Hyper
   ( Hyper,
     HyperF (..),
     base,
-    encode,
     encodeEither,
-    encodeFree,
-    flatten,
     lift,
     observe,
     push,
     runEither,
     runHyper,
+  )
+import Circuit.HyperLoop
+  ( encode,
+    encodeFree,
+    flatten,
   )
 import Circuit.Layer
   ( Cat2,

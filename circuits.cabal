@@ -54,6 +54,7 @@ library
     Circuit.Ends
     Circuit.Free
     Circuit.Hyper
+    Circuit.HyperLoop
     Circuit.Layer
     Circuit.Loop
     Circuit.Net
