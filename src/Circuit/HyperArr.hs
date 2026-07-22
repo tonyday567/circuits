@@ -1,4 +1,8 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -7,32 +11,50 @@
 --
 -- The existing "Circuit.Hyper" is the specialisation to the function
 -- category @(->)@.  This module generalises the construction to any
--- category @arr@, with the monadic base @Control.Arrow.Kleisli m@ as the
--- second named target (Kidney & Wu's monadic hyperfunction @HypM@).
+-- category @arr@ that carries the small amount of structure captured by
+-- 'HyperBase': an underlying "runner" @Run arr@, a way to build and read
+-- arrows as functions into that runner, and a fixed-point operator for
+-- tying the feedback knot.
 --
--- The design question is: what structure on @arr@ is needed for a
--- 'Category'/'Channel'/'Traced' instance on @HyperArr arr@?  For now we
--- give the two concrete specialisations the card names; the common
--- abstraction can be extracted once the pattern is visible.
+-- The two named targets from the card are recovered as instances:
+--
+-- * @(->)@ — 'Run' is 'Data.Functor.Identity.Identity', 'fixRun' is 'fix'.
+-- * @'Control.Arrow.Kleisli' m@ — 'Run' is @m@, 'fixRun' is 'mfix'.
 --
 -- === doctests
 --
 -- >>> import Circuit.HyperArr
+-- >>> import Circuit.Channel (trace)
 -- >>> import Control.Arrow (Kleisli (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 --
--- >>> let body = liftArr (Kleisli (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: Kleisli Identity ([Int], ()) ([Int], [Int]))
--- >>> runIdentity (observeArr (trace body) ())
+-- >>> let body = liftH (Kleisli (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: Kleisli Identity ([Int], ()) ([Int], [Int]))
+-- >>> runIdentity (observeH (trace body) ())
 -- [0,0,0]
 module Circuit.HyperArr
   ( -- * Hyperfunctions over a base category
     HyperArr (..),
 
+    -- * Base-category structure
+    HyperBase (..),
+
+    -- * Generic constructors and eliminators
+    liftH,
+    observeH,
+    baseH,
+    pushH,
+    runHyperH,
+
     -- * Function-category bridge
     toHyper,
     fromHyper,
+    liftF,
+    observeF,
+    baseF,
+    pushF,
+    runHyperF,
 
-    -- * Kleisli constructors and eliminators
+    -- * Kleisli aliases
     liftArr,
     observeArr,
     baseArr,
@@ -47,6 +69,8 @@ import Circuit.Hyper qualified as H
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor (second)
+import Data.Functor.Identity (Identity (..))
+import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -65,6 +89,147 @@ newtype HyperArr arr a b = HyperArr
   }
 
 -- ---------------------------------------------------------------------------
+-- Base-category structure
+-- ---------------------------------------------------------------------------
+
+-- | Enough structure on a base category @arr@ to give 'HyperArr arr' a
+-- traced monoidal category structure.
+--
+-- * 'Run' is the underlying functor in which arrows are evaluated.
+-- * 'runArr' / 'mkArr' witness that @arr@ is concretely represented by
+--   functions into 'Run'.
+-- * 'fixRun' ties the recursive knot used by the trace.
+class (Category arr, Monad (Run arr)) => HyperBase arr where
+  -- | Underlying effect functor for evaluating arrows.
+  type Run arr :: Type -> Type
+
+  -- | Evaluate an arrow at a value.
+  runArr :: arr a b -> a -> Run arr b
+
+  -- | Build an arrow from a function into 'Run'.
+  mkArr :: (a -> Run arr b) -> arr a b
+
+  -- | Fixed-point operator for 'Run'.
+  fixRun :: (a -> Run arr a) -> Run arr a
+
+-- | Function category: arrows run in the identity monad and knots tie
+-- by Haskell laziness.
+instance HyperBase (->) where
+  type Run (->) = Identity
+  runArr f a = Identity (f a)
+  mkArr f = runIdentity . f
+  fixRun f = let x = f (runIdentity x) in x
+
+-- | Kleisli arrows: arrows run in the monad and knots tie with 'mfix'.
+instance (MonadFix m) => HyperBase (Kleisli m) where
+  type Run (Kleisli m) = m
+  runArr = runKleisli
+  mkArr = Kleisli
+  fixRun = mfix
+
+-- ---------------------------------------------------------------------------
+-- Generic constructors and eliminators
+-- ---------------------------------------------------------------------------
+
+-- | Push a base morphism onto a hyperfunction.
+pushH ::
+  (HyperBase arr) =>
+  arr a b ->
+  HyperArr arr a b ->
+  HyperArr arr a b
+pushH f h = HyperArr $ mkArr $ \k -> do
+  a_val <- runArr (invoke k) h
+  runArr f a_val
+
+-- | Embed a base morphism into a hyperfunction.
+--
+-- This is the coinductive character of the construction: the morphism is
+-- pushed onto every future continuation.
+liftH :: (HyperBase arr) => arr a b -> HyperArr arr a b
+liftH f = pushH f (liftH f)
+
+-- | A constant hyperfunction.
+baseH :: (HyperBase arr) => b -> HyperArr arr a b
+baseH b = HyperArr $ mkArr $ \_ -> pure b
+
+-- | Extract the underlying arrow as a function into 'Run'.
+observeH :: (HyperBase arr) => HyperArr arr a b -> a -> Run arr b
+observeH h a = runArr (invoke h) (baseH a)
+
+-- | Close the self-referential loop.
+runHyperH ::
+  forall arr a.
+  (HyperBase arr) =>
+  HyperArr arr a a ->
+  Run arr a
+runHyperH h = fixRun @arr $ \a -> runArr (invoke h) (baseH a)
+
+-- ---------------------------------------------------------------------------
+-- Generic instances
+-- ---------------------------------------------------------------------------
+
+instance (HyperBase arr) => Category (HyperArr arr) where
+  type Ob (HyperArr arr) a = Ob arr a
+  id = liftH id
+  f . g = HyperArr $ mkArr $ \k -> runArr (invoke f) (g . k)
+
+instance (HyperBase arr, Channel (,) arr) => Channel (,) (HyperArr arr) where
+  assoc = liftH assoc
+  assoc' = liftH assoc'
+  slide = liftH slide
+  withTensorOb ::
+    forall a b r.
+    ObDict (HyperArr arr) a ->
+    ObDict (HyperArr arr) b ->
+    ((Ob (HyperArr arr) (a, b)) => r) ->
+    r
+  withTensorOb ObDict ObDict =
+    withTensorOb @(,) @arr @a @b @r
+      (ObDict :: ObDict arr a)
+      (ObDict :: ObDict arr b)
+
+instance (HyperBase arr, Strength (,) arr) => Strength (,) (HyperArr arr) where
+  strength h = liftH $ mkArr $ \(a, b) -> (a,) <$> observeH h b
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (HyperArr arr) a ->
+    ObDict (HyperArr arr) b ->
+    ObDict (HyperArr arr) c ->
+    ((Ob (HyperArr arr) (a, b), Ob (HyperArr arr) (a, c)) => r) ->
+    r
+  withStrengthOb ObDict ObDict ObDict =
+    withStrengthOb @(,) @arr @a @b @c @r
+      (ObDict :: ObDict arr a)
+      (ObDict :: ObDict arr b)
+      (ObDict :: ObDict arr c)
+
+instance
+  ( HyperBase arr,
+    Strength (,) arr
+  ) =>
+  Traced (,) (HyperArr arr)
+  where
+  trace = traceHyper
+    where
+      traceHyper ::
+        forall a b c.
+        HyperArr arr (a, b) (a, c) ->
+        HyperArr arr b c
+      traceHyper body =
+        HyperArr $
+          mkArr $ \k ->
+            snd
+              <$> fixRun @arr
+                ( \pair -> do
+                    let cont =
+                          HyperArr $
+                            mkArr $ \_ -> do
+                              a_val <- observeH k (snd pair)
+                              pure (fst pair, a_val)
+                    runArr (invoke body) cont
+                )
+
+-- ---------------------------------------------------------------------------
 -- Function-category specialisation
 -- ---------------------------------------------------------------------------
 
@@ -80,120 +245,55 @@ fromHyper (H.Hyper f) = HyperArr (f . toHyper)
 
 -- | Push a plain function onto a function-category hyperfunction.
 pushF :: (a -> b) -> HyperArr (->) a b -> HyperArr (->) a b
-pushF f h = HyperArr (\k -> f (invoke k h))
+pushF = pushH
 
 -- | Embed a plain function into a function-category hyperfunction.
 liftF :: (a -> b) -> HyperArr (->) a b
-liftF f = pushF f (liftF f)
+liftF = liftH
 
 -- | A constant function-category hyperfunction.
 baseF :: b -> HyperArr (->) a b
-baseF b = HyperArr (const b)
+baseF = baseH
 
 -- | Extract a plain function from a function-category hyperfunction.
 observeF :: HyperArr (->) a b -> a -> b
-observeF h a = invoke h (baseF a)
+observeF h = runIdentity . observeH h
 
-instance Category (HyperArr (->)) where
-  type Ob (HyperArr (->)) a = ()
-  id = liftF id
-  f . g = HyperArr (\k -> invoke f (g . k))
-
-instance Channel (,) (HyperArr (->)) where
-  assoc = liftF (\(~(~(a, b), c)) -> (a, (b, c)))
-  assoc' = liftF (\ ~(a, ~(b, c)) -> ((a, b), c))
-  slide = liftF (\ ~(a, ~(b, c)) -> (b, (a, c)))
-  withTensorOb ObDict ObDict k = k
-
-instance Strength (,) (HyperArr (->)) where
-  strength h = liftF (second (observeF h))
-  withStrengthOb ObDict ObDict ObDict k = k
-
-instance Traced (,) (HyperArr (->)) where
-  trace body =
-    HyperArr $ \k ->
-      let pair = invoke body cont
-          cont = HyperArr $ \_ ->
-            let a_val = invoke k (baseF (snd pair))
-             in (fst pair, a_val)
-       in snd pair
+-- | Close the self-referential loop in a function-category hyperfunction.
+runHyperF :: HyperArr (->) a a -> a
+runHyperF = runIdentity . runHyperH
 
 -- ---------------------------------------------------------------------------
--- Kleisli specialisation (monadic hyperfunctions)
+-- Kleisli aliases
 -- ---------------------------------------------------------------------------
 
--- | Push a base morphism onto a 'HyperArr' over @Kleisli m@.
+-- | Alias for 'pushH' on @Kleisli m@.
 pushArr ::
-  (Monad m) =>
+  (MonadFix m) =>
   Kleisli m a b ->
   HyperArr (Kleisli m) a b ->
   HyperArr (Kleisli m) a b
-pushArr f h = HyperArr $ Kleisli $ \k -> runKleisli f =<< runKleisli (invoke k) h
+pushArr = pushH
 
--- | Embed a base morphism into a 'HyperArr' over @Kleisli m@.
---
--- This is the coinductive character of the construction: the morphism is
--- pushed onto every future continuation.
-liftArr ::
-  (Monad m) =>
-  Kleisli m a b ->
-  HyperArr (Kleisli m) a b
-liftArr f = pushArr f (liftArr f)
+-- | Alias for 'liftH' on @Kleisli m@.
+liftArr :: (MonadFix m) => Kleisli m a b -> HyperArr (Kleisli m) a b
+liftArr = liftH
 
--- | A constant 'HyperArr' over @Kleisli m@.
-baseArr :: (Monad m) => b -> HyperArr (Kleisli m) a b
-baseArr b = HyperArr $ Kleisli $ \_ -> pure b
+-- | Alias for 'baseH' on @Kleisli m@.
+baseArr :: (MonadFix m) => b -> HyperArr (Kleisli m) a b
+baseArr = baseH
 
--- | Extract the underlying Kleisli morphism from a 'HyperArr'.
+-- | Alias for 'observeH' on @Kleisli m@.
 observeArr ::
-  (Monad m) =>
+  (MonadFix m) =>
   HyperArr (Kleisli m) a b ->
   a ->
   m b
-observeArr h a = runKleisli (invoke h) (baseArr a)
+observeArr = observeH
 
--- | Close the self-referential loop in a monadic hyperfunction.
+-- | Alias for 'runHyperH' on @Kleisli m@.
 runHyperArr ::
   (MonadFix m) =>
   HyperArr (Kleisli m) a a ->
   m a
-runHyperArr h = mfix $ \a -> runKleisli (invoke h) (baseArr a)
-
-instance (Monad m) => Category (HyperArr (Kleisli m)) where
-  type Ob (HyperArr (Kleisli m)) a = ()
-  id = liftArr (Kleisli pure)
-  f . g = HyperArr $ Kleisli $ \k -> runKleisli (invoke f) (g . k)
-
-instance (Monad m) => Channel (,) (HyperArr (Kleisli m)) where
-  assoc =
-    liftArr $
-      Kleisli $
-        \(~(~(a, b), c)) -> pure (a, (b, c))
-  assoc' =
-    liftArr $
-      Kleisli $
-        \ ~(a, ~(b, c)) -> pure ((a, b), c)
-  slide =
-    liftArr $
-      Kleisli $
-        \ ~(a, ~(b, c)) -> pure (b, (a, c))
-  withTensorOb ObDict ObDict k = k
-
-instance (Monad m) => Strength (,) (HyperArr (Kleisli m)) where
-  strength h = liftArr $ Kleisli $ \(a, b) -> (a,) <$> observeArr h b
-  withStrengthOb ObDict ObDict ObDict k = k
-
-instance (MonadFix m) => Traced (,) (HyperArr (Kleisli m)) where
-  trace body =
-    HyperArr $
-      Kleisli $ \k ->
-        snd
-          <$> mfix
-            ( \pair -> do
-                let cont =
-                      HyperArr $
-                        Kleisli $ \_ -> do
-                          a_val <- observeArr k (snd pair)
-                          pure (fst pair, a_val)
-                runKleisli (invoke body) cont
-            )
+runHyperArr = runHyperH
