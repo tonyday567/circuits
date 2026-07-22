@@ -36,7 +36,7 @@ module Circuit.Channel
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict)
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
@@ -71,6 +71,14 @@ class (Category arr) => Channel t arr where
   -- @t a (t b c) -> t b (t a c)@.
   slide :: arr (t a (t b c)) (t b (t a c))
 
+  -- | Derive the tensor object constraint from its components.
+  withTensorOb ::
+    forall a b r.
+    ObDict arr a ->
+    ObDict arr b ->
+    ((Ob arr (t a b)) => r) ->
+    r
+
 -- | Cartesian monoidal structure for @(,)@.
 --
 -- .> assoc ((1, 2), 3) :: (Int, (Int, Int))
@@ -88,6 +96,7 @@ instance Channel (,) (->) where
   assoc ~(~(a, b), c) = (a, (b, c))
   assoc' ~(a, ~(b, c)) = ((a, b), c)
   slide ~(a, ~(b, c)) = (b, (a, c))
+  withTensorOb ObDict ObDict x = x
 
 -- | Cocartesian monoidal structure for @Either@.
 --
@@ -109,6 +118,7 @@ instance Channel Either (->) where
   slide (Left a) = Right (Left a)
   slide (Right (Left b)) = Left b
   slide (Right (Right c)) = Right (Right c)
+  withTensorOb ObDict ObDict x = x
 
 -- ===========================================================================
 -- Strength
@@ -129,6 +139,15 @@ class (Channel t arr) => Strength t arr where
     ) =>
     arr b c ->
     arr (t a b) (t a c)
+
+  -- | Derive the strength object constraints from their components.
+  withStrengthOb ::
+    forall a b c r.
+    ObDict arr a ->
+    ObDict arr b ->
+    ObDict arr c ->
+    ((Ob arr (t a b), Ob arr (t a c)) => r) ->
+    r
 
 -- | Discrete 'strength': discharge 'Ob' constraints with 'withOb'.
 strengthD ::
@@ -155,12 +174,14 @@ strengthD f =
 -- ()
 instance Strength (,) (->) where
   strength f p = (fst p, f (snd p))
+  withStrengthOb ObDict ObDict ObDict x = x
 
 -- | Either tensorial strength for @Either@.
 --
 -- 'strength' is the functorial action under 'Either'.
 instance Strength Either (->) where
   strength = fmap
+  withStrengthOb ObDict ObDict ObDict x = x
 
 -- ===========================================================================
 -- Traced
@@ -329,6 +350,7 @@ instance (Monad m) => Channel (,) (Kleisli m) where
   assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
   slide = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
+  withTensorOb ObDict ObDict x = x
 
 -- | Cocartesian monoidal structure for @Kleisli m@ with 'Either'.
 instance (Monad m) => Channel Either (Kleisli m) where
@@ -344,6 +366,7 @@ instance (Monad m) => Channel Either (Kleisli m) where
     Left a -> pure (Right (Left a))
     Right (Left b) -> pure (Left b)
     Right (Right c) -> pure (Right (Right c))
+  withTensorOb ObDict ObDict x = x
 
 -- * Kleisli m (,) — lazy knot via MonadFix
 
@@ -368,6 +391,7 @@ instance (Monad m) => Strength (,) (Kleisli m) where
           c <- f (snd p)
           pure (fst p, c)
       )
+  withStrengthOb ObDict ObDict ObDict x = x
 
 instance (MonadFix m) => Traced (,) (Kleisli m) where
   trace (Kleisli f) =
@@ -403,6 +427,7 @@ instance (Monad m) => Strength Either (Kleisli m) where
     Kleisli $ \case
       Left a -> pure (Left a)
       Right b -> Right <$> f b
+  withStrengthOb ObDict ObDict ObDict x = x
 
 instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
   trace (Kleisli f) =

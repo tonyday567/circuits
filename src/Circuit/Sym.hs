@@ -26,7 +26,7 @@ module Circuit.Sym
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Tensor (Action (..), Tensor (..))
@@ -90,6 +90,7 @@ instance (Category arr, Channel t arr) => Channel t (Sym arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
+  withTensorOb da db k = withTensorOb @t @arr da db k
 
 -- | 'Action' plus 'Discrete' so free 'Sym' can fold intermediate objects.
 --
@@ -103,24 +104,29 @@ instance Layer Sym where
   type Run Sym arr = (Action (,) arr, Discrete arr)
   type Bind Sym arr = Discrete arr
   unit = Lift
-  bind :: forall arr' arr a b. (Law Sym arr', Bind Sym arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Sym arr a b -> arr' a b
-  bind h (Lift f) = h f
-  bind h (Compose @_ @b1 g f) = withOb @arr' @b1 (bind h g . bind h f)
-  bind h (Par (f :: Sym arr a1 b1) (g :: Sym arr c d)) =
-    withOb @arr @a1 $
-      withOb @arr @b1 $
-        withOb @arr @c $
-          withOb @arr @d $
-            withOb @arr' @a1 $
-              withOb @arr' @b1 $
-                withOb @arr' @c $
-                  withOb @arr' @d $
-                    par (bind h f) (bind h g)
-  bind _ Swap = swap
+  bind ::
+    forall arr' arr a b.
+    (Law Sym arr', Bind Sym arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (arr :~> arr') ->
+    Sym arr a b ->
+    arr' a b
+  bind _phi h (Lift f) = h f
+  bind phi h (Compose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
+  bind phi h (Par (f :: Sym arr a1 b1) (g :: Sym arr c d)) =
+    withObDict (phi (ObDict :: ObDict arr a1)) $
+      withObDict (phi (ObDict :: ObDict arr b1)) $
+        withObDict (phi (ObDict :: ObDict arr c)) $
+          withObDict (phi (ObDict :: ObDict arr d)) $
+            withTensorOb (ObDict :: ObDict arr' a1) (ObDict :: ObDict arr' c) $
+              withTensorOb (ObDict :: ObDict arr' b1) (ObDict :: ObDict arr' d) $
+                par (bind phi h f) (bind phi h g)
+  bind _phi _ Swap = swap
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where
   strength = Lift . strength . run
+  withStrengthOb da db dc k = withStrengthOb @t @arr da db dc k
 
 -- | Lift the 'Traced' structure through 'Sym'.
 --

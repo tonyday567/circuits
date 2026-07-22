@@ -18,7 +18,7 @@ module Circuit.Free
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict)
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), (:~>))
 import Prelude hiding (id, (.))
@@ -68,9 +68,9 @@ instance Layer Free where
   type Run Free arr = (Category arr, Discrete arr)
   type Bind Free arr = ()
   unit = Lift
-  bind :: forall arr' arr a b. (Law Free arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Free arr a b -> arr' a b
-  bind h (Lift f) = h f
-  bind h (Compose @_ @b1 g f) = withOb @arr' @b1 (bind h g . bind h f)
+  bind :: forall arr' arr a b. (Law Free arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (forall s. ObDict arr s -> ObDict arr' s) -> (arr :~> arr') -> Free arr a b -> arr' a b
+  bind _phi h (Lift f) = h f
+  bind phi h (Compose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
 
 -- | Freeze a 'Free' category into its base arrow.
 --
@@ -87,12 +87,14 @@ instance (Channel t arr) => Channel t (Free arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
+  withTensorOb da db k = withTensorOb @t @arr da db k
 
 -- | Lift the 'Strength' class through 'Free'.
 --
 -- A morphism is frozen before tensoring with the feedback channel.
 instance (Strength t arr) => Strength t (Free arr) where
   strength = Lift . strength . freeze
+  withStrengthOb da db dc k = withStrengthOb @t @arr da db dc k
 
 -- | Lift the 'Traced' class through 'Free'.
 --

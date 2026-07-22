@@ -39,7 +39,7 @@ module Circuit.Layer
   )
 where
 
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), ObDict (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -96,12 +96,13 @@ class Layer (f :: Cat2 -> Cat2) where
     f arr a b ->
     arr a b
 
-  run = bind id
+  run = bind id id
 
   -- | The universal fold out of the free construction into any
   -- 'Law'-abiding target category.
   bind ::
     (Law f arr', Bind f arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (forall s. ObDict arr s -> ObDict arr' s) ->
     (arr :~> arr') ->
     f arr a b ->
     arr' a b

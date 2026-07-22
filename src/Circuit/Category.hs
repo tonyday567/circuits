@@ -31,6 +31,8 @@
 module Circuit.Category
   ( Category (..),
     Discrete (..),
+    ObDict (..),
+    withObDict,
     (.>),
     (|>),
     (<|),
@@ -41,6 +43,17 @@ import Control.Arrow (Kleisli (..))
 import Control.Monad ((<=<))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
+
+-- | Explicit object-constraint dictionary for a category @arr@ and object @a@.
+--
+-- Carrying @a@ as a type parameter avoids the non-injectivity of the
+-- associated 'Ob' constraint family when threading dictionaries through folds.
+data ObDict arr a where
+  ObDict :: Ob arr a => ObDict arr a
+
+-- | Bring an object constraint into scope from an explicit dictionary.
+withObDict :: forall arr a r. ObDict arr a -> ((Ob arr a) => r) -> r
+withObDict ObDict x = x
 
 -- | A category whose objects may carry a constraint.
 --
@@ -66,6 +79,8 @@ class Category (arr :: k -> k -> Type) where
 -- use it where a polymorphic @Ob@ constraint cannot be written.
 class (Category arr) => Discrete arr where
   withOb :: forall a r. ((Ob arr a) => r) -> r
+  obDict :: forall a. ObDict arr a
+  obDict = withOb @arr @a ObDict
 
 -- | Forward composition. @f .> g = g . f@
 (.>) :: (Category arr, Ob arr a, Ob arr b, Ob arr c) => arr a b -> arr b c -> arr a c

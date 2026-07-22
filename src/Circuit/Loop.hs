@@ -64,7 +64,7 @@ module Circuit.Loop
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Control.Arrow (Kleisli (..))
@@ -92,7 +92,13 @@ data Loop (t :: Type -> Type -> Type) arr a b where
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.  Folding into a different target still needs
   -- 'Discrete' to manufacture the corresponding 'Ob' evidence there.
-  Knot :: (Ob arr s) => arr (t s a) (t s b) -> Loop t arr a b
+  Knot ::
+    ( Ob arr s,
+      Ob arr (t s a),
+      Ob arr (t s b)
+    ) =>
+    arr (t s a) (t s b) ->
+    Loop t arr a b
 
 -- $examples
 --
@@ -246,10 +252,16 @@ instance Layer (Loop t) where
   type Run (Loop t) arr = (Traced t arr, Discrete arr)
   type Bind (Loop t) arr = ()
   unit = Lift
-  bind :: forall arr arr' a b. (Law (Loop t) arr', Ob arr' a, Ob arr' b) => (arr :~> arr') -> Loop t arr a b -> arr' a b
-  bind h (Lift f) = h f
-  bind h (Knot @_ @s @_ @_ @_ f) =
-    withOb @arr' @s $
-      withOb @arr' @(t s a) $
-        withOb @arr' @(t s b) $
+  bind ::
+    forall arr arr' a b.
+    (Law (Loop t) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (arr :~> arr') ->
+    Loop t arr a b ->
+    arr' a b
+  bind _phi h (Lift f) = h f
+  bind phi h (Knot @_ @s @_ @_ @_ f) =
+    withObDict (phi (ObDict :: ObDict arr s)) $
+      withObDict (phi (ObDict :: ObDict arr (t s a))) $
+        withObDict (phi (ObDict :: ObDict arr (t s b))) $
           trace (h f)
