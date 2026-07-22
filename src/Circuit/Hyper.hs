@@ -1,22 +1,62 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-pattern-namespace-specifier #-}
 
--- | Hyperfunctions: final encoding of traced monoidal categories.
+-- | Hyperfunctions: the final encoding of traced monoidal categories.
 --
--- A hyperfunction (following Kidney & Wu) is a value that is completely
--- defined by its dual: to produce a result of type @b@ you must supply
--- a continuation of type @Hyper b a@.
+-- A @Hyper@ is completely determined by its dual. To get a @b@ you must
+-- provide a continuation that can itself produce an @a@.
 --
--- @Hyper@ is the /final/ (coinductive) encoding of a traced monoidal
--- category. Its dual, 'Loop' (see "Circuit.Loop"), is the
--- corresponding /initial/ (inductive) encoding. The feedback channel
--- is not represented by an extra constructor; it is structural in the
--- type itself.
+-- The underlying construction is parameterised by a base category @arr@;
+-- @Hyper@ itself is the function-category specialisation:
+--
+-- @
+-- type Hyper = HyperF (->)
+-- @
+--
+-- The two named targets are:
+--
+-- * @Hyper@ — arrows run in 'Data.Functor.Identity.Identity' and knots tie
+--   by Haskell laziness.
+-- * @'HyperF' ('Control.Arrow.Kleisli' m)@ — arrows run in @m@ and knots tie
+--   with 'mfix'.
+--
+-- @HyperF@ lives in the same module so the function API is literally a
+-- specialisation of the generic one.
+--
+-- === doctests
+--
+-- >>> import Circuit.Hyper
+-- >>> import Circuit.Channel (trace)
+-- >>> import Control.Arrow (Kleisli (..))
+-- >>> import Data.Functor.Identity (Identity (..))
+--
+-- >>> let body = liftH (Kleisli (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: Kleisli Identity ([Int], ()) ([Int], [Int]))
+-- >>> runIdentity (observeH (trace body) ())
+-- [0,0,0]
 module Circuit.Hyper
-  ( -- * Hyper
-    Hyper (..),
+  ( -- * Parameterised hyperfunctions
+    HyperF (..),
+    Hyper,
+    pattern Hyper,
 
-    -- * Construction and elimination
+    -- * Base-category structure
+    HyperBase (..),
+
+    -- * Generic constructors and eliminators
+    liftH,
+    observeH,
+    baseH,
+    pushH,
+    runHyperH,
+
+    -- * Function-category hyperfunctions
     lift,
     observe,
     base,
@@ -29,15 +69,25 @@ module Circuit.Hyper
     encodeEither,
     runEither,
     flatten,
+
+    -- * Kleisli aliases
+    liftArr,
+    observeArr,
+    baseArr,
+    pushArr,
+    runHyperArr,
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), ObDict (..), (.>))
+import Circuit.Category (Category (..), ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
 import Circuit.Loop (Loop (..))
-import Data.Bifunctor (second)
+import Control.Arrow (Kleisli (..))
+import Control.Monad.Fix (MonadFix, mfix)
+import Data.Functor.Identity (Identity (..))
+import Data.Kind (Type)
 import Data.Profunctor
 import Prelude hiding (id, (.))
 
@@ -46,77 +96,206 @@ import Prelude hiding (id, (.))
 -- >> import Circuit.Category (Category (..), Discrete (..), (.>))
 -- >> import Data.Profunctor
 -- >> import Circuit.Channel (Traced (..))
--- >> import Circuit.Loop (Loop (..))
 -- >> import Circuit.Layer (run)
+-- >> import Circuit.Loop (Loop (..))
 -- >> let h = lift (+1) :: Hyper Int Int
 -- >> let f1 = (*2) :: Int -> Int
 -- >> let g1 = (+10) :: Int -> Int
 -- >> let f2 = (+3) :: Int -> Int
 -- >> let g2 = (*100) :: Int -> Int
 
--- | A hyperfunction from @a@ to @b@.
+-- | A hyperfunction from @a@ to @b@ over the base category @arr@.
 --
--- A @Hyper@ is completely determined by its dual. To get a @b@ you must
--- provide a continuation that can itself produce an @a@.
---
--- Two small examples:
---
--- .> observe (lift (+1)) 41
--- 42
---
--- .> runHyper (Hyper $ \k -> invoke k (Hyper $ \_ -> 0) + 1)
--- 1
-newtype Hyper a b = Hyper
-  { -- | Feed a continuation of type @Hyper b a@ into the hyperfunction.
-    invoke :: Hyper b a -> b
+-- To produce a @b@ in @arr@ you must supply a continuation that can
+-- produce an @a@.
+newtype HyperF arr a b = HyperF
+  { -- | Feed a continuation into the hyperfunction.
+    invoke :: arr (HyperF arr b a) b
   }
 
--- * Construction and elimination
+-- | The function-category hyperfunction.
+type Hyper = HyperF (->)
+
+-- | Bidirectional pattern for the function-category hyperfunction.
+pattern Hyper :: (HyperF (->) b a -> b) -> Hyper a b
+pattern Hyper f = HyperF f
+
+{-# COMPLETE Hyper :: Hyper #-}
+
+-- ---------------------------------------------------------------------------
+-- Base-category structure
+-- ---------------------------------------------------------------------------
+
+-- | Enough structure on a base category @arr@ to give 'HyperF arr' a
+-- traced monoidal category structure.
+--
+-- * 'Run' is the underlying functor in which arrows are evaluated.
+-- * 'runArr' / 'mkArr' witness that @arr@ is concretely represented by
+--   functions into 'Run'.
+-- * 'fixRun' ties the recursive knot used by the trace.
+class (Category arr, Monad (Run arr)) => HyperBase arr where
+  -- | Underlying effect functor for evaluating arrows.
+  type Run arr :: Type -> Type
+
+  -- | Evaluate an arrow at a value.
+  runArr :: arr a b -> a -> Run arr b
+
+  -- | Build an arrow from a function into 'Run'.
+  mkArr :: (a -> Run arr b) -> arr a b
+
+  -- | Fixed-point operator for 'Run'.
+  fixRun :: (a -> Run arr a) -> Run arr a
+
+-- | Function category: arrows run in the identity monad and knots tie
+-- by Haskell laziness.
+instance HyperBase (->) where
+  type Run (->) = Identity
+  runArr f a = Identity (f a)
+  mkArr f = runIdentity . f
+  fixRun f = let x = f (runIdentity x) in x
+
+-- | Kleisli arrows: arrows run in the monad and knots tie with 'mfix'.
+instance (MonadFix m) => HyperBase (Kleisli m) where
+  type Run (Kleisli m) = m
+  runArr = runKleisli
+  mkArr = Kleisli
+  fixRun = mfix
+
+-- ---------------------------------------------------------------------------
+-- Generic constructors and eliminators
+-- ---------------------------------------------------------------------------
+
+-- | Push a base morphism onto a hyperfunction.
+pushH ::
+  (HyperBase arr) =>
+  arr a b ->
+  HyperF arr a b ->
+  HyperF arr a b
+pushH f h = HyperF $ mkArr $ \k -> do
+  a_val <- runArr (invoke k) h
+  runArr f a_val
+
+-- | Embed a base morphism into a hyperfunction.
+--
+-- This is the coinductive character of the construction: the morphism is
+-- pushed onto every future continuation.
+liftH :: (HyperBase arr) => arr a b -> HyperF arr a b
+liftH f = pushH f (liftH f)
+
+-- | A constant hyperfunction.
+baseH :: (HyperBase arr) => b -> HyperF arr a b
+baseH b = HyperF $ mkArr $ \_ -> pure b
+
+-- | Extract the underlying arrow as a function into 'Run'.
+observeH :: (HyperBase arr) => HyperF arr a b -> a -> Run arr b
+observeH h a = runArr (invoke h) (baseH a)
+
+-- | Close the self-referential loop.
+runHyperH ::
+  forall arr a.
+  (HyperBase arr) =>
+  HyperF arr a a ->
+  Run arr a
+runHyperH h = fixRun @arr $ \a -> runArr (invoke h) (baseH a)
+
+-- ---------------------------------------------------------------------------
+-- Generic instances
+-- ---------------------------------------------------------------------------
+
+instance (HyperBase arr) => Category (HyperF arr) where
+  type Ob (HyperF arr) a = Ob arr a
+  id = liftH id
+  f . g = HyperF $ mkArr $ \k -> runArr (invoke f) (g . k)
+
+instance (HyperBase arr, Channel (,) arr) => Channel (,) (HyperF arr) where
+  assoc = liftH assoc
+  assoc' = liftH assoc'
+  slide = liftH slide
+  withTensorOb ::
+    forall a b r.
+    ObDict (HyperF arr) a ->
+    ObDict (HyperF arr) b ->
+    ((Ob (HyperF arr) (a, b)) => r) ->
+    r
+  withTensorOb ObDict ObDict =
+    withTensorOb @(,) @arr @a @b @r
+      (ObDict :: ObDict arr a)
+      (ObDict :: ObDict arr b)
+
+instance (HyperBase arr, Strength (,) arr) => Strength (,) (HyperF arr) where
+  strength h = liftH $ mkArr $ \(a, b) -> (a,) <$> observeH h b
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (HyperF arr) a ->
+    ObDict (HyperF arr) b ->
+    ObDict (HyperF arr) c ->
+    ((Ob (HyperF arr) (a, b), Ob (HyperF arr) (a, c)) => r) ->
+    r
+  withStrengthOb ObDict ObDict ObDict =
+    withStrengthOb @(,) @arr @a @b @c @r
+      (ObDict :: ObDict arr a)
+      (ObDict :: ObDict arr b)
+      (ObDict :: ObDict arr c)
+
+instance
+  ( HyperBase arr,
+    Strength (,) arr
+  ) =>
+  Traced (,) (HyperF arr)
+  where
+  trace = traceHyper
+    where
+      traceHyper ::
+        forall a b c.
+        HyperF arr (a, b) (a, c) ->
+        HyperF arr b c
+      traceHyper body =
+        HyperF $
+          mkArr $ \k ->
+            snd
+              <$> fixRun @arr
+                ( \pair -> do
+                    let cont =
+                          HyperF $
+                            mkArr $ \_ -> do
+                              a_val <- observeH k (snd pair)
+                              pure (fst pair, a_val)
+                    runArr (invoke body) cont
+                )
+
+-- ---------------------------------------------------------------------------
+-- Function-category hyperfunctions
+-- ---------------------------------------------------------------------------
 
 -- | Embed a plain function into a hyperfunction.
---
--- This is where the coinductive character of @Hyper@ lives:
--- @lift f@ creates a hyperfunction by recursively pushing @f@ onto
--- every future continuation that will ever be supplied.
 --
 -- .> observe (lift (+1)) 5
 -- 6
 lift :: (a -> b) -> Hyper a b
-lift f = push f (lift f)
+lift = liftH
 
 -- | Extract a plain function from a hyperfunction.
---
--- Supplies the hyperfunction with a constant continuation
--- (@invoke h (Hyper (const a))@), asking: "what output do you produce
--- when the feedback channel feeds back the input @a@?"
 --
 -- .> observe (lift reverse) "hello"
 -- "olleh"
 observe :: Hyper a b -> (a -> b)
-observe h a = invoke h (Hyper (const a))
+observe h = runIdentity . observeH h
 
 -- | Ignores the input and returns a constant value.
 --
 -- .> observe (base 42) undefined
 -- 42
 base :: a -> Hyper b a
-base a = Hyper (const a)
+base = baseH
 
 -- | Push a plain function onto a hyperfunction.
---
--- The function @f@ is applied to whatever value the hyperfunction
--- eventually produces. This threads @f@ through the continuation,
--- enabling feedback-aware composition.
 --
 -- .> observe (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
-push f h = Hyper (\k -> f (invoke k h))
+push = pushH
 
 -- | Close the self-referential loop.
---
--- @runHyper h@ feeds the hyperfunction back into itself, tying the knot.
--- This is the fundamental way to eliminate a @Hyper@.
 --
 -- .> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
@@ -124,57 +303,11 @@ push f h = Hyper (\k -> f (invoke k h))
 -- .> runHyper (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
 -- 1
 runHyper :: Hyper a a -> a
-runHyper h = invoke h (Hyper runHyper)
-
--- * Properties
-
--- Faithful embedding: observation recovers the original arrow.
---
--- prop> \x -> observe (lift (+1)) (x :: Int) == x + 1
-
--- Functoriality: lift respects composition.
---
--- prop> \x -> observe (lift (*2) . lift (+1)) (x :: Int) == (x + 1) * 2
-
--- * Loop
-
--- | 'Loop' instance for @Hyper@ with the @(,)@ tensor.
---
--- Routes the self-reference through explicit @Hyper@ values:
---
---   1. @invoke body cont@ calls the body, which will eventually ask @cont@
---      for an @(a, b)@ — the feedback pair.
---   2. @cont@ captures @a@ from @body@'s output (@fst pair@) and feeds it
---      back as the first component of its return. This is the knot: @a@
---      cycles through @body → pair → cont → body@.
---   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
---      @b@ for @cont@'s return type — purely type plumbing.
---
--- .> import Circuit.Channel (Traced (..))
--- .> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
--- .> observe (trace body) ()
--- [0,0,0]
-instance Channel (,) Hyper where
-  assoc = lift $ \((a, b), c) -> (a, (b, c))
-  assoc' = lift $ \(a, (b, c)) -> ((a, b), c)
-  slide = lift $ \(a, (b, c)) -> (b, (a, c))
-  withTensorOb ObDict ObDict k = k
-
-instance Strength (,) Hyper where
-  strength h = lift (second (observe h))
-  withStrengthOb ObDict ObDict ObDict k = k
-
-instance Traced (,) Hyper where
-  trace body = Hyper $ \k ->
-    let pair = invoke body cont
-        cont = Hyper $ \_ ->
-          let a_val = invoke k (Hyper (const (snd pair)))
-           in (fst pair, a_val)
-     in snd pair
+runHyper = runIdentity . runHyperH
 
 -- * Encoding Loop into Hyper
 
--- | Encode a Free into a Hyper.
+-- | Encode a 'Free' into a 'HyperF'.
 --
 -- The lift of the canonical fold 'run' into the final encoding.
 --
@@ -184,30 +317,60 @@ instance Traced (,) Hyper where
 -- .> import Circuit.Free qualified as F
 -- .> observe (encodeFree (F.Lift (+1))) 5
 -- 6
-encodeFree :: F.Free (->) a b -> Hyper a b
-encodeFree (F.Lift f) = lift f
+encodeFree ::
+  (HyperBase arr, Ob arr a, Ob arr b) =>
+  F.Free arr a b ->
+  HyperF arr a b
+encodeFree (F.Lift f) = liftH f
 encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 
--- | Encode a Loop into a Hyper.
+-- | Encode a 'Loop' into a 'HyperF'.
 --
 -- This is the unique traced functor from the initial object ('Loop')
--- to the final object (@Hyper@), satisfying the commuting triangle
+-- to the final object ('HyperF'), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'run'@.
 --
--- 'Lift' constructors embed directly via 'lift'; 'Knot' constructors
+-- 'Lift' constructors embed directly via 'liftH'; 'Knot' constructors
 -- become 'trace' over a hyperfunction.
 --
 -- .> import Circuit.Layer (run)
 -- .> import Circuit.Loop (Loop (..))
 -- .> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
 -- 6
-encode :: Loop (,) (->) a b -> Hyper a b
-encode (Lift f) = lift f
-encode (Knot f) = trace (lift f)
+encode ::
+  ( HyperBase arr,
+    Strength (,) arr,
+    Ob arr a,
+    Ob arr b
+  ) =>
+  Loop (,) arr a b ->
+  HyperF arr a b
+encode (Lift f) = liftH f
+encode (Knot f) = trace (liftH f)
 
--- | Encode an Either-loop as a self-referential Hyper.
+-- | Flatten a 'HyperF' to a 'Loop' by observing it.
 --
--- Whereas 'encode' handles the @(,)@ tensor using Hyper's own Loop
+-- This is the forgetful map from the final encoding to the initial encoding.
+-- All feedback structure is lost; only the observable behaviour remains.
+--
+-- .> let h = lift (+ 1)
+-- .> run (flatten h) 5
+-- 6
+--
+-- Flatten then encode is not identity — the feedback structure is gone:
+--
+-- .> let h = lift (+ 1)
+-- .> observe (encode (flatten h)) 5
+-- 6
+flatten ::
+  (HyperBase arr) =>
+  HyperF arr a b ->
+  Loop (,) arr a b
+flatten h = Lift (mkArr (observeH h))
+
+-- | Encode an Either-loop as a self-referential 'Hyper'.
+--
+-- Whereas 'encode' handles the @(,)@ tensor using 'Hyper''s own 'Traced'
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
@@ -221,7 +384,9 @@ encode (Knot f) = trace (lift f)
 --
 -- .> runEither step (0 :: Int)
 -- 3
-encodeEither :: (Either a b -> Either a c) -> Hyper (Either a b -> c) (Either a b -> c)
+encodeEither ::
+  (Either a b -> Either a c) ->
+  Hyper (Either a b -> c) (Either a b -> c)
 encodeEither f = h
   where
     h =
@@ -234,8 +399,8 @@ encodeEither f = h
 
 -- | Run an 'encodeEither'-encoded circuit from initial input @b@.
 --
--- 'encodeEither' embeds the Either state machine into Hyper, @runHyper@ ties
--- the self-referential knot, and @Right b@ injects the initial state.
+-- 'encodeEither' embeds the Either state machine into 'Hyper', 'runHyper'
+-- ties the self-referential knot, and @Right b@ injects the initial state.
 --
 -- .> :{
 -- let step = \case
@@ -250,29 +415,23 @@ encodeEither f = h
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
 
--- | Flatten a Hyper to a Loop by observing it.
---
--- This is the forgetful map from the final encoding to the initial encoding.
--- All feedback structure is lost; only the observable behaviour remains.
---
--- .> let h = lift (+ 1)
--- .> run (flatten h) 5
--- 6
---
--- Flatten then encode is not identity — the feedback structure is gone:
---
--- .> let h = lift (+ 1)
--- .> observe (encode (flatten h)) 5
--- 6
-flatten :: Hyper a b -> Loop (,) (->) a b
-flatten h = Lift (observe h)
-
 -- * Instances
 
-instance Category Hyper where
-  type Ob Hyper a = ()
-  id = lift id
-  f . g = Hyper $ \h -> invoke f (g . h)
+-- | 'Loop' instance for @Hyper@ with the @(,)@ tensor.
+--
+-- Routes the self-reference through explicit @Hyper@ values:
+--
+--   1. @invoke body cont@ calls the body, which will eventually ask @cont@
+--      for an @(a, b)@ — the feedback pair.
+--   2. @cont@ captures @a@ from @body@'s output (@fst pair@) and feeds it
+--      back as the first component of its return. This is the knot: @a@
+--      cycles through @body -> pair -> cont -> body@.
+--   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
+--      @b@ for @cont@'s return type — purely type plumbing.
+--
+-- .> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
+-- .> observe (trace body) ()
+-- [0,0,0]
 
 -- | 'Profunctor' instance for @Hyper@.
 --
@@ -311,3 +470,38 @@ instance Profunctor Hyper where
 
 instance Functor (Hyper a) where
   fmap = rmap
+
+-- ---------------------------------------------------------------------------
+-- Kleisli aliases
+-- ---------------------------------------------------------------------------
+
+-- | Alias for 'pushH' on @Kleisli m@.
+pushArr ::
+  (MonadFix m) =>
+  Kleisli m a b ->
+  HyperF (Kleisli m) a b ->
+  HyperF (Kleisli m) a b
+pushArr = pushH
+
+-- | Alias for 'liftH' on @Kleisli m@.
+liftArr :: (MonadFix m) => Kleisli m a b -> HyperF (Kleisli m) a b
+liftArr = liftH
+
+-- | Alias for 'baseH' on @Kleisli m@.
+baseArr :: (MonadFix m) => b -> HyperF (Kleisli m) a b
+baseArr = baseH
+
+-- | Alias for 'observeH' on @Kleisli m@.
+observeArr ::
+  (MonadFix m) =>
+  HyperF (Kleisli m) a b ->
+  a ->
+  m b
+observeArr = observeH
+
+-- | Alias for 'runHyperH' on @Kleisli m@.
+runHyperArr ::
+  (MonadFix m) =>
+  HyperF (Kleisli m) a a ->
+  m a
+runHyperArr = runHyperH

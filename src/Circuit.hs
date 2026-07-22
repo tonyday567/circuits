@@ -142,7 +142,8 @@ module Circuit
     melt,
 
     -- * Hyper
-    Hyper (..),
+    Hyper,
+    HyperF (..),
     lift,
     observe,
     base,
@@ -206,7 +207,8 @@ import Circuit.Free
     freeze,
   )
 import Circuit.Hyper
-  ( Hyper (..),
+  ( Hyper,
+    HyperF (..),
     base,
     encode,
     encodeEither,
