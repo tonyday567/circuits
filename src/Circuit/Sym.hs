@@ -103,16 +103,6 @@ instance Layer Sym where
   type Run Sym arr = (Action (,) arr, Discrete arr)
   type Bind Sym arr = Discrete arr
   unit = Lift
-  run :: forall arr a b. (Run Sym arr, Ob arr a, Ob arr b) => Sym arr a b -> arr a b
-  run (Lift f) = f
-  run (Compose g f) = run g . run f
-  run (Par (f :: Sym arr a1 b1) (g :: Sym arr c d)) =
-    withOb @arr @a1 $
-      withOb @arr @b1 $
-        withOb @arr @c $
-          withOb @arr @d $
-            par (run f) (run g)
-  run Swap = swap
   bind :: forall arr' arr a b. (Law Sym arr', Bind Sym arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Sym arr a b -> arr' a b
   bind h (Lift f) = h f
   bind h (Compose @_ @b1 g f) = withOb @arr' @b1 (bind h g . bind h f)

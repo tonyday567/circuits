@@ -29,9 +29,6 @@ module Circuit.Net
   ( -- * Net
     Net (..),
 
-    -- * Transposition
-    transpose,
-
     -- * Conversion
     enrich,
     widen,
@@ -71,12 +68,13 @@ import Prelude hiding (id, (.))
 --
 --   * __Sequential__ — @Lift@, @Compose@.
 --   * __Monoidal__ — 'Par', 'Swap' (parallel composition, braiding).
---   * __Bimonoid__ — 'Copy', 'Discard' (comonoid), 'Plus', 'Zero' (monoid).
+--   * __Copy/Discard__ — the comonoid on channel objects.
+--   * __Plus/Zero__ — the monoid on channel objects.
 --   * __Feedback__ — 'Knot', with a 'Net' body so 'transpose' can reach inside.
 --
--- 'Dg.CopyDiscard' and 'Dg.MergeZero' (via 'Dg.Bimonoid') constraints ride as dictionary arguments on the
--- constructors that need them — laws in the typeclass holes, evidence on
--- the GADT rows.
+-- 'Dg.CopyDiscard' and 'Dg.MergeZero' constraints ride as dictionary
+-- arguments on the constructors that need them — laws in the typeclass
+-- holes, evidence on the GADT rows.
 --
 -- The wiring monoidal structure ('Par' / 'Swap') is cartesian: it always
 -- uses @(,)@. Only the feedback tensor carried by 'Knot' is polymorphic
@@ -97,17 +95,15 @@ data Net (t :: Type -> Type -> Type) arr a b where
   Par :: Net t arr a b -> Net t arr c d -> Net t arr (a, c) (b, d)
   -- | Symmetric braiding.
   Swap :: Net t arr (a, b) (b, a)
-  -- | Copy: fan-out.  Requires both comonoid and monoid ('Dg.Bimonoid').
-  Copy :: (Dg.Bimonoid arr a) => Net t arr a (a, a)
-  -- | Discard: erase.  Requires 'Dg.Bimonoid'.
-  Discard :: (Dg.Bimonoid arr a) => Net t arr a ()
-  -- | Plus: fan-in.  Requires 'Dg.Bimonoid'.
-  Plus :: (Dg.Bimonoid arr a) => Net t arr (a, a) a
-  -- | Zero: the neutral element.  Requires 'Dg.Bimonoid'.
-  Zero :: (Dg.Bimonoid arr a) => Net t arr () a
-  -- | Feedback loop.  The body is a 'Net', not an opaque base arrow —
-  -- so 'transpose' can reach inside and swap 'Copy' ↔ 'Plus' within
-  -- the loop.
+  -- | Copy: fan-out.  Requires 'Dg.CopyDiscard'.
+  Copy :: (Dg.CopyDiscard arr a) => Net t arr a (a, a)
+  -- | Discard: erase.  Requires 'Dg.CopyDiscard'.
+  Discard :: (Dg.CopyDiscard arr a) => Net t arr a ()
+  -- | Plus: fan-in.  Requires 'Dg.MergeZero'.
+  Plus :: (Dg.MergeZero arr a) => Net t arr (a, a) a
+  -- | Zero: the neutral element.  Requires 'Dg.MergeZero'.
+  Zero :: (Dg.MergeZero arr a) => Net t arr () a
+  -- | Feedback loop.  The body is a 'Net', not an opaque base arrow.
   --
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.
@@ -130,46 +126,6 @@ instance (Category arr) => Category (Net t arr) where
 -- | A discrete base yields a discrete free traced PROP.
 instance (Category arr, Discrete arr) => Discrete (Net t arr) where
   withOb @a x = withOb @arr @a x
-
--- | Transpose a 'Net' — the backward circuit as inspectable syntax.
---
--- The structural rows are self-dual under transposition:
--- @Compose@ reverses, 'Par' transposes componentwise, 'Copy' ↔ 'Plus',
--- 'Discard' ↔ 'Zero', 'Knot' ↔ 'Knot' (recurring into the body).
---
--- @Lift@ transposes via 'Dg.Dagger' field swap — only nets over
--- 'Dg.Dagger' are transposable, since the forward\/backward pairing is
--- structural in the base arrow.
---
--- Law: @transpose . transpose = id@.
---
--- .> import Circuit.Dagger qualified as Dg
--- .> let n1 = Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
--- .> let n2 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (+1) (subtract 1)) :: Net (,) (Dg.Dagger (->)) Int Int
--- .> Dg.front (run (transpose (transpose n1))) 5
--- 6
--- .> Dg.front (run (transpose (transpose n2))) 5
--- 7
---
--- Asymmetric factors catch the direction of @Compose@ reversal:
--- forward is @(*2) . (+1)@, backward is @(subtract 1) . (`div` 2)@.
---
--- .> let n3 = Lift (Dg.Dagger (+1) (subtract 1)) `Compose` Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Net (,) (Dg.Dagger (->)) Int Int
--- .> Dg.front (run (transpose n3)) 10
--- 4
-transpose ::
-  Net t (Dg.Dagger arr) a b ->
-  Net t (Dg.Dagger arr) b a
-transpose = \case
-  Lift (Dg.Dagger f g) -> Lift (Dg.Dagger g f)
-  Compose g f -> Compose (transpose f) (transpose g)
-  Par f g -> Par (transpose f) (transpose g)
-  Swap -> Swap
-  Copy -> Plus
-  Plus -> Copy
-  Discard -> Zero
-  Zero -> Discard
-  Knot f -> Knot (transpose f)
 
 -- | Upgrade a 'C.Loop' to a 'Net' — constructor-to-constructor.
 --
@@ -309,7 +265,6 @@ instance Layer (Net t) where
   type Run (Net t) arr = (Traced t arr, Action (,) arr, Discrete arr)
   type Bind (Net t) arr = Discrete arr
   unit = Lift
-  run = Layer.run . melt
   bind :: forall arr' arr a b. (Law (Net t) arr', Bind (Net t) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Net t arr a b -> arr' a b
   bind h (Lift f) = h f
   bind h (Compose @_ @b1 @_ @_ @_ g f) =

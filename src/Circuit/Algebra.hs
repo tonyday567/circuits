@@ -43,14 +43,15 @@
 -- * @SigKnot@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition
 -- * @SigSwap@    — symmetric braiding
--- * 'SigBimonoid'— copy, discard, plus, zero
+-- * @SigCopyDiscard@ — copy, discard
+-- * @SigMergeZero@   — plus, zero
 --
 -- Examples:
 --
 -- * @'Syntax' @SigCompose@ arr@                              — free category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t) arr@          — free traced category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@) arr@ — free monoidal category
--- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigBimonoid') arr@ — Net
+-- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigCopyDiscard' ':+:' 'SigMergeZero') arr@ — Net
 module Circuit.Algebra
   ( -- * Signatures
     Sig,
@@ -67,7 +68,8 @@ module Circuit.Algebra
     SigKnot (..),
     SigPar (..),
     SigSwap (..),
-    SigBimonoid (..),
+    SigCopyDiscard (..),
+    SigMergeZero (..),
 
     -- * Common syntax combinations
     AlgCat,
@@ -228,29 +230,43 @@ instance (Action (,) arr') => Algebra SigSwap arr arr' where
   type Ctx SigSwap arr arr' = Action (,) arr'
   alg _ _ SigSwap = swap
 
--- | Bimonoid operations: copy, discard, plus, zero.
+-- | Comonoid operations: copy, discard.
 --
--- Each constructor carries its own 'Dg.Bimonoid' constraint, resolved at
+-- Each constructor carries its own 'Dg.CopyDiscard' constraint, resolved at
 -- pattern-match time rather than in the algebra context.
-data SigBimonoid arr rec a b where
-  SigCopy :: (Dg.Bimonoid arr a) => SigBimonoid arr rec a (a, a)
-  SigDiscard :: (Dg.Bimonoid arr a) => SigBimonoid arr rec a ()
-  SigPlus :: (Dg.Bimonoid arr a) => SigBimonoid arr rec (a, a) a
-  SigZero :: (Dg.Bimonoid arr a) => SigBimonoid arr rec () a
+data SigCopyDiscard arr rec a b where
+  SigCopy :: (Dg.CopyDiscard arr a) => SigCopyDiscard arr rec a (a, a)
+  SigDiscard :: (Dg.CopyDiscard arr a) => SigCopyDiscard arr rec a ()
 
--- | [Conditional] 'alg' for bimonoid generators sends each generator to the
--- image under @emb@ of the source dictionary. This is the free-PROP fold
--- only when @emb@ is a bimonoid homomorphism; it is automatic for the
--- generator embedding, but must be checked for custom embeddings.
-instance Algebra SigBimonoid arr arr' where
+-- | 'alg' for copy/discard generators sends each generator to the image
+-- under @emb@ of the source dictionary.
+instance Algebra SigCopyDiscard arr arr' where
   alg ::
     forall rec i o.
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
-    SigBimonoid arr rec i o ->
+    SigCopyDiscard arr rec i o ->
     arr' i o
   alg emb _ SigCopy = emb (Dg.copy :: arr i (i, i))
   alg emb _ SigDiscard = emb (Dg.discard :: arr i ())
+
+-- | Monoid operations: plus, zero.
+--
+-- Each constructor carries its own 'Dg.MergeZero' constraint, resolved at
+-- pattern-match time rather than in the algebra context.
+data SigMergeZero arr rec a b where
+  SigPlus :: (Dg.MergeZero arr a) => SigMergeZero arr rec (a, a) a
+  SigZero :: (Dg.MergeZero arr a) => SigMergeZero arr rec () a
+
+-- | 'alg' for plus/zero generators sends each generator to the image under
+-- @emb@ of the source dictionary.
+instance Algebra SigMergeZero arr arr' where
+  alg ::
+    forall rec i o.
+    (forall x y. arr x y -> arr' x y) ->
+    (forall x y. rec x y -> arr' x y) ->
+    SigMergeZero arr rec i o ->
+    arr' i o
   alg emb _ SigPlus = emb (Dg.plus :: arr (o, o) o)
   alg emb _ SigZero = emb (Dg.zero :: arr () o)
 
@@ -267,10 +283,10 @@ type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
 type AlgSym arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
 
 -- | Free bimonoidal category.
-type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigBimonoid) arr
+type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
 
 -- | Free traced PROP with bimonoid.
-type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigBimonoid) arr
+type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
 
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
@@ -341,7 +357,7 @@ algLoop (C.Knot f) = Op (R (SigKnot (Lift f)))
 -- 'C.Loop', so the result is in normal form (at most one 'C.Knot').
 runAlgLoop ::
   forall t a b.
-  (Traced t (->)) =>
+  (C.FreeLoop t (->)) =>
   AlgLoop t (->) a b ->
   C.Loop t (->) a b
 runAlgLoop (Lift f) = C.Lift f
@@ -360,10 +376,10 @@ algNet (N.Lift f) = Lift f
 algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
 algNet (N.Par f g) = Op (R (R (L (SigPar (algNet f) (algNet g)))))
 algNet N.Swap = Op (R (R (R (L SigSwap))))
-algNet N.Copy = Op (R (R (R (R SigCopy))))
-algNet N.Discard = Op (R (R (R (R SigDiscard))))
-algNet N.Plus = Op (R (R (R (R SigPlus))))
-algNet N.Zero = Op (R (R (R (R SigZero))))
+algNet N.Copy = Op (R (R (R (R (L SigCopy)))))
+algNet N.Discard = Op (R (R (R (R (L SigDiscard)))))
+algNet N.Plus = Op (R (R (R (R (R SigPlus)))))
+algNet N.Zero = Op (R (R (R (R (R SigZero)))))
 algNet (N.Knot f) = Op (R (L (SigKnot (algNet f))))
 
 -- | Project the signature-based Net back to the direct GADT.
@@ -374,33 +390,39 @@ runAlgNet = goTop
     goTop (Lift f) = N.Lift f
     goTop (Op op) = goOp op
 
-    goOp :: forall x y. (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigBimonoid) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goOp :: forall x y. (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
     goOp (L sc) = goCompose sc
     goOp (R rest) = goKnotOrMore rest
 
     goCompose :: forall x y. SigCompose arr (AlgNet t arr) x y -> N.Net t arr x y
     goCompose (SigCompose g f) = N.Compose (goTop g) (goTop f)
 
-    goKnotOrMore :: forall x y. (SigKnot t :+: SigPar :+: SigSwap :+: SigBimonoid) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goKnotOrMore :: forall x y. (SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
     goKnotOrMore (L sk) = goKnot sk
     goKnotOrMore (R rest) = goParOrMore rest
 
     goKnot :: forall x y. SigKnot t arr (AlgNet t arr) x y -> N.Net t arr x y
     goKnot (SigKnot f) = N.Knot (goTop f)
 
-    goParOrMore :: forall x y. (SigPar :+: SigSwap :+: SigBimonoid) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goParOrMore :: forall x y. (SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
     goParOrMore (L sp) = goPar sp
-    goParOrMore (R rest) = goSwapOrBimonoid rest
+    goParOrMore (R rest) = goSwapOrMonoid rest
 
     goPar :: forall x y. SigPar arr (AlgNet t arr) x y -> N.Net t arr x y
     goPar (SigPar f g) = N.Par (goTop f) (goTop g)
 
-    goSwapOrBimonoid :: forall x y. (SigSwap :+: SigBimonoid) arr (AlgNet t arr) x y -> N.Net t arr x y
-    goSwapOrBimonoid (L SigSwap) = N.Swap
-    goSwapOrBimonoid (R sb) = goBimonoid sb
+    goSwapOrMonoid :: forall x y. (SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goSwapOrMonoid (L SigSwap) = N.Swap
+    goSwapOrMonoid (R rest) = goCopyDiscardOrMergeZero rest
 
-    goBimonoid :: forall x y. SigBimonoid arr (AlgNet t arr) x y -> N.Net t arr x y
-    goBimonoid SigCopy = N.Copy
-    goBimonoid SigDiscard = N.Discard
-    goBimonoid SigPlus = N.Plus
-    goBimonoid SigZero = N.Zero
+    goCopyDiscardOrMergeZero :: forall x y. (SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goCopyDiscardOrMergeZero (L scd) = goCopyDiscard scd
+    goCopyDiscardOrMergeZero (R smz) = goMergeZero smz
+
+    goCopyDiscard :: forall x y. SigCopyDiscard arr (AlgNet t arr) x y -> N.Net t arr x y
+    goCopyDiscard SigCopy = N.Copy
+    goCopyDiscard SigDiscard = N.Discard
+
+    goMergeZero :: forall x y. SigMergeZero arr (AlgNet t arr) x y -> N.Net t arr x y
+    goMergeZero SigPlus = N.Plus
+    goMergeZero SigZero = N.Zero

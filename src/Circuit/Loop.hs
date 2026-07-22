@@ -246,12 +246,6 @@ instance Layer (Loop t) where
   type Run (Loop t) arr = (Traced t arr, Discrete arr)
   type Bind (Loop t) arr = ()
   unit = Lift
-  run :: forall arr a b. (Run (Loop t) arr, Ob arr a, Ob arr b) => Loop t arr a b -> arr a b
-  run (Lift f) = f
-  run (Knot @_ @s @_ @_ @_ f) =
-    withOb @arr @(t s a) $
-      withOb @arr @(t s b) $
-        trace f
   bind :: forall arr arr' a b. (Law (Loop t) arr', Ob arr' a, Ob arr' b) => (arr :~> arr') -> Loop t arr a b -> arr' a b
   bind h (Lift f) = h f
   bind h (Knot @_ @s @_ @_ @_ f) =

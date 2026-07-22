@@ -1,5 +1,37 @@
 # Revision history for circuits
 
+## 0.3.0.0 — 2026-07-22
+
+Kernel tidy before release: split the bimonoid signature and make
+`Layer.run` default to `bind id`.
+
+*Signature split*
+
+- `Circuit.Algebra.SigBimonoid` is replaced by `SigCopyDiscard` and
+  `SigMergeZero`. The old bundled signature forced users to supply a full
+  `Bimonoid` instance even when they only needed copy/discard wiring.
+- `Circuit.Net.Net` constructors now carry the precise constraint:
+  `Copy`/`Discard` require `CopyDiscard`, `Plus`/`Zero` require `MergeZero`.
+- `AlgBimonoidal` and `AlgNet` updated to the new signature pair; the
+  `algNet` / `runAlgNet` isomorphisms match the new injection order.
+
+*Layer coherence*
+
+- `Circuit.Layer.Layer.run` now defaults to `bind id`. The separate direct
+  implementations are removed from `Free`, `Sym`, `Loop`, and `Net`.
+- `Run Free arr` now includes `Discrete arr`, which is the price of the
+  default. `Circuit.Free.freeze` remains available for same-category folds
+  that do not have a `Discrete` base.
+
+*Migrating*
+
+- Replace `SigBimonoid` with `SigCopyDiscard :+: SigMergeZero`.
+- Replace `SigCopy`/`SigDiscard`/`SigPlus`/`SigZero` patterns at the
+  corresponding injection depth (now five right-injections for copy/discard,
+  six for plus/zero in `AlgNet`).
+- Any custom `Net` consumer pattern-matching on `Copy`/`Discard`/`Plus`/`Zero`
+  now sees split constraints instead of `Bimonoid`.
+
 ## 0.2.0.0 — 2026-07-20
 
 Total revamp of the API around a single normal-form GADT and a clearer

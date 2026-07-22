@@ -87,10 +87,16 @@ class Layer (f :: Cat2 -> Cat2) where
 
   -- | Fold the free syntax into the same base category.
   --
-  -- Implemented directly by each instance so that constrained categories
-  -- (e.g. matrices) do not need a @Discrete@ instance for same-category
-  -- folds.
-  run :: (Run f arr, Ob arr a, Ob arr b) => f arr a b -> arr a b
+  -- Defaults to @'bind' 'id'@, so the single eliminator vocabulary is
+  -- coherent wherever it type-checks. Instances may still override this
+  -- with a direct implementation if the weaker constraints of 'Run' do
+  -- not already imply 'Law' and 'Bind'.
+  run ::
+    (Run f arr, Law f arr, Bind f arr, Ob arr a, Ob arr b) =>
+    f arr a b ->
+    arr a b
+
+  run = bind id
 
   -- | The universal fold out of the free construction into any
   -- 'Law'-abiding target category.

@@ -65,11 +65,9 @@ instance (Discrete arr) => Discrete (Free arr) where
 -- what 'Discrete arr'' provides, so 'Law' is 'Discrete'.
 instance Layer Free where
   type Law Free arr' = Discrete arr'
-  type Run Free arr = Category arr
+  type Run Free arr = (Category arr, Discrete arr)
   type Bind Free arr = ()
   unit = Lift
-  run (Lift f) = f
-  run (Compose g f) = run g . run f
   bind :: forall arr' arr a b. (Law Free arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Free arr a b -> arr' a b
   bind h (Lift f) = h f
   bind h (Compose @_ @b1 g f) = withOb @arr' @b1 (bind h g . bind h f)
