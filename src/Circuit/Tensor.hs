@@ -439,9 +439,18 @@ superpose ::
   Loop t arr (t a c) (t b d)
 superpose x y = case (x, y) of
   (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
-    withOb @arr @(t s s1) $ Knot $ pre .>> par f g .>> post
-  (Knot @_ @_ @_ @_ @_ f, Lift g) -> Knot $ assoc'_ .>> par f g .>> assoc_
-  (Lift f, Knot @_ @_ @_ @_ @_ g) -> Knot $ braid_ .>> par f g .>> braid_
+    withOb @arr @(t s s1) $
+      withOb @arr @(t (t s s1) (t a c)) $
+        withOb @arr @(t (t s s1) (t b d)) $
+          Knot $ pre .>> par f g .>> post
+  (Knot @_ @s @_ @_ @_ f, Lift g) ->
+    withOb @arr @(t s (t a c)) $
+      withOb @arr @(t s (t b d)) $
+        Knot $ assoc'_ .>> par f g .>> assoc_
+  (Lift f, Knot @_ @s @_ @_ @_ g) ->
+    withOb @arr @(t s (t a c)) $
+      withOb @arr @(t s (t b d)) $
+        Knot $ braid_ .>> par f g .>> braid_
   (Lift f, Lift g) -> Lift (par f g)
   where
     (.>>) :: forall x y z. arr x y -> arr y z -> arr x z

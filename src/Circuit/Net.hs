@@ -42,7 +42,7 @@ module Circuit.Net
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
 import Circuit.Channel (Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), (:~>))
@@ -265,32 +265,52 @@ instance Layer (Net t) where
   type Run (Net t) arr = (Traced t arr, Action (,) arr, Discrete arr)
   type Bind (Net t) arr = Discrete arr
   unit = Lift
-  bind :: forall arr' arr a b. (Law (Net t) arr', Bind (Net t) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (arr :~> arr') -> Net t arr a b -> arr' a b
-  bind h (Lift f) = h f
-  bind h (Compose @_ @b1 @_ @_ @_ g f) =
-    withOb @arr @b1 $
-      withOb @arr' @b1 $
-        (bind h g . bind h f)
-  bind h (Par @_ @_ @a1 @b1 @c @d f g) =
-    withOb @arr @a1 $
-      withOb @arr @b1 $
-        withOb @arr @c $
-          withOb @arr @d $
-            withOb @arr' @a1 $
-              withOb @arr' @b1 $
-                withOb @arr' @c $
-                  withOb @arr' @d $
-                    par (bind h f) (bind h g)
-  bind _ Swap = swap
-  bind h Copy = h Dg.copy
-  bind h Discard = h Dg.discard
-  bind h Plus = h Dg.plus
-  bind h Zero = h Dg.zero
-  bind h (Knot @_ @s @_ @_ @_ f) =
+  bind ::
+    forall arr' arr a b.
+    (Law (Net t) arr', Bind (Net t) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (arr :~> arr') ->
+    Net t arr a b ->
+    arr' a b
+  bind _phi h (Lift f) = h f
+  bind phi h (Compose @_ @b1 @_ @_ @_ g f) =
+    withObDict (obDict :: ObDict arr b1) $
+      withObDict (phi (obDict :: ObDict arr b1)) $
+        (bind phi h g . bind phi h f)
+  bind phi h (Par @_ @_ @a1 @b1 @c @d f g) =
+    withObDict (obDict :: ObDict arr a1) $
+      withObDict (obDict :: ObDict arr b1) $
+        withObDict (obDict :: ObDict arr c) $
+          withObDict (obDict :: ObDict arr d) $
+            withObDict (phi (obDict :: ObDict arr a1)) $
+              withObDict (phi (obDict :: ObDict arr b1)) $
+                withObDict (phi (obDict :: ObDict arr c)) $
+                  withObDict (phi (obDict :: ObDict arr d)) $
+                    withOb @arr' @(a1, c) $
+                      withOb @arr' @(b1, d) $
+                        par (bind phi h f) (bind phi h g)
+  bind _phi _ Swap = swap
+  bind _phi h (Copy @_ @c) =
+    withOb @arr' @c $
+      withOb @arr' @(c, c) $
+        h Dg.copy
+  bind _phi h (Discard @_ @c) =
+    withOb @arr' @c $
+      withOb @arr' @() $
+        h Dg.discard
+  bind _phi h (Plus @_ @c) =
+    withOb @arr' @(c, c) $
+      withOb @arr' @c $
+        h Dg.plus
+  bind _phi h (Zero @_ @c) =
+    withOb @arr' @() $
+      withOb @arr' @c $
+        h Dg.zero
+  bind phi h (Knot @_ @s @_ @_ @_ f) =
     withOb @arr @s $
       withOb @arr @(t s a) $
         withOb @arr @(t s b) $
-          withOb @arr' @s $
+          withObDict (phi (obDict :: ObDict arr s)) $
             withOb @arr' @(t s a) $
               withOb @arr' @(t s b) $
-                trace (bind h f)
+                trace (bind phi h f)

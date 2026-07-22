@@ -90,7 +90,16 @@ instance (Category arr, Channel t arr) => Channel t (Sym arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
-  withTensorOb da db k = withTensorOb @t @arr da db k
+  withTensorOb ::
+    forall a b r.
+    ObDict (Sym arr) a ->
+    ObDict (Sym arr) b ->
+    ((Ob (Sym arr) (t a b)) => r) ->
+    r
+  withTensorOb (dA :: ObDict (Sym arr) a) (dB :: ObDict (Sym arr) b) k =
+    withObDict dA $
+      withObDict dB $
+        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
 -- | 'Action' plus 'Discrete' so free 'Sym' can fold intermediate objects.
 --
@@ -114,19 +123,38 @@ instance Layer Sym where
   bind _phi h (Lift f) = h f
   bind phi h (Compose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
   bind phi h (Par (f :: Sym arr a1 b1) (g :: Sym arr c d)) =
-    withObDict (phi (ObDict :: ObDict arr a1)) $
-      withObDict (phi (ObDict :: ObDict arr b1)) $
-        withObDict (phi (ObDict :: ObDict arr c)) $
-          withObDict (phi (ObDict :: ObDict arr d)) $
-            withTensorOb (ObDict :: ObDict arr' a1) (ObDict :: ObDict arr' c) $
-              withTensorOb (ObDict :: ObDict arr' b1) (ObDict :: ObDict arr' d) $
-                par (bind phi h f) (bind phi h g)
+    let dA1 = obDict :: ObDict arr a1
+        dB1 = obDict :: ObDict arr b1
+        dC = obDict :: ObDict arr c
+        dD = obDict :: ObDict arr d
+     in withObDict dA1 $
+          withObDict dB1 $
+            withObDict dC $
+              withObDict dD $
+                withObDict (phi dA1) $
+                  withObDict (phi dB1) $
+                    withObDict (phi dC) $
+                      withObDict (phi dD) $
+                        withOb @arr' @(a1, c) $
+                          withOb @arr' @(b1, d) $
+                            par (bind phi h f) (bind phi h g)
   bind _phi _ Swap = swap
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where
   strength = Lift . strength . run
-  withStrengthOb da db dc k = withStrengthOb @t @arr da db dc k
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (Sym arr) a ->
+    ObDict (Sym arr) b ->
+    ObDict (Sym arr) c ->
+    ((Ob (Sym arr) (t a b), Ob (Sym arr) (t a c)) => r) ->
+    r
+  withStrengthOb (dA :: ObDict (Sym arr) a) (dB :: ObDict (Sym arr) b) (dC :: ObDict (Sym arr) c) k =
+    withObDict dA $
+      withObDict dB $
+        withObDict dC $
+          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 -- | Lift the 'Traced' structure through 'Sym'.
 --

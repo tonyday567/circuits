@@ -37,7 +37,7 @@ module Circuit.Dagger
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
@@ -237,6 +237,18 @@ instance (Discrete arr) => Discrete (Dagger arr) where
 instance (Strength t arr) => Strength t (Dagger arr) where
   strength (Dagger f g) = Dagger (strength f) (strength g)
   {-# INLINE strength #-}
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (Dagger arr) a ->
+    ObDict (Dagger arr) b ->
+    ObDict (Dagger arr) c ->
+    ((Ob (Dagger arr) (t a b), Ob (Dagger arr) (t a c)) => r) ->
+    r
+  withStrengthOb (dA :: ObDict (Dagger arr) a) (dB :: ObDict (Dagger arr) b) (dC :: ObDict (Dagger arr) c) k =
+    withObDict dA $
+      withObDict dB $
+        withObDict dC $
+          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 instance (Traced t arr) => Traced t (Dagger arr) where
   trace (Dagger f g) = Dagger (trace f) (trace g)
@@ -277,3 +289,13 @@ instance (Channel t arr) => Channel t (Dagger arr) where
   assoc = Dagger assoc assoc'
   assoc' = Dagger assoc' assoc
   slide = Dagger slide slide
+  withTensorOb ::
+    forall a b r.
+    ObDict (Dagger arr) a ->
+    ObDict (Dagger arr) b ->
+    ((Ob (Dagger arr) (t a b)) => r) ->
+    r
+  withTensorOb (dA :: ObDict (Dagger arr) a) (dB :: ObDict (Dagger arr) b) k =
+    withObDict dA $
+      withObDict dB $
+        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k

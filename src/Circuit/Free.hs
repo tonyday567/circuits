@@ -87,14 +87,34 @@ instance (Channel t arr) => Channel t (Free arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
-  withTensorOb da db k = withTensorOb @t @arr da db k
+  withTensorOb ::
+    forall a b r.
+    ObDict (Free arr) a ->
+    ObDict (Free arr) b ->
+    ((Ob (Free arr) (t a b)) => r) ->
+    r
+  withTensorOb (dA :: ObDict (Free arr) a) (dB :: ObDict (Free arr) b) k =
+    withObDict dA $
+      withObDict dB $
+        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
 -- | Lift the 'Strength' class through 'Free'.
 --
 -- A morphism is frozen before tensoring with the feedback channel.
 instance (Strength t arr) => Strength t (Free arr) where
   strength = Lift . strength . freeze
-  withStrengthOb da db dc k = withStrengthOb @t @arr da db dc k
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (Free arr) a ->
+    ObDict (Free arr) b ->
+    ObDict (Free arr) c ->
+    ((Ob (Free arr) (t a b), Ob (Free arr) (t a c)) => r) ->
+    r
+  withStrengthOb (dA :: ObDict (Free arr) a) (dB :: ObDict (Free arr) b) (dC :: ObDict (Free arr) c) k =
+    withObDict dA $
+      withObDict dB $
+        withObDict dC $
+          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 -- | Lift the 'Traced' class through 'Free'.
 --

@@ -62,14 +62,41 @@ import Prelude hiding (id, (.))
 -- maps — free constructions over unconstrained bases stay lightweight.
 class (Category arr) => Channel t arr where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
-  assoc :: arr (t (t a b) c) (t a (t b c))
+  assoc ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr (t a b),
+      Ob arr (t b c),
+      Ob arr (t (t a b) c),
+      Ob arr (t a (t b c))
+    ) =>
+    arr (t (t a b) c) (t a (t b c))
 
   -- | Inverse reassociation: @t a (t b c) -> t (t a b) c@.
-  assoc' :: arr (t a (t b c)) (t (t a b) c)
+  assoc' ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr (t a b),
+      Ob arr (t b c),
+      Ob arr (t (t a b) c),
+      Ob arr (t a (t b c))
+    ) =>
+    arr (t a (t b c)) (t (t a b) c)
 
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
-  slide :: arr (t a (t b c)) (t b (t a c))
+  slide ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr (t b c),
+      Ob arr (t a c),
+      Ob arr (t a (t b c)),
+      Ob arr (t b (t a c))
+    ) =>
+    arr (t a (t b c)) (t b (t a c))
 
   -- | Derive the tensor object constraint from its components.
   withTensorOb ::

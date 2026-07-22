@@ -32,7 +32,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Free qualified as F
 import Circuit.Layer (Layer, bind, run, (:~>))
@@ -158,9 +158,11 @@ instance Channel (,) Hyper where
   assoc = lift $ \((a, b), c) -> (a, (b, c))
   assoc' = lift $ \(a, (b, c)) -> ((a, b), c)
   slide = lift $ \(a, (b, c)) -> (b, (a, c))
+  withTensorOb ObDict ObDict k = k
 
 instance Strength (,) Hyper where
   strength h = lift (second (observe h))
+  withStrengthOb ObDict ObDict ObDict k = k
 
 instance Traced (,) Hyper where
   trace body = Hyper $ \k ->
