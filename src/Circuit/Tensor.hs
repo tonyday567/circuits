@@ -258,16 +258,16 @@ class (Category arr) => Tensor t arr where
   par :: arr a b -> arr c d -> arr (t a c) (t b d)
 
   -- | Left unitor: @I ⊗ a -> a@.
-  unitl :: arr (t (Unit t) a) a
+  unitl :: (Ob arr a) => arr (t (Unit t) a) a
 
   -- | Inverse left unitor: @a -> I ⊗ a@.
-  unitl' :: arr a (t (Unit t) a)
+  unitl' :: (Ob arr a) => arr a (t (Unit t) a)
 
   -- | Right unitor: @a ⊗ I -> a@.
-  unitr :: arr (t a (Unit t)) a
+  unitr :: (Ob arr a) => arr (t a (Unit t)) a
 
   -- | Inverse right unitor: @a -> a ⊗ I@.
-  unitr' :: arr a (t a (Unit t))
+  unitr' :: (Ob arr a) => arr a (t a (Unit t))
 
 -- | The action of a tensor @t@ on a category @arr@, extended with a
 -- symmetric braiding.
@@ -280,7 +280,7 @@ class (Tensor t arr) => Action t arr where
   --
   -- >>> swap (3, 4) :: (Int, Int)
   -- (4,3)
-  swap :: arr (t a b) (t b a)
+  swap :: (Ob arr a, Ob arr b) => arr (t a b) (t b a)
 
 type instance Unit (,) = ()
 

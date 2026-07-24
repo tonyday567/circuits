@@ -96,6 +96,12 @@ import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
+type family Fst (p :: Type) :: Type where
+  Fst (a, b) = a
+
+type family Snd (p :: Type) :: Type where
+  Snd (a, b) = b
+
 -- ---------------------------------------------------------------------------
 -- Signature functors
 
@@ -227,8 +233,18 @@ data SigSwap arr rec a b where
   SigSwap :: SigSwap arr rec (a, b) (b, a)
 
 instance (Action (,) arr') => Algebra SigSwap arr arr' where
-  type Ctx SigSwap arr arr' = Action (,) arr'
-  alg _ _ SigSwap = swap
+  type Ctx SigSwap arr arr' = (Action (,) arr', Discrete arr')
+  alg ::
+    forall rec a b.
+    (Ctx SigSwap arr arr') =>
+    (forall x y. arr x y -> arr' x y) ->
+    (forall x y. rec x y -> arr' x y) ->
+    SigSwap arr rec a b ->
+    arr' a b
+  alg _ _ SigSwap = aux
+    where
+      aux :: forall a1 b1. (a ~ (a1, b1), b ~ (b1, a1)) => arr' a b
+      aux = withOb @arr' @a1 $ withOb @arr' @b1 $ swap
 
 -- | Comonoid operations: copy, discard.
 --

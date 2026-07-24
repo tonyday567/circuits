@@ -52,6 +52,7 @@ library
     Circuit.Dagger
     Circuit.Discrete
     Circuit.Ends
+    Circuit.FinRel
     Circuit.Free
     Circuit.Hyper
     Circuit.HyperLoop
@@ -65,3 +66,13 @@ library
     base >=4.18 && <5,
     profunctors >=5.0 && <6,
     stm >=2.5 && <3,
+
+test-suite spec
+  import: ghc-options-stanza
+  default-language: GHC2024
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs: test
+  build-depends:
+    base >=4.18 && <5,
+    circuits,

@@ -30,7 +30,14 @@ import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, 
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Tensor (Action (..), Tensor (..))
+import Data.Kind (Type)
 import Prelude hiding (id, (.))
+
+type family Fst (p :: Type) :: Type where
+  Fst (a, b) = a
+
+type family Snd (p :: Type) :: Type where
+  Snd (a, b) = b
 
 -- $setup
 -- >> import Circuit.Layer (run)
@@ -138,7 +145,10 @@ instance Layer Sym where
                         withOb @arr' @(a1, c) $
                           withOb @arr' @(b1, d) $
                             par (bind phi h f) (bind phi h g)
-  bind _phi _ Swap = swap
+  bind _phi _ Swap =
+    withOb @arr' @(Fst a) $
+      withOb @arr' @(Snd a) $
+        swap
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where

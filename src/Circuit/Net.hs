@@ -53,6 +53,12 @@ import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
+type family Fst (p :: Type) :: Type where
+  Fst (a, b) = a
+
+type family Snd (p :: Type) :: Type where
+  Snd (a, b) = b
+
 -- $setup
 -- >> import Circuit.Dagger qualified as Dg
 -- >> import Circuit.Layer (bind, run, unit)
@@ -232,7 +238,10 @@ melt (Compose @_ @b1 @_ @_ @_ g f) =
       withOb @arr @b $
         (melt g . melt f)
 melt (Par f g) = par (melt f) (melt g)
-melt Swap = C.Lift swap
+melt Swap =
+  withOb @arr @(Fst a) $
+    withOb @arr @(Snd a) $
+      C.Lift swap
 melt Copy = C.Lift Dg.copy
 melt Discard = C.Lift Dg.discard
 melt Plus = C.Lift Dg.plus
@@ -289,7 +298,10 @@ instance Layer (Net t) where
                     withOb @arr' @(a1, c) $
                       withOb @arr' @(b1, d) $
                         par (bind phi h f) (bind phi h g)
-  bind _phi _ Swap = swap
+  bind _phi _ Swap =
+    withOb @arr' @(Fst a) $
+      withOb @arr' @(Snd a) $
+        swap
   bind _phi h (Copy @_ @c) =
     withOb @arr' @c $
       withOb @arr' @(c, c) $
