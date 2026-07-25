@@ -7,6 +7,8 @@ import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', trace)
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.FinRel
+import Circuit.Layer (run)
+import Circuit.Process (Process (..), encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, natVal)
@@ -37,6 +39,33 @@ swapMiddle = swapBlocks @1
 
 swapMiddle2 :: FinRel F ((N2, N2), (N2, N2)) ((N2, N2), (N2, N2))
 swapMiddle2 = swapBlocks @2
+
+-- | Simple additive process for oracles.
+sumP :: Process Int Int
+sumP = Process id (+) id
+
+-- | Pair swap for the (,) trace yanking oracle.
+swapPairP :: Process (Int, Int) (Int, Int)
+swapPairP = Process id (\_ x -> x) (\(a, b) -> (b, a))
+
+-- | Either swap for the Either trace yanking oracle.
+swapEitherP :: Process (Either Int Int) (Either Int Int)
+swapEitherP = Process id (\_ x -> x) swapEither
+  where
+    swapEither (Left a) = Right a
+    swapEither (Right b) = Left b
+
+-- | EWMA body: stateless affine box with feedback.
+ewmaBody :: Double -> Process (Double, Double) (Double, Double)
+ewmaBody alpha =
+  Process
+    (\(x, prev) -> alpha * x + (1 - alpha) * prev)
+    (\s (x, _) -> alpha * x + (1 - alpha) * s)
+    (\s -> (s, s))
+
+-- | Exponentially weighted moving average with initial feedback.
+ewma :: Double -> Double -> Process Double Double
+ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Annotated helpers to avoid ambiguous overloads.
 id1 :: FinRel F N1 N1
@@ -165,7 +194,25 @@ main = do
         check "trace yanking (n=1)" $
           trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,
         check "trace of identity pair" $
-          trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1
+          trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
+
+        -- Circuit.Process oracles
+        check "Process seed emits first output" $
+          scan sumP [5] == [5],
+        check "Process scan semantics" $
+          scan sumP [1, 2, 3] == [1, 3, 6],
+        check "Process fold semantics" $
+          fold sumP [1, 2, 3] == Just 6,
+        check "Process fold empty" $
+          fold sumP [] == Nothing,
+        check "Process scan == run . encode" $
+          run (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
+        check "Process Traced (,) yanking" $
+          scan (trace swapPairP) [1, 2, 3] == [1, 2, 3],
+        check "Process Traced Either yanking" $
+          scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
+        check "Process register (EWMA)" $
+          scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875]
       ]
   if and results
     then putStrLn "\nAll tests passed."

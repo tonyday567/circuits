@@ -59,6 +59,7 @@ library
     Circuit.Layer
     Circuit.Loop
     Circuit.Net
+    Circuit.Process
     Circuit.Sym
     Circuit.Tensor
 
@@ -67,12 +68,11 @@ library
     profunctors >=5.0 && <6,
     stm >=2.5 && <3,
 
-test-suite spec
+executable circuits-verify
   import: ghc-options-stanza
   default-language: GHC2024
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  hs-source-dirs: test
+  main-is: verify.hs
+  hs-source-dirs: app
   build-depends:
     base >=4.18 && <5,
     circuits,
