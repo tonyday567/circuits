@@ -47,9 +47,10 @@ import Circuit.Loop (Loop (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >> import Circuit.Layer (run)
--- >> import Circuit.Loop (Loop (..))
--- >> import Circuit.Free qualified as F
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Loop (Loop (..))
+-- >>> import Circuit.Free qualified as F
+-- >>> import Circuit.Hyper (observe)
 
 -- | Encode a 'Free' category into a 'HyperF'.
 --
@@ -58,7 +59,7 @@ import Prelude hiding (id, (.))
 -- Law: @'observe' . 'encodeFree' = 'run'@ — the two interpreters
 -- from Free agree.
 --
--- .> observe (encodeFree (F.Lift (+1))) 5
+-- >>> observe (encodeFree (F.Lift (+1))) 5
 -- 6
 encodeFree ::
   (HyperBase arr, Ob arr a, Ob arr b) =>
@@ -76,9 +77,9 @@ encodeFree (F.Compose f g) = encodeFree f . encodeFree g
 -- 'Lift' constructors embed directly via 'liftH'; 'Knot' constructors
 -- become 'trace' over a hyperfunction.
 --
--- .> import Circuit.Layer (run)
--- .> import Circuit.Loop (Loop (..))
--- .> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Loop (Loop (..))
+-- >>> observe (encode (Lift (+1) :: Loop (,) (->) Int Int)) 5
 -- 6
 encode ::
   ( HyperBase arr,
@@ -96,14 +97,14 @@ encode (Knot f) = trace (liftH f)
 -- This is the forgetful map from the final encoding to the initial encoding.
 -- All feedback structure is lost; only the observable behaviour remains.
 --
--- .> let h = Circuit.Hyper.lift (+ 1)
--- .> run (flatten h) 5
+-- >>> let h = Circuit.Hyper.lift (+ 1)
+-- >>> run (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:
 --
--- .> let h = Circuit.Hyper.lift (+ 1)
--- .> Circuit.Hyper.observe (encode (flatten h)) 5
+-- >>> let h = Circuit.Hyper.lift (+ 1)
+-- >>> Circuit.Hyper.observe (encode (flatten h)) 5
 -- 6
 flatten ::
   (HyperBase arr) =>

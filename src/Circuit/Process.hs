@@ -17,7 +17,7 @@
 -- * @extract@ produces the output from the current state.
 --
 -- This is the circuits-native carrier for streaming state machines. It is
--- intended to replace the hand-rolled 'Data.Mealy.Mealy' arrow: stats packages
+-- intended to replace the hand-rolled state-machine arrow: stats packages
 -- become boxes @Process a b@, while the arrow itself lives in the substrate
 -- next to 'Circuit.Loop' and 'Circuit.Net'.
 --

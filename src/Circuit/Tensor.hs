@@ -46,6 +46,11 @@ module Circuit.Tensor
     assocR,
     coassoc,
     coassoc',
+    coseed,
+    coabsorbL,
+    coabsorbR,
+    coreleaseL,
+    coreleaseR,
   )
 where
 
@@ -63,12 +68,12 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >> :set -XLambdaCase
--- >> import Circuit.Layer (run)
--- >> import Circuit.Loop (Loop (..))
--- >> import Control.Arrow (Kleisli (..), runKleisli)
--- >> import Data.Functor.Identity (Identity)
--- >> import Prelude hiding (id, (.))
+-- >>> :set -XLambdaCase
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Loop (Loop (..))
+-- >>> import Control.Arrow (Kleisli (..), runKleisli)
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> import Prelude hiding (id, (.))
 
 -- ===========================================================================
 -- BRAIDING
@@ -93,7 +98,7 @@ instance Braided (,) where
 
 -- | Coproduct slide.
 --
--- .> slide (Left "hi" :: Either String (Either Int Bool))
+-- >>> slide (Left "hi" :: Either String (Either Int Bool))
 -- Right (Left "hi")
 instance Braided Either where
   slide (Left x) = Right (Left x)
@@ -146,7 +151,7 @@ release f (s, b) = let (s', t) = f s in (s', (t, b))
 
 -- | Coassociator for sums.
 --
--- .> coassoc (Left 1 :: Either Int (Either Bool Char))
+-- >>> coassoc (Left 1 :: Either Int (Either Bool Char))
 -- Left (Left 1)
 coassoc :: Either a (Either b c) -> Either (Either a b) c
 coassoc (Left a) = Left (Left a)
@@ -155,7 +160,7 @@ coassoc (Right (Right c)) = Right c
 
 -- | Inverse coassociator.
 --
--- .> coassoc' (Left (Left 1) :: Either (Either Int Bool) Char)
+-- >>> coassoc' (Left (Left 1) :: Either (Either Int Bool) Char)
 -- Left 1
 coassoc' :: Either (Either a b) c -> Either a (Either b c)
 coassoc' (Left (Left a)) = Left a
@@ -164,14 +169,14 @@ coassoc' (Right c) = Right (Right c)
 
 -- | Tag a state value onto whichever branch of the sum is active.
 --
--- .> coseed "st" (Left 42 :: Either Int Char)
+-- >>> coseed "st" (Left 42 :: Either Int Char)
 -- Left ("st",42)
 coseed :: s -> Either a b -> Either (s, a) (s, b)
 coseed s = bimap (s,) (s,)
 
 -- | If the left branch is taken, move a value from the payload into the state wire.
 --
--- .> coabsorbL (+) (Left (10, (3, 7)) :: Either (Int, (Int, Int)) Bool)
+-- >>> coabsorbL (+) (Left (10, (3, 7)) :: Either (Int, (Int, Int)) Bool)
 -- Left (13,7)
 coabsorbL :: (t -> s -> s') -> Either (s, (t, a)) b -> Either (s', a) b
 coabsorbL f (Left (s, (t, a))) = Left (f t s, a)
@@ -179,7 +184,7 @@ coabsorbL _ (Right b) = Right b
 
 -- | If the right branch is taken, move a value from the payload into the state wire.
 --
--- .> coabsorbR (+) (Right (10, (3, 7)) :: Either Bool (Int, (Int, Int)))
+-- >>> coabsorbR (+) (Right (10, (3, 7)) :: Either Bool (Int, (Int, Int)))
 -- Right (13,7)
 coabsorbR :: (t -> s -> s') -> Either a (s, (t, b)) -> Either a (s', b)
 coabsorbR f (Right (s, (t, b))) = Right (f t s, b)
@@ -187,7 +192,7 @@ coabsorbR _ (Left a) = Left a
 
 -- | If the left branch is taken, move a value from the state wire into the payload.
 --
--- .> coreleaseL (\s -> (s+1, s*2)) (Left (5, 99) :: Either (Int, Int) Char)
+-- >>> coreleaseL (\s -> (s+1, s*2)) (Left (5, 99) :: Either (Int, Int) Char)
 -- Left (6,(10,99))
 coreleaseL :: (s -> (s', t)) -> Either (s, a) b -> Either (s', (t, a)) b
 coreleaseL f (Left (s, a)) = let (s', t) = f s in Left (s', (t, a))
@@ -195,7 +200,7 @@ coreleaseL _ (Right b) = Right b
 
 -- | If the right branch is taken, move a value from the state wire into the payload.
 --
--- .> coreleaseR (\s -> (s+1, s*2)) (Right (5, 99) :: Either Char (Int, Int))
+-- >>> coreleaseR (\s -> (s+1, s*2)) (Right (5, 99) :: Either Char (Int, Int))
 -- Right (6,(10,99))
 coreleaseR :: (s -> (s', t)) -> Either a (s, b) -> Either a (s', (t, b))
 coreleaseR f (Right (s, b)) = let (s', t) = f s in Right (s', (t, b))
@@ -215,14 +220,14 @@ coreleaseR _ (Left a) = Left a
 -- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
 -- @\(x, (s, a)) -> (s, (x, a))@.
 --
--- .> import Circuit.Layer (run)
--- .> import Circuit.Loop (Loop(..))
--- .> let slide (x, (s, a)) = (s, (x, a))
--- .> run (ambientBy slide (Lift (+1) :: Loop (,) (->) Int Int)) ("st", 5)
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Loop (Loop(..))
+-- >>> let slide (x, (s, a)) = (s, (x, a))
+-- >>> run (ambientBy slide (Lift (+1) :: Loop (,) (->) Int Int)) ("st", 5)
 -- ("st",6)
 --
--- .> let step (xs, ()) = (0 : xs, take 3 xs)
--- .> run (ambientBy slide (Knot step)) ("st", ())
+-- >>> let step (xs, ()) = (0 : xs, take 3 xs)
+-- >>> run (ambientBy slide (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
   (Strength t (->)) =>
@@ -329,10 +334,10 @@ type instance Unit Either = Void
 
 -- | Coproduct tensor action on functions.
 --
--- .> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
+-- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
 -- Left 4
 --
--- .> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
+-- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
 -- Right 6
 instance Tensor Either (->) where
   par = bimap
@@ -348,7 +353,7 @@ instance Tensor Either (->) where
 
 -- | Coproduct symmetry on functions.
 --
--- .> swap (Left 3 :: Either Int Int) :: Either Int Int
+-- >>> swap (Left 3 :: Either Int Int) :: Either Int Int
 -- Right 3
 instance Action Either (->) where
   swap = \case
@@ -358,12 +363,12 @@ instance Action Either (->) where
 
 -- | Coproduct tensor action on @Kleisli@ @m@.
 --
--- .> import Control.Arrow (Kleisli(..), runKleisli)
--- .> let f = Kleisli (\n -> pure (n + 1)) :: Kleisli IO Int Int
--- .> let g = Kleisli (\n -> pure (n * 2)) :: Kleisli IO Int Int
--- .> runKleisli (par f g) (Left 3 :: Either Int Int)
+-- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> let f = Kleisli (\n -> pure (n + 1)) :: Kleisli IO Int Int
+-- >>> let g = Kleisli (\n -> pure (n * 2)) :: Kleisli IO Int Int
+-- >>> runKleisli (par f g) (Left 3 :: Either Int Int)
 -- Left 4
--- .> runKleisli (par f g) (Right 3 :: Either Int Int)
+-- >>> runKleisli (par f g) (Right 3 :: Either Int Int)
 -- Right 6
 instance (Monad m) => Tensor Either (Kleisli m) where
   par (Kleisli f) (Kleisli g) =
@@ -419,17 +424,17 @@ instance (Action t arr, Traced t' arr, Discrete arr) => Action t (Loop t' arr) w
 -- and braiding. This preserves sharing for recursive circuits; the lawful
 -- 'Tensor' instance falls back to independent evaluation.
 --
--- .> let k1 = Circuit.Loop.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (->) [Int] [Int]
--- .> let k2 = Circuit.Loop.Knot (\(ns, _) -> (2 : ns, take 3 ns))
--- .> Circuit.Layer.run (superpose k1 k2) ([], [])
+-- >>> let k1 = Circuit.Loop.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (->) [Int] [Int]
+-- >>> let k2 = Circuit.Loop.Knot (\(ns, _) -> (2 : ns, take 3 ns))
+-- >>> Circuit.Layer.run (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
 -- The same fusion works for @Kleisli@, preserving sharing across the
 -- recursive channels under @MonadFix@.
 --
--- .> let k1 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (Kleisli Identity) [Int] [Int]
--- .> let k2 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))
--- .> runKleisli (Circuit.Layer.run (superpose k1 k2)) ([], [])
+-- >>> let k1 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (Kleisli Identity) [Int] [Int]
+-- >>> let k2 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))
+-- >>> runKleisli (Circuit.Layer.run (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.

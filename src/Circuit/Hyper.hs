@@ -86,13 +86,15 @@ import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup
--- >> import Prelude hiding (id, (.))
--- >> import Data.Profunctor
--- >> let h = lift (+1) :: Hyper Int Int
--- >> let f1 = (*2) :: Int -> Int
--- >> let g1 = (+10) :: Int -> Int
--- >> let f2 = (+3) :: Int -> Int
--- >> let g2 = (*100) :: Int -> Int
+-- >>> import Prelude
+-- >>> import Data.Profunctor (dimap, lmap, rmap)
+-- >>> import Circuit.Channel (Traced (..))
+-- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..), invoke)
+-- >>> let h = lift (+1) :: Hyper Int Int
+-- >>> let f1 = (*2) :: Int -> Int
+-- >>> let g1 = (+10) :: Int -> Int
+-- >>> let f2 = (+3) :: Int -> Int
+-- >>> let g2 = (*100) :: Int -> Int
 
 -- | A hyperfunction from @a@ to @b@ over the base category @arr@.
 --
@@ -259,39 +261,36 @@ instance
 
 -- | Embed a plain function into a hyperfunction.
 --
--- .> observe (lift (+1)) 5
+-- >>> observe (lift (+1)) 5
 -- 6
 lift :: (a -> b) -> Hyper a b
 lift = liftH
 
 -- | Extract a plain function from a hyperfunction.
 --
--- .> observe (lift reverse) "hello"
+-- >>> observe (lift reverse) "hello"
 -- "olleh"
 observe :: Hyper a b -> (a -> b)
 observe h = runIdentity . observeH h
 
 -- | Ignores the input and returns a constant value.
 --
--- .> observe (base 42) undefined
+-- >>> observe (base 42) undefined
 -- 42
 base :: a -> Hyper b a
 base = baseH
 
 -- | Push a plain function onto a hyperfunction.
 --
--- .> observe (push (+1) (lift (*2))) 5
+-- >>> observe (push (+1) (lift (*2))) 5
 -- 6
 push :: (a -> b) -> Hyper a b -> Hyper a b
 push = pushH
 
 -- | Close the self-referential loop.
 --
--- .> runHyper (Hyper $ \_ -> 42 :: Int)
+-- >>> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
---
--- .> runHyper (Hyper $ \h -> invoke h (Hyper $ \_ -> 0) + 1) :: Int
--- 1
 runHyper :: Hyper a a -> a
 runHyper = runIdentity . runHyperH
 
@@ -301,7 +300,7 @@ runHyper = runIdentity . runHyperH
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
--- .> :{
+-- >>> :{
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
@@ -309,7 +308,7 @@ runHyper = runIdentity . runHyperH
 --       Left n          -> Right n
 -- :}
 --
--- .> runEither step (0 :: Int)
+-- >>> runEither step (0 :: Int)
 -- 3
 encodeEither ::
   (Either a b -> Either a c) ->
@@ -329,7 +328,7 @@ encodeEither f = h
 -- 'encodeEither' embeds the Either state machine into 'Hyper', 'runHyper'
 -- ties the self-referential knot, and @Right b@ injects the initial state.
 --
--- .> :{
+-- >>> :{
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
@@ -337,7 +336,7 @@ encodeEither f = h
 --       Left n          -> Right n
 -- :}
 --
--- .> runEither step (0 :: Int)
+-- >>> runEither step (0 :: Int)
 -- 3
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
@@ -356,8 +355,8 @@ runEither f b = runHyper (encodeEither f) (Right b)
 --   3. @invoke k (Hyper (const (snd pair)))@ converts the output @c@ to a
 --      @b@ for @cont@'s return type — purely type plumbing.
 --
--- .> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
--- .> observe (trace body) ()
+-- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
+-- >>> observe (trace body) ()
 -- [0,0,0]
 
 -- | 'Profunctor' instance for @Hyper@.
@@ -367,28 +366,28 @@ runEither f b = runHyper (encodeEither f) (Right b)
 --
 -- Profunctor identity: dimap id id = id
 --
--- .> observe (dimap id id h) 5
+-- >>> observe (dimap id id h) 5
 -- 6
 --
 -- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
 --
--- .> observe (dimap f1 g1 (dimap f2 g2 h)) 5
+-- >>> observe (dimap f1 g1 (dimap f2 g2 h)) 5
 -- 1410
--- .> observe (dimap (f2 . f1) (g1 . g2) h) 5
+-- >>> observe (dimap (f2 . f1) (g1 . g2) h) 5
 -- 1410
 --
 -- lmap f = dimap f id
 --
--- .> observe (lmap ((*2) :: Int -> Int) h) 5
+-- >>> observe (lmap ((*2) :: Int -> Int) h) 5
 -- 11
--- .> observe (dimap ((*2) :: Int -> Int) id h) 5
+-- >>> observe (dimap ((*2) :: Int -> Int) id h) 5
 -- 11
 --
 -- rmap g = dimap id g
 --
--- .> observe (rmap ((*2) :: Int -> Int) h) 5
+-- >>> observe (rmap ((*2) :: Int -> Int) h) 5
 -- 12
--- .> observe (dimap id ((*2) :: Int -> Int) h) 5
+-- >>> observe (dimap id ((*2) :: Int -> Int) h) 5
 -- 12
 instance Profunctor Hyper where
   dimap f g h = Hyper $ g . invoke h . dimap g f

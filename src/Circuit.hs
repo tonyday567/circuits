@@ -11,16 +11,16 @@
 -- Use the @(,@) tensor to tie a lazy knot. The feedback value and output
 -- are produced simultaneously.
 --
--- .> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
--- .> trace powers () :: [Integer]
+-- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
+-- >>> trace powers () :: [Integer]
 -- [1,2,4,8,16]
 --
 -- === Iteration
 --
 -- Use the `Either` tensor for loops that terminate.
 --
--- .> let step n = if n < 5 then Left (n + 1) else Right n
--- .> trace (either step step) (0 :: Int)
+-- >>> let step n = if n < 5 then Left (n + 1) else Right n
+-- >>> trace (either step step) (0 :: Int)
 -- 5
 --
 -- === Switching between representations
@@ -29,7 +29,7 @@
 -- encoding. Convert a `Loop` to a @Hyper@ with `encode`, and observe it
 -- with `observe` (or eliminate it with `runHyper`).
 --
--- .> observe (encode (Circuit.Loop.Lift (+1) :: Loop (,) (->) Int Int)) 41
+-- >>> observe (encode (Circuit.Loop.Lift (+1) :: Loop (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
@@ -92,6 +92,12 @@ module Circuit
     ends,
     endsK,
     splay,
+    composeEnds,
+    (>:>),
+    parEnds,
+    dimapEnds,
+    lmapEnds,
+    rmapEnds,
     HasUnit (..),
 
     -- * Boxes
@@ -194,13 +200,19 @@ import Circuit.Ends
     box,
     boxAsymmetric,
     close,
+    composeEnds,
+    dimapEnds,
     ends,
     endsK,
+    lmapEnds,
     openIO,
     openSTM,
+    parEnds,
     prefixIn,
+    rmapEnds,
     splay,
     suffixOut,
+    (>:>),
   )
 import Circuit.Free
   ( Free (..),

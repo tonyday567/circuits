@@ -40,9 +40,9 @@ type family Snd (p :: Type) :: Type where
   Snd (a, b) = b
 
 -- $setup
--- >> import Circuit.Layer (run)
--- >> import Circuit.Tensor (Action (..), Tensor (..))
--- >> import Prelude hiding (id, (.))
+-- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category over a base arrow @arr@.
 --

@@ -60,13 +60,13 @@ type family Snd (p :: Type) :: Type where
   Snd (a, b) = b
 
 -- $setup
--- >> import Circuit.Dagger qualified as Dg
--- >> import Circuit.Layer (bind, run, unit)
--- >> import Circuit.Sym qualified as M
--- >> import Circuit.Net
--- >> import Circuit.Loop (Loop (Knot))
--- >> import Circuit.Loop qualified as C
--- >> import Prelude hiding (id, (.))
+-- >>> import Circuit.Dagger qualified as Dg
+-- >>> import Circuit.Layer (bind, run, unit)
+-- >>> import Circuit.Sym qualified as M
+-- >>> import Circuit.Net
+-- >>> import Circuit.Loop (Loop (Knot))
+-- >>> import Circuit.Loop qualified as C
+-- >>> import Prelude hiding (id, (.))
 
 -- | The free traced PROP with a bimonoid.
 --
@@ -149,37 +149,41 @@ enrich (C.Knot f) = Knot (Lift f)
 -- 'Swap') so that structural wiring stays inspectable.  This is the
 -- injection of the 'Sym' layer into the 'Net' layer.
 --
--- .> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
--- .> run (widen m :: Net (,) (->) Int Int) 5
+-- >>> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
+-- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
 -- Coherence: 'sift' projects 'widen' back to the original 'Sym'.
 --
--- .> run (sift (widen m :: Net (,) (->) Int Int)) 5
+-- >>> run (sift (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- .> run m 5
+-- >>> run m 5
 -- 11
 --
 -- Coherence: 'melt' agrees with the function fold on 'Sym' circuits.
 --
--- .> run (melt (widen m :: Net (,) (->) Int Int)) 5
+-- >>> run (melt (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- .> let h f = f
--- .> (bind h m :: Int -> Int) 5
+-- >>> let h f = f
+-- >>> let phi d = d
+-- >>> (bind phi h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: 'Net' folds through 'widen' match 'Sym' folds.
 --
--- .> let h f = f
--- .> (bind h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
+-- >>> let h f = f
+-- >>> let phi d = d
+-- >>> (bind phi h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
 -- 11
--- .> (bind h m :: Int -> Int) 5
+-- >>> (bind phi h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: transposition commutes with 'widen'.
 --
--- .> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
--- .> Dg.front (run (transpose (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
+-- >>> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
+-- >>> Dg.front (Dg.transpose (run dm)) 10
+-- 4
+-- >>> Dg.front (Dg.transpose (run (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
 widen :: M.Sym arr a b -> Net t arr a b
 widen (M.Lift f) = Lift f
@@ -224,7 +228,7 @@ sift n@(Knot @_ @s @_ @_ @_ _) =
 --
 -- @'run' @Net = 'run' . 'melt'@.
 --
--- .> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
+-- >>> run (melt (Lift (+1) :: Net (,) (->) Int Int)) 5
 -- 6
 melt ::
   forall t arr a b.

@@ -46,7 +46,12 @@ import GHC.IO (IO (..))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >> import Circuit.Category ((.>))
+-- >>> :set -XLambdaCase
+-- >>> import Circuit.Category ((.>))
+-- >>> import Circuit.Channel (Traced (..))
+-- >>> import Circuit.Tensor (unitl, unitl')
+-- >>> import Control.Arrow (Kleisli (..), runKleisli)
+-- >>> import Data.Void (Void)
 
 -- ===========================================================================
 -- Channel
@@ -108,16 +113,16 @@ class (Category arr) => Channel t arr where
 
 -- | Cartesian monoidal structure for @(,)@.
 --
--- .> assoc ((1, 2), 3) :: (Int, (Int, Int))
+-- >>> assoc ((1, 2), 3) :: (Int, (Int, Int))
 -- (1,(2,3))
 --
--- .> assoc' (1, (2, 3)) :: ((Int, Int), Int)
+-- >>> assoc' (1, (2, 3)) :: ((Int, Int), Int)
 -- ((1,2),3)
 --
--- .> (assoc .> assoc') ((1, 2), 3) :: ((Int, Int), Int)
+-- >>> (assoc .> assoc') ((1, 2), 3) :: ((Int, Int), Int)
 -- ((1,2),3)
 --
--- .> slide (1, (2, 3)) :: (Int, (Int, Int))
+-- >>> slide (1, (2, 3)) :: (Int, (Int, Int))
 -- (2,(1,3))
 instance Channel (,) (->) where
   assoc ~(~(a, b), c) = (a, (b, c))
@@ -127,13 +132,13 @@ instance Channel (,) (->) where
 
 -- | Cocartesian monoidal structure for @Either@.
 --
--- .> assoc (Left (Left 1) :: Either (Either Int Bool) Char) :: Either Int (Either Bool Char)
+-- >>> assoc (Left (Left 1) :: Either (Either Int Bool) Char) :: Either Int (Either Bool Char)
 -- Left 1
 --
--- .> assoc' (Left 1 :: Either Int (Either Bool Char)) :: Either (Either Int Bool) Char
+-- >>> assoc' (Left 1 :: Either Int (Either Bool Char)) :: Either (Either Int Bool) Char
 -- Left (Left 1)
 --
--- .> slide (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
+-- >>> slide (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
 -- Right (Left 1)
 instance Channel Either (->) where
   assoc (Left (Left a)) = Left a
@@ -197,7 +202,7 @@ strengthD f =
 -- fused 'Circuit.Loop.Knot' bodies productive even when the body has a strict
 -- top-level pattern on the recursive channel.
 --
--- .> strength (+1) (error "forced" :: (Int, Int)) `seq` ()
+-- >>> strength (+1) (error "forced" :: (Int, Int)) `seq` ()
 -- ()
 instance Strength (,) (->) where
   strength f p = (fst p, f (snd p))
@@ -243,15 +248,15 @@ class (Strength t arr) => Traced t arr where
 -- Haskell's lazy evaluation makes cyclic sharing possible without an
 -- explicit fixpoint operator.
 --
--- .> :{
+-- >>> :{
 -- let powers (ns, ()) =
 --       (1 : map (*2) ns, take 5 ns)
 -- :}
 --
--- .> trace powers () :: [Integer]
+-- >>> trace powers () :: [Integer]
 -- [1,2,4,8,16]
 --
--- .> trace (\(acc, x) -> (acc, x + 1)) 5
+-- >>> trace (\(acc, x) -> (acc, x + 1)) 5
 -- 6
 --
 -- Vanishing (a): tracing over the unit does nothing.
@@ -260,45 +265,45 @@ class (Strength t arr) => Traced t arr where
 -- threading a plain payload through the unit channel is the same as
 -- applying the payload morphism directly.
 --
--- .> let f = (+1) :: Int -> Int
--- .> trace (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
+-- >>> let f = (+1) :: Int -> Int
+-- >>> trace (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
 -- 6
 --
--- .> trace ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
+-- >>> trace ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
 -- 3
 --
 -- Yanking: tracing a swap is the identity.
 --
--- .> let swap (x, y) = (y, x)
--- .> trace swap 42
+-- >>> let swap (x, y) = (y, x)
+-- >>> trace swap 42
 -- 42
 --
--- .> trace ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
+-- >>> trace ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
 -- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
--- .> let f (x, a) = (x, a)
--- .> trace ((\(x, a) -> (x, a + 1)) . f . (\(x, a) -> (x, a * 2))) 5
+-- >>> let f (x, a) = (x, a)
+-- >>> trace ((\(x, a) -> (x, a + 1)) . f . (\(x, a) -> (x, a * 2))) 5
 -- 11
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --
--- .> let swap (x, y) = (y, x)
--- .> trace ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
+-- >>> let swap (x, y) = (y, x)
+-- >>> trace ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
--- .> trace ((\(a, b) -> (b + 1, a)) :: (Int, Int) -> (Int, Int)) 5
+-- >>> trace ((\(a, b) -> (b + 1, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
 -- Strength: an independent payload wire is invisible to the trace.
 --
--- .> let f (x, c) = (x, c + 1)
--- .> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = f (x, c)
--- .> trace g (3, 5)
+-- >>> let f (x, c) = (x, c + 1)
+-- >>> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = f (x, c)
+-- >>> trace g (3, 5)
 -- (6,6)
 --
--- .> trace ((\(x, (p, q)) -> (x, (p + 7, q + 1))) :: (Int, (Int, Int)) -> (Int, (Int, Int))) (0, 5)
+-- >>> trace ((\(x, (p, q)) -> (x, (p + 7, q + 1))) :: (Int, (Int, Int)) -> (Int, (Int, Int))) (0, 5)
 -- (7,6)
 instance Traced (,) (->) where
   trace f b = let ~(a, c) = f (a, b) in c
@@ -308,15 +313,15 @@ instance Traced (,) (->) where
 -- | The Either trace iterates: 'Left' feeds back (continue), 'Right'
 -- terminates (exit). A compact, under-appreciated pattern for loops in Haskell.
 --
--- .> :{
+-- >>> :{
 -- let fac (n, acc) | n <= 1    = Right acc
 --                  | otherwise = Left (n - 1, n * acc)
 -- :}
 --
--- .> trace (either fac fac) (5, 1 :: Int)
+-- >>> trace (either fac fac) (5, 1 :: Int)
 -- 120
 --
--- .> :{
+-- >>> :{
 -- let countdown = \case
 --       Left n | n > 0 -> Left (n - 1)
 --              | otherwise -> Right n
@@ -324,7 +329,7 @@ instance Traced (,) (->) where
 --               | otherwise -> Right n
 -- :}
 --
--- .> trace countdown (3 :: Int)
+-- >>> trace countdown (3 :: Int)
 -- 0
 --
 -- Vanishing (a): tracing over the unit does nothing.
@@ -333,33 +338,33 @@ instance Traced (,) (->) where
 -- laws say that threading a plain payload through the unit channel is the
 -- same as applying the payload morphism directly.
 --
--- .> let f = (+1) :: Int -> Int
--- .> trace (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
+-- >>> let f = (+1) :: Int -> Int
+-- >>> trace (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
 -- 6
 --
--- .> trace ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
+-- >>> trace ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
 -- 3
 --
 -- Yanking: tracing a swap is the identity.
 --
--- .> :{
+-- >>> :{
 -- let swapEither (Left x)  = Right x
 --     swapEither (Right x) = Left x
 -- :}
 --
--- .> trace swapEither 42
+-- >>> trace swapEither 42
 -- 42
 --
--- .> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: Either Int Int -> Either Int Int) 42
+-- >>> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: Either Int Int -> Either Int Int) 42
 -- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
--- .> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
--- .> trace (f :: Either Void Int -> Either Void Int) 5
+-- >>> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
+-- >>> trace (f :: Either Void Int -> Either Void Int) 5
 -- 11
 --
--- .> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) 5
+-- >>> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) 5
 -- 11
 instance Traced Either (->) where
   trace f b = go (Right b)
@@ -404,12 +409,12 @@ instance (Monad m) => Channel Either (Kleisli m) where
 -- producing it, or 'mfix' will diverge (just as the pure @(,)@ trace
 -- black-holes on strict fields).
 --
--- .> :{
+-- >>> :{
 -- let fibs = Kleisli $ \(fibs, ()) ->
 --       pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs)
 -- :}
 --
--- .> runKleisli (trace fibs) ()
+-- >>> runKleisli (trace fibs) ()
 -- [0,1,1]
 instance (Monad m) => Strength (,) (Kleisli m) where
   strength (Kleisli f) =
@@ -436,14 +441,14 @@ instance (MonadFix m) => Traced (,) (Kleisli m) where
 -- is produced. Uses plain recursion — builds stack proportional to
 -- iteration count.
 --
--- .> :{
+-- >>> :{
 -- let countTo target = Kleisli $ \case
 --       Left n | n < target -> pure (Left (n + 1))
 --              | otherwise  -> pure (Right n)
 --       Right ()            -> pure (Left 0)
 -- :}
 --
--- .> runKleisli (trace (countTo (3 :: Int))) ()
+-- >>> runKleisli (trace (countTo (3 :: Int))) ()
 -- 3
 --
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
@@ -495,12 +500,12 @@ control0 (PromptTag t) f = IO (control0# t arg)
 -- fires on @Left a@, it captures the continuation, wraps it around
 -- the next loop step, and jumps back to the prompt — constant stack.
 --
--- .> :{
+-- >>> :{
 -- let exit42 = Kleisli $ \case
 --       Right () -> pure (Right (42 :: Int))
 -- :}
 --
--- .> runKleisli (trace exit42) ()
+-- >>> runKleisli (trace exit42) ()
 -- 42
 instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
   trace (Kleisli body) =
