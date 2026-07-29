@@ -60,6 +60,7 @@ library
     Circuit.Loop
     Circuit.Net
     Circuit.Process
+    Circuit.Stream
     Circuit.Sym
     Circuit.Tensor
 
@@ -67,6 +68,7 @@ library
     base >=4.18 && <5,
     profunctors >=5.0 && <6,
     stm >=2.5 && <3,
+    these >=1.2.1 && <1.3,
 
 executable circuits-verify
   import: ghc-options-stanza

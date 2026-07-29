@@ -6,6 +6,7 @@ module Main where
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', trace)
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
+import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Process (Process (..), encode, fold, register, scan)
@@ -196,6 +197,18 @@ main = do
         check "trace of identity pair" $
           trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
 
+        -- Para laws: the constant-state slice of Loop(,)
+        check "L1: snd . <fst, f> == f" $
+          let f :: Int -> String
+              f = show
+              h (p, a) = (p, f a)
+           in trace h 42 == "42",
+        check "L2: threading a constant state == exposing it" $
+          let f :: Int -> Int
+              f = (+ 10)
+              h (p, a) = (p, f a)
+           in trace h 5 == 15,
+
         -- Circuit.Process oracles
         check "Process seed emits first output" $
           scan sumP [5] == [5],
@@ -212,7 +225,15 @@ main = do
         check "Process Traced Either yanking" $
           scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
         check "Process register (EWMA)" $
-          scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875]
+          scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
+
+        -- Ends oracles
+        check "O9 ends . splay == id" $
+          let e :: Ends (->) () Int
+              e = ends (const ()) (const 42)
+              (write', receive') = splay e
+              e' = ends write' receive'
+           in run (box @(,) e') () == 42 && run (box @(,) e) () == 42
       ]
   if and results
     then putStrLn "\nAll tests passed."
