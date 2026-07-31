@@ -59,6 +59,7 @@ library
     Circuit.Layer
     Circuit.Loop
     Circuit.Net
+    Circuit.Poly
     Circuit.Process
     Circuit.Stream
     Circuit.Sym
