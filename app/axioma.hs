@@ -9,6 +9,7 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
+import Circuit.Prob (Prob (..), embed, mass, parFG, parGF, score)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.List (scanl')
@@ -344,6 +345,36 @@ main = do
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
+        -- Circuit.Prob oracles
+        check "Prob embed preserves identity" $
+          let k ((), b) = fromIntegral b :: Double
+           in runProb (embed id) k ((), 5 :: Int) == k ((), 5 :: Int),
+        check "Prob embed preserves composition" $
+          let f = (+ 10) :: Int -> Int
+              g = (* 3) :: Int -> Int
+              k ((), c) = fromIntegral c :: Double
+           in runProb (embed (f . g)) k ((), 5)
+                == runProb (embed f . embed g) k ((), 5),
+        check "Prob score multiplicativity" $
+          let w = (* 2.0) :: Double -> Double
+              v = (+ 3.0) :: Double -> Double
+              k ((), _) = 1.0 :: Double
+           in runProb (score w . score v) k ((), 5 :: Int)
+                == runProb (score (v . w)) k ((), 5 :: Int),
+        check "Prob score centrality on linear fragment" $
+          let f = (+ 10) :: Int -> Int
+              w = (* 2.0) :: Double -> Double
+              k ((), b) = fromIntegral b :: Double
+           in runProb (score w . embed f) k ((), 5)
+                == runProb (embed f . score w) k ((), 5),
+        check "Prob mass of embed is unit" $
+          mass (1.0 :: Double) (embed ((+ 1) :: Int -> Int)) (5 :: Int) == (1.0 :: Double),
+        check "Prob parFG == parGF on linear fragment" $
+          let f = (+ 10) :: Int -> Int
+              g = (* 3) :: Int -> Int
+              k ((), (b, d)) = fromIntegral b + fromIntegral d :: Double
+           in runProb (parFG (embed f) (embed g)) k ((), (5 :: Int, 7 :: Int))
+                == runProb (parGF (embed f) (embed g)) k ((), (5, 7)),
         -- Ends oracles
         check "O9 ends . splay == id" $
           let e :: Ends (->) () Int

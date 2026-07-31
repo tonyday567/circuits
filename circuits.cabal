@@ -61,6 +61,7 @@ library
     Circuit.Net
     Circuit.Poly
     Circuit.Poly.Process
+    Circuit.Prob
     Circuit.Process
     Circuit.Stream
     Circuit.Sym
