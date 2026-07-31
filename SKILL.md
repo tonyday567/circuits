@@ -94,7 +94,7 @@ type signatures, code — use names. This boundary prevents churn.
 
 ## conventions
 
-- **Language**: GHC2024, extensions declared per module.
+- **Language**: GHC2024.
 - **Trace direction**: `Left` = feedback (continue), `Right` = exit.
   The `Traced Either (->)` instance iterates until `Right`. The
   `Traced (,) (->)` instance ties a lazy knot.

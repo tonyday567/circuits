@@ -2,7 +2,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | Stateful processes as a 'Circuit' base arrow.
 --
@@ -29,10 +28,23 @@
 --   oracle against the 'run' . 'encode' definition.
 -- * The arrow-level 'Traced' Either instance is per-tick Conway/Elgot settle,
 --   not cross-tick state feedback; see 'register' for the latter.
+--
+-- = Polymorphic generalisation
+--
+-- The polymorphic counterpart is 'Machine' @arr p@: a Moore coalgebra over an
+-- arbitrary base arrow @arr@ and polynomial interface @p@.  'Process' @a b@
+-- is isomorphic to @Machine (->) (Mono a b)@ via 'processToMachine' and
+-- 'machineToProcess'; the two views round-trip exactly.
 module Circuit.Process
-  ( -- * Process carrier
+  ( -- * Stream transformer (monomial special case)
     Process (..),
     data P,
+
+    -- * Polymorphic process carrier
+    Machine (..),
+    processToMachine,
+    machineToProcess,
+    step0,
 
     -- * Runners
     scan,
@@ -46,14 +58,16 @@ where
 
 import Circuit.Category (Category (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Control.Category qualified as Cat
 import Circuit.Dagger (CopyDiscard, MergeZero)
 import qualified Circuit.Dagger as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
+import Circuit.Poly (Dir, Mono, Pos, System (..))
+import Control.Category qualified as Cat
 import Data.Bifunctor (first, second)
 import Data.List (scanl')
 import Data.Profunctor (Costrong (..), Profunctor (..), Strong (..))
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -79,6 +93,75 @@ pattern P :: (a -> s) -> (s -> a -> s) -> (s -> b) -> Process a b
 pattern P i st ex = Process i st ex
 
 {-# COMPLETE P #-}
+
+-- | A Moore machine over base arrow @arr@ and polynomial interface @p@.
+--
+-- The existential state type @s@ is hidden; the observable interface is the
+-- coalgebra consisting of an initial-state injector, a state-to-position
+-- observation, and a step system.  For the monomial special case
+-- @Machine (->) (Mono a b)@ this collapses to the classic Moore triple
+-- @(inject, step, extract)@ carried by 'Process'.
+data Machine arr p where
+  Machine ::
+    forall arr s p.
+    (Ob arr s, Ob arr (Dir p), Ob arr (Pos p)) =>
+    -- | Inject the first direction into an initial state.
+    arr (Dir p) s ->
+    -- | Observe the current position from the current state.
+    arr s (Pos p) ->
+    -- | Step the state and produce the current position.
+    System arr s p ->
+    Machine arr p
+
+-- ---------------------------------------------------------------------------
+-- Process <-> Machine isomorphism
+-- ---------------------------------------------------------------------------
+
+-- | Convert a monomial direction into the underlying input.
+dirToA :: Dir (Mono a b) -> a
+dirToA (Left v) = absurd v
+dirToA (Right a) = a
+
+-- | Inject an input into a monomial direction.
+aToDir :: a -> Dir (Mono a b)
+aToDir = Right
+
+-- | Project a monomial position onto the underlying output.
+posToB :: Pos (Mono a b) -> b
+posToB = fst
+
+-- | Inject an output into a monomial position.
+bToPos :: b -> Pos (Mono a b)
+bToPos b = (b, ())
+
+-- | Convert a classic 'Process' triple into a monomial 'Machine'.
+processToMachine :: Process a b -> Machine (->) (Mono a b)
+processToMachine (P i st ex) =
+  Machine
+    (i . dirToA)
+    (bToPos . ex)
+    ( System $ \case
+        (_, Left v) -> absurd v
+        (s, Right a) ->
+          let s' = st s a
+           in (s', (ex s', ()))
+    )
+
+-- | Convert a monomial 'Machine' back into a classic 'Process' triple.
+machineToProcess :: Machine (->) (Mono a b) -> Process a b
+machineToProcess (Machine i ex (System sys)) =
+  Process
+    (i . aToDir)
+    (\s a -> fst (sys (s, Right a)))
+    (posToB . ex)
+
+-- | First-step observation: the position produced from the initial state,
+-- before any transition.
+--
+-- For a monomial stream transformer this is the first output emitted by
+-- 'scan'.
+step0 :: (Category arr) => Machine arr p -> arr (Dir p) (Pos p)
+step0 (Machine inject extract _) = extract . inject
 
 -- | Strict pair, reused from the original mealy package for fused composition.
 data Pair' a b = Pair' !a !b
