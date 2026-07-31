@@ -9,7 +9,7 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
-import Circuit.Prob (Prob (..), copyP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
+import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.List (scanl')
@@ -461,6 +461,13 @@ main = do
               corr = runProb (copyP . coin) kSame ((), ())
               indep = runProb (parFG coin coin . copyP) kSame ((), ())
            in approx corr 1.0 && approx indep 0.625 && corr /= indep,
+        -- Discard on the mass-1 fragment
+        check "Prob discard natural for coin (mass-1 fragment)" $
+          runProb (coin . discardP) (\_ -> 1.0 :: Double) ((), ())
+            == runProb discardP (\_ -> 1.0 :: Double) ((), ()),
+        check "Prob discard fails for unnormalised score (*2) . coin" $
+          runProb (score (* 2) . coin . discardP) (\_ -> 1.0 :: Double) ((), ())
+            /= runProb discardP (\_ -> 1.0 :: Double) ((), ()),
         -- Traced Either: computability graded by scalar
         check "Prob traceEN converges to 1/p for geometric (error ~ q^fuel)" $
           let e n = ev (traceEN 0 n (geomBody 0.5)) fromIntegral

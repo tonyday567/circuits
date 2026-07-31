@@ -36,10 +36,12 @@ module Circuit.Prob
     score,
     mass,
 
-    -- * Cartesian copy (deterministic)
+    -- * Cartesian copy/discard (deterministic)
     copyP,
+    discardP,
 
-    -- * Angelic choice (Bool semantics)
+    -- * Choice combined by a scalar operation
+    choiceBy,
     orP,
 
     -- * Parallel nestings (Fubini on the linear fragment)
@@ -140,11 +142,28 @@ copyP :: Prob (->) r a (a, a)
 copyP = embed (\a -> (a, a))
 {-# INLINE copyP #-}
 
+-- | Deterministic discard.  On the mass-1 fragment @f . discardP == discardP@;
+-- unnormalised morphisms fail this equation.
+discardP :: Prob (->) r a ()
+discardP = embed (const ())
+{-# INLINE discardP #-}
+
+-- | Binary choice combined by a scalar operation.  This one combinator covers
+-- several rows of the instance table:
+--
+-- * @choiceBy (||)@ — angelic / reachability (Bool).
+-- * @choiceBy (&&)@ — demonic / refutation (Bool).
+-- * @choiceBy (+)@  — sum of weighted alternatives (Num r).
+-- * @choiceBy min@  — tropical / Viterbi choice (Ord r).
+choiceBy :: (r -> r -> r) -> Prob (->) r a b -> Prob (->) r a b -> Prob (->) r a b
+choiceBy (<+>) (Prob f) (Prob g) = Prob $ \k p -> f k p <+> g k p
+{-# INLINE choiceBy #-}
+
 -- | Angelic choice for @r = Bool@ (weakest-precondition / reachability
 -- semantics).  Succeeds if either branch can; short-circuiting of @(||)@
 -- gives the trace on this scalar for free.
 orP :: Prob (->) Bool a b -> Prob (->) Bool a b -> Prob (->) Bool a b
-orP (Prob f) (Prob g) = Prob $ \k p -> f k p || g k p
+orP = choiceBy (||)
 {-# INLINE orP #-}
 
 -- ---------------------------------------------------------------------------
@@ -200,7 +219,7 @@ parGF ::
   Prob (->) r c d ->
   Prob (->) r (a, c) (b, d)
 parGF (Prob f) (Prob g) = Prob $ \k ->
-  let kf ((ctx, d), a) = k (ctx, (a, d))
+  let kf ((ctx, d), b) = k (ctx, (b, d))
       fa = f kf
       kg ((ctx, a), d) = fa ((ctx, d), a)
       gb = g kg
