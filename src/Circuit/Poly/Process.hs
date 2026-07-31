@@ -46,6 +46,10 @@ import Circuit.Poly
 import Circuit.Process (Process (..))
 import Prelude hiding (id, (.))
 
+-- $setup
+-- >>> import Circuit.Poly (Mono, lens)
+-- >>> import Circuit.Poly.Process
+
 -- | Run a monomial system at a state, exposing the output position and the
 -- state-transition function.
 runSystem :: System (->) s (Mono i o) -> s -> (o, i -> s)
@@ -85,13 +89,27 @@ after sys s (i : is) = after sys (snd (runSystem sys s) i) is
 -- @o@, and each input direction @i@ determines the next state @s@.
 --
 -- This is the bridge to Spivak's presentation: @System s p ≅ Poly(S y^S, p)@.
+--
+-- Round-trip through 'lensAsSystem' gives the same observable step:
+--
+-- >>> let sys = lensAsSystem (lens (\s -> s + 1) (\s i -> s + i)) :: System (->) Int (Mono Int Int)
+-- >>> let sys' = lensAsSystem (systemAsLens sys)
+-- >>> let (o, put) = runSystem sys 5; (o', put') = runSystem sys' 5 in (o, put 3) == (o', put' 3)
+-- True
 systemAsLens :: System (->) s (Mono i o) -> Morphism (Mono s s) (Mono i o)
 systemAsLens sys = lens get put
   where
     get s = fst (runSystem sys s)
-    put s i = snd (runSystem sys s) i
+    put s = snd (runSystem sys s)
 
 -- | Inverse of 'systemAsLens': build a system from a lens @S y^S -> Mono i o@.
+--
+-- Round-trip through 'systemAsLens' gives the same get/put pair:
+--
+-- >>> let m = lens (\s -> s * 2) (\s i -> s + i) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> let m' = systemAsLens (lensAsSystem m)
+-- >>> let (o, put) = applyLens m 5; (o', put') = applyLens m' 5 in (o, put 3) == (o', put' 3)
+-- True
 lensAsSystem :: Morphism (Mono s s) (Mono i o) -> System (->) s (Mono i o)
 lensAsSystem m = fromEvalSystem $ \s ->
   case applyLens m s of
