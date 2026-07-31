@@ -9,7 +9,7 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
-import Circuit.Prob (Prob (..), embed, mass, parFG, parGF, score)
+import Circuit.Prob (Prob (..), embed, fromWeighted, mass, parFG, parGF, score)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.List (scanl')
@@ -84,6 +84,30 @@ ewmaBody alpha =
 -- | Exponentially weighted moving average with initial feedback.
 ewma :: Double -> Double -> Process Double Double
 ewma alpha s0 = register s0 (ewmaBody alpha)
+
+-- ---------------------------------------------------------------------------
+-- Prob helpers for fragment oracles
+-- ---------------------------------------------------------------------------
+
+-- | Fair coin with total mass 1.
+coin :: Prob (->) Double () Bool
+coin = fromWeighted [(True, 0.25), (False, 0.75)]
+
+-- | Unnormalised weighted measure with total mass 1.5.
+unnorm :: Prob (->) Double () Bool
+unnorm = fromWeighted [(True, 0.5), (False, 1.0)]
+
+-- | A deliberately non-linear inhabitant: squares its continuation.
+squareK :: Prob (->) Double a a
+squareK = Prob $ \k p -> k p * k p
+
+-- | Evaluate a measure-free morphism against a continuation on the output.
+ev :: Prob (->) Double () b -> ((b -> Double) -> Double)
+ev (Prob f) k = f (\((), b) -> k b) ((), ())
+
+-- | Approximate equality for floating-point oracles.
+approx :: Double -> Double -> Bool
+approx x y = abs (x - y) < 1e-9
 
 -- | Annotated helpers to avoid ambiguous overloads.
 id1 :: FinRel F N1 N1
@@ -346,6 +370,7 @@ main = do
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
         -- Circuit.Prob oracles
+        -- Deterministic fragment
         check "Prob embed preserves identity" $
           let k ((), b) = fromIntegral b :: Double
            in runProb (embed id) k ((), 5 :: Int) == k ((), 5 :: Int),
@@ -355,26 +380,59 @@ main = do
               k ((), c) = fromIntegral c :: Double
            in runProb (embed (f . g)) k ((), 5)
                 == runProb (embed f . embed g) k ((), 5),
-        check "Prob score multiplicativity" $
+        -- Score modality structure
+        check "Prob score anti-homomorphism" $
           let w = (* 2.0) :: Double -> Double
               v = (+ 3.0) :: Double -> Double
               k ((), _) = 1.0 :: Double
            in runProb (score w . score v) k ((), 5 :: Int)
                 == runProb (score (v . w)) k ((), 5 :: Int),
-        check "Prob score centrality on linear fragment" $
-          let f = (+ 10) :: Int -> Int
-              w = (* 2.0) :: Double -> Double
-              k ((), b) = fromIntegral b :: Double
-           in runProb (score w . embed f) k ((), 5)
-                == runProb (embed f . score w) k ((), 5),
-        check "Prob mass of embed is unit" $
-          mass (1.0 :: Double) (embed ((+ 1) :: Int -> Int)) (5 :: Int) == (1.0 :: Double),
-        check "Prob parFG == parGF on linear fragment" $
-          let f = (+ 10) :: Int -> Int
-              g = (* 3) :: Int -> Int
-              k ((), (b, d)) = fromIntegral b + fromIntegral d :: Double
-           in runProb (parFG (embed f) (embed g)) k ((), (5 :: Int, 7 :: Int))
-                == runProb (parGF (embed f) (embed g)) k ((), (5, 7)),
+        check "Prob score endos need not commute" $
+          let w = (* 2.0) :: Double -> Double
+              v = (+ 3.0) :: Double -> Double
+              k ((), _) = 1.0 :: Double
+           in runProb (score w . score v) k ((), 5 :: Int)
+                /= runProb (score v . score w) k ((), 5 :: Int),
+        -- Linear fragment: multiplicative endos central against real measures
+        check "Prob centrality of (*2) vs coin (linear fragment)" $
+          approx
+            (ev (score (* 2) . coin) (\b -> if b then 10 else 1))
+            (ev (coin . score (* 2)) (\b -> if b then 10 else 1)),
+        -- Affine/Markov fragment: affine endos central exactly on mass-1
+        check "Prob centrality of (+3) vs coin (mass 1, affine fragment)" $
+          approx
+            (ev (score (+ 3) . coin) (\b -> if b then 10 else 1))
+            (ev (coin . score (+ 3)) (\b -> if b then 10 else 1)),
+        check "Prob centrality of (+3) fails off mass-1 fragment" $
+          not
+            ( approx
+                (ev (score (+ 3) . unnorm) (\b -> if b then 10 else 1))
+                (ev (unnorm . score (+ 3)) (\b -> if b then 10 else 1))
+            ),
+        -- Outside the linear fragment even normalised measures fail centrality
+        check "Prob centrality of (^2) fails vs coin" $
+          not
+            ( approx
+                (ev (score (^ (2 :: Int)) . coin) (\b -> if b then 10 else 1))
+                (ev (coin . score (^ (2 :: Int))) (\b -> if b then 10 else 1))
+            ),
+        -- Fubini on the linear fragment
+        check "Prob parFG == parGF on coin x coin (Fubini)" $
+          let k ((), (b, d)) = (if b then 10 else 1) * (if d then 100 else 1) :: Double
+           in approx
+                (runProb (parFG coin coin) k ((), ((), ())))
+                (runProb (parGF coin coin) k ((), ((), ()))),
+        check "Prob parFG != parGF with squareK x coin (premonoidal)" $
+          let k ((), (b, d)) = b + (if d then 10 else 1) :: Double
+           in not
+                ( approx
+                    (runProb (parFG squareK coin) k ((), (2.0, ())))
+                    (runProb (parGF squareK coin) k ((), (2.0, ())))
+                ),
+        -- Mass detects affineness / discardability
+        check "Prob mass detects score breaking affineness" $
+          approx (mass (1.0 :: Double) (score (* 2) . coin) ()) 2.0
+            && approx (mass (1.0 :: Double) coin ()) 1.0,
         -- Ends oracles
         check "O9 ends . splay == id" $
           let e :: Ends (->) () Int

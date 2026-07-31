@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | Probability as a double-dual continuation category.
 --
@@ -16,10 +17,10 @@
 -- * @r = Bool@ over @(->)@ gives Dijkstra's weakest-precondition semantics.
 -- * @r = Min Double@ (tropical) gives Bellman / Viterbi / MAP semantics.
 --
--- This module currently provides instances for the function arrow @(->)@.
--- Effectful variants (e.g. @Kleisli m@) follow the same pattern but need
--- scalar-lifting plumbing; the function case is where the design is easiest
--- to validate.
+-- This module currently provides structural instances for the function arrow
+-- @(->)@.  Effectful variants (e.g. @Kleisli m@) follow the same pattern but
+-- need scalar-lifting plumbing; the function case is where the design is
+-- easiest to validate.
 --
 -- The tensor action on @Prob@ is /premonoidal/ in general: two valid nestings
 -- ('parFG' and 'parGF') agree only on the linear (commutative) fragment.  We
@@ -31,6 +32,7 @@ module Circuit.Prob
 
     -- * Primitive constructors
     embed,
+    fromWeighted,
     score,
     mass,
 
@@ -40,7 +42,7 @@ module Circuit.Prob
   )
 where
 
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Channel (Channel (..), Strength (..))
 import Data.Bifunctor (second)
 import Prelude hiding (id, (.))
@@ -63,47 +65,26 @@ newtype Prob arr r a b = Prob
 -- Category
 -- ---------------------------------------------------------------------------
 
-instance Category (Prob (->) r) where
-  type Ob (Prob (->) r) a = ()
+-- | Identity and composition are arrow-polymorphic: they only manipulate the
+-- continuation function, never the base arrow.  This is why 'Category' costs
+-- nothing from @arr@.
+instance (Category arr) => Category (Prob arr r) where
+  type Ob (Prob arr r) a = Ob arr a
 
-  id :: Prob (->) r a a
+  id :: (Ob (Prob arr r) a) => Prob arr r a a
   id = Prob Prelude.id
   {-# INLINE id #-}
 
   (.) ::
-    Prob (->) r b c ->
-    Prob (->) r a b ->
-    Prob (->) r a c
+    (Ob (Prob arr r) a, Ob (Prob arr r) b, Ob (Prob arr r) c) =>
+    Prob arr r b c ->
+    Prob arr r a b ->
+    Prob arr r a c
   Prob f . Prob g = Prob $ \k -> g (f k)
   {-# INLINE (.) #-}
 
--- ---------------------------------------------------------------------------
--- Structural instances (cartesian tensor, function arrow)
--- ---------------------------------------------------------------------------
-
--- | Lift a structural morphism on pairs to act on the second component while
--- carrying the context @x@ along.
-ctxSecond :: ((a, b) -> c) -> (x, (a, b)) -> (x, c)
-ctxSecond f (x, y) = (x, f y)
-{-# INLINE ctxSecond #-}
-
-instance Channel (,) (Prob (->) r) where
-  assoc = Prob $ \k -> k . ctxSecond assoc
-  {-# INLINE assoc #-}
-
-  assoc' = Prob $ \k -> k . ctxSecond assoc'
-  {-# INLINE assoc' #-}
-
-  slide = Prob $ \k -> k . ctxSecond slide
-  {-# INLINE slide #-}
-
-  withTensorOb _ _ x = x
-
-instance Strength (,) (Prob (->) r) where
-  strength (Prob f) = Prob $ \k -> f (k . assoc) . assoc'
-  {-# INLINE strength #-}
-
-  withStrengthOb _ _ _ x = x
+instance Discrete (Prob (->) r) where
+  withOb x = x
 
 -- ---------------------------------------------------------------------------
 -- Primitives (function arrow)
@@ -117,7 +98,22 @@ embed :: (a -> b) -> Prob (->) r a b
 embed h = Prob $ \k -> k . second h
 {-# INLINE embed #-}
 
+-- | Build a probability morphism from a finite weighted table.
+--
+-- This is the bridge to 'Circuit.Parser.Weighted' and the entry point for
+-- genuine measures in the linear fragment: every entry contributes linearly
+-- to the expectation.
+fromWeighted :: (Num r) => [(b, r)] -> Prob (->) r () b
+fromWeighted xs = Prob $ \k (x, ()) -> sum [w * k (x, b) | (b, w) <- xs]
+{-# INLINE fromWeighted #-}
+
 -- | Scale the result of a continuation.
+--
+-- With endomorphisms @r -> r@ this is a /modality/, not necessarily a scalar
+-- multiplication.  The definitional law is the anti-homomorphism
+-- @score w . score v = score (v . w)@; commutativity holds only when the
+-- endos commute.  For the probabilistic sub-case @score (w *)@, the usual
+-- multiplicative law is recovered.
 score :: (r -> r) -> Prob (->) r a a
 score scale = Prob $ \k (x, a) -> scale (k (x, a))
 {-# INLINE score #-}
@@ -129,10 +125,37 @@ mass one (Prob f) a = f (const one) ((), a)
 {-# INLINE mass #-}
 
 -- ---------------------------------------------------------------------------
+-- Structural instances (cartesian tensor, function arrow)
+-- ---------------------------------------------------------------------------
+
+-- | The cartesian structural morphisms are deterministic, so they are just
+-- 'embed's of the base-arrow associators and braiding.  'strength' is the
+-- non-trivial one: it instantiates the rank-2 context @x@ at @(x, s)@,
+-- which is exactly why the universally quantified context is the honest cost
+-- of the tensor.
+instance Channel (,) (Prob (->) r) where
+  assoc = embed assoc
+  {-# INLINE assoc #-}
+
+  assoc' = embed assoc'
+  {-# INLINE assoc' #-}
+
+  slide = embed slide
+  {-# INLINE slide #-}
+
+  withTensorOb _ _ x = x
+
+instance Strength (,) (Prob (->) r) where
+  strength (Prob f) = Prob $ \k -> f (k . assoc) . assoc'
+  {-# INLINE strength #-}
+
+  withStrengthOb _ _ _ x = x
+
+-- ---------------------------------------------------------------------------
 -- Parallel nestings (Fubini on the linear fragment)
 -- ---------------------------------------------------------------------------
 
--- | Parallel composition: @g@ runs at context @(x, a)@, @f@ runs at context
+-- | Parallel composition: @g@ runs at context @(x, b)@, @f@ runs at context
 -- @(x, c)@.  This is one of two lawful nestings; it agrees with 'parGF' on
 -- the linear/commutative fragment.
 parFG ::
@@ -140,9 +163,9 @@ parFG ::
   Prob (->) r c d ->
   Prob (->) r (a, c) (b, d)
 parFG (Prob f) (Prob g) = Prob $ \k ->
-  let kg ((ctx, a), d) = k (ctx, (a, d))
+  let kg ((ctx, b), d) = k (ctx, (b, d))
       gc = g kg
-      kf ((ctx, c), a) = gc ((ctx, a), c)
+      kf ((ctx, c), b) = gc ((ctx, b), c)
       fa = f kf
    in \(ctx, (a, c)) -> fa ((ctx, c), a)
 {-# INLINE parFG #-}
