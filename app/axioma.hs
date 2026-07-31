@@ -4,15 +4,30 @@
 module Main where
 
 import Circuit.Category (id, (.), (.>))
-import Circuit.Channel (assoc, assoc', trace)
+import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Process (Process (..), encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
+import Data.List (scanl')
+import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, natVal)
+import Test.QuickCheck
+  ( Arbitrary (..),
+    Gen,
+    Property,
+    Testable,
+    chatty,
+    chooseInt,
+    isSuccess,
+    quickCheckWithResult,
+    stdArgs,
+    vectorOf,
+    (===),
+  )
 import Prelude hiding (id, (.))
 
 type F = Bool
@@ -120,6 +135,103 @@ discard0 = discard
 zero0 :: FinRel F () ()
 zero0 = zero
 
+-- ---------------------------------------------------------------------------
+-- QuickCheck oracles for Process / Loop equivalence
+-- ---------------------------------------------------------------------------
+
+-- | A small finite type so processes can be generated as lookup tables.
+newtype Small = Small Int
+  deriving (Eq, Ord, Show)
+
+instance Arbitrary Small where
+  arbitrary = Small <$> chooseInt (0, 2)
+  shrink (Small n) = [Small m | m <- [0 .. n - 1]]
+
+smallIndex :: Small -> Int
+smallIndex (Small n) = n
+
+-- | Lookup-table function @Small -> Small@.
+smallFun1 :: Gen (Small -> Small)
+smallFun1 = do
+  table <- vectorOf 3 arbitrary
+  pure (\(Small i) -> table !! i)
+
+-- | Lookup-table function @Small -> Small -> Small@.
+smallFun2 :: Gen (Small -> Small -> Small)
+smallFun2 = do
+  table <- vectorOf 3 (vectorOf 3 arbitrary)
+  pure (\(Small i) (Small j) -> table !! i !! j)
+
+-- | Lookup-table function @(Small, Small) -> Small@.
+smallPairFun1 :: Gen ((Small, Small) -> Small)
+smallPairFun1 = do
+  table <- vectorOf 9 arbitrary
+  pure (\(Small i, Small j) -> table !! (i * 3 + j))
+
+-- | Lookup-table function @Small -> (Small, Small)@.
+smallFunToPair :: Gen (Small -> (Small, Small))
+smallFunToPair = do
+  table <- vectorOf 3 arbitrary
+  pure (\(Small i) -> table !! i)
+
+-- | Arbitrary process with a three-element state space.
+genProcess :: Gen (Process Small Small)
+genProcess = do
+  inject <- smallFun1
+  step <- smallFun2
+  Process inject step <$> smallFun1
+
+-- | Arbitrary process with pair-typed input/output and a three-element state
+-- space.  Used to test cross-tick feedback.
+genProcessPair :: Gen (Process (Small, Small) (Small, Small))
+genProcessPair = do
+  inject <- smallPairFun1
+  step <- do
+    table <- vectorOf 3 (vectorOf 9 arbitrary)
+    pure (\s p -> table !! smallIndex s !! pairIndex p)
+  Process inject step <$> smallFunToPair
+  where
+    pairIndex (Small i, Small j) = i * 3 + j
+
+instance Arbitrary (Process Small Small) where
+  arbitrary = genProcess
+  shrink = const []
+
+instance Show (Process Small Small) where
+  show _ = "Process Small Small"
+
+instance Arbitrary (Process (Small, Small) (Small, Small)) where
+  arbitrary = genProcessPair
+  shrink = const []
+
+instance Show (Process (Small, Small) (Small, Small)) where
+  show _ = "Process (Small, Small) (Small, Small)"
+
+-- | Process ~ Loop: running the encoding equals scanning the process.
+prop_scan_encode :: Process Small Small -> [Small] -> Property
+prop_scan_encode p xs = scan p xs === run (encode p) xs
+
+-- | Cross-tick register agrees with explicit one-tick-delayed feedback.
+prop_register_trace :: Process (Small, Small) (Small, Small) -> Small -> [Small] -> Property
+prop_register_trace body s0 xs =
+  scan (register s0 body) xs === manualRegister s0 body xs
+  where
+    manualRegister _ _ [] = []
+    manualRegister s (Process i st ex) (a : as) =
+      let s0' = i (a, s)
+          states = scanl' (\s' a' -> st s' (a', snd (ex s'))) s0' as
+       in map (fst . ex) states
+
+qcCheck :: (Testable prop) => String -> prop -> IO Bool
+qcCheck name p = do
+  putStrLn ("  " ++ name)
+  result <- quickCheckWithResult (stdArgs {chatty = False}) p
+  if isSuccess result
+    then pure True
+    else do
+      putStrLn ("    FAIL: " ++ show result)
+      pure False
+
 check :: String -> Bool -> IO Bool
 check name ok = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
@@ -146,7 +258,6 @@ main = do
           swap . copy1 == copy1,
         check "copy cocommutative (n=2)" $
           swap . copy2 == copy2,
-
         -- plus/zero monoid laws
         check "plus associative (n=1)" $
           plus1 . par plus1 id1 == plus1 . par id1 plus1 . assoc,
@@ -164,7 +275,6 @@ main = do
           plus1 . swap == plus1,
         check "plus commutative (n=2)" $
           plus2 . swap == plus2,
-
         -- bialgebra laws
         check "bialgebra copy-plus (n=1)" $
           copy1 . plus1 == par plus1 plus1 . swapMiddle . par copy1 copy1,
@@ -180,7 +290,6 @@ main = do
           copy2 . zero2 == par zero2 zero2 . unitr',
         check "bialgebra discard-zero" $
           discard0 . zero0 == (id :: FinRel F () ()),
-
         -- scalar arithmetic over GF(2)
         check "scalar True is identity" $
           finScalar True == id1,
@@ -190,13 +299,11 @@ main = do
           (finScalar False :: FinRel F N1 N1) . finScalar True == finScalar False,
         check "scalar True after scalar False" $
           (finScalar True :: FinRel F N1 N1) . finScalar False == finScalar False,
-
         -- traced structure
         check "trace yanking (n=1)" $
           trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,
         check "trace of identity pair" $
           trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
-
         -- Para laws: the constant-state slice of Loop(,)
         check "L1: snd . <fst, f> == f" $
           let f :: Int -> String
@@ -208,7 +315,6 @@ main = do
               f = (+ 10)
               h (p, a) = (p, f a)
            in trace h 5 == 15,
-
         -- Circuit.Process oracles
         check "Process seed emits first output" $
           scan sumP [5] == [5],
@@ -217,7 +323,7 @@ main = do
         check "Process fold semantics" $
           fold sumP [1, 2, 3] == Just 6,
         check "Process fold empty" $
-          fold sumP [] == Nothing,
+          isNothing (fold sumP []),
         check "Process scan == run . encode" $
           run (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
         check "Process Traced (,) yanking" $
@@ -226,7 +332,9 @@ main = do
           scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
         check "Process register (EWMA)" $
           scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
-
+        -- QuickCheck Process / Loop equivalence
+        qcCheck "QC: scan == run . encode" prop_scan_encode,
+        qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
         -- Ends oracles
         check "O9 ends . splay == id" $
           let e :: Ends (->) () Int
