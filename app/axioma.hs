@@ -9,7 +9,7 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
-import Circuit.Prob (Prob (..), embed, fromWeighted, mass, parFG, parGF, score)
+import Circuit.Prob (Prob (..), copyP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.List (scanl')
@@ -108,6 +108,24 @@ ev (Prob f) k = f (\((), b) -> k b) ((), ())
 -- | Approximate equality for floating-point oracles.
 approx :: Double -> Double -> Bool
 approx x y = abs (x - y) < 1e-9
+
+-- | Geometric trial body: state counts flips; heads escapes with the count.
+geomBody :: Double -> Prob (->) Double (Either () Int) (Either Int Int)
+geomBody p = Prob $ \k (x, e) ->
+  let n = case e of Left () -> 0; Right m -> m
+   in p * k (x, Left (n + 1)) + (1 - p) * k (x, Right (n + 1))
+
+-- | A three-state walk on 'Int': from s, either exit with s (Left) or move to
+-- s+1 (Right). Used for the Bool trace reachability oracle.
+walkBody :: Prob (->) Bool (Either Int Int) (Either Int Int)
+walkBody = orP (embed exit) (embed stepR)
+  where
+    exit e = Left (either id id e)
+    stepR e = Right (either id id e + 1)
+
+-- | Reachability test via the Bool least-fixpoint trace.
+reach :: Int -> Bool
+reach target = runProb (traceE walkBody) (\((), s) -> s == target) ((), 0)
 
 -- | Annotated helpers to avoid ambiguous overloads.
 id1 :: FinRel F N1 N1
@@ -433,6 +451,22 @@ main = do
         check "Prob mass detects score breaking affineness" $
           approx (mass (1.0 :: Double) (score (* 2) . coin) ()) 2.0
             && approx (mass (1.0 :: Double) coin ()) 1.0,
+        -- Copy naturality: the Markov law
+        check "Prob copy natural for embed (deterministic fragment)" $
+          let kSame ((), (b1, b2)) = if b1 == b2 then 1 else 0 :: Double
+           in runProb (copyP . embed not) kSame ((), True)
+                == runProb (parFG (embed not) (embed not) . copyP) kSame ((), True),
+        check "Prob copy NOT natural for coin (correlation vs independence)" $
+          let kSame ((), (b1, b2)) = if b1 == b2 then 1 else 0 :: Double
+              corr = runProb (copyP . coin) kSame ((), ())
+              indep = runProb (parFG coin coin . copyP) kSame ((), ())
+           in approx corr 1.0 && approx indep 0.625 && corr /= indep,
+        -- Traced Either: computability graded by scalar
+        check "Prob traceEN converges to 1/p for geometric (error ~ q^fuel)" $
+          let e n = ev (traceEN 0 n (geomBody 0.5)) fromIntegral
+           in approx (e 60) 2.0 && e 5 < e 20 && e 20 < e 60,
+        check "Prob Bool trace reachability via lazy (||)" $
+          reach 2,
         -- Ends oracles
         check "O9 ends . splay == id" $
           let e :: Ends (->) () Int

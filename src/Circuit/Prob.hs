@@ -36,9 +36,19 @@ module Circuit.Prob
     score,
     mass,
 
+    -- * Cartesian copy (deterministic)
+    copyP,
+
+    -- * Angelic choice (Bool semantics)
+    orP,
+
     -- * Parallel nestings (Fubini on the linear fragment)
     parFG,
     parGF,
+
+    -- * Traced Either (explicit, computability varies by scalar)
+    traceE,
+    traceEN,
   )
 where
 
@@ -124,6 +134,19 @@ mass :: r -> Prob (->) r a b -> a -> r
 mass one (Prob f) a = f (const one) ((), a)
 {-# INLINE mass #-}
 
+-- | Deterministic copy.  Naturality of this morphism characterises the
+-- deterministic fragment: @copyP . embed h == parFG (embed h) (embed h) . copyP@.
+copyP :: Prob (->) r a (a, a)
+copyP = embed (\a -> (a, a))
+{-# INLINE copyP #-}
+
+-- | Angelic choice for @r = Bool@ (weakest-precondition / reachability
+-- semantics).  Succeeds if either branch can; short-circuiting of @(||)@
+-- gives the trace on this scalar for free.
+orP :: Prob (->) Bool a b -> Prob (->) Bool a b -> Prob (->) Bool a b
+orP (Prob f) (Prob g) = Prob $ \k p -> f k p || g k p
+{-# INLINE orP #-}
+
 -- ---------------------------------------------------------------------------
 -- Structural instances (cartesian tensor, function arrow)
 -- ---------------------------------------------------------------------------
@@ -183,3 +206,46 @@ parGF (Prob f) (Prob g) = Prob $ \k ->
       gb = g kg
    in \(ctx, (a, c)) -> gb ((ctx, a), c)
 {-# INLINE parGF #-}
+
+-- ---------------------------------------------------------------------------
+-- Traced Either (explicit, not a canonical instance)
+-- ---------------------------------------------------------------------------
+
+-- | Least-fixpoint trace over the 'Either' tensor.
+--
+-- This is the denotationally correct definition: @Right@ values feed back into
+-- the body, @Left@ values escape.  For genuinely cyclic bodies and strict
+-- numeric scalars (e.g. @r = Double@) it diverges — the geometric series
+-- exists but strict @(+)@ never reaches it.  Use 'traceEN' for a computable
+-- approximation, or switch to a scalar whose lattice structure supplies the
+-- fixpoint (e.g. @r = Bool@, where @(||)@ short-circuits) or to an effectful
+-- base arrow where sampling terminates almost surely.
+--
+-- We do not provide a @Traced Either (Prob (->) r)@ instance because the
+-- canonical trace is only available on a fragment; 'traceE' and 'traceEN' are
+-- exported as explicit choices.
+traceE ::
+  Prob (->) r (Either a s) (Either b s) ->
+  Prob (->) r a b
+traceE (Prob f) = Prob $ \k ->
+  let step (x, Left b) = k (x, b)
+      step (x, Right s) = f step (x, Right s)
+   in \(x, a) -> f step (x, Left a)
+{-# INLINE traceE #-}
+
+-- | Fuel-bounded variant of 'traceE'.  After the fuel is exhausted, re-entries
+-- contribute the supplied @zero@ value.  This converges to the least fixpoint
+-- with error proportional to the probability of not having terminated by the
+-- fuel limit.
+traceEN ::
+  r ->
+  Int ->
+  Prob (->) r (Either a s) (Either b s) ->
+  Prob (->) r a b
+traceEN zero n0 (Prob f) = Prob $ \k ->
+  let step _ (x, Left b) = k (x, b)
+      step n (x, Right s)
+        | n <= 0 = zero
+        | otherwise = f (step (n - 1)) (x, Right s)
+   in \(x, a) -> f (step n0) (x, Left a)
+{-# INLINE traceEN #-}
