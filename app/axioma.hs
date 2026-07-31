@@ -9,11 +9,12 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
-import Circuit.Process (Process (..), encode, fold, register, scan)
+import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.List (scanl')
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
+import Data.Tuple qualified as Tuple
 import GHC.TypeNats (KnownNat, natVal)
 import Test.QuickCheck
   ( Arbitrary (..),
@@ -332,6 +333,14 @@ main = do
           scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
         check "Process register (EWMA)" $
           scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
+        check "Process register == trace . strength . delay (EWMA)" $
+          let body = ewmaBody 0.5
+              s0 = 0.0
+              xs = [1.0, 1.0, 1.0]
+              swapP (Process i st ex) =
+                Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
+           in scan (register s0 body) xs
+                == scan (trace (swapP (body . strength (delay s0)))) xs,
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,

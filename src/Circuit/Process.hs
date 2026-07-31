@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-pattern-namespace-specifier #-}
 
 -- | Stateful processes as a 'Circuit' base arrow.
 --
@@ -38,7 +39,7 @@
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
-    data P,
+    pattern P,
 
     -- * Polymorphic process carrier
     Machine (..),
@@ -52,6 +53,7 @@ module Circuit.Process
     encode,
 
     -- * Cross-tick feedback
+    delay,
     register,
   )
 where
@@ -59,7 +61,7 @@ where
 import Circuit.Category (Category (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (CopyDiscard, MergeZero)
-import qualified Circuit.Dagger as Dagger
+import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Poly (Dir, Mono, Pos, System (..))
@@ -201,17 +203,18 @@ instance Category Process where
   type Ob Process a = ()
 
   id :: Process a a
-  id = P id (\s _ -> s) id
+  id = P id const id
   {-# INLINE id #-}
 
   (.) :: Process b c -> Process a b -> Process a c
   P i2 st2 ex2 . P i1 st1 ex1 =
     P
       (\a -> let s1 = i1 a in Pair' s1 (i2 (ex1 s1)))
-      (\(Pair' s1 s2) a ->
-         let s1' = st1 s1 a
-             s2' = st2 s2 (ex1 s1')
-          in Pair' s1' s2')
+      ( \(Pair' s1 s2) a ->
+          let s1' = st1 s1 a
+              s2' = st2 s2 (ex1 s1')
+           in Pair' s1' s2'
+      )
       (\(Pair' _ s2) -> ex2 s2)
   {-# INLINE (.) #-}
 
@@ -333,12 +336,13 @@ instance Strength Either Process where
   strength (P i st ex) =
     P
       (\case Left a -> (Nothing, Left a); Right b -> let s0 = i b in (Just s0, Right (ex s0)))
-      (\(ms, _) -> \case
-         Left a -> (ms, Left a)
-         Right b -> case ms of
-           Nothing -> let s0 = i b in (Just s0, Right (ex s0))
-           Just s -> let s' = st s b in (Just s', Right (ex s')))
-      (\(_, e) -> e)
+      ( \(ms, _) -> \case
+          Left a -> (ms, Left a)
+          Right b -> case ms of
+            Nothing -> let s0 = i b in (Just s0, Right (ex s0))
+            Just s -> let s' = st s b in (Just s', Right (ex s'))
+      )
+      snd
   withStrengthOb ObDict ObDict ObDict x = x
 
 instance Traced Either Process where
@@ -362,7 +366,7 @@ instance CopyDiscard Process a where
   copy = P id (\_ x -> x) Dagger.copy
   discard = P id (\_ x -> x) (const ())
 
-instance MergeZero (->) a => MergeZero Process a where
+instance (MergeZero (->) a) => MergeZero Process a where
   plus = P id (\_ x -> x) Dagger.plus
   zero = P id (\_ x -> x) Dagger.zero
 
@@ -404,6 +408,14 @@ fold p xs = Just (last (scan p xs))
 -- Cross-tick feedback
 -- ---------------------------------------------------------------------------
 
+-- | One-tick delay with an initial value.
+--
+-- Output is @s0@ on the first tick and the input from the previous tick
+-- thereafter. This is the primitive that makes 'register' productive: the
+-- feedback wire is observable one tick late.
+delay :: s -> Process s s
+delay s0 = P (const s0) (const id) id
+
 -- | Cross-tick register feedback.
 --
 -- Given an initial feedback value @s0@ and a process @Process (a, s) (b, s)@,
@@ -415,6 +427,13 @@ fold p xs = Just (last (scan p xs))
 -- Compare with the cartesian 'trace' on 'Process', which ties a lazy knot
 -- and diverges for strict state; 'register' keeps strict state cells sound
 -- by making the one-tick delay observable.
+--
+-- For bodies whose fixed-point is independent of the initial feedback value
+-- (e.g. affine/stateless feedback such as 'ewmaBody'), the same wiring can
+-- be expressed using 'delay', 'strength' and 'trace':
+--
+-- @register s0 body == trace (dimap swap swap (body . strength (delay s0)))@,
+-- where @swap (a, b) = (b, a)@.
 register :: s -> Process (a, s) (b, s) -> Process a b
 register s0 (P i st ex) = P i' st' ex'
   where
