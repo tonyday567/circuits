@@ -9,10 +9,11 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
 import Circuit.Layer (run)
+import Circuit.Poly (Mono, System (..), monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
-import Data.List (scanl')
+import Data.List (foldl', scanl')
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Tuple qualified as Tuple
@@ -281,6 +282,133 @@ check name ok = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
   pure ok
 
+-- ---------------------------------------------------------------------------
+-- Keystone: System (Prob (->) r) s (Mono i o)
+--
+-- The stochastic Moore machine, stepped by expectation. The scalar @r@ selects
+-- the semantics: @Double@ for probability, @Tropical@ for min-plus / Viterbi.
+-- ---------------------------------------------------------------------------
+
+-- | A tiny semiring class local to the executable so the same runner works for
+-- probability and tropical semantics without pulling in NumHask prelude.
+class Semiring r where
+  sAdd :: r -> r -> r
+  sMul :: r -> r -> r
+  sZero :: r
+  sOne :: r
+
+instance Semiring Double where
+  sAdd = (+)
+  sMul = (*)
+  sZero = 0
+  sOne = 1
+
+-- | Min-plus tropical semiring over 'Double'.
+--
+-- Addition is 'min', multiplication is ordinary addition, the additive unit is
+-- positive infinity, and the multiplicative unit is zero.
+newtype Tropical = Tropical {getTropical :: Double}
+  deriving (Eq, Ord, Show)
+
+instance Semiring Tropical where
+  sAdd (Tropical a) (Tropical b) = Tropical (min a b)
+  sMul (Tropical a) (Tropical b) = Tropical (a + b)
+  sZero = Tropical (1 / 0)
+  sOne = Tropical 0
+
+-- | Run a finite-state stochastic Moore machine by expectation.
+--
+-- Given an enumeration of the state space, the machine, a list of inputs, a
+-- query on the final state, and an initial state, return the expected query
+-- value.
+--
+-- For @r = Double@ this is ordinary expectation over the final state
+-- distribution. For @r = Tropical@ it is the min-plus cost of the cheapest
+-- final state.
+expectSystem ::
+  (Eq s, Semiring r) =>
+  [s] ->
+  System (Prob (->) r) s (Mono i o) ->
+  [i] ->
+  (s -> r) ->
+  s ->
+  r
+expectSystem states (System sys) is q s0 =
+  foldl' sAdd sZero [q s `sMul` distFinal s | s <- states]
+  where
+    distFinal = foldl' step initDist is
+    initDist s = if s == s0 then sOne else sZero
+    step dist i s' =
+      foldl' sAdd sZero [dist s `sMul` pTrans s i s' | s <- states]
+    pTrans s i s' =
+      runProb
+        sys
+        (\((), (s'', _)) -> if s' == s'' then sOne else sZero)
+        ((), (s, monoIn i))
+
+-- | Three-state chain for the keystone doctests.
+data S3 = S0 | S1 | S2
+  deriving (Eq, Show, Enum, Bounded)
+
+-- | Probability semantics: a lazy random walk on three states.
+--
+-- From each state, stay with probability 0.5 and move to the next state
+-- (cyclically) with probability 0.5.
+chain3Prob :: System (Prob (->) Double) S3 (Mono () ())
+chain3Prob = System $ Prob $ \k (x, (s, d)) ->
+  let next = case s of
+        S0 -> [(S0, 0.5), (S1, 0.5)]
+        S1 -> [(S1, 0.5), (S2, 0.5)]
+        S2 -> [(S2, 0.5), (S0, 0.5)]
+   in foldl' (+) 0 [p * k (x, (s', ((), ()))) | (s', p) <- next]
+
+-- | Tropical semantics: the same graph with transition costs.
+--
+-- Staying costs 1, moving costs 2. The cheapest n-step path to a state is the
+-- Viterbi value.
+chain3Tropical :: System (Prob (->) Tropical) S3 (Mono () ())
+chain3Tropical = System $ Prob $ \k (x, (s, d)) ->
+  let next = case s of
+        S0 -> [(S0, Tropical 1), (S1, Tropical 2)]
+        S1 -> [(S1, Tropical 1), (S2, Tropical 2)]
+        S2 -> [(S2, Tropical 1), (S0, Tropical 2)]
+   in foldl' sAdd sZero [c `sMul` k (x, (s', ((), ()))) | (s', c) <- next]
+
+-- | Exact occupancy probabilities for the 3-state chain after @n@ steps,
+-- starting from @S0@.
+--
+-- >>> occupancyProb 0
+-- [1.0,0.0,0.0]
+--
+-- >>> occupancyProb 1
+-- [0.5,0.5,0.0]
+--
+-- >>> occupancyProb 2
+-- [0.25,0.5,0.25]
+--
+-- >>> occupancyProb 3
+-- [0.25,0.375,0.375]
+occupancyProb :: Int -> [Double]
+occupancyProb n =
+  [getMass s | s <- [S0, S1, S2]]
+  where
+    getMass s = expectSystem [S0, S1, S2] chain3Prob (replicate n ()) (\s' -> if s' == s then 1 else 0) S0
+
+-- | Tropical (Viterbi) cost to be in each state after @n@ steps, starting from
+-- @S0@.
+--
+-- >>> viterbiCost 0
+-- [0.0,Infinity,Infinity]
+--
+-- >>> viterbiCost 1
+-- [1.0,2.0,Infinity]
+--
+-- >>> viterbiCost 2
+-- [2.0,3.0,4.0]
+viterbiCost :: Int -> [Double]
+viterbiCost n =
+  [getTropical (expectSystem [S0, S1, S2] chain3Tropical (replicate n ()) (\s' -> if s' == s then sOne else sZero) S0) | s <- [S0, S1, S2]]
+
 main :: IO ()
 main = do
   results <-
@@ -480,7 +608,21 @@ main = do
               e = ends (const ()) (const 42)
               (write', receive') = splay e
               e' = ends write' receive'
-           in run (box @(,) e') () == 42 && run (box @(,) e) () == 42
+           in run (box @(,) e') () == 42 && run (box @(,) e) () == 42,
+        -- Keystone: System (Prob (->) r) s (Mono i o)
+        check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
+          length (occupancyProb 0) == 3,
+        check "Keystone: exact occupancy after 2 steps" $
+          occupancyProb 2 == [0.25, 0.5, 0.25],
+        check "Keystone: exact occupancy after 3 steps" $
+          let [p0, p1, p2] = occupancyProb 3
+           in approx p0 0.25 && approx p1 0.375 && approx p2 0.375,
+        check "Keystone: System (Prob Tropical) S3 (Mono () ()) typechecks" $
+          length (viterbiCost 0) == 3,
+        check "Keystone: tropical Viterbi cost after 2 steps" $
+          viterbiCost 2 == [2.0, 3.0, 4.0],
+        check "Keystone: tropical Viterbi cost after 3 steps" $
+          viterbiCost 3 == [3.0, 4.0, 5.0]
       ]
   if and results
     then putStrLn "\nAll tests passed."
