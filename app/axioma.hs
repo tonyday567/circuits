@@ -10,15 +10,18 @@ import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), Queue (..), box, close, ends, openIO, prefixIn, splay, suffixOut)
 import Circuit.FinRel
 import Circuit.Layer (run)
+import Circuit.Loop (Loop (..))
+import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Mono, System (..), monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
-import Data.List (foldl', scanl')
+import Data.List (foldl', scanl', sort)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Tuple qualified as Tuple
+import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
 import Test.QuickCheck
   ( Arbitrary (..),
@@ -328,6 +331,25 @@ checkIO name act = do
   ok <- act
   _ <- check name ok
   pure ok
+
+-- ---------------------------------------------------------------------------
+-- ⅋ probe helpers
+-- ---------------------------------------------------------------------------
+
+-- | Body that prepends a marker to the shared feedback list and emits the
+-- first three elements.  Used to make the shared-medium interleaving observable.
+markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
+markerBody n (ns, ()) = (n : ns, take 3 ns)
+
+-- | Schedule that always runs the left body first, leaving a neutral schedule
+-- token in the shared state so the interleaving is observable.
+leftFirst :: Schedule [Int]
+leftFirst = Schedule $ \s -> (0 : s, True)
+
+-- | Schedule that always runs the right body first, leaving the same neutral
+-- schedule token so the two orderings remain comparable on body sets.
+rightFirst :: Schedule [Int]
+rightFirst = Schedule $ \s -> (0 : s, False)
 
 -- ---------------------------------------------------------------------------
 -- Keystone: System (Prob (->) r) s (Mono i o)
@@ -724,6 +746,37 @@ main = do
           x <- runKleisli lhs 42
           y <- runKleisli rhs 42
           pure (x /= y),
+        checkIO "Ends lawfulDimapEnds with identity Chu morphism preserves close" $ do
+          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          let e' = Chu.lawfulDimapEnds Chu.idChu e
+          x <- runKleisli (close (conjoint e') (companion e')) 42
+          pure (x == 42),
+        -- Par / linear distributivity
+        check "Par distL is the one-way (,) / Either distributor" $
+          distL ('x', Left True :: Either Bool Int) == Left ('x', True)
+            && distR (Left True :: Either Bool Int, 'x') == Left True,
+        check "Par unitlP collapses Void on Either" $
+          unitlP (Right 42 :: Either Void Int) == (42 :: Int),
+        check "Par unitrP collapses Void on Either" $
+          unitrP (Left 42 :: Either Int Void) == (42 :: Int),
+        -- ⊗/⅋ probe: sharedBy vs superpose
+        check "sharedKnotBy differs from superpose (shared vs independent feedback)" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+           in run (superpose (Knot k1) (Knot k2)) ((), ())
+                /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+        check "sharedKnotBy schedule changes observable interleaving" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+           in run (sharedKnotBy rightFirst k1 k2) ((), ())
+                /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+        check "sharedKnotBy left-first and right-first both agree on body sets" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              leftResult = run (sharedKnotBy leftFirst k1 k2) ((), ())
+              rightResult = run (sharedKnotBy rightFirst k1 k2) ((), ())
+           in sort (uncurry (++) leftResult) == [0, 0, 1, 1, 2, 2]
+                && sort (uncurry (++) rightResult) == [0, 0, 1, 1, 2, 2],
         -- Keystone: System (Prob (->) r) s (Mono i o)
         check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
           length (occupancyProb 0) == 3,

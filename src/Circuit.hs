@@ -145,6 +145,7 @@ module Circuit
     deliveryMatrix,
     deliversToSemiring,
     endsAsChu,
+    lawfulDimapEnds,
     idChu,
     negateChu,
 
@@ -183,9 +184,21 @@ module Circuit
     ambientBy,
     superpose,
 
+    -- * Par (multiplicative disjunction)
+    Bot,
+    Par (..),
+    distL,
+    distR,
+    mix,
+
     -- * Channel product
     Tensor (..),
     Action (..),
+
+    -- * Shared-medium fusion (the ⅋ connective)
+    Schedule (..),
+    Shared (..),
+    sharedKnotBy,
   )
 where
 
@@ -203,6 +216,7 @@ import Circuit.Chu
     deliveryMatrix,
     endsAsChu,
     idChu,
+    lawfulDimapEnds,
     negateChu,
   )
 import Circuit.Dagger
@@ -278,8 +292,25 @@ import Circuit.Net
     enrich,
     melt,
   )
+import Circuit.Par
+  ( Bot,
+    Par (..),
+    distL,
+    distR,
+    mix,
+  )
 import Circuit.Sym
 import Circuit.Tensor
+  ( Action (..),
+    Braided (..),
+    Schedule (..),
+    Shared (..),
+    Tensor (..),
+    ambient,
+    ambientBy,
+    sharedKnotBy,
+    superpose,
+  )
 import Prelude
 
 -- | Close a feedback loop. See "Circuit.Channel".

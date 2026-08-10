@@ -43,6 +43,7 @@ module Circuit.Chu
 
     -- * Ends embedding
     endsAsChu,
+    lawfulDimapEnds,
 
     -- * Delivery pairing
     deliversToSemiring,
@@ -200,6 +201,18 @@ endsAsChu ::
   ChuObj (,) (arr a a) (->) (In arr a) (Out arr a)
 endsAsChu e = ChuObj (conjoint e) (companion e) (uncurry close)
 {-# INLINE endsAsChu #-}
+
+-- | Apply a Chu endomorphism to a symmetric end.
+--
+-- This is the lawful counterpart to the free 'Circuit.Ends.dimapEnds': the
+-- forward and backward maps are an adjoint pair by construction of
+-- 'ChuMorphism'.  The Chu law is discharged by the type, not just tested.
+lawfulDimapEnds ::
+  ChuMorphism (,) (arr a a) (->) (In arr a) (Out arr a) (In arr a) (Out arr a) ->
+  Ends arr a a ->
+  Ends arr a a
+lawfulDimapEnds (ChuMorphism f g) e = Ends (f (conjoint e)) (g (companion e))
+{-# INLINE lawfulDimapEnds #-}
 
 -- ---------------------------------------------------------------------------
 -- Delivery pairing

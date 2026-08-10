@@ -41,6 +41,11 @@ module Circuit.Tensor
     Tensor (..),
     Action (..),
 
+    -- * Shared-medium fusion (the ⅋ connective)
+    Schedule (..),
+    Shared (..),
+    sharedKnotBy,
+
     -- * Cartesian / cocartesian associators
     assocL,
     assocR,
@@ -447,15 +452,18 @@ superpose x y = case (x, y) of
     withOb @arr @(t s s1) $
       withOb @arr @(t (t s s1) (t a c)) $
         withOb @arr @(t (t s s1) (t b d)) $
-          Knot $ pre .>> par f g .>> post
+          Knot $
+            pre .>> par f g .>> post
   (Knot @_ @s @_ @_ @_ f, Lift g) ->
     withOb @arr @(t s (t a c)) $
       withOb @arr @(t s (t b d)) $
-        Knot $ assoc'_ .>> par f g .>> assoc_
+        Knot $
+          assoc'_ .>> par f g .>> assoc_
   (Lift f, Knot @_ @s @_ @_ @_ g) ->
     withOb @arr @(t s (t a c)) $
       withOb @arr @(t s (t b d)) $
-        Knot $ braid_ .>> par f g .>> braid_
+        Knot $
+          braid_ .>> par f g .>> braid_
   (Lift f, Lift g) -> Lift (par f g)
   where
     (.>>) :: forall x y z. arr x y -> arr y z -> arr x z
@@ -473,3 +481,87 @@ superpose x y = case (x, y) of
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
     pre = assoc_ .>> strengthD braid_ .>> assoc'_
     post = assoc_ .>> strengthD braid_ .>> assoc'_
+
+-- ===========================================================================
+-- Shared-medium fusion (the ⅋ connective)
+-- ===========================================================================
+
+-- | A schedule drives shared-feedback fusion.
+--
+-- The state @s@ is the shared feedback channel.  At each step the schedule
+-- looks at the state and chooses whether the left or right body consumes it
+-- next, returning the updated schedule state.
+newtype Schedule s = Schedule
+  { -- | Given the current shared state, return the updated state and a
+    -- boolean: 'True' means run the left body next, 'False' the right.
+    chooseS :: s -> (s, Bool)
+  }
+
+-- | Tensors that support shared-feedback fusion of two knot bodies.
+--
+-- This is the operational content of the multiplicative disjunction: two
+-- sub-loops share one feedback channel, and a 'Schedule' resolves the
+-- interleaving.  Contrast 'superpose', which keeps the feedback channels
+-- independent (⊗).
+class (Tensor t arr) => Shared t arr where
+  -- | Fuse two feedback bodies over a shared channel.
+  --
+  -- The combined body has type @arr (t s (t a c)) (t s (t b d))@: one shared
+  -- state @s@, paired inputs @a@ and @c@, paired outputs @b@ and @d@.  At
+  -- each step the schedule chooses which body advances; the other body's
+  -- input is forwarded unchanged to the output.
+  sharedBy ::
+    Schedule s ->
+    arr (t s a) (t s b) ->
+    arr (t s c) (t s d) ->
+    arr (t s (t a c)) (t s (t b d))
+
+-- | Shared fusion wrapped as a 'Knot'.
+--
+-- This takes explicit knot bodies that already share the feedback type @s@.
+-- 'Loop' hides its feedback type existentially, so a generic 'Loop'-level
+-- combinator cannot constrain two arbitrary knots to share the same channel;
+-- this helper makes the shared state explicit at the call site.
+sharedKnotBy ::
+  forall t arr a b c d s.
+  (Shared t arr, Ob arr s, Ob arr (t s (t a c)), Ob arr (t s (t b d))) =>
+  Schedule s ->
+  arr (t s a) (t s b) ->
+  arr (t s c) (t s d) ->
+  Loop t arr (t a c) (t b d)
+sharedKnotBy sched f g = Knot (sharedBy sched f g)
+
+-- | Cartesian shared fusion on functions.
+--
+-- Both bodies run every step, but the schedule chooses the order in which
+-- they access the shared state.  When both bodies read and write @s@, the
+-- two orders are observationally different — this is the ⅋-vs-⊗ distinction.
+instance Shared (,) (->) where
+  sharedBy sched f g (s, (a, c)) =
+    let (s', choice) = chooseS sched s
+     in if choice
+          then
+            let (s'', b) = f (s', a)
+                (s''', d) = g (s'', c)
+             in (s''', (b, d))
+          else
+            let (s'', d) = g (s', c)
+                (s''', b) = f (s'', a)
+             in (s''', (b, d))
+  {-# INLINE sharedBy #-}
+
+-- | Cartesian shared fusion on @Kleisli@ arrows.
+instance (Monad m) => Shared (,) (Kleisli m) where
+  sharedBy sched (Kleisli f) (Kleisli g) =
+    Kleisli $ \(s, (a, c)) -> do
+      let (s', choice) = chooseS sched s
+      if choice
+        then do
+          (s'', b) <- f (s', a)
+          (s''', d) <- g (s'', c)
+          pure (s''', (b, d))
+        else do
+          (s'', d) <- g (s', c)
+          (s''', b) <- f (s'', a)
+          pure (s''', (b, d))
+  {-# INLINE sharedBy #-}

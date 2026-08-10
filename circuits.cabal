@@ -60,6 +60,7 @@ library
     Circuit.Layer
     Circuit.Loop
     Circuit.Net
+    Circuit.Par
     Circuit.Poly
     Circuit.Poly.Process
     Circuit.Prob
