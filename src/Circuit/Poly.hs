@@ -110,6 +110,7 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> import Circuit.Category (id, (.))
 -- >>> import Circuit.Poly
 -- >>> import Prelude hiding (id, (.))
 
@@ -341,7 +342,7 @@ compAssocL (EC ((i, f), g) k) =
     ( i,
       \dp ->
         let j = f dp
-            h = \dq -> g (dp, dq)
+            h dq = g (dp, dq)
          in (j, h)
     )
     (\(dp, (dq, dr)) -> k ((dp, dq), dr))
@@ -349,8 +350,8 @@ compAssocL (EC ((i, f), g) k) =
 -- | Right associator for the composition product.
 compAssocR :: Eval ('Comp p ('Comp q r)) x -> Eval ('Comp ('Comp p q) r) x
 compAssocR (EC (i, h) k) =
-  let f = \dp -> fst (h dp)
-      g = \(dp, dq) -> snd (h dp) dq
+  let f = fst . h
+      g (dp, dq) = snd (h dp) dq
    in EC ((i, f), g) (\((dp, dq), dr) -> k (dp, (dq, dr)))
 
 -- | Functorial action of the composition product on monomial morphisms.
@@ -803,7 +804,7 @@ instance SystemEval ('Const a) where
 
 instance SystemEval ('Exp a) where
   evalToSystem (EE f) = ((), f)
-  evalFromSystem () k = EE k
+  evalFromSystem () = EE
   probeDir = error "probeDir Exp"
 
 instance (SystemEval p, SystemEval q) => SystemEval ('Sum p q) where
@@ -830,13 +831,13 @@ instance (SystemEval p, SystemEval q) => SystemEval ('Prod p q) where
 
 instance (SystemEval p, SystemEval q) => SystemEval ('Tensor p q) where
   evalToSystem (ET pos f) = (pos, f)
-  evalFromSystem pos k = ET pos k
+  evalFromSystem = ET
   probeDir :: Dir ('Tensor p q)
   probeDir = (probeDir @p, probeDir @q)
 
 instance (SystemEval p, SystemEval q) => SystemEval ('Comp p q) where
   evalToSystem (EC pos f) = (pos, f)
-  evalFromSystem pos k = EC pos k
+  evalFromSystem = EC
   probeDir :: Dir ('Comp p q)
   probeDir = (probeDir @p, probeDir @q)
 

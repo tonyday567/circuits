@@ -44,10 +44,11 @@ import Circuit.Poly
     toEvalSystem,
   )
 import Circuit.Process (Process (..))
+import Control.Category ((.))
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Poly (Mono, lens)
+-- >>> import Circuit.Poly (Mono, Morphism, System, applyLens, lens)
 -- >>> import Circuit.Poly.Process
 
 -- | Run a monomial system at a state, exposing the output position and the
@@ -63,9 +64,9 @@ runSystem sys s = case toEvalSystem sys s of EP (EK o, EE f) -> (o, f)
 systemAsProcess :: System (->) s (Mono i o) -> s -> Process i o
 systemAsProcess sys s0 =
   Process
-    (\o -> snd (runSystem sys s0) o)
-    (\s o -> snd (runSystem sys s) o)
-    (\s -> fst (runSystem sys s))
+    (snd (runSystem sys s0))
+    (snd . runSystem sys)
+    (fst . runSystem sys)
 
 -- | Run a system for as many steps as there are inputs, emitting one output
 -- per input. The output is the state /after/ consuming the input, matching
@@ -226,7 +227,7 @@ coalgebraToSystem coal = fromEvalSystem $ \s -> upd coal s (EY s)
 systemToCoalgebraMono :: System (->) s (Mono i o) -> Coalgebra s 'Y (Mono i o)
 systemToCoalgebraMono sys =
   Coalgebra
-    { act = \s -> let (o, _) = runSystem sys s in Point (EP (EK o, EE (\_ -> ()))),
+    { act = \s -> let (o, _) = runSystem sys s in Point (EP (EK o, EE (const ()))),
       upd = \s _ -> toEvalSystem sys s
     }
 
