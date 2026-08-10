@@ -476,17 +476,9 @@ main = do
           trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,
         check "trace of identity pair" $
           trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
-        -- Para laws: the constant-state slice of Loop(,)
-        check "L1: snd . <fst, f> == f" $
-          let f :: Int -> String
-              f = show
-              h (p, a) = (p, f a)
-           in trace h 42 == "42",
-        check "L2: threading a constant state == exposing it" $
-          let f :: Int -> Int
-              f = (+ 10)
-              h (p, a) = (p, f a)
-           in trace h 5 == 15,
+        -- Para laws promoted to circuits-learn-axioma (11 Aug 2026).
+        -- The L1/L2 constant-state trace checks now live there alongside
+        -- the full Category associativity and identity oracles for Para.
         -- Circuit.Process oracles
         check "Process seed emits first output" $
           scan sumP [5] == [5],
