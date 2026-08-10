@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
@@ -340,6 +341,17 @@ checkIO name act = do
 -- first three elements.  Used to make the shared-medium interleaving observable.
 markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
 markerBody n (ns, ()) = (n : ns, take 3 ns)
+
+-- | Schedule that always runs the left body first without modifying the shared
+-- state.  A pure order swap is invisible to the trace — this is the sliding
+-- axiom of the traced category observed at the shared channel.
+pureLeft :: Schedule [Int]
+pureLeft = Schedule (,True)
+
+-- | Schedule that always runs the right body first without modifying the shared
+-- state.
+pureRight :: Schedule [Int]
+pureRight = Schedule (,False)
 
 -- | Schedule that always runs the left body first, leaving a neutral schedule
 -- token in the shared state so the interleaving is observable.
@@ -760,6 +772,11 @@ main = do
         check "Par unitrP collapses Void on Either" $
           unitrP (Left 42 :: Either Int Void) == (42 :: Int),
         -- ⊗/⅋ probe: sharedBy vs superpose
+        check "pure order swap is invisible at the shared channel (sliding axiom)" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+           in run (sharedKnotBy pureLeft k1 k2) ((), ())
+                == run (sharedKnotBy pureRight k1 k2) ((), ()),
         check "sharedKnotBy differs from superpose (shared vs independent feedback)" $
           let k1 = markerBody 1
               k2 = markerBody 2
