@@ -137,9 +137,11 @@ module Circuit
     ChuMorphism (..),
     ChuSemiring (..),
     chuLaw,
+    chuLawAt,
     composeChu,
     deliveryMatrix,
     deliversToSemiring,
+    endsAsChu,
     idChu,
     negateChu,
 
@@ -192,9 +194,11 @@ import Circuit.Chu
     ChuObj (..),
     ChuSemiring (..),
     chuLaw,
+    chuLawAt,
     composeChu,
     deliversToSemiring,
     deliveryMatrix,
+    endsAsChu,
     idChu,
     negateChu,
   )

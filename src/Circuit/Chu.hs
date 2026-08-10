@@ -22,6 +22,10 @@ module Circuit.Chu
     idChu,
     composeChu,
     chuLaw,
+    chuLawAt,
+
+    -- * Ends embedding
+    endsAsChu,
 
     -- * Delivery pairing
     deliversToSemiring,
@@ -30,6 +34,7 @@ module Circuit.Chu
 where
 
 import Circuit.Category (Category (..), (.>))
+import Circuit.Ends (Ends (..), In (..), Out (..), close)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Prelude hiding (id, (.))
 
@@ -146,6 +151,38 @@ chuLaw ::
 chuLaw src tgt (ChuMorphism f g) a d =
   chuPair tgt (f a, d) == chuPair src (a, g d)
 {-# INLINE chuLaw #-}
+
+-- | Pointwise adjoint law for @arr = (->)@.
+--
+-- When the dualising object @r@ does not have an 'Eq' instance (e.g. it is
+-- itself a function), supply a probe @k :: r -> s@ with 'Eq' @s@.
+chuLawAt ::
+  (Eq s) =>
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuMorphism (,) r (->) a b c d ->
+  a ->
+  d ->
+  (r -> s) ->
+  Bool
+chuLawAt src tgt (ChuMorphism f g) a d k =
+  k (chuPair tgt (f a, d)) == k (chuPair src (a, g d))
+{-# INLINE chuLawAt #-}
+
+-- ---------------------------------------------------------------------------
+-- Ends embedding
+-- ---------------------------------------------------------------------------
+
+-- | Embed a symmetric end into a Chu object.
+--
+-- A self-dual channel @Ends arr a a@ has write end @In arr a@ and read end
+-- @Out arr a@.  'close' is already the pairing @In ⊗ Out → arr a a@, so the
+-- embedding is direct.
+endsAsChu ::
+  Ends arr a a ->
+  ChuObj (,) (arr a a) (->) (In arr a) (Out arr a)
+endsAsChu e = ChuObj (conjoint e) (companion e) (uncurry close)
+{-# INLINE endsAsChu #-}
 
 -- ---------------------------------------------------------------------------
 -- Delivery pairing

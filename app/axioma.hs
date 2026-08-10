@@ -7,13 +7,14 @@ import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
-import Circuit.Ends (Ends (..), box, ends, splay)
+import Circuit.Ends (Ends (..), Queue (..), box, close, ends, openIO, prefixIn, splay, suffixOut)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Poly (Mono, System (..), monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Tensor (..))
+import Control.Arrow (Kleisli (..), runKleisli)
 import Data.List (foldl', scanl')
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
@@ -320,6 +321,12 @@ qcCheck name p = do
 check :: String -> Bool -> IO Bool
 check name ok = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
+  pure ok
+
+checkIO :: String -> IO Bool -> IO Bool
+checkIO name act = do
+  ok <- act
+  _ <- check name ok
   pure ok
 
 -- ---------------------------------------------------------------------------
@@ -686,6 +693,36 @@ main = do
               domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Bool]]
               forwardOnlyMat = Chu.deliveryMatrix domainAgents (map (prefixTo . chuTo) posts) :: [[Bool]]
            in domainMat /= forwardOnlyMat,
+        -- Ends embeds into Chu
+        checkIO "Ends close yanks for nontrivial symmetric end" $ do
+          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          x <- runKleisli (close (conjoint e) (companion e)) 42
+          pure (x == 42),
+        checkIO "Ends negation is involutive in Chu" $ do
+          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          let obj = Chu.endsAsChu e
+              obj'' = Chu.negateChu (Chu.negateChu obj)
+          x <- runKleisli (Chu.chuPair obj (conjoint e, companion e)) 42
+          y <- runKleisli (Chu.chuPair obj'' (conjoint e, companion e)) 42
+          pure (x == y),
+        checkIO "Ends identity endomorphism satisfies Chu law" $ do
+          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          let obj = Chu.endsAsChu e
+              m = Chu.ChuMorphism (prefixIn id) (`suffixOut` id)
+              lhs = Chu.chuPair obj (Chu.chuForward m (conjoint e), companion e)
+              rhs = Chu.chuPair obj (conjoint e, Chu.chuBackward m (companion e))
+          x <- runKleisli lhs 42
+          y <- runKleisli rhs 42
+          pure (x == y),
+        checkIO "Ends dimapEnds-style pair violates Chu law" $ do
+          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          let obj = Chu.endsAsChu e
+              m = Chu.ChuMorphism (prefixIn (Kleisli $ pure . (+ 1))) (`suffixOut` id)
+              lhs = Chu.chuPair obj (Chu.chuForward m (conjoint e), companion e)
+              rhs = Chu.chuPair obj (conjoint e, Chu.chuBackward m (companion e))
+          x <- runKleisli lhs 42
+          y <- runKleisli rhs 42
+          pure (x /= y),
         -- Keystone: System (Prob (->) r) s (Mono i o)
         check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
           length (occupancyProb 0) == 3,
