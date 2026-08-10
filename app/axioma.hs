@@ -5,6 +5,7 @@ module Main where
 
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
+import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
 import Circuit.Ends (Ends (..), box, ends, splay)
 import Circuit.FinRel
@@ -38,6 +39,45 @@ type F = Bool
 type N1 = FinObj 1
 
 type N2 = FinObj 2
+
+-- ---------------------------------------------------------------------------
+-- Chu helpers
+-- ---------------------------------------------------------------------------
+
+-- | A post-shaped value for the Chu delivery oracles.  Carriers are 'Int's so
+-- the example needs no 'Text'.
+data ChuPost = ChuPost
+  { chuFrom :: Int,
+    chuTo :: [Int],
+    chuBody :: Int
+  }
+  deriving (Eq, Show)
+
+mkChuPost :: Int -> [Int] -> Int -> ChuPost
+mkChuPost = ChuPost
+
+-- | Prefix used to rename subscribers across a Chu morphism.
+chuPrefix :: Int
+chuPrefix = 10
+
+prefixName :: Int -> Int
+prefixName = (+ chuPrefix)
+
+unprefixName :: Int -> Int
+unprefixName = subtract chuPrefix
+
+prefixTo :: [Int] -> [Int]
+prefixTo = map prefixName
+
+unprefixSub :: Int -> Int
+unprefixSub = unprefixName
+
+chuDelivers :: ChuPost -> Int -> Bool
+chuDelivers p = Chu.deliversToSemiring (chuTo p)
+
+-- | Sample Chu object over posts and names with boolean delivery pairing.
+chuObjPostInt :: Chu.ChuObj (,) Bool (->) ChuPost Int
+chuObjPostInt = Chu.ChuObj (mkChuPost 0 [] 0) 0 (uncurry chuDelivers)
 
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
@@ -601,6 +641,51 @@ main = do
               (write', receive') = splay e
               e' = ends write' receive'
            in run (box @(,) e') () == 42 && run (box @(,) e) () == 42,
+        -- Chu construction
+        check "Chu negation is involutive" $
+          let e :: (Int, Int) -> Bool
+              e (x, y) = x == y
+              obj = Chu.ChuObj 0 0 e
+              obj'' = Chu.negateChu (Chu.negateChu obj)
+           in all (\p -> Chu.chuPair obj p == Chu.chuPair obj'' p) [(x, y) | x <- [0 .. 2 :: Int], y <- [0 .. 2 :: Int]],
+        check "Chu adjoint law holds for lawful prefix pair" $
+          let domainAgents = [1, 2] :: [Int]
+              codomainAgents = map prefixName domainAgents
+              posts =
+                [ mkChuPost 0 [r] 0
+                | r <- domainAgents
+                ]
+                  ++ [mkChuPost 0 [1, 2] 0, mkChuPost 0 [] 0]
+              subs = codomainAgents
+              fwd p = p {chuTo = prefixTo (chuTo p)}
+              bwd = unprefixSub
+           in all (\p -> all (Chu.chuLaw chuObjPostInt chuObjPostInt (Chu.ChuMorphism fwd bwd) p) subs) posts,
+        check "Chu adjoint law fails for unlawful backward map" $
+          let posts = [mkChuPost 0 [1] 0 :: ChuPost]
+              subs = [prefixName 1]
+              fwd p = p {chuTo = prefixTo (chuTo p)}
+              bwd = id
+           in not (all (\p -> all (Chu.chuLaw chuObjPostInt chuObjPostInt (Chu.ChuMorphism fwd bwd) p) subs) posts),
+        check "Chu delivery matrix commutes with prefix morphism (Bool)" $
+          let domainAgents = [1, 2] :: [Int]
+              codomainAgents = map prefixName domainAgents
+              posts = [mkChuPost 0 [1] 0, mkChuPost 0 [1, 2] 0, mkChuPost 0 [2] 0, mkChuPost 0 [] 0]
+              domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Bool]]
+              codomainMat = Chu.deliveryMatrix codomainAgents (map (prefixTo . chuTo) posts) :: [[Bool]]
+           in domainMat == codomainMat,
+        check "Chu delivery matrix commutes with prefix morphism (Double)" $
+          let domainAgents = [1, 2] :: [Int]
+              codomainAgents = map prefixName domainAgents
+              posts = [mkChuPost 0 [1, 2] 0, mkChuPost 0 [] 0]
+              domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Double]]
+              codomainMat = Chu.deliveryMatrix codomainAgents (map (prefixTo . chuTo) posts) :: [[Double]]
+           in domainMat == codomainMat,
+        check "Chu prefix without backward rename breaks matrix equality" $
+          let domainAgents = [1, 2] :: [Int]
+              posts = [mkChuPost 0 [1] 0]
+              domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Bool]]
+              forwardOnlyMat = Chu.deliveryMatrix domainAgents (map (prefixTo . chuTo) posts) :: [[Bool]]
+           in domainMat /= forwardOnlyMat,
         -- Keystone: System (Prob (->) r) s (Mono i o)
         check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
           length (occupancyProb 0) == 3,

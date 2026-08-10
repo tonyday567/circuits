@@ -49,6 +49,7 @@ library
     Circuit.Algebra
     Circuit.Category
     Circuit.Channel
+    Circuit.Chu
     Circuit.Dagger
     Circuit.Discrete
     Circuit.Ends

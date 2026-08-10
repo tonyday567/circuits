@@ -132,6 +132,17 @@ module Circuit
     (|>),
     (<|),
 
+    -- * Chu
+    ChuObj (..),
+    ChuMorphism (..),
+    ChuSemiring (..),
+    chuLaw,
+    composeChu,
+    deliveryMatrix,
+    deliversToSemiring,
+    idChu,
+    negateChu,
+
     -- * Dagger (bimonoid + dagger)
     CopyDiscard (..),
     MergeZero (..),
@@ -176,6 +187,17 @@ where
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
+import Circuit.Chu
+  ( ChuMorphism (..),
+    ChuObj (..),
+    ChuSemiring (..),
+    chuLaw,
+    composeChu,
+    deliversToSemiring,
+    deliveryMatrix,
+    idChu,
+    negateChu,
+  )
 import Circuit.Dagger
   ( Bimonoid,
     CopyDiscard (..),
