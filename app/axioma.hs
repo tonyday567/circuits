@@ -693,8 +693,9 @@ main = do
               domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Bool]]
               forwardOnlyMat = Chu.deliveryMatrix domainAgents (map (prefixTo . chuTo) posts) :: [[Bool]]
            in domainMat /= forwardOnlyMat,
-        -- Ends embeds into Chu
-        checkIO "Ends close yanks for nontrivial symmetric end" $ do
+        -- Ends embeds into Chu; a fresh symmetric queue is the copycat witness
+        -- of A ⅋ A⊥, so close must be the identity arrow.
+        checkIO "Ends copycat close is identity on fresh queue" $ do
           e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
           x <- runKleisli (close (conjoint e) (companion e)) 42
           pure (x == 42),

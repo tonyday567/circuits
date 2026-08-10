@@ -100,6 +100,9 @@ module Circuit
     rmapEnds,
     HasUnit (..),
 
+    -- * Copycat / multiplicative excluded middle
+    copycat,
+
     -- * Boxes
     box,
     boxAsymmetric,
@@ -227,6 +230,7 @@ import Circuit.Ends
     boxAsymmetric,
     close,
     composeEnds,
+    copycat,
     dimapEnds,
     ends,
     endsK,

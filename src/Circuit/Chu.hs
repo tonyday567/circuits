@@ -7,6 +7,23 @@
 -- Chu morphism is an adjoint pair satisfying the equation
 -- @e_B (f⁺ a, d) = e_A (a, f⁻ d)@.
 --
+-- == Excluded middle, split
+--
+-- Classical LEM says @A ∨ ¬A@ with a single disjunction.  Linear logic splits
+-- that disjunction into two connectives:
+--
+--   * Additive @A ⊕ A⊥@ — a tagged verdict now.  This is /not/ supported:
+--     there is no @decide :: Either (Proof a) (Refutation a)@ combinator.
+--     The absence is load-bearing.
+--   * Multiplicative @A ⅋ A⊥@ — the copycat strategy, provable as the linear
+--     identity @⊢ A⊥, A@.  A symmetric end @Ends arr a a@ with
+--     @close (conjoint e) (companion e) = id@ is exactly this witness; see
+--     'endsAsChu' and 'Circuit.Ends.copycat'.
+--
+-- In this reading 'negateChu' is polarity swap, 'endsAsChu' embeds the
+-- multiplicative witness, and 'chuLaw' is the adjoint equation that annihilates
+-- a decided pairing into quiet.
+--
 -- This module also provides a small semiring class and the named-recipient
 -- delivery pairing that motivated the construction in @circuits-agent@.
 module Circuit.Chu

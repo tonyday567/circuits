@@ -15,6 +15,12 @@
 -- 'open' produces a matched pair; 'close' plugs the pair back together by
 -- feeding the @Out@ into the @In@.
 --
+-- A /symmetric/ end @Ends arr a a@ with @close (conjoint e) (companion e) = id@
+-- is the copycat strategy for the multiplicative excluded middle @A ⅋ A⊥@:
+-- it routes traffic between the two poles without ever deciding which side is
+-- true.  For live arrows use 'openIO' or 'openSTM'; for the unit object use
+-- 'open' (also exported as 'copycat').
+--
 -- This module also provides the concrete helpers built on top of channel
 -- ends:
 --
@@ -59,6 +65,9 @@ module Circuit.Ends
 
     -- * Unit ends (requires constant morphisms)
     HasUnit (..),
+
+    -- * Copycat / multiplicative excluded middle
+    copycat,
 
     -- * Boxes
     box,
@@ -202,6 +211,20 @@ class (Category arr) => HasUnit u arr where
   -- >>> emit (companion endsA) (conjoint endsU) ()
   -- ()
   open :: Ends arr u u
+
+-- | The copycat strategy at the unit type.
+--
+-- This is the multiplicative excluded middle @() ⅋ ()⊥@ for arrows that have
+-- unit ends: a self-dual channel whose 'close' is the identity on @()@.  It
+-- routes between the two poles without ever deciding which one holds.  For
+-- live arrows and arbitrary payload types, use 'openIO' or 'openSTM'.
+--
+-- The additive excluded middle @() ⊕ ()⊥@ — a verdict, now — is /not/
+-- supported; there is no @decide :: Either () ()@ here, because only the
+-- routing witness is provable.
+copycat :: forall arr. (HasUnit () arr) => Ends arr () ()
+copycat = open
+{-# INLINE copycat #-}
 
 -- | Build an @Ends@ from a write morphism and a read morphism.
 --
