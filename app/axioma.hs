@@ -10,9 +10,11 @@ import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.Channel.Poly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
-import Circuit.Ends (Ends (..), box, close, copycat, ends0, prefixIn, splay0, suffixOut)
+import Circuit.Ends (Ends (..), box, close, composeEnds0, copycat, ends0, endsK, prefixIn, splay0, suffixOut)
 import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
 import Circuit.FinRel
+import Circuit.Hyper (Hyper, observe)
+import Circuit.HyperLoop qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, mediateProcess, pairSum, runMediator, runMediatorState)
@@ -23,6 +25,8 @@ import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Stamped (Stamped (..))
 import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
 import Circuit.Tensor.Mediate (mediateSharedBody)
+import Control.Arrow (Kleisli (..), runKleisli)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', scanl', sort)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
@@ -332,6 +336,13 @@ check name ok = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
   pure ok
 
+-- | 'check' for assertions that live in 'IO'.
+checkIO :: String -> IO Bool -> IO Bool
+checkIO name act = do
+  ok <- act
+  putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
+  pure ok
+
 -- ---------------------------------------------------------------------------
 -- ⅋ probe helpers
 -- ---------------------------------------------------------------------------
@@ -368,6 +379,19 @@ leftFirstMaybe = Schedule (,True)
 
 rightFirstMaybe :: Schedule (Maybe Int)
 rightFirstMaybe = Schedule (,False)
+
+-- ---------------------------------------------------------------------------
+-- Residual-oracle helpers
+-- ---------------------------------------------------------------------------
+
+-- | A synchronous identity-like 'Kleisli IO' end: writes are stored in an
+-- 'IORef' and reads retrieve the most recently stored value.  This is the
+-- effectful counterpart of the unit/copycat end: closing the two poles
+-- yanks to the identity morphism.
+mkIdentityEnd :: IO (Ends (Kleisli IO) Int Int)
+mkIdentityEnd = do
+  ref <- newIORef (0 :: Int)
+  pure $ endsK (writeIORef ref) (readIORef ref)
 
 -- ---------------------------------------------------------------------------
 -- Keystone: System (Prob (->) r) s (Mono i o)
@@ -688,6 +712,35 @@ main = do
               (write', receive') = splay0 e
               e' = ends0 write' receive'
            in run (box @(,) e') () == 42 && run (box @(,) e) () == 42,
+        check "annihilation: close on non-copycat end violates yanking" $
+          let e :: Ends (->) Int Int
+              e = ends0 (const ()) (const 42)
+           in close (conjoint e) (companion e) 0 == 42
+                && close (conjoint e) (companion e) 7 == 42,
+        checkIO "residual observed: sequential boxes agree but residual is exposed" $ do
+          ref <- newIORef (0 :: Int)
+          let e1 :: Ends (Kleisli IO) Int Int
+              e1 = endsK (\x -> modifyIORef' ref (+ x)) (pure 0)
+              e2 :: Ends (Kleisli IO) Int Int
+              e2 = endsK (\_ -> pure ()) (pure 1)
+          r1 <- runKleisli (run (box @(,) (composeEnds0 e1 e2))) 5
+          residual1 <- readIORef ref
+          writeIORef ref 0
+          r2 <- runKleisli (run (box @(,) e2 . box @(,) e1)) 5
+          residual2 <- readIORef ref
+          pure (r1 == r2 && r1 == 1 && residual1 == 5 && residual2 == 5),
+        checkIO "ends embed: Kleisli IO end yanks through Chu embedding" $ do
+          e <- mkIdentityEnd
+          let chu = Chu.endsAsChu e
+          r <- runKleisli (Chu.chuPair chu (conjoint e, companion e)) 42
+          pure (r == 42),
+        checkIO "ends embed: Chu negation is involutive on Kleisli IO end" $ do
+          e <- mkIdentityEnd
+          let chu = Chu.endsAsChu e
+              chu'' = Chu.negateChu (Chu.negateChu chu)
+          r1 <- runKleisli (Chu.chuPair chu (conjoint e, companion e)) 7
+          r2 <- runKleisli (Chu.chuPair chu'' (conjoint e, companion e)) 7
+          pure (r1 == 7 && r2 == 7),
         -- Additive Ends oracles
         check "Additive pairEnds pairs outputs" $
           let e1 :: Ends (->) () Int
@@ -820,6 +873,30 @@ main = do
               rightResult = run (sharedKnotBy rightFirst k1 k2) ((), ())
            in sort (uncurry (++) leftResult) == [0, 0, 1, 1, 2, 2]
                 && sort (uncurry (++) rightResult) == [0, 0, 1, 1, 2, 2],
+        -- Mediator-hyper oracles (B8)
+        -- Pure @(->)@ 'Ends' boxes are constant, so the shared-medium bodies
+        -- below are used as the channel-end representatives.  The schedule is
+        -- the mediator stamp: an explicit schedule leaves observable tokens,
+        -- while a pure schedule is the unstamped / ⊗-like case.
+        check "mediator-hyper stamp: schedule stamp distinguishes shared composition in HyperF" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              shared stamp = HyperLoop.encode (sharedKnotBy stamp k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              superposed = HyperLoop.encode (superpose (Knot k1) (Knot k2)) :: Hyper ((), ()) ([Int], [Int])
+              stamped = shared leftFirst
+              unstamped = shared pureLeft
+           in observe stamped ((), ()) /= observe unstamped ((), ())
+                && observe superposed ((), ()) /= observe stamped ((), ()),
+        check "stamped ⅋ probe: schedule stamp toggles entanglement in HyperF" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              sharedHyper sched = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              leftH = sharedHyper leftFirst
+              rightH = sharedHyper rightFirst
+              pureLeftH = sharedHyper pureLeft
+              pureRightH = sharedHyper pureRight
+           in observe leftH ((), ()) /= observe rightH ((), ())
+                && observe pureLeftH ((), ()) == observe pureRightH ((), ()),
         -- Mediate oracles (B1)
         check "Mediator linear forwards every input" $
           runMediator linear [1, 2, 3 :: Int] == [1, 2, 3],
