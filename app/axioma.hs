@@ -7,6 +7,7 @@ module Main where
 import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
+import Circuit.Channel.Poly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Ends (..), box, close, copycat, ends0, prefixIn, splay0, suffixOut)
@@ -16,7 +17,7 @@ import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (Mediator (..), count, linear, pairSum, runMediator)
 import Circuit.Par (Bot, Par (..), distL, distR, mix)
-import Circuit.Poly (Mono, System (..), monoDir, monoIn)
+import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Stamped (Stamped (..))
@@ -820,6 +821,20 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
+        -- Channel.Poly oracles (B2)
+        check "Poly Channel id emits committed input" $
+          case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of
+            EP (EK o, EE _) -> o == 42,
+        check "Poly Channel const ignores state" $
+          case emitChannel (commitChannel (constChannel (7 :: Int)) (monoIn (99 :: Int))) of
+            EP (EK o, EE _) -> o == 7,
+        check "Poly Channel mapChannel applies lens forward and backward" $
+          let ch0 = mapChannel (lens (+ 1) (\_ d -> d - 1 :: Int)) (idChannel 0)
+              ev0 = emitChannel ch0
+              ch1 = commitChannel ch0 (monoIn 5)
+              ev1 = emitChannel ch1
+           in case (ev0, ev1) of
+                (EP (EK o0, EE _), EP (EK o1, EE _)) -> o0 == 1 && o1 == 5,
         -- Keystone: System (Prob (->) r) s (Mono i o)
         check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
           length (occupancyProb 0) == 3,

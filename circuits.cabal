@@ -50,6 +50,7 @@ library
     Circuit.Boundary
     Circuit.Category
     Circuit.Channel
+    Circuit.Channel.Poly
     Circuit.Chu
     Circuit.Dagger
     Circuit.Discrete
