@@ -73,6 +73,7 @@ library
     Circuit.Stream
     Circuit.Sym
     Circuit.Tensor
+    Circuit.Tensor.Mediate
 
   build-depends:
     base >=4.18 && <5,

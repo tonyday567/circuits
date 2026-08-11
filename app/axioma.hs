@@ -22,6 +22,7 @@ import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, 
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Stamped (Stamped (..))
 import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
+import Circuit.Tensor.Mediate (mediateSharedBody)
 import Data.List (foldl', scanl', sort)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
@@ -360,6 +361,13 @@ leftFirst = Schedule $ \s -> (0 : s, True)
 -- schedule token so the two orderings remain comparable on body sets.
 rightFirst :: Schedule [Int]
 rightFirst = Schedule $ \s -> (0 : s, False)
+
+-- | Schedules for the @Maybe Int@ residual used in the B3 mediator-hyper oracles.
+leftFirstMaybe :: Schedule (Maybe Int)
+leftFirstMaybe = Schedule (,True)
+
+rightFirstMaybe :: Schedule (Maybe Int)
+rightFirstMaybe = Schedule (,False)
 
 -- ---------------------------------------------------------------------------
 -- Keystone: System (Prob (->) r) s (Mono i o)
@@ -821,6 +829,13 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
+        -- Mediate.Tensor oracles (B3)
+        check "Mediate shared body left-first emits Just 3" $
+          snd (mediateSharedBody pairSum leftFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
+            == ((), Just 3),
+        check "Mediate shared body right-first emits Nothing" $
+          snd (mediateSharedBody pairSum rightFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
+            == ((), Nothing),
         -- Channel.Poly oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of
