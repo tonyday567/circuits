@@ -17,12 +17,17 @@ module Circuit.Mediate
     Mediator (..),
     runMediator,
 
+    -- * Stream view
+    mediateProcess,
+
     -- * Reusable mediator configurations
     linear,
     pairSum,
     count,
   )
 where
+
+import Circuit.Process (Process (..))
 
 -- | A mediator with residual state @s@, input @a@, output @b@.
 --
@@ -52,6 +57,23 @@ runMediator m = go (medInit m)
        in case my of
             Nothing -> go s' xs
             Just y -> y : go s' xs
+
+-- | View a mediator as a 'Process' stream transformer.
+--
+-- A mediator step is Mealy-style: the output depends on the current state
+-- /and/ input.  'Process' is Moore-style, so the output carrier is @Maybe b@
+-- and the state remembers the output produced by the most recent step.  The
+-- seed @s0@ is the initial residual, following the register pattern.
+--
+-- This is the honest stream cut: the residual state is carried by the
+-- process's feedback wire, exactly as 'encode' carries it in a
+-- @Loop Either (->) [a] [Maybe b]@.
+mediateProcess :: Mediator s a b -> s -> Process a (Maybe b)
+mediateProcess med s0 =
+  Process
+    (\a -> let (s', my) = medStep med s0 a in (s', my))
+    (\(s, _) a -> let (s', my) = medStep med s a in (s', my))
+    snd
 
 -- | Linear mediator: no residual, every input is forwarded immediately.
 --

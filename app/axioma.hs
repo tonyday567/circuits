@@ -15,7 +15,7 @@ import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (Mediator (..), count, linear, pairSum, runMediator)
+import Circuit.Mediate (Mediator (..), count, linear, mediateProcess, pairSum, runMediator)
 import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -24,7 +24,7 @@ import Circuit.Stamped (Stamped (..))
 import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
 import Circuit.Tensor.Mediate (mediateSharedBody)
 import Data.List (foldl', scanl', sort)
-import Data.Maybe (isNothing)
+import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Tuple qualified as Tuple
 import Data.Void (Void, absurd)
@@ -836,6 +836,14 @@ main = do
         check "Mediate shared body right-first emits Nothing" $
           snd (mediateSharedBody pairSum rightFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
             == ((), Nothing),
+        -- Mediate process stream oracles (B3b)
+        check "Mediate process pairSum [1,2] returns [3]" $
+          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2 :: Int]) == [3],
+        check "Mediate process pairSum [1,2,3,4] returns [3,7]" $
+          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int]) == [3, 7],
+        check "Mediate process agrees with runMediator" $
+          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int])
+            == runMediator pairSum [1, 2, 3, 4],
         -- Channel.Poly oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of
