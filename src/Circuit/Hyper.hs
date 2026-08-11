@@ -80,6 +80,7 @@ import Circuit.Category (Category (..), ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
+import Control.Monad.Trans.State.Lazy (StateT (..))
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Data.Profunctor
@@ -147,8 +148,19 @@ instance HyperBase (->) where
   fixRun f = let x = f (runIdentity x) in x
 
 -- | Kleisli arrows: arrows run in the monad and knots tie with 'mfix'.
-instance (MonadFix m) => HyperBase (Kleisli m) where
+instance {-# INCOHERENT #-} (MonadFix m) => HyperBase (Kleisli m) where
   type Run (Kleisli m) = m
+  runArr = runKleisli
+  mkArr = Kleisli
+  fixRun = mfix
+
+-- | State-enriched Kleisli arrows: the medium enters as a base change.
+--
+-- Lazy 'StateT' is required so that 'mfix' can tie the recursive knot used by
+-- 'trace'.  Strict 'StateT' lacks a general 'MonadFix' instance and would
+-- force an explicit seed, repeating the B0 register-pattern lesson.
+instance {-# OVERLAPPING #-} (MonadFix m) => HyperBase (Kleisli (StateT s m)) where
+  type Run (Kleisli (StateT s m)) = StateT s m
   runArr = runKleisli
   mkArr = Kleisli
   fixRun = mfix

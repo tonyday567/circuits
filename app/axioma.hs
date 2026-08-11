@@ -897,6 +897,20 @@ main = do
               pureRightH = sharedHyper pureRight
            in observe leftH ((), ()) /= observe rightH ((), ())
                 && observe pureLeftH ((), ()) == observe pureRightH ((), ()),
+        -- Bridge square: medium commutes through encode
+        check "bridge square: sharedKnotBy encodes to sharedHyperBy" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              sched = leftFirst
+              leftSide = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
+           in observe leftSide ((), ()) == observe rightSide ((), ()),
+        check "bridge square: pure schedule collapse agrees" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              leftSide = HyperLoop.encode (sharedKnotBy pureLeft k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
+           in observe leftSide ((), ()) == observe rightSide ((), ()),
         -- Mediate oracles (B1)
         check "Mediator linear forwards every input" $
           runMediator linear [1, 2, 3 :: Int] == [1, 2, 3],
