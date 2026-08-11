@@ -205,6 +205,13 @@ module Circuit
     Schedule (..),
     Shared (..),
     sharedKnotBy,
+
+    -- * Mediator (Track B residual)
+    Mediator (..),
+    count,
+    linear,
+    pairSum,
+    runMediator,
   )
 where
 
@@ -212,6 +219,13 @@ import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
+import Circuit.Mediate
+  ( Mediator (..),
+    count,
+    linear,
+    pairSum,
+    runMediator,
+  )
 import Circuit.Chu
   ( ChuMorphism (..),
     ChuObj (..),

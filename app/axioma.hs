@@ -14,6 +14,7 @@ import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
+import Circuit.Mediate (Mediator (..), count, linear, pairSum, runMediator)
 import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Mono, System (..), monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -810,6 +811,15 @@ main = do
               rightResult = run (sharedKnotBy rightFirst k1 k2) ((), ())
            in sort (uncurry (++) leftResult) == [0, 0, 1, 1, 2, 2]
                 && sort (uncurry (++) rightResult) == [0, 0, 1, 1, 2, 2],
+        -- Mediate oracles (B1)
+        check "Mediator linear forwards every input" $
+          runMediator linear [1, 2, 3 :: Int] == [1, 2, 3],
+        check "Mediator pairSum buffers and sums pairs" $
+          runMediator pairSum [1, 2, 3, 4 :: Int] == [3, 7],
+        check "Mediator pairSum leaves one input unemitted" $
+          runMediator pairSum [1, 2, 3 :: Int] == [3],
+        check "Mediator count emits accumulating residual" $
+          runMediator count [(), (), ()] == [1, 2, 3],
         -- Keystone: System (Prob (->) r) s (Mono i o)
         check "Keystone: System (Prob Double) S3 (Mono () ()) typechecks" $
           length (occupancyProb 0) == 3,

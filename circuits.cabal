@@ -61,6 +61,7 @@ library
     Circuit.HyperLoop
     Circuit.Layer
     Circuit.Loop
+    Circuit.Mediate
     Circuit.Net
     Circuit.Par
     Circuit.Poly
@@ -87,13 +88,4 @@ executable circuits-axioma
     circuits,
     QuickCheck >=2.14 && <2.16,
 
-executable b0-spike
-  import: ghc-options-stanza
-  default-language: GHC2024
-  main-is: b0spike.hs
-  hs-source-dirs: app
-  build-depends:
-    async >=2.2 && <2.3,
-    base >=4.18 && <5,
-    circuits,
-    stm >=2.5 && <3,
+
