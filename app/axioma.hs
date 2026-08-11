@@ -8,7 +8,7 @@ import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
-import Circuit.Ends (Ends (..), Queue (..), box, close, ends, openIO, prefixIn, splay, suffixOut)
+import Circuit.Ends (Ends (..), Queue (..), box, close, composeEnds, ends, endsK, openIO, prefixIn, splay, suffixOut)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
@@ -18,12 +18,16 @@ import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, 
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
+import Control.Concurrent (forkIO)
+import Control.Concurrent.STM (TQueue, atomically, newTQueueIO, readTQueue, writeTQueue)
+import Control.Monad (replicateM_)
 import Data.List (foldl', scanl', sort)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Tuple qualified as Tuple
 import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
+import System.Timeout (timeout)
 import Test.QuickCheck
   ( Arbitrary (..),
     Gen,
@@ -362,6 +366,14 @@ leftFirst = Schedule $ \s -> (0 : s, True)
 -- schedule token so the two orderings remain comparable on body sets.
 rightFirst :: Schedule [Int]
 rightFirst = Schedule $ \s -> (0 : s, False)
+
+-- | A stateful end that reads two 'Int's and emits their sum.  Used to show
+-- that 'composeEnds' serialises the intermediate channel through the unit,
+-- while an honest pipeline with a separate buffer and pump does not.
+pairSumEnd :: IO (Ends (Kleisli IO) Int Int)
+pairSumEnd = do
+  q <- newTQueueIO
+  pure $ endsK (atomically . writeTQueue q) (atomically $ (+) <$> readTQueue q <*> readTQueue q)
 
 -- ---------------------------------------------------------------------------
 -- Keystone: System (Prob (->) r) s (Mono i o)
@@ -763,6 +775,34 @@ main = do
           let e' = Chu.lawfulDimapEnds Chu.idChu e
           x <- runKleisli (close (conjoint e') (companion e')) 42
           pure (x == 42),
+        -- Ends composition: serial vs pipelined
+        checkIO "composeEnds serialises allocated channels (degenerate vs pipelined)" $ do
+          -- Serial path: composeEnds splays through the unit, so a single read
+          -- of the composed end tries to read one value from e1, write it to
+          -- e2, and then read e2.  e2 needs two values, so it deadlocks.
+          e1 <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          e2 <- pairSumEnd
+          let e12 = composeEnds e1 e2
+              (e1Write, _) = splay e1
+              (_, e12Read) = splay e12
+          runKleisli e1Write 1
+          runKleisli e1Write 2
+          serialResult <- timeout 100000 $ runKleisli e12Read ()
+          -- Honest pipeline path: e1 and e2 are connected by an independent
+          -- buffer and a pump thread, so two values can accumulate before e2
+          -- reads its pair.
+          e1' <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
+          midQ <- newTQueueIO :: IO (TQueue Int)
+          let e2' = endsK (atomically . writeTQueue midQ) (atomically $ (+) <$> readTQueue midQ <*> readTQueue midQ)
+              (e1Write', e1Read') = splay e1'
+              (_, e2Read') = splay e2'
+          runKleisli e1Write' 1
+          runKleisli e1Write' 2
+          _ <- forkIO $ replicateM_ 2 $ do
+            x <- runKleisli e1Read' ()
+            atomically $ writeTQueue midQ x
+          pipelinedResult <- timeout 1000000 $ runKleisli e2Read' ()
+          pure (isNothing serialResult && pipelinedResult == Just 3),
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)
