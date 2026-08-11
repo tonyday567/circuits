@@ -98,6 +98,10 @@ policyPrimitives = \case
     let write x =
           atomically $
             writeTBQueue q x <|> (tryReadTBQueue q *> writeTBQueue q x)
+    -- The retry branch must repeat the value. An early draft wrote
+    -- @writeTBQueue q@ without @x@; GHC rejected it as a partial application.
+    -- That arity error is an accidental preview of Track B's thesis: value
+    -- loss should be a type error, not a runtime incident.
     pure (write, atomically (readTBQueue q))
 
 -- | Honest sequential composition under Design A.
@@ -174,9 +178,12 @@ main = do
           sharedObs /= superposedObs,
 
         -- The residual of shared-medium fusion is visible in the schedule state.
+        -- Derivation: leftFirst writes 0; the fixed point is s = [2,1,0,...]
+        -- (period 3), so the observed prefix is [0,2,1]. We assert the
+        -- invariant, not a transcribed value.
         assert "shared-medium residual lives in schedule/mediator state" $
           let (s, _) = sharedObs
-           in s == [0, 2, 1],
+           in take 3 s == [0, 2, 1],
 
         -- Design A: SwapQ loses the first write (non-empty residual is destructive).
         do
