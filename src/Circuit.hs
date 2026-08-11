@@ -227,11 +227,11 @@ module Circuit
   )
 where
 
-import Circuit.Boundary (Boundary (..), isMark, isPayload)
+import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
-import Circuit.Channel.Poly
+import Circuit.ChannelPoly
   ( Channel (..),
     commitChannel,
     constChannel,
@@ -269,9 +269,12 @@ import Circuit.Discrete
     traceD,
   )
 import Circuit.Ends
-  ( Ends (..),
+  ( Bias (..),
+    Ends (..),
+    HasSilent (..),
     HasUnit (..),
     In (..),
+    IsSilent (..),
     Out (..),
     box,
     boxAsymmetric,
@@ -282,21 +285,15 @@ import Circuit.Ends
     ends,
     endsK,
     lmapEnds,
+    pairEnds,
     parEnds,
     prefixIn,
+    raceEnds,
+    raceMediator,
     rmapEnds,
     splay,
     suffixOut,
     (>:>),
-  )
-import Circuit.Ends.Additive
-  ( Bias (..),
-    CartesianPar (..),
-    HasSilent (..),
-    IsSilent (..),
-    pairEnds,
-    raceEnds,
-    raceMediator,
   )
 import Circuit.Free
   ( Free (..),
@@ -339,22 +336,20 @@ import Circuit.Net
     enrich,
     melt,
   )
-import Circuit.Par
-  ( Bot,
-    Par (..),
-    distL,
-    distR,
-    mix,
-  )
 import Circuit.Sym
 import Circuit.Tensor
   ( Action (..),
+    Bot,
     Braided (..),
+    Par (..),
     Schedule (..),
     Shared (..),
     Tensor (..),
     ambient,
     ambientBy,
+    distL,
+    distR,
+    mix,
     sharedKnotBy,
     superpose,
   )

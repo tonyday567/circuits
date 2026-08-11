@@ -4,27 +4,23 @@
 
 module Main where
 
-import Circuit.Boundary (Boundary (..), isMark, isPayload)
+import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
-import Circuit.Channel.Poly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
+import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Chu qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
-import Circuit.Ends (Ends (..), box, close, composeEnds0, copycat, ends0, endsK, prefixIn, splay0, suffixOut)
-import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
+import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
 import Circuit.HyperLoop qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, medComult, medCounit, mediateProcess, pairSum, runMediator, runMediatorState)
-import Circuit.Par (Bot, Par (..), distL, distR, mix)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, medComult, medCounit, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
-import Circuit.Stamped (Stamped (..))
-import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
-import Circuit.Tensor.Mediate (mediateSharedBody)
+import Circuit.Tensor (Action (..), Bot, Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', scanl', sort)
@@ -961,7 +957,7 @@ main = do
           let (m1, m2) = medComult pairSum
            in runMediator m1 [1, 2 :: Int] ++ runMediator m2 [3, 4 :: Int]
                 == runMediator pairSum [1, 2, 3, 4],
-        -- Channel.Poly oracles (B2)
+        -- ChannelPoly oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of
             EP (EK o, EE _) -> o == 42,

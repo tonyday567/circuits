@@ -50,12 +50,11 @@ library
     Circuit.Boundary
     Circuit.Category
     Circuit.Channel
-    Circuit.Channel.Poly
+    Circuit.ChannelPoly
     Circuit.Chu
     Circuit.Dagger
     Circuit.Discrete
     Circuit.Ends
-    Circuit.Ends.Additive
     Circuit.FinRel
     Circuit.Free
     Circuit.Hyper
@@ -64,16 +63,12 @@ library
     Circuit.Loop
     Circuit.Mediate
     Circuit.Net
-    Circuit.Par
     Circuit.Poly
-    Circuit.Poly.Process
     Circuit.Prob
     Circuit.Process
-    Circuit.Stamped
     Circuit.Stream
     Circuit.Sym
     Circuit.Tensor
-    Circuit.Tensor.Mediate
 
   build-depends:
     base >=4.18 && <5,

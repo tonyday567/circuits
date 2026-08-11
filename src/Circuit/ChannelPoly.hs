@@ -1,14 +1,31 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
--- | Bridge between polynomial dynamical systems ('Circuit.Poly.System') and
--- 'Circuit.Process.Process' machines.
+-- | Poly-indexed channel type for Track B.
 --
--- A 'System' over a monomial interface @Mono i o@ is a Moore machine: the
--- current state determines the output @o@, and the next input direction @i@
--- determines the next state. 'Circuit.Process.Process' is the same shape, so
--- the two views round-trip exactly.
-module Circuit.Poly.Process
-  ( systemAsProcess,
+-- A channel is indexed by a polynomial interface @p :: Poly@. The polynomial
+-- describes both the observable position (output) and the direction space
+-- (input). The channel carries no residual field; any residual policy is
+-- supplied by a 'Circuit.Mediate.Mediator' at composition time.
+--
+-- This module starts with function-category @(->)@ evaluation. The type
+-- @Channel arr p@ keeps @arr@ as a parameter so that future slices can add
+-- @Kleisli@ evaluation helpers without changing the type.
+module Circuit.ChannelPoly
+  ( -- * Poly-indexed channel
+    Channel (..),
+
+    -- * Observation and interaction
+    emitChannel,
+    commitChannel,
+
+    -- * Constructing channels
+    idChannel,
+    constChannel,
+    mapChannel,
+
+    -- * Systems and processes
+    systemAsProcess,
     runSystem,
     iterateSystem,
     after,
@@ -29,14 +46,17 @@ module Circuit.Poly.Process
 where
 
 import Circuit.Poly
-  ( Eval (..),
+  ( Dir,
+    Eval (..),
     Mono,
     Morphism (..),
     Netlist,
     Poly (..),
+    Pos,
     System (..),
-    SystemEval,
+    SystemEval (..),
     applyLens,
+    evalToSystem,
     fromEvalSystem,
     lens,
     nestedToComp,
@@ -44,12 +64,70 @@ import Circuit.Poly
     toEvalSystem,
   )
 import Circuit.Process (Process (..))
-import Control.Category ((.))
+import Control.Category (id, (.))
+import Data.Functor (void)
 import Prelude hiding (id, (.))
 
--- $setup
--- >>> import Circuit.Poly (Mono, Morphism, System, applyLens, lens)
--- >>> import Circuit.Poly.Process
+-- | A channel whose interface is the polynomial @p@.
+--
+-- Internally it is a Moore system with hidden state @s@. The state is
+-- existentially quantified so that different channel constructors can use
+-- different state types.
+data Channel arr (p :: Poly) where
+  Ch ::
+    (SystemEval p) =>
+    -- | Current state of the Moore machine.
+    s ->
+    -- | The system governing the channel interface.
+    System arr s p ->
+    Channel arr p
+
+-- | Observe the current output of a @(->)@ channel.
+--
+-- The observation is an @Eval p ()@: a position together with a trivial
+-- direction consumer. The position is the channel's current output; the
+-- direction consumer is how a future input will advance the channel.
+emitChannel :: Channel (->) p -> Eval p ()
+emitChannel (Ch s sys) = void (toEvalSystem sys s)
+
+-- | Commit an input direction to a @(->)@ channel, advancing its state.
+commitChannel :: Channel (->) p -> Dir p -> Channel (->) p
+commitChannel (Ch s sys) d =
+  let (_pos, next) = evalToSystem (toEvalSystem sys s)
+   in Ch (next d) sys
+
+-- | Identity channel on a monomial interface @Mono a a@.
+--
+-- Output is the current state; next state is the input direction.  An
+-- initial state must be supplied because a Moore machine has no input
+-- before the first commit.
+idChannel :: a -> Channel (->) (Mono a a)
+idChannel s0 = Ch s0 (lensAsSystem (lens id (\_ d -> d)))
+
+-- | Constant-output channel on a monomial interface @Mono a b@.
+--
+-- Output is always @b@; the state is the constant value and is preserved
+-- across commits (the input direction is ignored).
+constChannel :: b -> Channel (->) (Mono a b)
+constChannel b = Ch b (lensAsSystem (lens (const b) const))
+
+-- | Map a polynomial morphism over a @(->)@ channel.
+--
+-- The forward map transforms positions; the backward map transforms
+-- directions. This is the functorial action of 'Circuit.Poly.Morphism' on
+-- channels.
+mapChannel ::
+  (SystemEval p, SystemEval q) =>
+  Morphism p q ->
+  Channel (->) p ->
+  Channel (->) q
+mapChannel m (Ch s sys) =
+  Ch s (System step)
+  where
+    step (s', d') =
+      let tgtEval = runMorphism m (toEvalSystem sys s')
+          (pos, next) = evalToSystem tgtEval
+       in (next d', pos)
 
 -- | Run a monomial system at a state, exposing the output position and the
 -- state-transition function.

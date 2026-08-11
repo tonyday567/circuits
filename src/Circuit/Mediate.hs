@@ -34,10 +34,16 @@ module Circuit.Mediate
     linear,
     pairSum,
     count,
+
+    -- * Shared-medium fusion
+    mediateSharedBody,
+    mediateStoreBody,
+    mediateEmitBody,
   )
 where
 
 import Circuit.Process (Process (..))
+import Circuit.Tensor (Schedule (..), sharedBy)
 import Data.List (mapAccumL)
 import Data.Maybe (catMaybes)
 
@@ -166,3 +172,30 @@ pairSum =
 -- A simple non-linear mediator with accumulating residual state.
 count :: Mediator Int a Int
 count = Mediator 0 $ \n _ -> let n' = n + 1 in (n', Just n')
+
+-- | Store an input into the mediator's residual, discarding any emitted
+-- output.  This is the left factor on the shared medium.
+mediateStoreBody :: Mediator s a b -> (s, a) -> (s, ())
+mediateStoreBody med (s, x) =
+  let (s', _) = medStep med s x
+   in (s', ())
+
+-- | Consume an input together with the current residual, returning whatever
+-- the mediator emits.  This is the right factor on the shared medium.
+mediateEmitBody :: Mediator s a b -> (s, a) -> (s, Maybe b)
+mediateEmitBody med (s, x) = medStep med s x
+
+-- | One step of the mediated composition, with an explicit seed.
+--
+-- The input pair is @(storedInput, triggerInput)@.  The left factor stores
+-- @storedInput@ into the residual; the right factor feeds @triggerInput@
+-- together with the updated residual to the mediator step.  The schedule
+-- chooses the order of the two factors, which is observable when the
+-- mediator needs the stored value before it can emit.
+mediateSharedBody ::
+  Mediator s a b ->
+  Schedule s ->
+  (s, (a, a)) ->
+  (s, ((), Maybe b))
+mediateSharedBody med sched =
+  sharedBy sched (mediateStoreBody med) (mediateEmitBody med)
