@@ -82,7 +82,17 @@ module Circuit
     -- | Open a feedback loop. See "Circuit.Loop".
     strength,
 
-    -- * Channel ends
+    -- * Polynomial channels (successor to pure '(->)' Ends)
+    Channel (..),
+    emitChannel,
+    commitChannel,
+    idChannel,
+    constChannel,
+    mapChannel,
+
+    -- * Channel ends (bi-polar effectful/process API; still the right tool
+
+    -- for Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
     Ends (..),
@@ -219,6 +229,14 @@ import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
+import Circuit.Channel.Poly
+  ( Channel (..),
+    commitChannel,
+    constChannel,
+    emitChannel,
+    idChannel,
+    mapChannel,
+  )
 import Circuit.Chu
   ( ChuMorphism (..),
     ChuObj (..),

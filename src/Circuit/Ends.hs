@@ -21,6 +21,18 @@
 -- it routes traffic between the two poles without ever deciding which side is
 -- true.  For the unit object use 'open' (also exported as 'copycat').
 --
+-- == Relationship to 'Circuit.Channel.Poly'
+--
+-- @Ends@ is the bi-polar / effectful API: it is the right tool for
+-- @Kleisli IO/STM@ process plumbing where the channel is a write end paired
+-- with a read end.  For pure @(->)@ Moore-style channels indexed by a
+-- polynomial, prefer 'Circuit.Channel.Poly.Channel'.
+--
+-- There is no deprecation shim yet: the relationship between the bi-polar
+-- and polynomial views is still being settled.  This module stays unchanged
+-- until 'Channel' gains 'Kleisli' evaluation or an equivalent effectful
+-- story.
+--
 -- Effectful queue-based constructors ('openSTM', 'openIO') live in
 -- @Circuit.Agent.Ends@ so that the core library does not depend on @stm@.
 module Circuit.Ends
