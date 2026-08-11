@@ -67,8 +67,7 @@ module Circuit.Tensor
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Channel (Strength (..), Traced (..), strengthD)
-import Circuit.Discrete (assocD, assocD', braidD)
+import Circuit.Channel (Strength (..), Traced (..), assocD, assocD', braidD, strengthD)
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Control.Arrow (Kleisli (..))

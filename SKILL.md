@@ -29,21 +29,23 @@ Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over
                       threading and the Tensor/Action classes.
 Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift,
                       observe, base, push, encode, encodeEither, runEither,
-                      flatten.
+                      flatten, plus bridges from Loop and Free.
 Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
-                      Plus, Zero, Knot. enrich, melt, transpose.
-Circuit.Layer       — Layer tower. unit, run, bind, lower; (:~>).
+                      Plus, Zero, Knot. enrich, melt, transpose. Also hosts
+                      the free symmetric monoidal category Sym.
+Circuit.Layer       — Layer tower. unit, run, bind, lower; (:~>). Also hosts
+                      the free category Free and freeze.
 Circuit.Algebra     — Change-of-base algebras for modular circuit syntax.
 Circuit.Dagger      — CopyDiscard, MergeZero, Bimonoid, Dagger, transpose.
-Circuit.Ends        — Channel ends (Out, In, Ends), boxes, queues.
-Circuit.Free        — Free category: Lift, Compose.
-Circuit.Sym         — Free symmetric monoidal category: Lift, Compose, Par,
-                      Swap.
+Circuit.Ends        — Channel ends (Out, In, Ends), boxes, queues, and the
+                      Chu construction.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use. Submodules are
                       available when you need to be very precise about scope.
-Circuit.Discrete    — Discrete discharge kit: compD, assocD, assocD',
-                      braidD, strengthD, traceD.
+Circuit.Channel     — Structural semantics chain: Channel, Strength, Traced,
+                      plus all base instances for (->) and Kleisli m, and the
+                      discrete discharge kit: compD, assocD, assocD', braidD,
+                      strengthD, traceD.
 ```
 
 ## diagrams

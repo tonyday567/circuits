@@ -8,12 +8,12 @@ import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
-import Circuit.Chu qualified as Chu
+import Circuit.Ends qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
-import Circuit.HyperLoop qualified as HyperLoop
+import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, medComult, medCounit, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)

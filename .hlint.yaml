@@ -11,10 +11,9 @@
 # by GHC because it leaves an ambiguous type variable in the rank-2 context.
 - ignore: {name: "Eta reduce", within: Circuit.Algebra}
 - ignore: {name: "Eta reduce", within: Circuit.Dagger}
-- ignore: {name: "Eta reduce", within: Circuit.Free}
+- ignore: {name: "Eta reduce", within: Circuit.Layer}
 - ignore: {name: "Eta reduce", within: Circuit.Loop}
 - ignore: {name: "Eta reduce", within: Circuit.Net}
-- ignore: {name: "Eta reduce", within: Circuit.Sym}
 
 # InstanceSigs is kept for documentation even when no explicit signature is
 # required in a given module.

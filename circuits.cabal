@@ -51,14 +51,10 @@ library
     Circuit.Category
     Circuit.Channel
     Circuit.ChannelPoly
-    Circuit.Chu
     Circuit.Dagger
-    Circuit.Discrete
     Circuit.Ends
     Circuit.FinRel
-    Circuit.Free
     Circuit.Hyper
-    Circuit.HyperLoop
     Circuit.Layer
     Circuit.Loop
     Circuit.Mediate
@@ -67,7 +63,6 @@ library
     Circuit.Prob
     Circuit.Process
     Circuit.Stream
-    Circuit.Sym
     Circuit.Tensor
 
   build-depends:

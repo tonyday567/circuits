@@ -229,7 +229,16 @@ where
 
 import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
-import Circuit.Channel (Strength, Traced)
+import Circuit.Channel
+  ( Strength,
+    Traced,
+    assocD,
+    assocD',
+    braidD,
+    compD,
+    strengthD,
+    traceD,
+  )
 import Circuit.Channel qualified as Channel
 import Circuit.ChannelPoly
   ( Channel (..),
@@ -239,20 +248,7 @@ import Circuit.ChannelPoly
     idChannel,
     mapChannel,
   )
-import Circuit.Chu
-  ( ChuMorphism (..),
-    ChuObj (..),
-    ChuSemiring (..),
-    chuLaw,
-    chuLawAt,
-    composeChu,
-    deliversToSemiring,
-    deliveryMatrix,
-    endsAsChu,
-    idChu,
-    lawfulDimapEnds,
-    negateChu,
-  )
+
 import Circuit.Dagger
   ( Bimonoid,
     CopyDiscard (..),
@@ -260,16 +256,12 @@ import Circuit.Dagger
     MergeZero (..),
     transpose,
   )
-import Circuit.Discrete
-  ( assocD,
-    assocD',
-    braidD,
-    compD,
-    strengthD,
-    traceD,
-  )
+
 import Circuit.Ends
   ( Bias (..),
+    ChuMorphism (..),
+    ChuObj (..),
+    ChuSemiring (..),
     Ends (..),
     HasSilent (..),
     HasUnit (..),
@@ -278,13 +270,22 @@ import Circuit.Ends
     Out (..),
     box,
     boxAsymmetric,
+    chuLaw,
+    chuLawAt,
     close,
+    composeChu,
     composeEnds,
     copycat,
+    deliveryMatrix,
+    deliversToSemiring,
     dimapEnds,
     ends,
+    endsAsChu,
     endsK,
+    idChu,
     lmapEnds,
+    lawfulDimapEnds,
+    negateChu,
     pairEnds,
     parEnds,
     prefixIn,
@@ -295,29 +296,27 @@ import Circuit.Ends
     suffixOut,
     (>:>),
   )
-import Circuit.Free
-  ( Free (..),
-    freeze,
-  )
+
 import Circuit.Hyper
   ( Hyper,
     HyperF (..),
     base,
+    encode,
     encodeEither,
+    encodeFree,
+    flatten,
     lift,
     observe,
     push,
     runEither,
     runHyper,
   )
-import Circuit.HyperLoop
-  ( encode,
-    encodeFree,
-    flatten,
-  )
+
 import Circuit.Layer
   ( Cat2,
+    Free (..),
     Layer (..),
+    freeze,
     lower,
     run,
     (:~>),
@@ -333,10 +332,10 @@ import Circuit.Mediate
   )
 import Circuit.Net
   ( Net,
+    Sym,
     enrich,
     melt,
   )
-import Circuit.Sym
 import Circuit.Tensor
   ( Action (..),
     Bot,

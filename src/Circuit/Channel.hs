@@ -33,6 +33,13 @@ module Circuit.Channel
     Strength (..),
     strengthD,
     Traced (..),
+
+    -- * Discrete discharge kit
+    compD,
+    assocD,
+    assocD',
+    braidD,
+    traceD,
   )
 where
 
@@ -521,3 +528,84 @@ instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
                         )
           go (Right initial)
       )
+
+-- ===========================================================================
+-- Discrete discharge kit
+-- ===========================================================================
+
+-- | Discrete composition: compose two arrows while discharging 'Ob'
+-- constraints with 'withOb'.
+compD ::
+  forall arr a b c.
+  (Discrete arr) =>
+  arr b c ->
+  arr a b ->
+  arr a c
+compD f g =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        f . g
+
+-- | Discrete associator: reassociate leftward while discharging 'Ob'
+-- constraints.
+assocD ::
+  forall t arr a b c.
+  (Channel t arr, Discrete arr) =>
+  arr (t (t a b) c) (t a (t b c))
+assocD =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @(t a b) $
+          withOb @arr @(t b c) $
+            withOb @arr @(t (t a b) c) $
+              withOb @arr @(t a (t b c)) $
+                assoc
+
+-- | Discrete associator inverse: reassociate rightward while discharging
+-- 'Ob' constraints.
+assocD' ::
+  forall t arr a b c.
+  (Channel t arr, Discrete arr) =>
+  arr (t a (t b c)) (t (t a b) c)
+assocD' =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @(t a b) $
+          withOb @arr @(t b c) $
+            withOb @arr @(t a (t b c)) $
+              withOb @arr @(t (t a b) c) $
+                assoc'
+
+-- | Discrete braiding: slide a wire past a nested pair while discharging
+-- 'Ob' constraints.
+braidD ::
+  forall t arr a b c.
+  (Channel t arr, Discrete arr) =>
+  arr (t a (t b c)) (t b (t a c))
+braidD =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @(t b c) $
+          withOb @arr @(t a c) $
+            withOb @arr @(t a (t b c)) $
+              withOb @arr @(t b (t a c)) $
+                slide
+
+-- | Discrete trace: eliminate a feedback loop while discharging 'Ob'
+-- constraints.
+traceD ::
+  forall t arr a b c.
+  (Traced t arr, Discrete arr) =>
+  arr (t a b) (t a c) ->
+  arr b c
+traceD f =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @(t a b) $
+          withOb @arr @(t a c) $
+            trace f

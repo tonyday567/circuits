@@ -29,6 +29,10 @@ module Circuit.Net
   ( -- * Net
     Net (..),
 
+    -- * Sym
+    Sym (..),
+    FreeSym,
+
     -- * Conversion
     enrich,
     widen,
@@ -43,12 +47,11 @@ module Circuit.Net
 where
 
 import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
-import Circuit.Channel (Traced (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
-import Circuit.Layer (Layer (..), (:~>))
+import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Layer qualified as Layer
 import Circuit.Loop qualified as C
-import Circuit.Sym qualified as M
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
@@ -62,7 +65,6 @@ type family Snd (p :: Type) :: Type where
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Layer (bind, run, unit)
--- >>> import Circuit.Sym qualified as M
 -- >>> import Circuit.Net
 -- >>> import Circuit.Loop (Loop (Knot))
 -- >>> import Circuit.Loop qualified as C
@@ -143,13 +145,13 @@ enrich :: C.Loop t arr a b -> Net t arr a b
 enrich (C.Lift f) = Lift f
 enrich (C.Knot f) = Knot (Lift f)
 
--- | Include a 'M.Sym' circuit into 'Net' — constructor-to-constructor.
+-- | Include a 'Sym' circuit into 'Net' — constructor-to-constructor.
 --
--- 'Net' duplicates the four rows of 'M.Sym' (@Lift@, @Compose@, 'Par',
--- 'Swap') so that structural wiring stays inspectable.  This is the
+-- 'Net' duplicates the four rows of 'Sym' (@SymLift@, @SymCompose@, 'SymPar',
+-- 'SymSwap') so that structural wiring stays inspectable.  This is the
 -- injection of the 'Sym' layer into the 'Net' layer.
 --
--- >>> let m = M.Lift (+1) `M.Compose` M.Lift (*2) :: M.Sym (->) Int Int
+-- >>> let m = SymLift (+1) `SymCompose` SymLift (*2) :: Sym (->) Int Int
 -- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
@@ -180,44 +182,44 @@ enrich (C.Knot f) = Knot (Lift f)
 --
 -- Coherence: transposition commutes with 'widen'.
 --
--- >>> let dm = M.Lift (Dg.Dagger (+1) (subtract 1)) `M.Compose` M.Lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: M.Sym (Dg.Dagger (->)) Int Int
+-- >>> let dm = SymLift (Dg.Dagger (+1) (subtract 1)) `SymCompose` SymLift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Sym (Dg.Dagger (->)) Int Int
 -- >>> Dg.front (Dg.transpose (run dm)) 10
 -- 4
 -- >>> Dg.front (Dg.transpose (run (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
-widen :: M.Sym arr a b -> Net t arr a b
-widen (M.Lift f) = Lift f
-widen (M.Compose g f) = Compose (widen g) (widen f)
-widen (M.Par f g) = Par (widen f) (widen g)
-widen M.Swap = Swap
+widen :: Sym arr a b -> Net t arr a b
+widen (SymLift f) = Lift f
+widen (SymCompose g f) = Compose (widen g) (widen f)
+widen (SymPar f g) = Par (widen f) (widen g)
+widen SymSwap = Swap
 
 -- | Forget the feedback and bimonoid rows of a 'Net', keeping only the
--- 'M.Sym' wiring.
+-- 'Sym' wiring.
 --
--- 'sift' collapses 'Knot' and the bimonoid rows into 'M.Lift' while
+-- 'sift' collapses 'Knot' and the bimonoid rows into 'SymLift' while
 -- leaving @Compose@, 'Par', and 'Swap' inspectable. Together with 'widen'
--- it gives the adjunction between 'M.Sym' and 'Net'.
+-- it gives the adjunction between 'Sym' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets knots and bimonoid structure.
 sift ::
   forall t arr a b.
   (Traced t arr, Action (,) arr, Discrete arr) =>
   Net t arr a b ->
-  M.Sym arr a b
-sift (Lift f) = M.Lift f
-sift (Compose g f) = M.Compose (sift g) (sift f)
-sift (Par f g) = M.Par (sift f) (sift g)
-sift Swap = M.Swap
-sift Copy = M.Lift Dg.copy
-sift Discard = M.Lift Dg.discard
-sift Plus = M.Lift Dg.plus
-sift Zero = M.Lift Dg.zero
+  Sym arr a b
+sift (Lift f) = SymLift f
+sift (Compose g f) = SymCompose (sift g) (sift f)
+sift (Par f g) = SymPar (sift f) (sift g)
+sift Swap = SymSwap
+sift Copy = SymLift Dg.copy
+sift Discard = SymLift Dg.discard
+sift Plus = SymLift Dg.plus
+sift Zero = SymLift Dg.zero
 sift n@(Knot @_ @s @_ @_ @_ _) =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @(t s a) $
         withOb @arr @(t s b) $
-          M.Lift (Layer.run (melt n))
+          SymLift (Layer.run (melt n))
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
 --
@@ -329,3 +331,148 @@ instance Layer (Net t) where
             withOb @arr' @(t s a) $
               withOb @arr' @(t s b) $
                 trace (bind phi h f)
+
+-- ===========================================================================
+-- Sym
+-- ===========================================================================
+
+-- | The free symmetric monoidal category over a base arrow.
+--
+-- 'Sym' extends the free category ('Free') with explicit
+-- monoidal product ('Par') and symmetry ('Swap') syntax.  It is the
+-- intermediate layer between 'Free' and 'Net':
+--
+-- @
+-- Free = Lift + Compose
+-- Sym  = Free + Par + Swap
+-- Net  = Sym + Knot + Copy + Discard + Plus + Zero
+-- @
+--
+-- The tensor is fixed to @(,)@, matching 'Circuit.Tensor.Action'.
+--
+-- Four constructors:
+--
+--   * 'SymLift' — embed a base arrow.
+--   * 'SymCompose' — sequential composition.
+--   * 'SymPar' — tensor product of morphisms (parallel composition).
+--   * 'SymSwap' — symmetry / braiding.
+data Sym arr a b where
+  -- | Embed a base arrow.
+  SymLift :: arr a b -> Sym arr a b
+  -- | Sequential composition.
+  --
+  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
+  -- constructor so folding does not need a 'Discrete' base.
+  SymCompose :: (Ob arr b) => Sym arr b c -> Sym arr a b -> Sym arr a c
+  -- | Tensor product of morphisms (parallel composition on disjoint wires).
+  SymPar :: Sym arr a b -> Sym arr c d -> Sym arr (a, c) (b, d)
+  -- | Symmetric braiding.
+  SymSwap :: Sym arr (a, b) (b, a)
+
+-- | 'Sym' is a category.
+instance (Category arr) => Category (Sym arr) where
+  type Ob (Sym arr) a = Ob arr a
+  id = SymLift id
+  (.) = SymCompose
+
+-- | A discrete base yields a discrete free monoidal category.
+instance (Category arr, Discrete arr) => Discrete (Sym arr) where
+  withOb @a x = withOb @arr @a x
+
+-- | 'Sym' has a tensor structure whose tensor is @(,)@.
+--
+-- This is the syntactic instance: 'SymPar' is its own interpretation.
+-- The unitors require the base arrow to have its own cartesian unitors.
+instance (Tensor (,) arr) => Tensor (,) (Sym arr) where
+  par = SymPar
+  unitl = SymLift unitl
+  unitl' = SymLift unitl'
+  unitr = SymLift unitr
+  unitr' = SymLift unitr'
+
+-- | 'Sym' has a symmetric braiding.
+--
+-- This is the syntactic instance: 'SymSwap' is its own interpretation.
+instance (Tensor (,) arr) => Action (,) (Sym arr) where
+  swap = SymSwap
+
+-- | Lift the 'Channel' structure through 'Sym'.
+instance (Category arr, Channel t arr) => Channel t (Sym arr) where
+  assoc = SymLift assoc
+  assoc' = SymLift assoc'
+  slide = SymLift slide
+  withTensorOb ::
+    forall a b r.
+    ObDict (Sym arr) a ->
+    ObDict (Sym arr) b ->
+    ((Ob (Sym arr) (t a b)) => r) ->
+    r
+  withTensorOb (dA :: ObDict (Sym arr) a) (dB :: ObDict (Sym arr) b) k =
+    withObDict dA $
+      withObDict dB $
+        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
+
+-- | 'Action' plus 'Discrete' so free 'Sym' can fold intermediate objects.
+--
+-- Sequential structure is folded with the target's category composition.
+class (Action (,) arr, Discrete arr) => FreeSym arr
+
+instance (Action (,) arr, Discrete arr) => FreeSym arr
+
+instance Layer Sym where
+  type Law Sym arr' = FreeSym arr'
+  type Run Sym arr = (Action (,) arr, Discrete arr)
+  type Bind Sym arr = Discrete arr
+  unit = SymLift
+  bind ::
+    forall arr' arr a b.
+    (Law Sym arr', Bind Sym arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (arr :~> arr') ->
+    Sym arr a b ->
+    arr' a b
+  bind _phi h (SymLift f) = h f
+  bind phi h (SymCompose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
+  bind phi h (SymPar (f :: Sym arr a1 b1) (g :: Sym arr c d)) =
+    let dA1 = obDict :: ObDict arr a1
+        dB1 = obDict :: ObDict arr b1
+        dC = obDict :: ObDict arr c
+        dD = obDict :: ObDict arr d
+     in withObDict dA1 $
+          withObDict dB1 $
+            withObDict dC $
+              withObDict dD $
+                withObDict (phi dA1) $
+                  withObDict (phi dB1) $
+                    withObDict (phi dC) $
+                      withObDict (phi dD) $
+                        withOb @arr' @(a1, c) $
+                          withOb @arr' @(b1, d) $
+                            par (bind phi h f) (bind phi h g)
+  bind _phi _ SymSwap =
+    withOb @arr' @(Fst a) $
+      withOb @arr' @(Snd a) $
+        swap
+
+-- | Lift the 'Strength' structure through 'Sym'.
+instance (Strength t arr, Action (,) arr, Discrete arr) => Strength t (Sym arr) where
+  strength = SymLift . strength . run
+  withStrengthOb ::
+    forall a b c r.
+    ObDict (Sym arr) a ->
+    ObDict (Sym arr) b ->
+    ObDict (Sym arr) c ->
+    ((Ob (Sym arr) (t a b), Ob (Sym arr) (t a c)) => r) ->
+    r
+  withStrengthOb (dA :: ObDict (Sym arr) a) (dB :: ObDict (Sym arr) b) (dC :: ObDict (Sym arr) c) k =
+    withObDict dA $
+      withObDict dB $
+        withObDict dC $
+          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
+
+-- | Lift the 'Traced' structure through 'Sym'.
+--
+-- Loop bodies are 'run' into the base arrow before tracing, just as for
+-- 'Free'.
+instance (Traced t arr, Action (,) arr, Discrete arr) => Traced t (Sym arr) where
+  trace = SymLift . trace . run

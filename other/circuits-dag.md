@@ -102,8 +102,6 @@ graph LR
     Action["Action"]
   end
 
-  Free["Circuit.Free"]
-  Sym["Circuit.Sym"]
   Net["Circuit.Net"]
   Loop["Circuit.Loop"]
   Hyper["Circuit.Hyper"]
@@ -112,7 +110,6 @@ graph LR
 
   Category --> ChannelClass --> Strength --> Traced
   Category --> TensorClass --> Action
-  Free --> Sym --> Net
   Loop --> Net
   Loop --> Hyper
   Dagger --> Net
