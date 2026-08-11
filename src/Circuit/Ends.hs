@@ -1,8 +1,9 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Free channel ends over a base arrow, plus concrete box and queue helpers.
+-- | Free channel ends over a base arrow, plus concrete box helpers.
 --
 -- A channel has exactly two ends:
 --
@@ -18,15 +19,10 @@
 -- A /symmetric/ end @Ends arr a a@ with @close (conjoint e) (companion e) = id@
 -- is the copycat strategy for the multiplicative excluded middle @A ⅋ A⊥@:
 -- it routes traffic between the two poles without ever deciding which side is
--- true.  For live arrows use 'openIO' or 'openSTM'; for the unit object use
--- 'open' (also exported as 'copycat').
+-- true.  For the unit object use 'open' (also exported as 'copycat').
 --
--- This module also provides the concrete helpers built on top of channel
--- ends:
---
---   * 'box' and 'boxAsymmetric' — embed an @Ends@ into a plain 'Loop'.
---   * 'Queue' strategies and STM / IO @Ends@ constructors ('openSTM',
---     'openIO').
+-- Effectful queue-based constructors ('openSTM', 'openIO') live in
+-- @Circuit.Agent.Ends@ so that the core library does not depend on @stm@.
 module Circuit.Ends
   ( -- * Channel ends (bi-polar contract)
     Out (..),
@@ -46,13 +42,16 @@ module Circuit.Ends
 
     -- * Build an @Ends@ from primitive actions
     ends,
+    ends0,
     endsK,
 
     -- * Extract primitive actions from an @Ends@
     splay,
+    splay0,
 
     -- * Sequential composition
     composeEnds,
+    composeEnds0,
     (>:>),
 
     -- * Parallel composition
@@ -72,25 +71,13 @@ module Circuit.Ends
     -- * Boxes
     box,
     boxAsymmetric,
-
-    -- * Queue strategies
-    Queue (..),
-
-    -- * STM @Ends@
-    openSTM,
-
-    -- * IO @Ends@
-    openIO,
   )
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Loop (Loop (..))
 import Circuit.Tensor (Tensor (..), Unit)
-import Control.Applicative
 import Control.Arrow (Kleisli (..))
-import Control.Concurrent.STM
-import Control.Monad (void)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -99,7 +86,6 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Ends
 -- >>> import Circuit.Layer (run)
 -- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> import Control.Concurrent.STM (STM, atomically)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
@@ -212,17 +198,16 @@ class (Category arr) => HasUnit u arr where
   -- ()
   open :: Ends arr u u
 
--- | The copycat strategy at the unit type.
+-- | The copycat strategy at the unit type @u@.
 --
--- This is the multiplicative excluded middle @() ⅋ ()⊥@ for arrows that have
--- unit ends: a self-dual channel whose 'close' is the identity on @()@.  It
--- routes between the two poles without ever deciding which one holds.  For
--- live arrows and arbitrary payload types, use 'openIO' or 'openSTM'.
+-- This is the multiplicative excluded middle @u ⅋ u⊥@ for arrows that have
+-- unit ends at @u@: a self-dual channel whose 'close' is the identity on @u@.
+-- It routes between the two poles without ever deciding which one holds.
 --
--- The additive excluded middle @() ⊕ ()⊥@ — a verdict, now — is /not/
--- supported; there is no @decide :: Either () ()@ here, because only the
+-- The additive excluded middle @u ⊕ u⊥@ — a verdict, now — is /not/
+-- supported; there is no @decide :: Either u u@ here, because only the
 -- routing witness is provable.
-copycat :: forall arr. (HasUnit () arr) => Ends arr () ()
+copycat :: forall arr u. (HasUnit u arr) => Ends arr u u
 copycat = open
 {-# INLINE copycat #-}
 
@@ -242,19 +227,28 @@ copycat = open
 --   Ends (prefixIn write (conjoint open)) (suffixOut (companion open) receive)
 -- @
 ends ::
-  forall arr a b.
-  (Discrete arr, HasUnit () arr) =>
-  arr a () ->
-  arr () b ->
+  forall arr a b u.
+  (Discrete arr, HasUnit u arr) =>
+  arr a u ->
+  arr u b ->
   Ends arr a b
 ends write receive =
   Ends
     (prefixIn write (conjoint open))
     (suffixOut (companion open) receive)
 
+-- | Convenience version of 'ends' when the unit object is @()@.
+ends0 ::
+  (Discrete arr, HasUnit () arr) =>
+  arr a () ->
+  arr () b ->
+  Ends arr a b
+ends0 = ends @_ @_ @_ @()
+{-# INLINE ends0 #-}
+
 -- | Specialization of 'ends' for @Kleisli@ actions.
 --
--- @write :: a -> m ()@ consumes the input payload; @receive :: m b@
+-- @write :: a -> m u@ consumes the input payload; @receive :: m b@
 -- produces the output payload. The unit handling is hidden inside the
 -- @Kleisli@ wrappers.
 endsK ::
@@ -269,21 +263,29 @@ endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
 -- plugging each end with the unit ends.
 --
 -- For an @Ends@ built with 'ends', this recovers the original
--- @write :: arr a ()@ and @receive :: arr () b@.
+-- @write :: arr a u@ and @receive :: arr u b@.
 --
--- >>> let e = ends (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
--- >>> let (write, receive) = splay e
+-- >>> let e = ends0 (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
+-- >>> let (write, receive) = splay0 e
 -- >>> (write (), receive ())
 -- ((),42)
 splay ::
-  forall arr a b.
+  forall arr a b u.
+  (HasUnit u arr) =>
+  Ends arr a b ->
+  (arr a u, arr u b)
+splay e =
+  ( commit (conjoint e) (companion (open :: Ends arr u u)),
+    emit (companion e) (conjoint (open :: Ends arr u u))
+  )
+
+-- | Convenience version of 'splay' when the unit object is @()@.
+splay0 ::
   (HasUnit () arr) =>
   Ends arr a b ->
   (arr a (), arr () b)
-splay e =
-  ( commit (conjoint e) (companion (open :: Ends arr () ())),
-    emit (companion e) (conjoint (open :: Ends arr () ()))
-  )
+splay0 = splay @_ @_ @_ @()
+{-# INLINE splay0 #-}
 
 -- ---------------------------------------------------------------------------
 -- Composition
@@ -298,16 +300,16 @@ splay e =
 --
 -- @box (composeEnds e1 e2) = box e2 . box e1@
 --
--- Identity exists only at the unit type: @open :: Ends arr () ()@ is
+-- Identity exists at the chosen unit type: @open :: Ends arr u u@ is
 -- the identity for composition.
 --
--- >>> let e1 = ends (const ()) (const 1 :: () -> Int) :: Ends (->) () Int
--- >>> let e2 = ends (const ()) (const 2 :: () -> Int) :: Ends (->) Int Int
--- >>> run (box @(,) (composeEnds e1 e2)) ()
+-- >>> let e1 = ends0 (const ()) (const 1 :: () -> Int) :: Ends (->) () Int
+-- >>> let e2 = ends0 (const ()) (const 2 :: () -> Int) :: Ends (->) Int Int
+-- >>> run (box @(,) (composeEnds0 e1 e2)) ()
 -- 2
 composeEnds ::
-  forall arr a b c.
-  (Discrete arr, HasUnit () arr) =>
+  forall arr a b c u.
+  (Discrete arr, HasUnit u arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
@@ -315,19 +317,28 @@ composeEnds e1 e2 =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @() $
-          let (write1, read1) = splay e1
-              (write2, read2) = splay e2
+        withOb @arr @u $
+          let (write1, read1) = splay e1 :: (arr a u, arr u b)
+              (write2, read2) = splay e2 :: (arr b u, arr u c)
            in ends write1 (read1 .> write2 .> read2)
 
--- | Forward-composition operator for @Ends@.  @e1 >:> e2 = composeEnds e1 e2@.
-(>:>) ::
-  forall arr a b c.
+-- | Convenience version of 'composeEnds' when the unit object is @()@.
+composeEnds0 ::
   (Discrete arr, HasUnit () arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
-(>:>) = composeEnds
+composeEnds0 = composeEnds @_ @_ @_ @_ @()
+{-# INLINE composeEnds0 #-}
+
+-- | Forward-composition operator for @Ends@.  @e1 >:> e2 = composeEnds e1 e2@.
+(>:>) ::
+  forall arr a b c u.
+  (Discrete arr, HasUnit u arr) =>
+  Ends arr a b ->
+  Ends arr b c ->
+  Ends arr a c
+e1 >:> e2 = composeEnds @arr @a @b @c @u e1 e2
 
 infixr 1 >:>
 
@@ -336,27 +347,28 @@ infixr 1 >:>
 -- Pair two @Ends@ side by side on the tensor @t@.  The primitive
 -- actions are tensored and then collapsed to and from the unit with the
 -- tensor unitors.  This requires the tensor unit to coincide with the
--- @Ends@ unit @()@; in practice this is the cartesian @(,)@ tensor.
+-- @Ends@ unit @u@; in practice this is the cartesian @(,)@ tensor with
+-- @u = ()@.
 --
--- >>> let e1 = ends (const ()) (const 1 :: () -> Int) :: Ends (->) () Int
--- >>> let e2 = ends (const ()) (const 2 :: () -> Int) :: Ends (->) () Int
+-- >>> let e1 = ends0 (const ()) (const 1 :: () -> Int) :: Ends (->) () Int
+-- >>> let e2 = ends0 (const ()) (const 2 :: () -> Int) :: Ends (->) () Int
 -- >>> run (box @(,) (parEnds e1 e2)) ((), ())
 -- (1,2)
 parEnds ::
-  forall t arr a b c d.
-  (Tensor t arr, Discrete arr, HasUnit () arr, Unit t ~ ()) =>
+  forall t arr a b c d u.
+  (Tensor t arr, Discrete arr, HasUnit u arr, Unit t ~ u) =>
   Ends arr a b ->
   Ends arr c d ->
   Ends arr (t a c) (t b d)
 parEnds e1 e2 =
   withOb @arr @(t a c) $
     withOb @arr @(t b d) $
-      withOb @arr @(t () ()) $
-        withOb @arr @() $
-          let (write1, read1) = splay e1
-              (write2, read2) = splay e2
-              write = par write1 write2 .> (unitr :: arr (t () ()) ())
-              readEnds = (unitl' :: arr () (t () ())) .> par read1 read2
+      withOb @arr @(t u u) $
+        withOb @arr @u $
+          let (write1, read1) = splay e1 :: (arr a u, arr u b)
+              (write2, read2) = splay e2 :: (arr c u, arr u d)
+              write = par write1 write2 .> (unitr :: arr (t u u) u)
+              readEnds = (unitl' :: arr u (t u u)) .> par read1 read2
            in ends write readEnds
 
 -- | Precompose the input and postcompose the output of an @Ends@.
@@ -365,7 +377,7 @@ parEnds e1 e2 =
 -- what the conjoint sees, and @g :: arr b b'@ shapes what the companion
 -- emits.
 --
--- >>> let e = ends (const ()) (const 42 :: () -> Int) :: Ends (->) () Int
+-- >>> let e = ends0 (const ()) (const 42 :: () -> Int) :: Ends (->) () Int
 -- >>> let e' = dimapEnds (const ()) ((+1) :: Int -> Int) e :: Ends (->) () Int
 -- >>> run (box @(,) e') ()
 -- 43
@@ -432,7 +444,7 @@ instance (Monad m) => HasUnit () (Kleisli m) where
 -- @Loop t arr a b@. This is the version most users expect: input on the
 -- left, output on the right, with the unit plumbing hidden.
 --
--- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- >>> let e = ends0 (const ()) (const 42) :: Ends (->) () Int
 -- >>> run (box @(,) e) ()
 -- 42
 box ::
@@ -451,7 +463,7 @@ box ends' =
 -- The input carries the unit on the right and the output carries the unit
 -- on the left; most users will prefer the unit-normalised 'box'.
 --
--- >>> let e = ends (const ()) (const 42) :: Ends (->) () Int
+-- >>> let e = ends0 (const ()) (const 42) :: Ends (->) () Int
 -- >>> run (boxAsymmetric @(,) e) ((), ())
 -- ((),42)
 boxAsymmetric ::
@@ -464,113 +476,3 @@ boxAsymmetric ends' =
     par
       (commit (conjoint ends') (companion open))
       (emit (companion ends') (conjoint open))
-
--- ---------------------------------------------------------------------------
--- Queue strategies and STM @Ends@
--- ---------------------------------------------------------------------------
-
--- | How messages are queued between producer and consumer.
-data Queue a
-  = -- | Unbounded FIFO queue.
-    Unbounded
-  | -- | Bounded FIFO with backpressure (write blocks when full).
-    Bounded Int
-  | -- | Single-slot buffer (write blocks when full).
-    Single
-  | -- | Single-slot buffer, overwrite-on-full.
-    -- Write always succeeds; read empties.
-    SwapQ
-  | -- | Always holds the latest value (overwrites, never blocks).
-    Latest a
-  | -- | Like @Bounded@ but drops oldest when full.
-    Newest Int
-  deriving (Show, Eq)
-
--- ---------------------------------------------------------------------------
--- STM ends
--- ---------------------------------------------------------------------------
-
--- | Internal STM primitive for a queue strategy.
---
--- Returns the raw write/read actions used by 'openSTM'.  Not exported;
--- the canonical API is 'openSTM'.
-endsSTM :: Queue a -> STM (a -> STM (), STM a)
-endsSTM = \case
-  Bounded n -> do
-    q <- newTBQueue (fromIntegral n)
-    pure (writeTBQueue q, readTBQueue q)
-  Unbounded -> do
-    q <- newTQueue
-    pure (writeTQueue q, readTQueue q)
-  Single -> do
-    m <- newEmptyTMVar
-    pure (putTMVar m, takeTMVar m)
-  SwapQ -> do
-    v <- newEmptyTMVar
-    let write x = tryPutTMVar v x >>= \case True -> pure (); False -> void (swapTMVar v x)
-    pure (write, takeTMVar v)
-  Latest a -> do
-    t <- newTVar a
-    pure (writeTVar t, readTVar t)
-  Newest n -> do
-    q <- newTBQueue (fromIntegral n)
-    let write x = writeTBQueue q x <|> (tryReadTBQueue q *> write x)
-    pure (write, readTBQueue q)
-
--- ---------------------------------------------------------------------------
--- IO @Ends@
--- ---------------------------------------------------------------------------
-
--- | Open a queue strategy as STM @Ends@.
---
--- Allocates STM primitives and returns a matched pair of ends sharing
--- the same mutable channel.  Both ends live in 'STM', so you can compose
--- operations across channels in a single 'atomically' block.
---
--- === Unbounded
---
--- >>> let endsU = open :: Ends (Kleisli STM) () ()
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 42
--- >>> atomically $ runKleisli (emit (companion ends) (conjoint endsU)) ()
--- 42
---
--- Multi-op compose in one 'atomically' (both writes + read):
---
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
--- 1
---
--- 'close' recovers the value through the queue:
---
--- >>> ends <- atomically (openSTM Unbounded :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (close (conjoint ends) (companion ends)) 7
--- 7
---
--- === SwapQ (overwrite on write)
---
--- >>> ends <- atomically (openSTM SwapQ :: STM (Ends (Kleisli STM) Int Int))
--- >>> atomically $ runKleisli (commit (conjoint ends) (companion endsU)) 1 >> runKleisli (commit (conjoint ends) (companion endsU)) 2 >> runKleisli (emit (companion ends) (conjoint endsU)) ()
--- 2
-openSTM :: Queue a -> STM (Ends (Kleisli STM) a a)
-openSTM q = do
-  (write, read') <- endsSTM q
-  pure (endsK write read')
-
--- | Open a queue strategy as IO @Ends@.
---
--- Like 'openSTM', but each primitive operation is wrapped in its own
--- 'atomically'.  You cannot batch multiple writes or a write-plus-read
--- into a single STM transaction; for that use 'openSTM' and wrap in
--- 'atomically' yourself.
---
--- >>> let endsU = open :: Ends (Kleisli IO) () ()
--- >>> ends <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
--- >>> runKleisli (commit (conjoint ends) (companion endsU)) 42
--- >>> runKleisli (emit (companion ends) (conjoint endsU)) ()
--- 42
-openIO :: Queue a -> IO (Ends (Kleisli IO) a a)
-openIO q = do
-  e <- atomically (openSTM q)
-  let (Kleisli write, Kleisli receive) = splay e
-  pure (endsK (atomically . write) (atomically (receive ())))

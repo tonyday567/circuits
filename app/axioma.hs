@@ -4,11 +4,13 @@
 
 module Main where
 
+import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.Chu qualified as Chu
-import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
-import Circuit.Ends (Ends (..), Queue (..), box, close, ends, openIO, prefixIn, splay, suffixOut)
+import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
+import Circuit.Ends (Ends (..), box, close, copycat, ends0, prefixIn, splay0, suffixOut)
+import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
@@ -16,8 +18,8 @@ import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Mono, System (..), monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
+import Circuit.Stamped (Stamped (..))
 import Circuit.Tensor (Action (..), Schedule (..), Shared (..), Tensor (..), sharedKnotBy, superpose)
-import Control.Arrow (Kleisli (..), runKleisli)
 import Data.List (foldl', scanl', sort)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy (..))
@@ -325,12 +327,6 @@ qcCheck name p = do
 check :: String -> Bool -> IO Bool
 check name ok = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
-  pure ok
-
-checkIO :: String -> IO Bool -> IO Bool
-checkIO name act = do
-  ok <- act
-  _ <- check name ok
   pure ok
 
 -- ---------------------------------------------------------------------------
@@ -678,10 +674,49 @@ main = do
         -- Ends oracles
         check "O9 ends . splay == id" $
           let e :: Ends (->) () Int
-              e = ends (const ()) (const 42)
-              (write', receive') = splay e
-              e' = ends write' receive'
+              e = ends0 (const ()) (const 42)
+              (write', receive') = splay0 e
+              e' = ends0 write' receive'
            in run (box @(,) e') () == 42 && run (box @(,) e) () == 42,
+        -- Additive Ends oracles
+        check "Additive pairEnds pairs outputs" $
+          let e1 :: Ends (->) () Int
+              e1 = ends0 (const ()) (const 1)
+              e2 :: Ends (->) () Int
+              e2 = ends0 (const ()) (const 2)
+           in run (box @(,) (pairEnds e1 e2)) () == (1, 2),
+        check "raceEnds LeftFirst picks left when both speak" $
+          let eL :: Ends (->) () (Maybe Int)
+              eL = ends0 (const ()) (const (Just 1))
+              eR :: Ends (->) () (Maybe Int)
+              eR = ends0 (const ()) (const (Just 2))
+           in run (box @(,) (raceEnds LeftFirst eL eR)) () == Just 1,
+        check "raceEnds RightFirst picks right when both speak" $
+          let eL :: Ends (->) () (Maybe Int)
+              eL = ends0 (const ()) (const (Just 1))
+              eR :: Ends (->) () (Maybe Int)
+              eR = ends0 (const ()) (const (Just 2))
+           in run (box @(,) (raceEnds RightFirst eL eR)) () == Just 2,
+        check "raceEnds falls back when left is silent" $
+          let eL :: Ends (->) () (Maybe Int)
+              eL = ends0 (const ()) (const Nothing)
+              eR :: Ends (->) () (Maybe Int)
+              eR = ends0 (const ()) (const (Just 2))
+           in run (box @(,) (raceEnds LeftFirst eL eR)) () == Just 2
+                && run (box @(,) (raceEnds RightFirst eL eR)) () == Just 2,
+        -- Stamped oracles
+        check "Stamped fmap preserves stamp (Int token)" $
+          let s = Stamped 7 ("hello" :: String)
+           in stamp (fmap reverse s) == (7 :: Int) && stamped (fmap reverse s) == "olleh",
+        check "Stamped fmap preserves stamp (Bool token)" $
+          let s = Stamped True (10 :: Int)
+           in stamp (fmap (+ 1) s) && stamped (fmap (+ 1) s) == 11,
+        -- Boundary oracles
+        check "Boundary fmap preserves Mark tag" $
+          isMark (fmap length (Mark "halt" :: Boundary String String)),
+        check "Boundary fmap acts on Payload" $
+          let p = fmap length (Payload "hi" :: Boundary String String)
+           in isPayload p && p == Payload 2,
         -- Chu construction
         check "Chu negation is involutive" $
           let e :: (Int, Int) -> Bool
@@ -727,42 +762,23 @@ main = do
               domainMat = Chu.deliveryMatrix domainAgents (map chuTo posts) :: [[Bool]]
               forwardOnlyMat = Chu.deliveryMatrix domainAgents (map (prefixTo . chuTo) posts) :: [[Bool]]
            in domainMat /= forwardOnlyMat,
-        -- Ends embeds into Chu; a fresh symmetric queue is the copycat witness
-        -- of A ⅋ A⊥, so close must be the identity arrow.
-        checkIO "Ends copycat close is identity on fresh queue" $ do
-          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
-          x <- runKleisli (close (conjoint e) (companion e)) 42
-          pure (x == 42),
-        checkIO "Ends negation is involutive in Chu" $ do
-          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
-          let obj = Chu.endsAsChu e
-              obj'' = Chu.negateChu (Chu.negateChu obj)
-          x <- runKleisli (Chu.chuPair obj (conjoint e, companion e)) 42
-          y <- runKleisli (Chu.chuPair obj'' (conjoint e, companion e)) 42
-          pure (x == y),
-        checkIO "Ends identity endomorphism satisfies Chu law" $ do
-          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
-          let obj = Chu.endsAsChu e
-              m = Chu.ChuMorphism (prefixIn id) (`suffixOut` id)
-              lhs = Chu.chuPair obj (Chu.chuForward m (conjoint e), companion e)
-              rhs = Chu.chuPair obj (conjoint e, Chu.chuBackward m (companion e))
-          x <- runKleisli lhs 42
-          y <- runKleisli rhs 42
-          pure (x == y),
-        checkIO "Ends dimapEnds-style pair violates Chu law" $ do
-          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
-          let obj = Chu.endsAsChu e
-              m = Chu.ChuMorphism (prefixIn (Kleisli $ pure . (+ 1))) (`suffixOut` id)
-              lhs = Chu.chuPair obj (Chu.chuForward m (conjoint e), companion e)
-              rhs = Chu.chuPair obj (conjoint e, Chu.chuBackward m (companion e))
-          x <- runKleisli lhs 42
-          y <- runKleisli rhs 42
-          pure (x /= y),
-        checkIO "Ends lawfulDimapEnds with identity Chu morphism preserves close" $ do
-          e <- openIO Unbounded :: IO (Ends (Kleisli IO) Int Int)
-          let e' = Chu.lawfulDimapEnds Chu.idChu e
-          x <- runKleisli (close (conjoint e') (companion e')) 42
-          pure (x == 42),
+        -- Coherence: Loop/Dagger transpose and Chu negation on embedded Ends
+        check "copycat witness is fixed by Chu negation and Dagger transpose" $
+          let e :: Ends (->) () ()
+              e = copycat
+              chu = Chu.endsAsChu e
+              chuNeg = Chu.negateChu chu
+              d = Dagger id id :: Dagger (->) () ()
+           in Chu.chuPair chu (conjoint e, companion e) () == Chu.chuPair chuNeg (companion e, conjoint e) ()
+                && (let Dagger f g = transpose d in f () == () && g () == ()),
+        check "constant self-map witness is fixed by Chu negation and Dagger transpose" $
+          let e :: Ends (->) Int Int
+              e = ends0 (const ()) (const 42)
+              chu = Chu.endsAsChu e
+              chuNeg = Chu.negateChu chu
+              d = Dagger (const 42) (const 42) :: Dagger (->) Int Int
+           in Chu.chuPair chu (conjoint e, companion e) 0 == Chu.chuPair chuNeg (companion e, conjoint e) 0
+                && (let Dagger f g = transpose d in f 0 == 42 && g 0 == 42),
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)

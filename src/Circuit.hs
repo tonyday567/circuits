@@ -107,11 +107,6 @@ module Circuit
     box,
     boxAsymmetric,
 
-    -- * Queues
-    Queue (..),
-    openSTM,
-    openIO,
-
     -- * Free
     Free,
     freeze,
@@ -184,6 +179,17 @@ module Circuit
     ambientBy,
     superpose,
 
+    -- * Boundary (K + payload)
+    Boundary (..),
+    isMark,
+    isPayload,
+
+    -- * Additive ends
+    Bias (..),
+    Silence (..),
+    pairEnds,
+    raceEnds,
+
     -- * Par (multiplicative disjunction)
     Bot,
     Par (..),
@@ -202,6 +208,7 @@ module Circuit
   )
 where
 
+import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
@@ -239,7 +246,6 @@ import Circuit.Ends
     HasUnit (..),
     In (..),
     Out (..),
-    Queue (..),
     box,
     boxAsymmetric,
     close,
@@ -249,14 +255,18 @@ import Circuit.Ends
     ends,
     endsK,
     lmapEnds,
-    openIO,
-    openSTM,
     parEnds,
     prefixIn,
     rmapEnds,
     splay,
     suffixOut,
     (>:>),
+  )
+import Circuit.Ends.Additive
+  ( Bias (..),
+    Silence (..),
+    pairEnds,
+    raceEnds,
   )
 import Circuit.Free
   ( Free (..),
