@@ -95,7 +95,6 @@ class Layer (f :: Cat2 -> Cat2) where
     (Run f arr, Law f arr, Bind f arr, Ob arr a, Ob arr b) =>
     f arr a b ->
     arr a b
-
   run = bind id id
 
   -- | The universal fold out of the free construction into any

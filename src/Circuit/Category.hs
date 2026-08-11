@@ -49,7 +49,7 @@ import Prelude hiding (id, (.))
 -- Carrying @a@ as a type parameter avoids the non-injectivity of the
 -- associated 'Ob' constraint family when threading dictionaries through folds.
 data ObDict arr a where
-  ObDict :: Ob arr a => ObDict arr a
+  ObDict :: (Ob arr a) => ObDict arr a
 
 -- | Bring an object constraint into scope from an explicit dictionary.
 withObDict :: forall arr a r. ObDict arr a -> ((Ob arr a) => r) -> r

@@ -288,8 +288,7 @@ instance Layer (Net t) where
   bind _phi h (Lift f) = h f
   bind phi h (Compose @_ @b1 @_ @_ @_ g f) =
     withObDict (obDict :: ObDict arr b1) $
-      withObDict (phi (obDict :: ObDict arr b1)) $
-        (bind phi h g . bind phi h f)
+      withObDict (phi (obDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
   bind phi h (Par @_ @_ @a1 @b1 @c @d f g) =
     withObDict (obDict :: ObDict arr a1) $
       withObDict (obDict :: ObDict arr b1) $

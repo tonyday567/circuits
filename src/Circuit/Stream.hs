@@ -53,6 +53,7 @@ class Uncons f s where
 class Cons f s where
   -- | Prepend one token to the left of a stream.
   cons :: s -> f -> f
+
   -- | The empty stream.
   consNil :: f
 
@@ -62,5 +63,6 @@ class Cons f s where
 class Snoc f s where
   -- | Append one token to the right of a stream.
   snoc :: f -> s -> f
+
   -- | The empty stream.
   snocNil :: f

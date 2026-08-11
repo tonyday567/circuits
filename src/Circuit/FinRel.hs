@@ -57,7 +57,7 @@ import Prelude hiding (id, (.))
 -- ===========================================================================
 
 -- | A minimal field class for the linear-algebra core.
-class Eq k => Field k where
+class (Eq k) => Field k where
   fzero :: k
   fone :: k
   fadd :: k -> k -> k
@@ -124,17 +124,17 @@ instance (Field k) => Eq (FinRel k n m) where
 -- Matrix primitives
 -- ===========================================================================
 
-zeros :: Field k => Int -> [k]
+zeros :: (Field k) => Int -> [k]
 zeros n = replicate n fzero
 
-vscale :: Field k => k -> [k] -> [k]
+vscale :: (Field k) => k -> [k] -> [k]
 vscale c = map (fmul c)
 
-vdot :: Field k => [k] -> [k] -> k
+vdot :: (Field k) => [k] -> [k] -> k
 vdot xs ys = foldr fadd fzero (zipWith fmul xs ys)
 
 -- | Matrix (rows) times vector.
-mxv :: Field k => [[k]] -> [k] -> [k]
+mxv :: (Field k) => [[k]] -> [k] -> [k]
 mxv m v = map (vdot v) m
 
 setAt :: Int -> a -> [a] -> [a]
@@ -146,21 +146,21 @@ swapRows i j xs
   | otherwise = setAt i (xs !! j) (setAt j (xs !! i) xs)
 
 -- | Reduced row echelon form.  Zero rows are removed.
-rref :: Field k => [[k]] -> [[k]]
+rref :: (Field k) => [[k]] -> [[k]]
 rref rows = filter (any (/= fzero)) (go rows 0 0)
   where
     go m r c
       | r >= length m || c >= width m = m
       | otherwise =
-        case findPivot m r c of
-          Nothing -> go m r (c + 1)
-          Just pr ->
-            let m' = swapRows r pr m
-                pivotRow = m' !! r
-                pivotVal = pivotRow !! c
-                m'' = setAt r (vscale (finv pivotVal) pivotRow) m'
-                m''' = eliminate c r m''
-            in go m''' (r + 1) (c + 1)
+          case findPivot m r c of
+            Nothing -> go m r (c + 1)
+            Just pr ->
+              let m' = swapRows r pr m
+                  pivotRow = m' !! r
+                  pivotVal = pivotRow !! c
+                  m'' = setAt r (vscale (finv pivotVal) pivotRow) m'
+                  m''' = eliminate c r m''
+               in go m''' (r + 1) (c + 1)
 
     width m = maybe 0 length (listToMaybe m)
 
@@ -172,15 +172,15 @@ rref rows = filter (any (/= fzero)) (go rows 0 0)
           then row
           else
             let factor = row !! c
-            in zipWith (\x y -> fadd x (fmul factor y)) row (m !! r)
-        | (i, row) <- zip [0 ..] m
+             in zipWith (\x y -> fadd x (fmul factor y)) row (m !! r)
+      | (i, row) <- zip [0 ..] m
       ]
 
 -- | Basis for the nullspace of a matrix with the given column width.
 --
 -- The matrix may have zero rows; in that case the nullspace is the whole
 -- space of the given dimension.
-nullspace :: Field k => Int -> [[k]] -> [[k]]
+nullspace :: (Field k) => Int -> [[k]] -> [[k]]
 nullspace width rows =
   let rrefm = rref rows
       pivots = mapMaybe (listToMaybe . map fst . filter ((/= fzero) . snd) . zip [0 ..]) rrefm
@@ -207,13 +207,10 @@ mkWiring ::
   FinRel k a b
 mkWiring dIn dOut perm =
   let rows =
-        [ [ if j == i
+        [ [ if j == i || j == dIn + perm i
               then fone
-              else
-                if j == dIn + perm i
-                  then fone
-                  else fzero
-            | j <- [0 .. dIn + dOut - 1]
+              else fzero
+          | j <- [0 .. dIn + dOut - 1]
           ]
         | i <- [0 .. dIn - 1]
         ]
@@ -249,7 +246,7 @@ finCopy =
         [ [ if j == i || j == n + i || j == 2 * n + i
               then fone
               else fzero
-            | j <- [0 .. 3 * n - 1]
+          | j <- [0 .. 3 * n - 1]
           ]
         | i <- [0 .. n - 1]
         ]
@@ -302,7 +299,7 @@ finScalar c =
                 if j == n + i
                   then c
                   else fzero
-            | j <- [0 .. 2 * n - 1]
+          | j <- [0 .. 2 * n - 1]
           ]
         | i <- [0 .. n - 1]
         ]
@@ -446,7 +443,7 @@ instance (Field k) => Channel (,) (FinRel k) where
   withTensorOb ObDict ObDict x = x
 
 instance (Field k) => Strength (,) (FinRel k) where
-  strength f = par id f
+  strength = par id
   withStrengthOb ObDict ObDict ObDict x = x
 
 traceFinRel ::

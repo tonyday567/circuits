@@ -15,7 +15,7 @@ import Circuit.Ends.Additive (Bias (..), pairEnds, raceEnds)
 import Circuit.FinRel
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (Mediator (..), count, linear, mediateProcess, pairSum, runMediator)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, mediateProcess, pairSum, runMediator, runMediatorState)
 import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -844,6 +844,17 @@ main = do
         check "Mediate process agrees with runMediator" $
           catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int])
             == runMediator pairSum [1, 2, 3, 4],
+        -- Mediate close certification oracles (B4)
+        check "closeCertified linear closes cleanly" $
+          closeCertified linear () [1, 2, 3 :: Int] == Right [1, 2, 3],
+        check "closeCertified pairSum odd leaves residual" $
+          case closeCertified pairSum (Nothing :: Maybe Int) [1, 2, 3 :: Int] of
+            Left _ -> True
+            Right _ -> False,
+        check "closeCertified count leaves residual" $
+          case closeCertified count (0 :: Int) [(), (), ()] of
+            Left _ -> True
+            Right _ -> False,
         -- Channel.Poly oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of

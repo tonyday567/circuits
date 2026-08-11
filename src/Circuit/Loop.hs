@@ -267,8 +267,7 @@ instance (Strength t arr) => Channel t (Loop t arr) where
                 withObDict dAB $
                   withObDict dBC $
                     withObDict dAB_C $
-                      withObDict dA_BC $
-                        assoc
+                      withObDict dA_BC assoc
   assoc' ::
     forall a b c.
     ( Ob arr a,
@@ -295,8 +294,7 @@ instance (Strength t arr) => Channel t (Loop t arr) where
                 withObDict dAB $
                   withObDict dBC $
                     withObDict dA_BC $
-                      withObDict dAB_C $
-                        assoc'
+                      withObDict dAB_C assoc'
   slide ::
     forall a b c.
     ( Ob arr a,
@@ -323,8 +321,7 @@ instance (Strength t arr) => Channel t (Loop t arr) where
                 withObDict dBC $
                   withObDict dAC $
                     withObDict dA_BC $
-                      withObDict dB_AC $
-                        slide
+                      withObDict dB_AC slide
   withTensorOb ::
     forall a b r.
     ObDict (Loop t arr) a ->

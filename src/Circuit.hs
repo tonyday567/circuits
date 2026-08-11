@@ -219,13 +219,6 @@ import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel (Strength, Traced)
 import Circuit.Channel qualified as Channel
-import Circuit.Mediate
-  ( Mediator (..),
-    count,
-    linear,
-    pairSum,
-    runMediator,
-  )
 import Circuit.Chu
   ( ChuMorphism (..),
     ChuObj (..),
@@ -311,6 +304,13 @@ import Circuit.Layer
   )
 import Circuit.Loop (Loop (..))
 import Circuit.Loop qualified as Loop
+import Circuit.Mediate
+  ( Mediator (..),
+    count,
+    linear,
+    pairSum,
+    runMediator,
+  )
 import Circuit.Net
   ( Net,
     enrich,

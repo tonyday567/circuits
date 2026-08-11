@@ -16,6 +16,12 @@ module Circuit.Mediate
   ( -- * Mediator state machine
     Mediator (..),
     runMediator,
+    runMediatorState,
+
+    -- * Close certification
+    LinearResidual (..),
+    LinearityViolation (..),
+    closeCertified,
 
     -- * Stream view
     mediateProcess,
@@ -28,6 +34,8 @@ module Circuit.Mediate
 where
 
 import Circuit.Process (Process (..))
+import Data.List (mapAccumL)
+import Data.Maybe (catMaybes)
 
 -- | A mediator with residual state @s@, input @a@, output @b@.
 --
@@ -44,19 +52,56 @@ data Mediator s a b = Mediator
     medStep :: s -> a -> (s, Maybe b)
   }
 
+-- | Run a mediator over a list of inputs, collecting both the emitted outputs
+-- and the final residual state.
+runMediatorState :: Mediator s a b -> s -> [a] -> (s, [b])
+runMediatorState m s0 xs =
+  let (sFinal, mys) = mapAccumL (medStep m) s0 xs
+   in (sFinal, catMaybes mys)
+
 -- | Run a mediator over a list of inputs, collecting emitted outputs.
 --
 -- This is the reference semantics for the mediator: push inputs strictly and
 -- pull whenever the mediator is willing to emit.
 runMediator :: Mediator s a b -> [a] -> [b]
-runMediator m = go (medInit m)
-  where
-    go _ [] = []
-    go s (x : xs) =
-      let (s', my) = medStep m s x
-       in case my of
-            Nothing -> go s' xs
-            Just y -> y : go s' xs
+runMediator m = snd . runMediatorState m (medInit m)
+
+-- | Types whose residual state has a canonical empty value. A 'closeCertified'
+-- run asserts that the mediator's residual has returned to this value.
+class LinearResidual s where
+  -- | The canonical empty residual state.
+  emptyResidual :: s
+
+instance LinearResidual () where
+  emptyResidual = ()
+
+instance LinearResidual (Maybe a) where
+  emptyResidual = Nothing
+
+instance LinearResidual [a] where
+  emptyResidual = []
+
+-- | @Int@ is treated as a count residual; the empty value is @0@.
+instance LinearResidual Int where
+  emptyResidual = 0
+
+-- | A violation reported when a certified close finds the residual state is not
+-- empty.
+newtype LinearityViolation = LinearityViolation String
+  deriving (Eq, Show)
+
+-- | Run a mediator over a stream and certify that the residual is empty at
+-- close.
+--
+-- If the final residual state equals 'emptyResidual', return the emitted
+-- outputs. Otherwise report a 'LinearityViolation' carrying the offending
+-- residual.
+closeCertified :: (LinearResidual s, Eq s, Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
+closeCertified m s0 as =
+  let (sFinal, bs) = runMediatorState m s0 as
+   in if sFinal == emptyResidual
+        then Right bs
+        else Left (LinearityViolation ("close: residual not empty: " ++ show sFinal))
 
 -- | View a mediator as a 'Process' stream transformer.
 --
