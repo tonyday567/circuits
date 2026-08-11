@@ -183,14 +183,85 @@ class CopyDiscard arr a where
 -- 'Circuit.Net.transpose' to be total.
 type Bimonoid arr a = (CopyDiscard arr a, MergeZero arr a)
 
--- | Every type copies for free in a cartesian category (Fox's theorem).
+-- | Copy/discard is no longer an ambient assumption on @(->)@.  The
+-- exponential slice makes copying an explicit capability: a value of type
+-- @!A@ carries a witness, and unmarked @A@ cannot be copied silently.
+--
+-- The instances below are the concrete copyable types used in the repo and
+-- tests.  Adding a new copyable type requires an explicit instance rather
+-- than relying on Fox's theorem.
+
+-- | Unit trivially copies and discards.
+--
+-- >>> copy (() :: ())
+-- ((),())
+-- >>> discard (() :: ())
+-- ()
+instance CopyDiscard (->) () where
+  copy u = (u, u)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+-- | Numeric scalars copy and discard pointwise.
 --
 -- >>> copy (42 :: Int)
 -- (42,42)
 -- >>> discard (42 :: Int)
 -- ()
-instance CopyDiscard (->) a where
+instance CopyDiscard (->) Int where
   copy a = (a, a)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+instance CopyDiscard (->) Integer where
+  copy a = (a, a)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+instance CopyDiscard (->) Double where
+  copy a = (a, a)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+instance CopyDiscard (->) Float where
+  copy a = (a, a)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+-- | Booleans copy and discard.
+--
+-- >>> copy True
+-- (True,True)
+-- >>> discard True
+-- ()
+instance CopyDiscard (->) Bool where
+  copy a = (a, a)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+-- | Products copy and discard as a whole value.
+instance CopyDiscard (->) (a, b) where
+  copy ab = (ab, ab)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+-- | Lists copy and discard as a whole value.
+instance CopyDiscard (->) [a] where
+  copy as = (as, as)
+  {-# INLINE copy #-}
+  discard _ = ()
+  {-# INLINE discard #-}
+
+-- | Maybe copies and discards as a whole value.
+instance CopyDiscard (->) (Maybe a) where
+  copy m = (m, m)
   {-# INLINE copy #-}
   discard _ = ()
   {-# INLINE discard #-}

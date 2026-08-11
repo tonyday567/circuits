@@ -23,6 +23,10 @@ module Circuit.Mediate
     LinearityViolation (..),
     closeCertified,
 
+    -- * ?-comonoid structure
+    medCounit,
+    medComult,
+
     -- * Stream view
     mediateProcess,
 
@@ -102,6 +106,26 @@ closeCertified m s0 as =
    in if sFinal == emptyResidual
         then Right bs
         else Left (LinearityViolation ("close: residual not empty: " ++ show sFinal))
+
+-- | Counit of the @?@-comonoid.
+--
+-- Closing a mediator with no further inputs is allowed only when the residual
+-- state is already empty.  This is the discard law for the exponential:
+-- a buffered channel cannot be silently dropped.
+medCounit ::
+  (LinearResidual s, Eq s, Show s) =>
+  Mediator s a b ->
+  s ->
+  Either LinearityViolation [b]
+medCounit m s0 = closeCertified m s0 []
+
+-- | Comultiplication of the @?@-comonoid.
+--
+-- A mediator policy can be duplicated into two independent consumers.  Each
+-- copy starts from the same initial residual state, so the duplication is
+-- performed on an empty buffer.
+medComult :: Mediator s a b -> (Mediator s a b, Mediator s a b)
+medComult m = (m, m)
 
 -- | View a mediator as a 'Process' stream transformer.
 --

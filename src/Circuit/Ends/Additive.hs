@@ -10,16 +10,19 @@ module Circuit.Ends.Additive
 
     -- * Additive disjunction (plus / race)
     Bias (..),
-    Silence (..),
+    IsSilent (..),
+    HasSilent (..),
     raceEnds,
+    raceMediator,
 
     -- * Structural helpers
-    Diag (..),
-    Par (..),
+    CartesianPar (..),
   )
 where
 
+import Circuit.Dagger (CopyDiscard (..))
 import Circuit.Ends (Ends (..), ends0, splay0)
+import Circuit.Mediate (Mediator (..))
 import Control.Arrow (Kleisli (..))
 import Data.Maybe (isNothing)
 import Data.Void (Void)
@@ -30,55 +33,43 @@ import Prelude
 -- >>> import Circuit.Ends.Additive
 -- >>> import Circuit.Layer (run)
 
--- | Cartesian diagonal: duplicate and discard values in the base arrow.
---
--- This is the structural fragment needed to share an input between two
--- additive branches without depending on the full bimonoid layer.
-class Diag arr a where
-  -- | Duplicate a value.
-  copyA :: arr a (a, a)
-
-  -- | Discard a value.
-  discardA :: arr a ()
-
-instance Diag (->) a where
-  copyA x = (x, x)
-  discardA _ = ()
-
-instance (Monad m) => Diag (Kleisli m) a where
-  copyA = Kleisli $ \x -> pure (x, x)
-  discardA = Kleisli $ \_ -> pure ()
-
 -- | Parallel product of two morphisms on a pair.
-class Par arr where
-  par :: arr a b -> arr c d -> arr (a, c) (b, d)
+--
+-- This is the cartesian product, renamed from 'Par' to avoid collision with
+-- the multiplicative disjunction 'Circuit.Par.Par'.
+class CartesianPar arr where
+  parP :: arr a b -> arr c d -> arr (a, c) (b, d)
 
-instance Par (->) where
-  par f g (x, y) = (f x, g y)
+instance CartesianPar (->) where
+  parP f g (x, y) = (f x, g y)
 
-instance (Monad m) => Par (Kleisli m) where
-  par (Kleisli f) (Kleisli g) = Kleisli $ \(x, y) -> (,) <$> f x <*> g y
+instance (Monad m) => CartesianPar (Kleisli m) where
+  parP (Kleisli f) (Kleisli g) = Kleisli $ \(x, y) -> (,) <$> f x <*> g y
 
--- | Values that can be "silent" — the race combinators use silence as the
--- fallback signal.
-class Silence b where
-  -- | The canonical silent value.
-  silent :: b
-
+-- | Values that can be tested for silence.
+class IsSilent b where
   -- | True iff the value is silent.
   isSilent :: b -> Bool
 
-instance Silence [a] where
-  silent = []
+instance IsSilent [a] where
   isSilent = null
 
-instance Silence (Maybe a) where
-  silent = Nothing
+instance IsSilent (Maybe a) where
   isSilent = isNothing
 
-instance Silence Void where
-  silent = error "silence: Void has no inhabitants"
+instance IsSilent Void where
   isSilent = const True
+
+-- | Values that carry a canonical silent value.
+class (IsSilent b) => HasSilent b where
+  -- | The canonical silent value.
+  silent :: b
+
+instance HasSilent [a] where
+  silent = []
+
+instance HasSilent (Maybe a) where
+  silent = Nothing
 
 -- | Schedule bias for disjunctive composition.
 data Bias = LeftFirst | RightFirst
@@ -95,20 +86,23 @@ data Bias = LeftFirst | RightFirst
 -- >>> run (box @(,) (pairEnds e1 e2)) ()
 -- (1,2)
 pairEnds ::
+  (CopyDiscard (->) a) =>
   Ends (->) a b ->
   Ends (->) a c ->
   Ends (->) a (b, c)
 pairEnds e1 e2 =
   let (w1, r1) = splay0 e1
       (w2, r2) = splay0 e2
-      w = discardA . par w1 w2 . copyA
-      r = par r1 r2 . copyA
+      w = discard . parP w1 w2 . copy
+      r = parP r1 r2 . copy
    in ends0 w r
 
 -- | Additive disjunction / race: both sub-ends receive the same input, but
 -- only the first non-silent output (according to the bias) is emitted.
 --
--- The bias is explicit in the term rather than silently left-biased.
+-- The bias is explicit in the term rather than silently left-biased.  The
+-- picking logic is the additive disjunction mediator: a state machine whose
+-- residual is the first non-silent value it has seen.
 --
 -- >>> let eL = ends0 (const ()) (const (Just 1)) :: Ends (->) () (Maybe Int)
 -- >>> let eR = ends0 (const ()) (const (Just 2)) :: Ends (->) () (Maybe Int)
@@ -117,7 +111,7 @@ pairEnds e1 e2 =
 -- >>> run (box @(,) (raceEnds RightFirst eL eR)) ()
 -- Just 2
 raceEnds ::
-  (Silence b) =>
+  (CopyDiscard (->) a, IsSilent b) =>
   Bias ->
   Ends (->) a b ->
   Ends (->) a b ->
@@ -125,9 +119,26 @@ raceEnds ::
 raceEnds bias e1 e2 =
   let (w1, r1) = splay0 e1
       (w2, r2) = splay0 e2
-      w = discardA . par w1 w2 . copyA
-      r = pick bias . par r1 r2 . copyA
+      w = discard . parP w1 w2 . copy
+      r = pick bias . parP r1 r2 . copy
    in ends0 w r
+  where
+    pick LeftFirst (x, y) = if isSilent x then y else x
+    pick RightFirst (x, y) = if isSilent y then x else y
+
+-- | Additive disjunction as a mediator.
+--
+-- The residual is the first non-silent value seen.  Once set, every further
+-- input is ignored and the chosen value is emitted repeatedly.  This is the
+-- same picking logic as 'raceEnds', expressed in the @?@-policy vocabulary.
+raceMediator :: (IsSilent b) => Bias -> Mediator (Maybe b) (b, b) b
+raceMediator bias =
+  Mediator Nothing $ \s (x, y) ->
+    case s of
+      Just z -> (Just z, Just z)
+      Nothing ->
+        let z = pick bias (x, y)
+         in (Just z, Just z)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
     pick RightFirst (x, y) = if isSilent y then x else y

@@ -17,7 +17,7 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.HyperLoop qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, mediateProcess, pairSum, runMediator, runMediatorState)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, medComult, medCounit, mediateProcess, pairSum, runMediator, runMediatorState)
 import Circuit.Par (Bot, Par (..), distL, distR, mix)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -946,6 +946,21 @@ main = do
           case closeCertified count (0 :: Int) [(), (), ()] of
             Left _ -> True
             Right _ -> False,
+        -- Mediate ?-comonoid oracles
+        check "medCounit linear closes empty residual cleanly" $
+          medCounit linear () == (Right [] :: Either LinearityViolation [Int]),
+        check "medCounit pairSum non-empty residual reports violation" $
+          case medCounit pairSum (Just 1 :: Maybe Int) of
+            Left _ -> True
+            Right _ -> False,
+        check "medComult linear duplicates policy faithfully" $
+          let (m1, m2) = medComult linear
+           in runMediator m1 [1, 2 :: Int] == [1, 2]
+                && runMediator m2 [3, 4 :: Int] == [3, 4],
+        check "medComult pairSum splits input between copies" $
+          let (m1, m2) = medComult pairSum
+           in runMediator m1 [1, 2 :: Int] ++ runMediator m2 [3, 4 :: Int]
+                == runMediator pairSum [1, 2, 3, 4],
         -- Channel.Poly oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of

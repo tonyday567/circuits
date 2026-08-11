@@ -196,9 +196,11 @@ module Circuit
 
     -- * Additive ends
     Bias (..),
-    Silence (..),
+    IsSilent (..),
+    HasSilent (..),
     pairEnds,
     raceEnds,
+    raceMediator,
 
     -- * Par (multiplicative disjunction)
     Bot,
@@ -289,9 +291,12 @@ import Circuit.Ends
   )
 import Circuit.Ends.Additive
   ( Bias (..),
-    Silence (..),
+    CartesianPar (..),
+    HasSilent (..),
+    IsSilent (..),
     pairEnds,
     raceEnds,
+    raceMediator,
   )
 import Circuit.Free
   ( Free (..),

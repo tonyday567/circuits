@@ -362,7 +362,7 @@ instance Traced Either Process where
 -- Bimonoid instances (pointwise lift)
 -- ---------------------------------------------------------------------------
 
-instance CopyDiscard Process a where
+instance (CopyDiscard (->) a) => CopyDiscard Process a where
   copy = P id (\_ x -> x) Dagger.copy
   discard = P id (\_ x -> x) (const ())
 
