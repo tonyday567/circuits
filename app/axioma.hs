@@ -17,6 +17,7 @@ import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
+import Circuit.Net qualified as Net
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
@@ -135,6 +136,14 @@ ewmaBody alpha =
 -- | Exponentially weighted moving average with initial feedback.
 ewma :: Double -> Double -> Process Double Double
 ewma alpha s0 = register s0 (ewmaBody alpha)
+
+-- | Shared-medium body: adds the input to the shared state and echoes it.
+sharedAddP :: Process (Int, Int) (Int, Int)
+sharedAddP = Process (uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
+
+-- | Shared-medium body: doubles the shared state and echoes the input.
+sharedDoubleP :: Process (Int, Int) (Int, Int)
+sharedDoubleP = Process (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
 
 -- ---------------------------------------------------------------------------
 -- Prob helpers for fragment oracles
@@ -621,6 +630,21 @@ main = do
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
+        -- Process as a base arrow for Loop / Net / Shared
+        check "Process lifts into Loop (,) Process" $
+          scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]
+            == scan sumP [1, 2, 3],
+        check "Net (,) Process copy uses Process.copy" $
+          let p = run (Net.Copy :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
+           in scan p [5] == [(5, 5)],
+        check "Net (,) Process plus uses Process.plus" $
+          let p = run (Net.Plus :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
+           in scan p [(2, 3)] == [5],
+        check "Shared (,) Process LR order differs from RL" $
+          let lr = sharedBy (Schedule (,LR) :: Schedule Int) sharedAddP sharedDoubleP
+              rl = sharedBy (Schedule (,RL) :: Schedule Int) sharedAddP sharedDoubleP
+           in scan lr [(1, (2, 3))] == [(6, (3, 6))]
+                && scan rl [(1, (2, 3))] == [(4, (4, 2))],
         -- Circuit.Prob oracles
         -- Deterministic fragment
         check "Prob embed preserves identity" $

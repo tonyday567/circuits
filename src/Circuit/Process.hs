@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-pattern-namespace-specifier #-}
@@ -58,15 +59,16 @@ module Circuit.Process
   )
 where
 
-import Circuit.Category (Category (..), ObDict (..))
+import Circuit.Category (Category (..), Discrete (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (CopyDiscard, MergeZero)
 import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Poly (Dir, Mono, Pos, System (..))
+import Circuit.Tensor (Action (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
 import Control.Category qualified as Cat
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (bimap, first, second)
 import Data.List (scanl')
 import Data.Profunctor (Costrong (..), Profunctor (..), Strong (..))
 import Data.Void (Void, absurd)
@@ -227,6 +229,10 @@ instance Cat.Category Process where
   id = id
   (.) = (.)
 
+-- | @Process@ has trivial object constraints, so it is discrete.
+instance Discrete Process where
+  withOb x = x
+
 -- ---------------------------------------------------------------------------
 -- Profunctor
 -- ---------------------------------------------------------------------------
@@ -250,9 +256,9 @@ instance Profunctor Process where
 -- 'first'' puts the active wire on the left; 'second'' puts it on the right.
 -- Both are derivable from the circuits 'Strength (,) Process' instance.
 instance Strong Process where
-  first' p = dimap swap swap (strength p)
+  first' p = dimap sw sw (strength p)
     where
-      swap (a, b) = (b, a)
+      sw (a, b) = (b, a)
   {-# INLINE first' #-}
   second' = strength
   {-# INLINE second' #-}
@@ -262,9 +268,9 @@ instance Strong Process where
 -- 'unfirst' and 'unsecond' are exactly the cartesian 'trace' after swapping
 -- the active wire into / out of the feedback position.
 instance Costrong Process where
-  unfirst p = trace (dimap swap swap p)
+  unfirst p = trace (dimap sw sw p)
     where
-      swap (a, b) = (b, a)
+      sw (a, b) = (b, a)
   {-# INLINE unfirst #-}
   unsecond = trace
   {-# INLINE unsecond #-}
@@ -304,6 +310,106 @@ instance Traced (,) Process where
       (snd . ex)
     where
       fix f = let x = f x in x
+
+-- ---------------------------------------------------------------------------
+-- Tensor / Action / Shared for (,)
+--
+-- These instances make @Process@ a cartesian monoidal category in its own
+-- right, so it can serve as a base category for shared-medium fusion and
+-- for @Loop (,) Process@.
+-- ---------------------------------------------------------------------------
+
+instance Tensor (,) Process where
+  par (P i1 st1 ex1) (P i2 st2 ex2) =
+    P
+      (bimap i1 i2)
+      (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
+      (bimap ex1 ex2)
+  {-# INLINE par #-}
+
+  unitl = P snd (\_ (_, a) -> a) id
+  unitl' = P id const ((),)
+  unitr = P fst (\_ (a, ()) -> a) id
+  unitr' = P id const (,())
+
+instance Action (,) Process where
+  swap = P id (const id) sw
+    where
+      sw (a, b) = (b, a)
+  {-# INLINE swap #-}
+
+-- | Cartesian shared fusion on processes.
+--
+-- The two processes share one feedback channel @s@. At each tick the schedule
+-- chooses which bodies advance; the gated body still produces output but its
+-- update to the shared state is discarded. The internal states of both
+-- processes evolve normally.
+instance Shared (,) Process where
+  sharedBy sched (P iL stL exL) (P iR stR exR) =
+    P inject step extract
+    where
+      inject (s, (a, c)) =
+        let (s', fire) = chooseS sched s
+         in runInject fire s' a c
+
+      step (sL, sR, _, _, _) (sIn, (a, c)) =
+        let (s', fire) = chooseS sched sIn
+         in runStep fire sL sR s' a c
+
+      extract (_, _, s, b, d) = (s, (b, d))
+
+      runInject fire s' a c = case fire of
+        L ->
+          let sL0 = iL (s', a)
+              (s'', b) = exL sL0
+              sR0 = iR (s', c)
+              (_, d) = exR sR0
+           in (sL0, sR0, s'', b, d)
+        R ->
+          let sR0 = iR (s', c)
+              (s'', d) = exR sR0
+              sL0 = iL (s', a)
+              (_, b) = exL sL0
+           in (sL0, sR0, s'', b, d)
+        LR ->
+          let sL0 = iL (s', a)
+              (sMid, b) = exL sL0
+              sR0 = iR (sMid, c)
+              (sOut, d) = exR sR0
+           in (sL0, sR0, sOut, b, d)
+        RL ->
+          let sR0 = iR (s', c)
+              (sMid, d) = exR sR0
+              sL0 = iL (sMid, a)
+              (sOut, b) = exL sL0
+           in (sL0, sR0, sOut, b, d)
+
+      runStep fire sL sR s' a c = case fire of
+        L ->
+          let sL' = stL sL (s', a)
+              (s'', b) = exL sL'
+              sR' = stR sR (s', c)
+              (_, d) = exR sR'
+           in (sL', sR', s'', b, d)
+        R ->
+          let sR' = stR sR (s', c)
+              (s'', d) = exR sR'
+              sL' = stL sL (s', a)
+              (_, b) = exL sL'
+           in (sL', sR', s'', b, d)
+        LR ->
+          let sL' = stL sL (s', a)
+              (s'', b) = exL sL'
+              sR' = stR sR (s'', c)
+              (s''', d) = exR sR'
+           in (sL', sR', s''', b, d)
+        RL ->
+          let sR' = stR sR (s', c)
+              (s'', d) = exR sR'
+              sL' = stL sL (s'', a)
+              (s''', b) = exL sL'
+           in (sL', sR', s''', b, d)
+  {-# INLINE sharedBy #-}
 
 -- ---------------------------------------------------------------------------
 -- Channel / Strength / Traced for Either
