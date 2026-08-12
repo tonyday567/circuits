@@ -1001,6 +1001,29 @@ main = do
         check "Channel These slide . slide == id where types permit" $
           let x = These 'a' (These 'b' 'c' :: These Char Char)
            in (slide . slide) x == (x :: These Char (These Char Char)),
+        -- Traced These falsifier: the both-branch forces a discard.
+        --
+        -- A candidate trace for These must choose, in the These a c case,
+        -- whether to emit c (discarding a) or loop on a (discarding c).
+        -- Two equally natural biased traces disagree, so no canonical trace
+        -- exists; any fixed bias breaks sliding/dinaturality under composition.
+        check "Traced These is impossible: biased traces disagree in the both-branch" $
+          let traceTheseEmit f b = go (f (That b))
+                where
+                  go (That c) = c
+                  go (This a) = go (f (This a))
+                  go (These _ c) = c
+              traceTheseLoop f b = go (f (That b))
+                where
+                  go (That c) = c
+                  go (This a) = go (f (This a))
+                  go (These a _) = go (f (This a))
+              step :: These Int Int -> These Int Int
+              step (That n) = These 1 n
+              step (This 0) = That 0
+              step (This n) = This (n - 1)
+              step (These m n) = These (m + 1) n
+           in traceTheseEmit step 5 /= traceTheseLoop step 5,
         -- ⊗/⅋ probe: sharedBy vs superpose
         check "pure order swap is invisible at the shared channel (sliding axiom)" $
           let k1 = markerBody 1
