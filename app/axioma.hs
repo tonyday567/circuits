@@ -8,22 +8,22 @@ import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
-import Circuit.Ends qualified as Chu
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
+import Circuit.Ends qualified as Chu
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, count, linear, medComult, medCounit, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Bot, Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
-import Data.List (foldl', scanl', sort)
+import Data.List (foldl', scanl', sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Tuple qualified as Tuple
@@ -942,6 +942,18 @@ main = do
           case closeCertified count (0 :: Int) [(), (), ()] of
             Left _ -> True
             Right _ -> False,
+        -- Mediate drain oracles (B4b)
+        check "closeCertifiedWith drains count residual clean" $
+          closeCertifiedWith (== 0) (\n -> Just (n, 0 :: Int)) count (0 :: Int) [(), (), ()]
+            == Right [1, 2, 3, 3],
+        check "closeCertifiedWith refuses to drain pairSum half-pair" $
+          case closeCertifiedWith isNothing (const Nothing) pairSum (Nothing :: Maybe Int) [1, 2, 3 :: Int] of
+            Left _ -> True
+            Right _ -> False,
+        check "closeCertifiedWith drains list residual via uncons" $
+          let buffer = Mediator [] $ \s x -> (x : s, Nothing :: Maybe Int)
+           in closeCertifiedWith null uncons buffer ([] :: [Int]) [1, 2, 3]
+                == Right [3, 2, 1],
         -- Mediate ?-comonoid oracles
         check "medCounit linear closes empty residual cleanly" $
           medCounit linear () == (Right [] :: Either LinearityViolation [Int]),

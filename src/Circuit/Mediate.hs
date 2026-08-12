@@ -22,6 +22,7 @@ module Circuit.Mediate
     LinearResidual (..),
     LinearityViolation (..),
     closeCertified,
+    closeCertifiedWith,
 
     -- * ?-comonoid structure
     medCounit,
@@ -112,6 +113,35 @@ closeCertified m s0 as =
    in if sFinal == emptyResidual
         then Right bs
         else Left (LinearityViolation ("close: residual not empty: " ++ show sFinal))
+
+-- | Run a mediator over a stream and certify that any remaining residual can
+-- be drained via the supplied function.
+--
+-- The drain function returns 'Nothing' when the residual cannot be drained.
+-- This is the flush semantics: a residual is a violation only when it cannot
+-- be drained into output. For list residuals this is 'uncons'; for count-like
+-- residuals it emits the accumulated value once.
+closeCertifiedWith ::
+  (Show s) =>
+  -- | Test for the empty residual.
+  (s -> Bool) ->
+  -- | Drain one output from the residual, returning the remaining residual.
+  (s -> Maybe (b, s)) ->
+  Mediator s a b ->
+  s ->
+  [a] ->
+  Either LinearityViolation [b]
+closeCertifiedWith isEmpty drain m s0 as =
+  let (sFinal, bs) = runMediatorState m s0 as
+   in case drainAll sFinal of
+        Just bs' -> Right (bs ++ bs')
+        Nothing -> Left (LinearityViolation ("close: residual not drainable: " ++ show sFinal))
+  where
+    drainAll s
+      | isEmpty s = Just []
+      | otherwise = case drain s of
+          Nothing -> Nothing
+          Just (b, s') -> (b :) <$> drainAll s'
 
 -- | Counit of the @?@-comonoid.
 --

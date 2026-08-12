@@ -48,6 +48,7 @@ import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
 import Data.Kind (Type)
+import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
 import Prelude hiding (id, (.))
@@ -159,6 +160,34 @@ instance Channel Either (->) where
   slide (Right (Right c)) = Right (Right c)
   withTensorOb ObDict ObDict x = x
 
+-- | Inclusive monoidal structure for @These@.
+--
+-- @These@ sits above both @(,)@ and 'Either': 'This' is the residual-only
+-- branch, 'That' is the payload-only branch, and 'These' carries both.
+instance Channel These (->) where
+  assoc (This (This a)) = This a
+  assoc (This (That b)) = That (This b)
+  assoc (This (These a b)) = These a (This b)
+  assoc (That c) = That (That c)
+  assoc (These (This a) c) = These a (That c)
+  assoc (These (That b) c) = That (These b c)
+  assoc (These (These a b) c) = These a (These b c)
+  assoc' (This a) = This (This a)
+  assoc' (That (This b)) = This (That b)
+  assoc' (That (That c)) = That c
+  assoc' (That (These b c)) = These (That b) c
+  assoc' (These a (This b)) = This (These a b)
+  assoc' (These a (That c)) = These (This a) c
+  assoc' (These a (These b c)) = These (These a b) c
+  slide (This a) = That (This a)
+  slide (That (This b)) = This b
+  slide (That (That c)) = That (That c)
+  slide (That (These b c)) = These b (That c)
+  slide (These _ (This b)) = This b
+  slide (These a (That c)) = That (These a c)
+  slide (These a (These b c)) = These b (These a c)
+  withTensorOb ObDict ObDict x = x
+
 -- ===========================================================================
 -- Strength
 -- ===========================================================================
@@ -220,6 +249,16 @@ instance Strength (,) (->) where
 -- 'strength' is the functorial action under 'Either'.
 instance Strength Either (->) where
   strength = fmap
+  withStrengthOb ObDict ObDict ObDict x = x
+
+-- | Inclusive tensorial strength for @These@.
+--
+-- 'strength' applies the payload morphism to the 'That' branch and the
+-- 'These' branch, leaving the 'This' residual branch untouched.
+instance Strength These (->) where
+  strength _ (This a) = This a
+  strength f (That b) = That (f b)
+  strength f (These a b) = These a (f b)
   withStrengthOb ObDict ObDict ObDict x = x
 
 -- ===========================================================================
@@ -407,6 +446,40 @@ instance (Monad m) => Channel Either (Kleisli m) where
     Right (Right c) -> pure (Right (Right c))
   withTensorOb ObDict ObDict x = x
 
+-- | Inclusive monoidal structure for @Kleisli m@ with 'These'.
+instance (Monad m) => Channel These (Kleisli m) where
+  assoc =
+    Kleisli $
+      pure . \case
+        This (This a) -> This a
+        This (That b) -> That (This b)
+        This (These a b) -> These a (This b)
+        That c -> That (That c)
+        These (This a) c -> These a (That c)
+        These (That b) c -> That (These b c)
+        These (These a b) c -> These a (These b c)
+  assoc' =
+    Kleisli $
+      pure . \case
+        This a -> This (This a)
+        That (This b) -> This (That b)
+        That (That c) -> That c
+        That (These b c) -> These (That b) c
+        These a (This b) -> This (These a b)
+        These a (That c) -> These (This a) c
+        These a (These b c) -> These (These a b) c
+  slide =
+    Kleisli $
+      pure . \case
+        This a -> That (This a)
+        That (This b) -> This b
+        That (That c) -> That (That c)
+        That (These b c) -> These b (That c)
+        These _ (This b) -> This b
+        These a (That c) -> That (These a c)
+        These a (These b c) -> These b (These a c)
+  withTensorOb ObDict ObDict x = x
+
 -- * Kleisli m (,) — lazy knot via MonadFix
 
 -- | Traced for @Kleisli m@ with the cartesian tensor, requiring @MonadFix m@.
@@ -466,6 +539,15 @@ instance (Monad m) => Strength Either (Kleisli m) where
     Kleisli $ \case
       Left a -> pure (Left a)
       Right b -> Right <$> f b
+  withStrengthOb ObDict ObDict ObDict x = x
+
+-- | Inclusive tensorial strength for @Kleisli m@ with 'These'.
+instance (Monad m) => Strength These (Kleisli m) where
+  strength (Kleisli f) =
+    Kleisli $ \case
+      This a -> pure (This a)
+      That b -> That <$> f b
+      These a b -> These a <$> f b
   withStrengthOb ObDict ObDict ObDict x = x
 
 instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where

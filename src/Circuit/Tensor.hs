@@ -75,6 +75,7 @@ import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.Profunctor (Profunctor, dimap)
+import Data.These (These (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -399,6 +400,68 @@ instance (Monad m) => Tensor Either (Kleisli m) where
 -- | Coproduct symmetry on @Kleisli@ @m@.
 instance (Monad m) => Action Either (Kleisli m) where
   swap = Kleisli $ pure . swap
+  {-# INLINE swap #-}
+
+type instance Unit These = Void
+
+-- | Inclusive tensor action on functions.
+--
+-- Laws: 'unitl' eliminates a vacuous 'This', 'unitl'' injects with 'That';
+-- 'unitr' eliminates a vacuous 'That', 'unitr'' injects with 'This'.
+instance Tensor These (->) where
+  par = bimap
+  {-# INLINE par #-}
+  unitl (That a) = a
+  unitl (This v) = absurd v
+  unitl (These v _) = absurd v
+  {-# INLINE unitl #-}
+  unitl' = That
+  {-# INLINE unitl' #-}
+  unitr (This a) = a
+  unitr (That v) = absurd v
+  unitr (These _ v) = absurd v
+  {-# INLINE unitr #-}
+  unitr' = This
+  {-# INLINE unitr' #-}
+
+-- | Inclusive symmetry on functions.
+instance Action These (->) where
+  swap (This a) = That a
+  swap (That b) = This b
+  swap (These a b) = These b a
+  {-# INLINE swap #-}
+
+-- | Inclusive tensor action on @Kleisli@ @m@.
+instance (Monad m) => Tensor These (Kleisli m) where
+  par (Kleisli f) (Kleisli g) =
+    Kleisli $ \case
+      This a -> This <$> f a
+      That c -> That <$> g c
+      These a c -> These <$> f a <*> g c
+  {-# INLINE par #-}
+  unitl = Kleisli $ \case
+    That a -> pure a
+    This v -> absurd v
+    These v _ -> absurd v
+  {-# INLINE unitl #-}
+  unitl' = Kleisli $ pure . That
+  {-# INLINE unitl' #-}
+  unitr = Kleisli $ \case
+    This a -> pure a
+    That v -> absurd v
+    These _ v -> absurd v
+  {-# INLINE unitr #-}
+  unitr' = Kleisli $ pure . This
+  {-# INLINE unitr' #-}
+
+-- | Inclusive symmetry on @Kleisli@ @m@.
+instance (Monad m) => Action These (Kleisli m) where
+  swap =
+    Kleisli $
+      pure . \case
+        This a -> That a
+        That b -> This b
+        These a b -> These b a
   {-# INLINE swap #-}
 
 -- | Lift 'Tensor'/'Action' through 'Loop'.
