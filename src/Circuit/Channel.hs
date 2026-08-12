@@ -273,6 +273,16 @@ instance Strength These (->) where
 -- Object constraints on the feedback channel (@a@) let constrained
 -- categories (e.g. matrices needing @Finite@ / @KnownNat@) instance
 -- this class lawfully.
+--
+-- Law note: the traced-category Sliding axiom is restricted in the
+-- premonoidal setting. Benton & Hyland, "Traced Premonoidal Categories"
+-- (2003, Def 3.2) replace unrestricted Sliding with /Central Sliding/:
+-- a morphism @g@ may slide past the trace only when @g@ is central.
+-- Dually, /Centre Preservation/ says @trace f@ is central whenever @f@ is.
+-- This class does not enforce the side-conditions at the type level; lawful
+-- instances must guarantee them by construction. See the
+-- @circuits-axioma@ "unrestricted sliding fails for non-central Kleisli IO"
+-- oracle for a witness that the side-condition is not vacuous.
 class (Strength t arr) => Traced t arr where
   trace ::
     ( Ob arr a,

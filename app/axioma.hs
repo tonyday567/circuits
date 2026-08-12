@@ -439,6 +439,31 @@ bodyParR f g (s, (a, c)) =
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
 
+-- | Premonoidal left-first whiskering built from assoc / slide / first.
+--
+-- This is the composite @(f ⊗ id) ; (id ⊗ g)@ expressed with the cartesian
+-- structural maps.  It threads state through @f@ first, then @g@.
+whiskerL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, (b, d)))
+whiskerL f g =
+  assoc' @(,) @(->)
+    .> par @(,) @(->) f id
+    .> assoc @(,) @(->)
+    .> slide @(,) @(->)
+    .> par @(,) @(->) id g
+    .> slide @(,) @(->)
+
+-- | Premonoidal right-first whiskering built from assoc / slide / first.
+--
+-- This is the composite @(id ⊗ g) ; (f ⊗ id)@.
+whiskerR :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, (b, d)))
+whiskerR f g =
+  slide @(,) @(->)
+    .> par @(,) @(->) id g
+    .> slide @(,) @(->)
+    .> assoc' @(,) @(->)
+    .> par @(,) @(->) f id
+    .> assoc @(,) @(->)
+
 -- | Lift a payload map to a body that leaves shared state alone.
 --
 -- Such bodies are exactly the structural maps of the underlying category
@@ -1005,6 +1030,19 @@ main = do
               k2 = markerBody 2
               input = ([], ((), ())) :: ([Int], ((), ()))
            in sharedBy (Schedule (,Both RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
+        -- Gate: Bias is the premonoidal ordering iff the whiskerings agree.
+        check "left-first whiskering equals bodyParL" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+              (s, (b, d)) = whiskerL k1 k2 input
+           in (s, These b d) == bodyParL k1 k2 input,
+        check "right-first whiskering equals bodyParR" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+              (s, (b, d)) = whiskerR k1 k2 input
+           in (s, These b d) == bodyParR k1 k2 input,
         -- Centrality oracles: the ⊗/⅋ distinction is exactly premonoidal centrality
         check "state-agnostic bodies are central" $
           let input = (0, (1, 2)) :: (Int, (Int, Int))
@@ -1034,6 +1072,22 @@ main = do
         check "swap is central wrt state-touching body" $
           let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
            in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
+        -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
+        -- effectful morphisms. The witness uses two IO actions on a shared ref.
+        checkIO "unrestricted sliding fails for non-central Kleisli IO" $
+          do
+            ref <- newIORef 1
+            let f = Kleisli $ \ ~((), ()) -> do
+                  v <- readIORef ref
+                  modifyIORef' ref (+ 1)
+                  pure ((), v)
+                g = Kleisli $ \ ~() -> do
+                  modifyIORef' ref (* 2)
+                  pure ()
+                post = trace (par @(,) @(Kleisli IO) g id . f)
+                pre = trace (f . par @(,) @(Kleisli IO) g id)
+            (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
+            pure (l /= r),
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
