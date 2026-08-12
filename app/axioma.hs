@@ -4,6 +4,7 @@
 
 module Main where
 
+import Circuit.Algebra qualified as Alg
 import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
@@ -1023,6 +1024,63 @@ main = do
               bodySet = sort . these id id (++)
            in bodySet leftResult == [0, 0, 1, 1, 2, 2]
                 && bodySet rightResult == [0, 0, 1, 1, 2, 2],
+        -- Free-syntax bridge: SigShared is the algebraic ⅋ connective
+        check "AlgShared eval agrees with sharedKnotBy" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              term :: Alg.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              term =
+                Alg.Op
+                  ( Alg.R
+                      ( Alg.R
+                          ( Alg.SigKnot
+                              ( Alg.Op
+                                  ( Alg.R
+                                      (Alg.L (Alg.SigShared pureLeft (Alg.Lift k1) (Alg.Lift k2)))
+                                  )
+                              )
+                          )
+                      )
+                  )
+           in Alg.eval term ((), ()) == run (sharedKnotBy pureLeft k1 k2) ((), ()),
+        check "AlgShared L schedule gates right body" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              leftOnly = Schedule (,L) :: Schedule [Int]
+              term :: Alg.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              term =
+                Alg.Op
+                  ( Alg.R
+                      ( Alg.R
+                          ( Alg.SigKnot
+                              ( Alg.Op
+                                  ( Alg.R
+                                      (Alg.L (Alg.SigShared leftOnly (Alg.Lift k1) (Alg.Lift k2)))
+                                  )
+                              )
+                          )
+                      )
+                  )
+           in Alg.eval term ((), ()) == This [1, 1, 1],
+        check "AlgShared R schedule gates left body" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              rightOnly = Schedule (,R) :: Schedule [Int]
+              term :: Alg.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              term =
+                Alg.Op
+                  ( Alg.R
+                      ( Alg.R
+                          ( Alg.SigKnot
+                              ( Alg.Op
+                                  ( Alg.R
+                                      (Alg.L (Alg.SigShared rightOnly (Alg.Lift k1) (Alg.Lift k2)))
+                                  )
+                              )
+                          )
+                      )
+                  )
+           in Alg.eval term ((), ()) == That [2, 2, 2],
         -- Mediator-hyper oracles (B8)
         -- Pure @(->)@ 'Ends' boxes are constant, so the shared-medium bodies
         -- below are used as the channel-end representatives.  The schedule is

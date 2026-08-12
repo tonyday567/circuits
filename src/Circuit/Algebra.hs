@@ -41,7 +41,8 @@
 --
 -- * @SigCompose@ — sequential composition
 -- * @SigKnot@    — feedback / trace over a tensor @t@
--- * @SigPar@     — parallel composition
+-- * @SigPar@     — parallel composition (the tensor product ⊗)
+-- * @SigShared@  — shared-medium fusion (the par product ⅋), parameterised by a schedule
 -- * @SigSwap@    — symmetric braiding
 -- * @SigCopyDiscard@ — copy, discard
 -- * @SigMergeZero@   — plus, zero
@@ -51,6 +52,7 @@
 -- * @'Syntax' @SigCompose@ arr@                              — free category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t) arr@          — free traced category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@) arr@ — free monoidal category
+-- * @'Syntax' (@SigCompose@ ':+:' @SigShared@ t ':+:' @SigKnot@ t) arr@ — free traced category with shared-medium fusion
 -- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigCopyDiscard' ':+:' 'SigMergeZero') arr@ — Net
 module Circuit.Algebra
   ( -- * Signatures
@@ -67,6 +69,7 @@ module Circuit.Algebra
     SigCompose (..),
     SigKnot (..),
     SigPar (..),
+    SigShared (..),
     SigSwap (..),
     SigCopyDiscard (..),
     SigMergeZero (..),
@@ -74,6 +77,7 @@ module Circuit.Algebra
     -- * Common syntax combinations
     AlgCat,
     AlgLoop,
+    AlgShared,
     AlgSym,
     AlgBimonoidal,
     AlgNet,
@@ -92,8 +96,9 @@ import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
 import Circuit.Loop qualified as C
 import Circuit.Net qualified as N
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Bias (..), Fire, Schedule (..), Shared (..), Tensor (..), sharedBy)
 import Data.Kind (Constraint, Type)
+import Data.These (These (..))
 import Prelude hiding (id, (.))
 
 type family Fst (p :: Type) :: Type where
@@ -220,13 +225,34 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
             withOb @arr' @(t a1 c) $
               trace (rec f)
 
--- | Parallel composition.
+-- | Parallel composition (the tensor product ⊗).
+--
+-- This is the monoidal product over independent state.  It is sound as a
+-- bifunctor in any 'Tensor' category; it does not represent shared-medium
+-- fusion.  For the shared-state connective ⅋ see 'SigShared'.
 data SigPar arr rec a b where
   SigPar :: rec a b -> rec c d -> SigPar arr rec (a, c) (b, d)
 
 instance (Tensor (,) arr') => Algebra SigPar arr arr' where
   type Ctx SigPar arr arr' = Tensor (,) arr'
   alg _ rec (SigPar f g) = par (rec f) (rec g)
+
+-- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
+--
+-- The constructor takes two bodies that already share a feedback type @s@ and
+-- produces the untraced shared body.  The surrounding 'SigKnot' closes the
+-- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
+data SigShared (t :: Type -> Type -> Type) arr rec i o where
+  SigShared ::
+    (Ob arr s, Ob arr (t s a), Ob arr (t s b), Ob arr (t s c), Ob arr (t s d)) =>
+    Schedule s ->
+    rec (t s a) (t s b) ->
+    rec (t s c) (t s d) ->
+    SigShared t arr rec (t s (t a c)) (t s (These b d))
+
+instance (Shared t arr') => Algebra (SigShared t) arr arr' where
+  type Ctx (SigShared t) arr arr' = Shared t arr'
+  alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
 
 -- | Symmetric braiding.
 data SigSwap arr rec a b where
@@ -297,6 +323,9 @@ type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
 
 -- | Free monoidal category.
 type AlgSym arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
+
+-- | Free traced category with shared-medium fusion (the ⅋ connective).
+type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
 
 -- | Free bimonoidal category.
 type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
