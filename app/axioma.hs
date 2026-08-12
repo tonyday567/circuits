@@ -1130,6 +1130,61 @@ main = do
                 pre = trace (f . par @(,) @(Kleisli IO) g id)
             (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
             pure (l /= r),
+        -- Loop normal form bakes in a state-threading order. Two Knot bodies
+        -- share an IORef but have disjoint feedback types. Loop's (.) fuses
+        -- them into one Knot that threads g's state wire first, then f's.
+        -- The opposite threading (f first, then g) is a different Loop value
+        -- and produces a different observable result over Kleisli IO.
+        checkIO "Loop (.) hardwires state-threading order over Kleisli IO" $
+          do
+            ref <- newIORef 1
+            let g = Kleisli $ \ ~(s, a) -> do
+                  v <- readIORef ref
+                  writeIORef ref (v + 1)
+                  pure (s, v + a)
+                f = Kleisli $ \ ~(s, b) -> do
+                  v <- readIORef ref
+                  writeIORef ref (v * 2)
+                  pure (s, v * b)
+                loopFG = Knot f . Knot g :: Loop (,) (Kleisli IO) Int Int
+                -- Hand-built single knot with the opposite threading: f's state
+                -- wire first, then g's. This is the normal form of Knot g . Knot f,
+                -- not of Knot f . Knot g.
+                handBuiltGF =
+                  Knot $
+                    Kleisli $
+                      \ ~((s2, s1), a) -> do
+                        (s2', b) <- runKleisli f (s2, a)
+                        (s1', c) <- runKleisli g (s1, b)
+                        pure ((s2', s1'), c)
+            r1 <- runKleisli (run loopFG) 5
+            writeIORef ref 1
+            r2 <- runKleisli (run handBuiltGF) 5
+            pure (r1 /= r2),
+        checkIO "Loop normal form of Knot f . Knot g matches same-threading hand build" $
+          do
+            ref <- newIORef 1
+            let g = Kleisli $ \ ~(s, a) -> do
+                  v <- readIORef ref
+                  writeIORef ref (v + 1)
+                  pure (s, v + a)
+                f = Kleisli $ \ ~(s, b) -> do
+                  v <- readIORef ref
+                  writeIORef ref (v * 2)
+                  pure (s, v * b)
+                loopFG = Knot f . Knot g :: Loop (,) (Kleisli IO) Int Int
+                -- Same threading as Loop's (.) normal form: g's state wire first.
+                handBuiltFG =
+                  Knot $
+                    Kleisli $
+                      \ ~((s1, s2), a) -> do
+                        (s1', b) <- runKleisli g (s1, a)
+                        (s2', c) <- runKleisli f (s2, b)
+                        pure ((s1', s2'), c)
+            r1 <- runKleisli (run loopFG) 5
+            writeIORef ref 1
+            r2 <- runKleisli (run handBuiltFG) 5
+            pure (r1 == r2),
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
