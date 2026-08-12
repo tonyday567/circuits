@@ -628,6 +628,13 @@ main = do
                 Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
            in scan (register s0 body) xs
                 == scan (trace (swapP (body . strength (delay s0)))) xs,
+        -- Process / SArr equivalence
+        check "processToSomeSArr sumP agrees with scan" $
+          MedState.runSomeSArr (MedState.processToSomeSArr sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
+        check "processToSomeSArr swapPairP agrees with scan" $
+          MedState.runSomeSArr (MedState.processToSomeSArr swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
+        check "processToSomeSArr ewma agrees with scan" $
+          MedState.runSomeSArr (MedState.processToSomeSArr (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,

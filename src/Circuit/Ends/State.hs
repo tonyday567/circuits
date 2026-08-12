@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- | Stateful arrows and pole-unfused mediators as channel ends.
@@ -18,6 +20,9 @@
 module Circuit.Ends.State
   ( -- * Stateful arrow
     SArr (..),
+    SomeSArr (..),
+    runSomeSArr,
+    processToSomeSArr,
 
     -- * Pole-unfused mediator
     Med (..),
@@ -41,6 +46,7 @@ where
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
 import Circuit.Mediate qualified as Mediate
+import Circuit.Process (Process (..))
 import Data.Maybe (catMaybes)
 import Prelude hiding (id, (.))
 
@@ -76,6 +82,35 @@ instance HasUnit () (SArr s) where
     let outU = Out $ \_ -> SArr $ \(s, _) -> (s, ())
         inU = In $ \o -> emit o inU
      in Ends inU outU
+
+-- | An existentially-quantified ambient-state arrow.
+--
+-- This is the packing that lets us treat a 'Process' as a value of the form
+-- @exists s. SArr s a b@.
+data SomeSArr a b where
+  SomeSArr :: s -> SArr s a b -> SomeSArr a b
+
+-- | Run an existentially-packed stateful arrow over a list of inputs.
+runSomeSArr :: SomeSArr a b -> [a] -> [b]
+runSomeSArr (SomeSArr s0 (SArr f)) xs =
+  let (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
+   in reverse bs
+
+-- | View a 'Process' as an existentially-quantified 'SArr'.
+--
+-- The process state is exposed as the ambient wire.  The initial state is
+-- 'Nothing'; the first input is fed to 'inject' to create the real state, and
+-- subsequent inputs use 'step'.  The output is always 'extract' of the current
+-- state.
+processToSomeSArr :: Process a b -> SomeSArr a b
+processToSomeSArr (Process inject step extract) =
+  SomeSArr Nothing $ SArr $ \case
+    (Nothing, a) ->
+      let s = inject a
+       in (Just s, extract s)
+    (Just s, a) ->
+      let s' = step s a
+       in (Just s', extract s')
 
 -- | A pole-unfused mediator with residual state @s@, input @a@, output @b@.
 --
