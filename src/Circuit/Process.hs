@@ -70,7 +70,9 @@ import Circuit.Tensor (Action (..), Bias (..), Fire (..), Schedule (..), Shared 
 import Control.Category qualified as Cat
 import Data.Bifunctor (bimap, first, second)
 import Data.List (scanl')
+import Data.Maybe (fromMaybe)
 import Data.Profunctor (Costrong (..), Profunctor (..), Strong (..))
+import Data.These (These (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -341,9 +343,9 @@ instance Action (,) Process where
 -- | Cartesian shared fusion on processes.
 --
 -- The two processes share one feedback channel @s@. At each tick the schedule
--- chooses which bodies advance; the gated body still produces output but its
--- update to the shared state is discarded. The internal states of both
--- processes evolve normally.
+-- chooses which body advances; the gated body's input is discarded and it does
+-- not step. Each process is injected lazily on its first firing, so a body that
+-- is never scheduled consumes no inputs and produces no outputs.
 instance Shared (,) Process where
   sharedBy sched (P iL stL exL) (P iR stR exR) =
     P inject step extract
@@ -352,63 +354,61 @@ instance Shared (,) Process where
         let (s', fire) = chooseS sched s
          in runInject fire s' a c
 
-      step (sL, sR, _, _, _) (sIn, (a, c)) =
+      step (msL, msR, _, _) (sIn, (a, c)) =
         let (s', fire) = chooseS sched sIn
-         in runStep fire sL sR s' a c
+         in runStep fire msL msR s' a c
 
-      extract (_, _, s, b, d) = (s, (b, d))
+      extract (_, _, s, out) = (s, out)
 
       runInject fire s' a c = case fire of
         L ->
           let sL0 = iL (s', a)
               (s'', b) = exL sL0
-              sR0 = iR (s', c)
-              (_, d) = exR sR0
-           in (sL0, sR0, s'', b, d)
+           in (Just sL0, Nothing, s'', This b)
         R ->
           let sR0 = iR (s', c)
               (s'', d) = exR sR0
-              sL0 = iL (s', a)
-              (_, b) = exL sL0
-           in (sL0, sR0, s'', b, d)
+           in (Nothing, Just sR0, s'', That d)
         Both LeftFirst ->
           let sL0 = iL (s', a)
               (sMid, b) = exL sL0
               sR0 = iR (sMid, c)
               (sOut, d) = exR sR0
-           in (sL0, sR0, sOut, b, d)
+           in (Just sL0, Just sR0, sOut, These b d)
         Both RightFirst ->
           let sR0 = iR (s', c)
               (sMid, d) = exR sR0
               sL0 = iL (sMid, a)
               (sOut, b) = exL sL0
-           in (sL0, sR0, sOut, b, d)
+           in (Just sL0, Just sR0, sOut, These b d)
 
-      runStep fire sL sR s' a c = case fire of
+      runStep fire msL msR s' a c = case fire of
         L ->
-          let sL' = stL sL (s', a)
-              (s'', b) = exL sL'
-              sR' = stR sR (s', c)
-              (_, d) = exR sR'
-           in (sL', sR', s'', b, d)
-        R ->
-          let sR' = stR sR (s', c)
-              (s'', d) = exR sR'
+          let sL = fromMaybe (iL (s', a)) msL
               sL' = stL sL (s', a)
-              (_, b) = exL sL'
-           in (sL', sR', s'', b, d)
-        Both LeftFirst ->
-          let sL' = stL sL (s', a)
               (s'', b) = exL sL'
+           in (Just sL', msR, s'', This b)
+        R ->
+          let sR = fromMaybe (iR (s', c)) msR
+              sR' = stR sR (s', c)
+              (s'', d) = exR sR'
+           in (msL, Just sR', s'', That d)
+        Both LeftFirst ->
+          let sL = fromMaybe (iL (s', a)) msL
+              sL' = stL sL (s', a)
+              (s'', b) = exL sL'
+              sR = fromMaybe (iR (s'', c)) msR
               sR' = stR sR (s'', c)
               (s''', d) = exR sR'
-           in (sL', sR', s''', b, d)
+           in (Just sL', Just sR', s''', These b d)
         Both RightFirst ->
-          let sR' = stR sR (s', c)
+          let sR = fromMaybe (iR (s', c)) msR
+              sR' = stR sR (s', c)
               (s'', d) = exR sR'
+              sL = fromMaybe (iL (s'', a)) msL
               sL' = stL sL (s'', a)
               (s''', b) = exL sL'
-           in (sL', sR', s''', b, d)
+           in (Just sL', Just sR', s''', These b d)
   {-# INLINE sharedBy #-}
 
 -- ---------------------------------------------------------------------------

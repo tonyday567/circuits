@@ -61,6 +61,7 @@ import Circuit.Process qualified as Process
 import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL)
 import Data.Maybe (catMaybes)
+import Data.These (These (..))
 
 -- | A mediator with residual state @s@, input @a@, output @b@.
 --
@@ -244,27 +245,28 @@ mediateEmitBody med (s, x) = medStep med s x
 -- The input pair is @(storedInput, triggerInput)@.  The left factor stores
 -- @storedInput@ into the residual; the right factor feeds @triggerInput@
 -- together with the updated residual to the mediator step.  The schedule
--- chooses the order of the two factors, which is observable when the
--- mediator needs the stored value before it can emit.
+-- chooses which factor advances; the gated factor's input is discarded.
+-- When only one factor advances the output is partial ('This' or 'That');
+-- when both advance it is total ('These').
 mediateSharedBody ::
   Mediator s a b ->
   Schedule s ->
   (s, (a, a)) ->
-  (s, ((), Maybe b))
+  (s, These () (Maybe b))
 mediateSharedBody med sched (s, (x, y)) =
   let (s', fire) = chooseS sched s
    in case fire of
         L ->
           let (s'', ()) = mediateStoreBody med (s', x)
-           in (s'', ((), Nothing))
+           in (s'', This ())
         R ->
           let (s'', mb) = mediateEmitBody med (s', y)
-           in (s'', ((), mb))
+           in (s'', That mb)
         Both LeftFirst ->
           let (s'', ()) = mediateStoreBody med (s', x)
               (s''', mb) = mediateEmitBody med (s'', y)
-           in (s''', ((), mb))
+           in (s''', These () mb)
         Both RightFirst ->
           let (s'', mb) = mediateEmitBody med (s', y)
               (s''', ()) = mediateStoreBody med (s'', x)
-           in (s''', ((), mb))
+           in (s''', These () mb)

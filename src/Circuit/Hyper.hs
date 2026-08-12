@@ -90,13 +90,14 @@ where
 import Circuit.Category (Category (..), Ob, ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
-import qualified Circuit.Loop as Loop
+import Circuit.Loop qualified as Loop
 import Circuit.Tensor (Schedule (..), Shared (..), sharedBy)
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Data.Profunctor
+import Data.These (These)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -120,7 +121,7 @@ import Prelude hiding (id, (.))
 -- ---------------------------------------------------------------------------
 
 -- | A lazy state monad transformer.
-newtype StateT s m a = StateT { runStateT :: s -> m (a, s) }
+newtype StateT s m a = StateT {runStateT :: s -> m (a, s)}
 
 instance (Functor m) => Functor (StateT s m) where
   fmap f m = StateT $ \s ->
@@ -598,14 +599,14 @@ sharedHyperBy ::
     Shared (,) arr,
     Ob arr s,
     Ob arr (a, c),
-    Ob arr (b, d),
+    Ob arr (These b d),
     Ob arr (s, (a, c)),
-    Ob arr (s, (b, d))
+    Ob arr (s, These b d)
   ) =>
   Schedule s ->
   HyperF arr (s, a) (s, b) ->
   HyperF arr (s, c) (s, d) ->
-  HyperF arr (a, c) (b, d)
+  HyperF arr (a, c) (These b d)
 sharedHyperBy sched f g = trace (liftH (sharedBy sched f' g'))
   where
     f' = mkArr (observeH f)

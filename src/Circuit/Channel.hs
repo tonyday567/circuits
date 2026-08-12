@@ -183,7 +183,7 @@ instance Channel These (->) where
   slide (That (This b)) = This b
   slide (That (That c)) = That (That c)
   slide (That (These b c)) = These b (That c)
-  slide (These _ (This b)) = This b
+  slide (These a (This b)) = These b (This a)
   slide (These a (That c)) = That (These a c)
   slide (These a (These b c)) = These b (These a c)
   withTensorOb ObDict ObDict x = x
@@ -475,7 +475,7 @@ instance (Monad m) => Channel These (Kleisli m) where
         That (This b) -> This b
         That (That c) -> That (That c)
         That (These b c) -> These b (That c)
-        These _ (This b) -> This b
+        These a (This b) -> These b (This a)
         These a (That c) -> That (These a c)
         These a (These b c) -> These b (These a c)
   withTensorOb ObDict ObDict x = x

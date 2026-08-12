@@ -565,8 +565,10 @@ data Bias = LeftFirst | RightFirst
 
 -- | A schedule decision, now shaped by the inclusive tensor.
 --
--- * @L@ — advance the left body only (corresponds to 'This').
--- * @R@ — advance the right body only (corresponds to 'That').
+-- * @L@ — advance the left body only; the right input is not consumed
+--   (corresponds to 'This').
+-- * @R@ — advance the right body only; the left input is not consumed
+--   (corresponds to 'That').
 -- * @Both b@ — advance both bodies, with the bias choosing the order
 --   (corresponds to 'These').
 data Fire = L | R | Both Bias
@@ -592,15 +594,15 @@ newtype Schedule s = Schedule
 class (Tensor t arr) => Shared t arr where
   -- | Fuse two feedback bodies over a shared channel.
   --
-  -- The combined body has type @arr (t s (t a c)) (t s (t b d))@: one shared
-  -- state @s@, paired inputs @a@ and @c@, paired outputs @b@ and @d@.  At
-  -- each step the schedule chooses which body advances; the other body's
-  -- input is forwarded unchanged to the output.
+  -- The combined body has type @arr (t s (t a c)) (t s (These b d))@: one
+  -- shared state @s@, paired inputs @a@ and @c@, and a partial output.  At
+  -- each step the schedule chooses which body advances; the gated body's
+  -- input is discarded and no output is produced for that side.
   sharedBy ::
     Schedule s ->
     arr (t s a) (t s b) ->
     arr (t s c) (t s d) ->
-    arr (t s (t a c)) (t s (t b d))
+    arr (t s (t a c)) (t s (These b d))
 
 -- | Shared fusion wrapped as a 'Knot'.
 --
@@ -610,40 +612,39 @@ class (Tensor t arr) => Shared t arr where
 -- this helper makes the shared state explicit at the call site.
 sharedKnotBy ::
   forall t arr a b c d s.
-  (Shared t arr, Ob arr s, Ob arr (t s (t a c)), Ob arr (t s (t b d))) =>
+  (Shared t arr, Ob arr s, Ob arr (t s (t a c)), Ob arr (t s (These b d))) =>
   Schedule s ->
   arr (t s a) (t s b) ->
   arr (t s c) (t s d) ->
-  Loop t arr (t a c) (t b d)
+  Loop t arr (t a c) (These b d)
 sharedKnotBy sched f g = Knot (sharedBy sched f g)
 
 -- | Cartesian shared fusion on functions.
 --
--- The schedule chooses which bodies advance and in what order.  @Both LeftFirst@
--- / @Both RightFirst@ run both bodies, left-first or right-first; @L@/@R@
--- run both bodies but keep only one body's update to the shared state (the
--- other body's state write is discarded).  When both bodies read and write @s@,
--- the two orders are observationally different — this is the ⅋-vs-⊗ distinction.
+-- The schedule chooses which bodies advance and in what order.  @L@/@R@
+-- run only the chosen body and emit a partial 'This'/'That' product; the
+-- other body's input is discarded.  @Both LeftFirst@ / @Both RightFirst@ run
+-- both bodies, threading the shared state in the chosen order, and emit a
+-- total 'These' product.  When both bodies read and write @s@, the two orders
+-- are observationally different — this is the ⅋-vs-⊗ distinction.
 instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
     let (s', fire) = chooseS sched s
      in case fire of
           L ->
             let (s'', b) = f (s', a)
-                (_, d) = g (s', c)
-             in (s'', (b, d))
+             in (s'', This b)
           R ->
-            let (_, b) = f (s', a)
-                (s'', d) = g (s', c)
-             in (s'', (b, d))
+            let (s'', d) = g (s', c)
+             in (s'', That d)
           Both LeftFirst ->
             let (s'', b) = f (s', a)
                 (s''', d) = g (s'', c)
-             in (s''', (b, d))
+             in (s''', These b d)
           Both RightFirst ->
             let (s'', d) = g (s', c)
                 (s''', b) = f (s'', a)
-             in (s''', (b, d))
+             in (s''', These b d)
   {-# INLINE sharedBy #-}
 
 -- | Cartesian shared fusion on @Kleisli@ arrows.
@@ -654,20 +655,18 @@ instance (Monad m) => Shared (,) (Kleisli m) where
       case fire of
         L -> do
           (s'', b) <- f (s', a)
-          (_, d) <- g (s', c)
-          pure (s'', (b, d))
+          pure (s'', This b)
         R -> do
-          (_, b) <- f (s', a)
           (s'', d) <- g (s', c)
-          pure (s'', (b, d))
+          pure (s'', That d)
         Both LeftFirst -> do
           (s'', b) <- f (s', a)
           (s''', d) <- g (s'', c)
-          pure (s''', (b, d))
+          pure (s''', These b d)
         Both RightFirst -> do
           (s'', d) <- g (s', c)
           (s''', b) <- f (s'', a)
-          pure (s''', (b, d))
+          pure (s''', These b d)
   {-# INLINE sharedBy #-}
 
 -- | Unit of the par tensor (⊥).

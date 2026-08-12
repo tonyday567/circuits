@@ -213,22 +213,31 @@ medLinear =
         Nothing -> (Nothing, Nothing)
     }
 
+-- | Three-state residual for pair summation.
+--
+-- * 'Empty'  : no buffered value.
+-- * 'Held'   : one value buffered, not yet ready.
+-- * 'Ready'  : a sum is ready for emission.
+data PS = Empty | Held Int | Ready Int
+  deriving (Eq, Show)
+
 -- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
 --
--- State is @Either Int Int@.  'Left' carries a buffered value; 'Right' carries
--- a value ready for emission.  'Left 0' is used as the empty-buffer sentinel,
--- so this example assumes non-zero inputs.
-medPairSum :: Med (Either Int Int) Int Int
+-- State is 'PS'.  'Held' carries a buffered value; 'Ready' carries a value
+-- ready for emission.  'Empty' cleanly represents the absence of a residual,
+-- so zero is a valid input.
+medPairSum :: Med PS Int Int
 medPairSum =
   Med
-    { medSeed = Left 0,
+    { medSeed = Empty,
       medIn = \case
-        (Left 0, x) -> Left x
-        (Left y, x) -> Right (x + y)
-        (Right _, x) -> Left x,
+        (Empty, x) -> Held x
+        (Held y, x) -> Ready (x + y)
+        (Ready _, x) -> Held x,
       medOut = \case
-        Left y -> (Left y, Nothing)
-        Right z -> (Left 0, Just z)
+        Empty -> (Empty, Nothing)
+        Held y -> (Held y, Nothing)
+        Ready z -> (Empty, Just z)
     }
 
 -- | Count mediator: emits the number of inputs seen so far.

@@ -6,7 +6,7 @@ module Main where
 
 import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
-import Circuit.Channel (assoc, assoc', strength, trace)
+import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
@@ -28,6 +28,7 @@ import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', scanl', sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
+import Data.These (These (..), these)
 import Data.Tuple qualified as Tuple
 import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
@@ -651,8 +652,8 @@ main = do
         check "Shared (,) Process LR order differs from RL" $
           let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP
               rl = sharedBy (Schedule (,Both RightFirst) :: Schedule Int) sharedAddP sharedDoubleP
-           in scan lr [(1, (2, 3))] == [(6, (3, 6))]
-                && scan rl [(1, (2, 3))] == [(4, (4, 2))],
+           in scan lr [(1, (2, 3))] == [(6, These 3 6)]
+                && scan rl [(1, (2, 3))] == [(4, These 4 2)],
         -- Circuit.Prob oracles
         -- Deterministic fragment
         check "Prob embed preserves identity" $
@@ -885,6 +886,40 @@ main = do
           unitlP (Right 42 :: Either Void Int) == (42 :: Int),
         check "Par unitrP collapses Void on Either" $
           unitrP (Left 42 :: Either Int Void) == (42 :: Int),
+        -- Channel These presence-preserving slide
+        check "Channel These slide preserves presence on all 7 cases" $
+          let presenceInput :: These Char (These Char Char) -> (Bool, Bool, Bool)
+              presenceInput = \case
+                This _ -> (True, False, False)
+                That (This _) -> (False, True, False)
+                That (That _) -> (False, False, True)
+                That (These _ _) -> (False, True, True)
+                These _ (This _) -> (True, True, False)
+                These _ (That _) -> (True, False, True)
+                These _ (These _ _) -> (True, True, True)
+              presenceOutput :: These Char (These Char Char) -> (Bool, Bool, Bool)
+              presenceOutput = \case
+                This _ -> (False, True, False)
+                That (This _) -> (True, False, False)
+                That (That _) -> (False, False, True)
+                That (These _ _) -> (True, False, True)
+                These _ (This _) -> (True, True, False)
+                These _ (That _) -> (False, True, True)
+                These _ (These _ _) -> (True, True, True)
+              cases :: [These Char (These Char Char)]
+              cases =
+                [ This 'a',
+                  That (This 'b'),
+                  That (That 'c'),
+                  That (These 'b' 'c'),
+                  These 'a' (This 'b'),
+                  These 'a' (That 'c'),
+                  These 'a' (These 'b' 'c')
+                ]
+           in all (\x -> presenceInput x == presenceOutput (slide x)) cases,
+        check "Channel These slide . slide == id where types permit" $
+          let x = These 'a' (These 'b' 'c' :: These Char Char)
+           in (slide . slide) x == (x :: These Char (These Char Char)),
         -- ⊗/⅋ probe: sharedBy vs superpose
         check "pure order swap is invisible at the shared channel (sliding axiom)" $
           let k1 = markerBody 1
@@ -894,20 +929,34 @@ main = do
         check "sharedKnotBy differs from superpose (shared vs independent feedback)" $
           let k1 = markerBody 1
               k2 = markerBody 2
+              theseToPair (This a) = (a, [])
+              theseToPair (That b) = ([], b)
+              theseToPair (These a b) = (a, b)
            in run (superpose (Knot k1) (Knot k2)) ((), ())
-                /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+                /= theseToPair (run (sharedKnotBy leftFirst k1 k2) ((), ())),
         check "sharedKnotBy schedule changes observable interleaving" $
           let k1 = markerBody 1
               k2 = markerBody 2
            in run (sharedKnotBy rightFirst k1 k2) ((), ())
                 /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+        check "sharedKnotBy L gates right body (output is This only)" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              leftOnly = Schedule (,L) :: Schedule [Int]
+           in run (sharedKnotBy leftOnly k1 k2) ((), ()) == This [1, 1, 1],
+        check "sharedKnotBy R gates left body (output is That only)" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              rightOnly = Schedule (,R) :: Schedule [Int]
+           in run (sharedKnotBy rightOnly k1 k2) ((), ()) == That [2, 2, 2],
         check "sharedKnotBy left-first and right-first both agree on body sets" $
           let k1 = markerBody 1
               k2 = markerBody 2
               leftResult = run (sharedKnotBy leftFirst k1 k2) ((), ())
               rightResult = run (sharedKnotBy rightFirst k1 k2) ((), ())
-           in sort (uncurry (++) leftResult) == [0, 0, 1, 1, 2, 2]
-                && sort (uncurry (++) rightResult) == [0, 0, 1, 1, 2, 2],
+              bodySet = sort . these id id (++)
+           in bodySet leftResult == [0, 0, 1, 1, 2, 2]
+                && bodySet rightResult == [0, 0, 1, 1, 2, 2],
         -- Mediator-hyper oracles (B8)
         -- Pure @(->)@ 'Ends' boxes are constant, so the shared-medium bodies
         -- below are used as the channel-end representatives.  The schedule is
@@ -916,16 +965,19 @@ main = do
         check "mediator-hyper stamp: schedule stamp distinguishes shared composition in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              shared stamp = HyperLoop.encode (sharedKnotBy stamp k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              shared stamp = HyperLoop.encode (sharedKnotBy stamp k1 k2) :: Hyper ((), ()) (These [Int] [Int])
               superposed = HyperLoop.encode (superpose (Knot k1) (Knot k2)) :: Hyper ((), ()) ([Int], [Int])
               stamped = shared leftFirst
               unstamped = shared pureLeft
+              theseToPair (This a) = (a, [])
+              theseToPair (That b) = ([], b)
+              theseToPair (These a b) = (a, b)
            in observe stamped ((), ()) /= observe unstamped ((), ())
-                && observe superposed ((), ()) /= observe stamped ((), ()),
+                && observe superposed ((), ()) /= theseToPair (observe stamped ((), ())),
         check "stamped ⅋ probe: schedule stamp toggles entanglement in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              sharedHyper sched = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              sharedHyper sched = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) (These [Int] [Int])
               leftH = sharedHyper leftFirst
               rightH = sharedHyper rightFirst
               pureLeftH = sharedHyper pureLeft
@@ -937,13 +989,13 @@ main = do
           let k1 = markerBody 1
               k2 = markerBody 2
               sched = leftFirst
-              leftSide = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              leftSide = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) (These [Int] [Int])
               rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         check "bridge square: pure schedule collapse agrees" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftSide = HyperLoop.encode (sharedKnotBy pureLeft k1 k2) :: Hyper ((), ()) ([Int], [Int])
+              leftSide = HyperLoop.encode (sharedKnotBy pureLeft k1 k2) :: Hyper ((), ()) (These [Int] [Int])
               rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         -- Mediate oracles (B1)
@@ -974,6 +1026,8 @@ main = do
           MedState.runMed MedState.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
         check "Ends.State runMed pairSum buffers and sums pairs" $
           MedState.runMed MedState.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
+        check "Ends.State runMed pairSum zeroes are valid inputs" $
+          MedState.runMed MedState.medPairSum [0, 0 :: Int] == [0],
         check "Ends.State runMed pairSum odd input leaves residual" $
           MedState.runMed MedState.medPairSum [1, 2, 3 :: Int] == [3],
         check "Ends.State runMed count emits accumulating residual" $
@@ -981,16 +1035,16 @@ main = do
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
           snd (mediateSharedBody pairSum leftFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
-            == ((), Just 3),
+            == These () (Just 3),
         check "Mediate shared body right-first emits Nothing" $
           snd (mediateSharedBody pairSum rightFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
-            == ((), Nothing),
+            == These () Nothing,
         check "Mediate shared body left-only stores but does not emit" $
           mediateSharedBody pairSum leftOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
-            == (Just 1, ((), Nothing)),
-        check "Mediate shared body right-only emits from current residual" $
+            == (Just 1, This ()),
+        check "Mediate shared body right-only emits nothing without residual" $
           mediateSharedBody pairSum rightOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
-            == (Just 2, ((), Nothing)),
+            == (Just 2, That Nothing),
         -- Mediate process stream oracles (B3b)
         check "Mediate process pairSum [1,2] returns [3]" $
           catMaybes (scan (mediateProcess pairSum Nothing) [1, 2 :: Int]) == [3],
