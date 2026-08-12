@@ -439,6 +439,17 @@ bodyParR f g (s, (a, c)) =
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
 
+-- | Lift a payload map to a body that leaves shared state alone.
+--
+-- Such bodies are exactly the structural maps of the underlying category
+-- threaded through the ambient state wire.
+liftBody :: (a -> b) -> (s, a) -> (s, b)
+liftBody f (s, a) = (s, f a)
+
+-- | State-touching body with a pair payload: adds both components to state.
+sharedAddFPair :: (Int, (Int, Int)) -> (Int, (Int, Int))
+sharedAddFPair (s, (a, b)) = let s' = s + a + b in (s', (s', s'))
+
 -- ---------------------------------------------------------------------------
 -- Residual-oracle helpers
 -- ---------------------------------------------------------------------------
@@ -1006,6 +1017,23 @@ main = do
               k2 = markerBody 2
            in run (Knot (bodyParL k1 k2)) ((), ())
                 == run (Knot (bodyParR k1 k2)) ((), ()),
+        -- Structural maps are central: they do not touch the shared state,
+        -- so order of threading is invisible (Benton–Hyland centrality).
+        check "copy is central wrt state-touching body" $
+          let input = (0, (1, 2)) :: (Int, (Int, Int))
+           in bodyCentral (liftBody (\x -> (x, x))) sharedAddF input,
+        check "discard is central wrt state-touching body" $
+          let input = (0, (1, 2)) :: (Int, (Int, Int))
+           in bodyCentral (liftBody (const ())) sharedAddF input,
+        check "plus is central wrt state-touching body" $
+          let input = (0, ((1, 2), 3)) :: (Int, ((Int, Int), Int))
+           in bodyCentral (liftBody (uncurry (+))) sharedAddF input,
+        check "zero is central wrt state-touching body" $
+          let input = (0, ((), 3)) :: (Int, ((), Int))
+           in bodyCentral (liftBody (const 0)) sharedAddF input,
+        check "swap is central wrt state-touching body" $
+          let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
+           in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
