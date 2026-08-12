@@ -80,6 +80,7 @@ module Circuit.Hyper
     flatten,
 
     -- * Shared-medium composition via base change
+    StateT (..),
     stateKleisli,
     runSharedHyperH,
     sharedHyperBy,
@@ -93,7 +94,6 @@ import qualified Circuit.Loop as Loop
 import Circuit.Tensor (Schedule (..), Shared (..), sharedBy)
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
-import Control.Monad.Trans.State.Lazy (StateT (..), runStateT)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Data.Profunctor
@@ -110,10 +110,42 @@ import Prelude hiding (id, (.))
 -- >>> let f2 = (+3) :: Int -> Int
 -- >>> let g2 = (*100) :: Int -> Int
 
--- | A hyperfunction from @a@ to @b@ over the base category @arr@.
+-- ---------------------------------------------------------------------------
+-- Local lazy state transformer
 --
--- To produce a @b@ in @arr@ you must supply a continuation that can
--- produce an @a@.
+-- We keep this local to avoid a dependency on the @transformers@ package.
+-- The implementation matches the standard lazy state transformer; the lazy
+-- 'MonadFix' instance is the part we need, because 'trace' on
+-- @HyperF (Kleisli (StateT s m))@ ties its knot with 'mfix'.
+-- ---------------------------------------------------------------------------
+
+-- | A lazy state monad transformer.
+newtype StateT s m a = StateT { runStateT :: s -> m (a, s) }
+
+instance (Functor m) => Functor (StateT s m) where
+  fmap f m = StateT $ \s ->
+    fmap (\ ~(a, s') -> (f a, s')) (runStateT m s)
+
+instance (Functor m, Monad m) => Applicative (StateT s m) where
+  pure a = StateT $ \s -> return (a, s)
+  StateT mf <*> StateT mx = StateT $ \s -> do
+    ~(f, s') <- mf s
+    ~(x, s'') <- mx s'
+    return (f x, s'')
+
+instance (Monad m) => Monad (StateT s m) where
+  m >>= k = StateT $ \s -> do
+    ~(a, s') <- runStateT m s
+    runStateT (k a) s'
+
+instance (MonadFix m) => MonadFix (StateT s m) where
+  mfix f = StateT $ \s -> mfix $ \ ~(a, _) -> runStateT (f a) s
+
+-- ---------------------------------------------------------------------------
+-- Hyperfunctions
+-- ---------------------------------------------------------------------------
+
+-- | A hyperfunction from @a@ to @b@ over the base category @arr@.
 newtype HyperF arr a b = HyperF
   { -- | Feed a continuation into the hyperfunction.
     invoke :: arr (HyperF arr b a) b
