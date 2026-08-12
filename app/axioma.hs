@@ -147,6 +147,22 @@ sharedAddP = Process (uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
 sharedDoubleP :: Process (Int, Int) (Int, Int)
 sharedDoubleP = Process (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
 
+-- | Function counterpart of 'sharedAddP' for premonoidal centrality tests.
+sharedAddF :: (Int, Int) -> (Int, Int)
+sharedAddF (s, a) = let s' = s + a in (s', s')
+
+-- | Function counterpart of 'sharedDoubleP' for premonoidal centrality tests.
+sharedDoubleF :: (Int, Int) -> (Int, Int)
+sharedDoubleF (s, _c) = let s' = s * 2 in (s', s')
+
+-- | State-agnostic body: passes payload through unchanged.
+bodyIdF :: (Int, Int) -> (Int, Int)
+bodyIdF (s, a) = (s, a)
+
+-- | State-agnostic body: increments the right payload, leaves state alone.
+bodyIncF :: (Int, Int) -> (Int, Int)
+bodyIncF (s, c) = (s, c + 1)
+
 -- ---------------------------------------------------------------------------
 -- Prob helpers for fragment oracles
 -- ---------------------------------------------------------------------------
@@ -413,6 +429,14 @@ bodyParR f g (s, (a, c)) =
   let (s', d) = g (s, c)
       (s'', b) = f (s', a)
    in (s'', These b d)
+
+-- | Centrality of two knot bodies at a chosen input.
+--
+-- Two bodies are central when the premonoidal left-first and right-first
+-- products agree.  For the cartesian instance @Body (,) (->) s@ this is the
+-- statement that order of state threading is invisible.
+bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
+bodyCentral f g input = bodyParL f g input == bodyParR f g input
 
 -- ---------------------------------------------------------------------------
 -- Residual-oracle helpers
@@ -969,6 +993,18 @@ main = do
               k2 = markerBody 2
               input = ([], ((), ())) :: ([Int], ((), ()))
            in sharedBy (Schedule (,Both RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
+        -- Centrality oracles: the ⊗/⅋ distinction is exactly premonoidal centrality
+        check "state-agnostic bodies are central" $
+          let input = (0, (1, 2)) :: (Int, (Int, Int))
+           in bodyCentral bodyIdF bodyIncF input,
+        check "state-touching bodies are not central" $
+          let input = (1, (2, 3)) :: (Int, (Int, Int))
+           in not (bodyCentral sharedAddF sharedDoubleF input),
+        check "marker bodies are central after feedback closure" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+           in run (Knot (bodyParL k1 k2)) ((), ())
+                == run (Knot (bodyParR k1 k2)) ((), ()),
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
