@@ -42,6 +42,7 @@ module Circuit.Tensor
     Action (..),
 
     -- * Shared-medium fusion (the ⅋ connective)
+    Fire (..),
     Schedule (..),
     Shared (..),
     sharedKnotBy,
@@ -555,15 +556,24 @@ superpose x y = case (x, y) of
 -- Shared-medium fusion (the ⅋ connective)
 -- ===========================================================================
 
+-- | Nonempty ordered subsets of the active poles in shared-feedback fusion.
+--
+-- * @L@  — advance the left body only; forward the right input untouched.
+-- * @R@  — advance the right body only; forward the left input untouched.
+-- * @LR@ — advance both bodies, left first.
+-- * @RL@ — advance both bodies, right first.
+data Fire = L | R | LR | RL
+  deriving (Eq, Show)
+
 -- | A schedule drives shared-feedback fusion.
 --
 -- The state @s@ is the shared feedback channel.  At each step the schedule
--- looks at the state and chooses whether the left or right body consumes it
--- next, returning the updated schedule state.
+-- looks at the state and chooses which poles advance, returning the updated
+-- schedule state.
 newtype Schedule s = Schedule
-  { -- | Given the current shared state, return the updated state and a
-    -- boolean: 'True' means run the left body next, 'False' the right.
-    chooseS :: s -> (s, Bool)
+  { -- | Given the current shared state, return the updated state and a 'Fire'
+    -- value describing which poles advance and in what order.
+    chooseS :: s -> (s, Fire)
   }
 
 -- | Tensors that support shared-feedback fusion of two knot bodies.
@@ -602,18 +612,28 @@ sharedKnotBy sched f g = Knot (sharedBy sched f g)
 
 -- | Cartesian shared fusion on functions.
 --
--- Both bodies run every step, but the schedule chooses the order in which
--- they access the shared state.  When both bodies read and write @s@, the
--- two orders are observationally different — this is the ⅋-vs-⊗ distinction.
+-- The schedule chooses which bodies advance and in what order.  @LR@/@RL@
+-- run both bodies; @L@/@R@ run both bodies but keep only one body's update
+-- to the shared state (the other body's state write is discarded).  When both
+-- bodies read and write @s@, the two orders are observationally different —
+-- this is the ⅋-vs-⊗ distinction.
 instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
-    let (s', choice) = chooseS sched s
-     in if choice
-          then
+    let (s', fire) = chooseS sched s
+     in case fire of
+          L ->
+            let (s'', b) = f (s', a)
+                (_, d) = g (s', c)
+             in (s'', (b, d))
+          R ->
+            let (_, b) = f (s', a)
+                (s'', d) = g (s', c)
+             in (s'', (b, d))
+          LR ->
             let (s'', b) = f (s', a)
                 (s''', d) = g (s'', c)
              in (s''', (b, d))
-          else
+          RL ->
             let (s'', d) = g (s', c)
                 (s''', b) = f (s'', a)
              in (s''', (b, d))
@@ -623,13 +643,21 @@ instance Shared (,) (->) where
 instance (Monad m) => Shared (,) (Kleisli m) where
   sharedBy sched (Kleisli f) (Kleisli g) =
     Kleisli $ \(s, (a, c)) -> do
-      let (s', choice) = chooseS sched s
-      if choice
-        then do
+      let (s', fire) = chooseS sched s
+      case fire of
+        L -> do
+          (s'', b) <- f (s', a)
+          (_, d) <- g (s', c)
+          pure (s'', (b, d))
+        R -> do
+          (_, b) <- f (s', a)
+          (s'', d) <- g (s', c)
+          pure (s'', (b, d))
+        LR -> do
           (s'', b) <- f (s', a)
           (s''', d) <- g (s'', c)
           pure (s''', (b, d))
-        else do
+        RL -> do
           (s'', d) <- g (s', c)
           (s''', b) <- f (s'', a)
           pure (s''', (b, d))

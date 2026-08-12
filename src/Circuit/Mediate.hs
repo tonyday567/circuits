@@ -44,7 +44,7 @@ module Circuit.Mediate
 where
 
 import Circuit.Process (Process (..))
-import Circuit.Tensor (Schedule (..), sharedBy)
+import Circuit.Tensor (Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL)
 import Data.Maybe (catMaybes)
 
@@ -227,5 +227,20 @@ mediateSharedBody ::
   Schedule s ->
   (s, (a, a)) ->
   (s, ((), Maybe b))
-mediateSharedBody med sched =
-  sharedBy sched (mediateStoreBody med) (mediateEmitBody med)
+mediateSharedBody med sched (s, (x, y)) =
+  let (s', fire) = chooseS sched s
+   in case fire of
+        L ->
+          let (s'', ()) = mediateStoreBody med (s', x)
+           in (s'', ((), Nothing))
+        R ->
+          let (s'', mb) = mediateEmitBody med (s', y)
+           in (s'', ((), mb))
+        LR ->
+          let (s'', ()) = mediateStoreBody med (s', x)
+              (s''', mb) = mediateEmitBody med (s'', y)
+           in (s''', ((), mb))
+        RL ->
+          let (s'', mb) = mediateEmitBody med (s', y)
+              (s''', ()) = mediateStoreBody med (s'', x)
+           in (s''', ((), mb))

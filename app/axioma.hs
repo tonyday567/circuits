@@ -20,7 +20,7 @@ import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), 
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
-import Circuit.Tensor (Action (..), Bot, Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
+import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', scanl', sort, uncons)
@@ -352,29 +352,36 @@ markerBody n (ns, ()) = (n : ns, take 3 ns)
 -- state.  A pure order swap is invisible to the trace — this is the sliding
 -- axiom of the traced category observed at the shared channel.
 pureLeft :: Schedule [Int]
-pureLeft = Schedule (,True)
+pureLeft = Schedule (,LR)
 
 -- | Schedule that always runs the right body first without modifying the shared
 -- state.
 pureRight :: Schedule [Int]
-pureRight = Schedule (,False)
+pureRight = Schedule (,RL)
 
 -- | Schedule that always runs the left body first, leaving a neutral schedule
 -- token in the shared state so the interleaving is observable.
 leftFirst :: Schedule [Int]
-leftFirst = Schedule $ \s -> (0 : s, True)
+leftFirst = Schedule $ \s -> (0 : s, LR)
 
 -- | Schedule that always runs the right body first, leaving the same neutral
 -- schedule token so the two orderings remain comparable on body sets.
 rightFirst :: Schedule [Int]
-rightFirst = Schedule $ \s -> (0 : s, False)
+rightFirst = Schedule $ \s -> (0 : s, RL)
 
 -- | Schedules for the @Maybe Int@ residual used in the B3 mediator-hyper oracles.
 leftFirstMaybe :: Schedule (Maybe Int)
-leftFirstMaybe = Schedule (,True)
+leftFirstMaybe = Schedule (,LR)
 
 rightFirstMaybe :: Schedule (Maybe Int)
-rightFirstMaybe = Schedule (,False)
+rightFirstMaybe = Schedule (,RL)
+
+-- | Gating schedules for the @Maybe Int@ residual: advance only one body.
+leftOnlyMaybe :: Schedule (Maybe Int)
+leftOnlyMaybe = Schedule (,L)
+
+rightOnlyMaybe :: Schedule (Maybe Int)
+rightOnlyMaybe = Schedule (,R)
 
 -- ---------------------------------------------------------------------------
 -- Residual-oracle helpers
@@ -923,6 +930,12 @@ main = do
         check "Mediate shared body right-first emits Nothing" $
           snd (mediateSharedBody pairSum rightFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
             == ((), Nothing),
+        check "Mediate shared body left-only stores but does not emit" $
+          mediateSharedBody pairSum leftOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
+            == (Just 1, ((), Nothing)),
+        check "Mediate shared body right-only emits from current residual" $
+          mediateSharedBody pairSum rightOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
+            == (Just 2, ((), Nothing)),
         -- Mediate process stream oracles (B3b)
         check "Mediate process pairSum [1,2] returns [3]" $
           catMaybes (scan (mediateProcess pairSum Nothing) [1, 2 :: Int]) == [3],

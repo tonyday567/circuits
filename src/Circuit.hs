@@ -214,6 +214,7 @@ module Circuit
     Action (..),
 
     -- * Shared-medium fusion (the ⅋ connective)
+    Fire (..),
     Schedule (..),
     Shared (..),
     sharedKnotBy,
@@ -248,7 +249,6 @@ import Circuit.ChannelPoly
     idChannel,
     mapChannel,
   )
-
 import Circuit.Dagger
   ( Bimonoid,
     CopyDiscard (..),
@@ -256,7 +256,6 @@ import Circuit.Dagger
     MergeZero (..),
     transpose,
   )
-
 import Circuit.Ends
   ( Bias (..),
     ChuMorphism (..),
@@ -276,15 +275,15 @@ import Circuit.Ends
     composeChu,
     composeEnds,
     copycat,
-    deliveryMatrix,
     deliversToSemiring,
+    deliveryMatrix,
     dimapEnds,
     ends,
     endsAsChu,
     endsK,
     idChu,
-    lmapEnds,
     lawfulDimapEnds,
+    lmapEnds,
     negateChu,
     pairEnds,
     parEnds,
@@ -296,7 +295,6 @@ import Circuit.Ends
     suffixOut,
     (>:>),
   )
-
 import Circuit.Hyper
   ( Hyper,
     HyperF (..),
@@ -311,7 +309,6 @@ import Circuit.Hyper
     runEither,
     runHyper,
   )
-
 import Circuit.Layer
   ( Cat2,
     Free (..),
@@ -340,6 +337,7 @@ import Circuit.Tensor
   ( Action (..),
     Bot,
     Braided (..),
+    Fire (..),
     Par (..),
     Schedule (..),
     Shared (..),
