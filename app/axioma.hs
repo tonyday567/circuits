@@ -11,6 +11,7 @@ import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChann
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
 import Circuit.Ends qualified as Chu
+import Circuit.Ends.State qualified as MedState
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
@@ -947,6 +948,19 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
+        -- Circuit.Ends.State oracles
+        check "Ends.State medStep agrees with medStepDirect (linear)" $
+          let s = Nothing :: Maybe Int
+              a = 42
+           in MedState.medStep MedState.medLinear s a == MedState.medStepDirect MedState.medLinear s a,
+        check "Ends.State runMed linear forwards every input" $
+          MedState.runMed MedState.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
+        check "Ends.State runMed pairSum buffers and sums pairs" $
+          MedState.runMed MedState.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
+        check "Ends.State runMed pairSum odd input leaves residual" $
+          MedState.runMed MedState.medPairSum [1, 2, 3 :: Int] == [3],
+        check "Ends.State runMed count emits accumulating residual" $
+          MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
           snd (mediateSharedBody pairSum leftFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
