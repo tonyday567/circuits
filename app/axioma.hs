@@ -362,29 +362,29 @@ markerBody n (ns, ()) = (n : ns, take 3 ns)
 -- state.  A pure order swap is invisible to the trace — this is the sliding
 -- axiom of the traced category observed at the shared channel.
 pureLeft :: Schedule [Int]
-pureLeft = Schedule (,LR)
+pureLeft = Schedule (,Both LeftFirst)
 
 -- | Schedule that always runs the right body first without modifying the shared
 -- state.
 pureRight :: Schedule [Int]
-pureRight = Schedule (,RL)
+pureRight = Schedule (,Both RightFirst)
 
 -- | Schedule that always runs the left body first, leaving a neutral schedule
 -- token in the shared state so the interleaving is observable.
 leftFirst :: Schedule [Int]
-leftFirst = Schedule $ \s -> (0 : s, LR)
+leftFirst = Schedule $ \s -> (0 : s, Both LeftFirst)
 
 -- | Schedule that always runs the right body first, leaving the same neutral
 -- schedule token so the two orderings remain comparable on body sets.
 rightFirst :: Schedule [Int]
-rightFirst = Schedule $ \s -> (0 : s, RL)
+rightFirst = Schedule $ \s -> (0 : s, Both RightFirst)
 
 -- | Schedules for the @Maybe Int@ residual used in the B3 mediator-hyper oracles.
 leftFirstMaybe :: Schedule (Maybe Int)
-leftFirstMaybe = Schedule (,LR)
+leftFirstMaybe = Schedule (,Both LeftFirst)
 
 rightFirstMaybe :: Schedule (Maybe Int)
-rightFirstMaybe = Schedule (,RL)
+rightFirstMaybe = Schedule (,Both RightFirst)
 
 -- | Gating schedules for the @Maybe Int@ residual: advance only one body.
 leftOnlyMaybe :: Schedule (Maybe Int)
@@ -642,8 +642,8 @@ main = do
           let p = run (Net.Plus :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
            in scan p [(2, 3)] == [5],
         check "Shared (,) Process LR order differs from RL" $
-          let lr = sharedBy (Schedule (,LR) :: Schedule Int) sharedAddP sharedDoubleP
-              rl = sharedBy (Schedule (,RL) :: Schedule Int) sharedAddP sharedDoubleP
+          let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP
+              rl = sharedBy (Schedule (,Both RightFirst) :: Schedule Int) sharedAddP sharedDoubleP
            in scan lr [(1, (2, 3))] == [(6, (3, 6))]
                 && scan rl [(1, (2, 3))] == [(4, (4, 2))],
         -- Circuit.Prob oracles

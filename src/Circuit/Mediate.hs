@@ -53,7 +53,7 @@ where
 import Circuit.Loop (Loop)
 import Circuit.Process (Process, scan)
 import Circuit.Process qualified as Process
-import Circuit.Tensor (Fire (..), Schedule (..), chooseS)
+import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL)
 import Data.Maybe (catMaybes)
 
@@ -255,11 +255,11 @@ mediateSharedBody med sched (s, (x, y)) =
         R ->
           let (s'', mb) = mediateEmitBody med (s', y)
            in (s'', ((), mb))
-        LR ->
+        Both LeftFirst ->
           let (s'', ()) = mediateStoreBody med (s', x)
               (s''', mb) = mediateEmitBody med (s'', y)
            in (s''', ((), mb))
-        RL ->
+        Both RightFirst ->
           let (s'', mb) = mediateEmitBody med (s', y)
               (s''', ()) = mediateStoreBody med (s'', x)
            in (s''', ((), mb))

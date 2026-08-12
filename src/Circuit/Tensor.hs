@@ -42,6 +42,7 @@ module Circuit.Tensor
     Action (..),
 
     -- * Shared-medium fusion (the ⅋ connective)
+    Bias (..),
     Fire (..),
     Schedule (..),
     Shared (..),
@@ -558,11 +559,17 @@ superpose x y = case (x, y) of
 
 -- | Nonempty ordered subsets of the active poles in shared-feedback fusion.
 --
--- * @L@  — advance the left body only; forward the right input untouched.
--- * @R@  — advance the right body only; forward the left input untouched.
--- * @LR@ — advance both bodies, left first.
--- * @RL@ — advance both bodies, right first.
-data Fire = L | R | LR | RL
+-- | Schedule bias for the inclusive @These@ branch.
+data Bias = LeftFirst | RightFirst
+  deriving (Eq, Show)
+
+-- | A schedule decision, now shaped by the inclusive tensor.
+--
+-- * @L@ — advance the left body only (corresponds to 'This').
+-- * @R@ — advance the right body only (corresponds to 'That').
+-- * @Both b@ — advance both bodies, with the bias choosing the order
+--   (corresponds to 'These').
+data Fire = L | R | Both Bias
   deriving (Eq, Show)
 
 -- | A schedule drives shared-feedback fusion.
@@ -612,11 +619,11 @@ sharedKnotBy sched f g = Knot (sharedBy sched f g)
 
 -- | Cartesian shared fusion on functions.
 --
--- The schedule chooses which bodies advance and in what order.  @LR@/@RL@
--- run both bodies; @L@/@R@ run both bodies but keep only one body's update
--- to the shared state (the other body's state write is discarded).  When both
--- bodies read and write @s@, the two orders are observationally different —
--- this is the ⅋-vs-⊗ distinction.
+-- The schedule chooses which bodies advance and in what order.  @Both LeftFirst@
+-- / @Both RightFirst@ run both bodies, left-first or right-first; @L@/@R@
+-- run both bodies but keep only one body's update to the shared state (the
+-- other body's state write is discarded).  When both bodies read and write @s@,
+-- the two orders are observationally different — this is the ⅋-vs-⊗ distinction.
 instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
     let (s', fire) = chooseS sched s
@@ -629,11 +636,11 @@ instance Shared (,) (->) where
             let (_, b) = f (s', a)
                 (s'', d) = g (s', c)
              in (s'', (b, d))
-          LR ->
+          Both LeftFirst ->
             let (s'', b) = f (s', a)
                 (s''', d) = g (s'', c)
              in (s''', (b, d))
-          RL ->
+          Both RightFirst ->
             let (s'', d) = g (s', c)
                 (s''', b) = f (s'', a)
              in (s''', (b, d))
@@ -653,11 +660,11 @@ instance (Monad m) => Shared (,) (Kleisli m) where
           (_, b) <- f (s', a)
           (s'', d) <- g (s', c)
           pure (s'', (b, d))
-        LR -> do
+        Both LeftFirst -> do
           (s'', b) <- f (s', a)
           (s''', d) <- g (s'', c)
           pure (s''', (b, d))
-        RL -> do
+        Both RightFirst -> do
           (s'', d) <- g (s', c)
           (s''', b) <- f (s'', a)
           pure (s''', (b, d))

@@ -112,7 +112,7 @@ import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Dagger (CopyDiscard (..))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (Mediator (..))
-import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
 import Control.Arrow (Kleisli (..))
 import Data.Maybe (isNothing)
 import Data.Void (Void)
@@ -556,10 +556,6 @@ instance HasSilent [a] where
 
 instance HasSilent (Maybe a) where
   silent = Nothing
-
--- | Schedule bias for disjunctive composition.
-data Bias = LeftFirst | RightFirst
-  deriving (Eq, Show)
 
 -- | Additive conjunction: both sub-ends receive the same input and their
 -- outputs are paired.

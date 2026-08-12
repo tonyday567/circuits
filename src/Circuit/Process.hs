@@ -66,7 +66,7 @@ import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Poly (Dir, Mono, Pos, System (..))
-import Circuit.Tensor (Action (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
+import Circuit.Tensor (Action (..), Bias (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
 import Control.Category qualified as Cat
 import Data.Bifunctor (bimap, first, second)
 import Data.List (scanl')
@@ -371,13 +371,13 @@ instance Shared (,) Process where
               sL0 = iL (s', a)
               (_, b) = exL sL0
            in (sL0, sR0, s'', b, d)
-        LR ->
+        Both LeftFirst ->
           let sL0 = iL (s', a)
               (sMid, b) = exL sL0
               sR0 = iR (sMid, c)
               (sOut, d) = exR sR0
            in (sL0, sR0, sOut, b, d)
-        RL ->
+        Both RightFirst ->
           let sR0 = iR (s', c)
               (sMid, d) = exR sR0
               sL0 = iL (sMid, a)
@@ -397,13 +397,13 @@ instance Shared (,) Process where
               sL' = stL sL (s', a)
               (_, b) = exL sL'
            in (sL', sR', s'', b, d)
-        LR ->
+        Both LeftFirst ->
           let sL' = stL sL (s', a)
               (s'', b) = exL sL'
               sR' = stR sR (s'', c)
               (s''', d) = exR sR'
            in (sL', sR', s''', b, d)
-        RL ->
+        Both RightFirst ->
           let sR' = stR sR (s', c)
               (s'', d) = exR sR'
               sL' = stL sL (s'', a)
