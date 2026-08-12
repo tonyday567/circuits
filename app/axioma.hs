@@ -1030,6 +1030,18 @@ main = do
               k2 = markerBody 2
               input = ([], ((), ())) :: ([Int], ((), ()))
            in sharedBy (Schedule (,Both RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
+        -- Gate: Bias = f⋉g / f⋊g means the hand-written products agree with
+        -- sharedBy under the constant schedules pureLeft / pureRight.
+        check "bodyParL equals sharedBy under pureLeft" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+           in bodyParL k1 k2 input == sharedBy pureLeft k1 k2 input,
+        check "bodyParR equals sharedBy under pureRight" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+           in bodyParR k1 k2 input == sharedBy pureRight k1 k2 input,
         -- Gate: Bias is the premonoidal ordering iff the whiskerings agree.
         check "left-first whiskering equals bodyParL" $
           let k1 = markerBody 1
@@ -1044,32 +1056,39 @@ main = do
               (s, (b, d)) = whiskerR k1 k2 input
            in (s, These b d) == bodyParR k1 k2 input,
         -- Centrality oracles: the ⊗/⅋ distinction is exactly premonoidal centrality
-        check "state-agnostic bodies are central" $
+        -- Centrality witnesses: bodyCentral is a predicate at one input against
+        -- one partner. These are existence witnesses, not proofs of ∀g.
+        check "state-agnostic bodies witness centrality at a point" $
           let input = (0, (1, 2)) :: (Int, (Int, Int))
            in bodyCentral bodyIdF bodyIncF input,
-        check "state-touching bodies are not central" $
+        check "state-touching bodies witness non-centrality at a point" $
           let input = (1, (2, 3)) :: (Int, (Int, Int))
            in not (bodyCentral sharedAddF sharedDoubleF input),
-        check "marker bodies are central after feedback closure" $
+        -- markerBody writes to the shared state, so these bodies are NOT central.
+        -- What this oracle observes: after feedback closure, the two threading
+        -- orders produce the same observable output (here, the same rotation of
+        -- markers). This is a coincidence of the example, not Benton–Hyland
+        -- centrality and not Centre Preservation (Def 3.2 runs the other way).
+        check "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
           let k1 = markerBody 1
               k2 = markerBody 2
            in run (Knot (bodyParL k1 k2)) ((), ())
                 == run (Knot (bodyParR k1 k2)) ((), ()),
         -- Structural maps are central: they do not touch the shared state,
         -- so order of threading is invisible (Benton–Hyland centrality).
-        check "copy is central wrt state-touching body" $
+        check "copy witnesses centrality wrt state-touching body at a point" $
           let input = (0, (1, 2)) :: (Int, (Int, Int))
            in bodyCentral (liftBody (\x -> (x, x))) sharedAddF input,
-        check "discard is central wrt state-touching body" $
+        check "discard witnesses centrality wrt state-touching body at a point" $
           let input = (0, (1, 2)) :: (Int, (Int, Int))
            in bodyCentral (liftBody (const ())) sharedAddF input,
-        check "plus is central wrt state-touching body" $
+        check "plus witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((1, 2), 3)) :: (Int, ((Int, Int), Int))
            in bodyCentral (liftBody (uncurry (+))) sharedAddF input,
-        check "zero is central wrt state-touching body" $
+        check "zero witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((), 3)) :: (Int, ((), Int))
            in bodyCentral (liftBody (const 0)) sharedAddF input,
-        check "swap is central wrt state-touching body" $
+        check "swap witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
            in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
         -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
