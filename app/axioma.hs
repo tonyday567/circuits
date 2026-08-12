@@ -948,6 +948,16 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
+        -- Mediate / Ends.State equivalence oracles
+        check "mediatorToMed linear agrees with runMediator" $
+          MedState.runMed (MedState.mediatorToMed linear) [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
+        check "mediatorToMed pairSum agrees with runMediator" $
+          MedState.runMed (MedState.mediatorToMed pairSum) [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
+        check "mediatorToMed count agrees with runMediator" $
+          MedState.runMed (MedState.mediatorToMed count) [(), (), ()] == runMediator count [(), (), ()],
+        check "medToMediator . mediatorToMed round-trips on pairSum" $
+          let m = MedState.medToMediator (MedState.mediatorToMed pairSum)
+           in runMediator m [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
         -- Circuit.Ends.State oracles
         check "Ends.State medStep agrees with medStepDirect (linear)" $
           let s = Nothing :: Maybe Int

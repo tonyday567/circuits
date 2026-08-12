@@ -27,6 +27,10 @@ module Circuit.Ends.State
     medStepDirect,
     runMed,
 
+    -- * Mediate view
+    mediatorToMed,
+    medToMediator,
+
     -- * Reusable mediator configurations
     medLinear,
     medPairSum,
@@ -36,6 +40,7 @@ where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
+import Circuit.Mediate qualified as Mediate
 import Data.Maybe (catMaybes)
 import Prelude hiding (id, (.))
 
@@ -133,6 +138,34 @@ runMed :: Med s a b -> [a] -> [b]
 runMed med xs =
   let (_, mys) = foldl (\(s, acc) a -> let (s', mb) = medStep med s a in (s', mb : acc)) (medSeed med, []) xs
    in reverse (catMaybes mys)
+
+-- | View a Mealy-style 'Mediator' as a pole-unfused 'Med' over 'SArr'.
+--
+-- The residual is extended with a one-slot output buffer @Maybe (Maybe b)@:
+-- the outer 'Maybe' is the buffer slot, the inner 'Maybe' is the mediator's
+-- optional output.  The write pole runs the full mediator step and stores the
+-- output; the read pole emits and clears the buffer.  This keeps same-tick
+-- semantics: one input in, zero or one output out.
+--
+-- Law: @runMediator med xs == runMed (mediatorToMed med) xs@.
+mediatorToMed :: Mediate.Mediator s a b -> Med (s, Maybe (Maybe b)) a b
+mediatorToMed med =
+  Med
+    { medSeed = (Mediate.medInit med, Nothing),
+      medIn = \((s, _), a) ->
+        let (s', mb) = Mediate.medStep med s a
+         in (s', Just mb),
+      medOut = \case
+        (s, Just mb) -> ((s, Nothing), mb)
+        (s, Nothing) -> ((s, Nothing), Nothing)
+    }
+
+-- | View a pole-unfused 'Med' as a Mealy-style 'Mediator'.
+--
+-- This is the tautological reverse direction: the step is 'medStepDirect',
+-- i.e. write then read.
+medToMediator :: Med s a b -> Mediate.Mediator s a b
+medToMediator med = Mediate.Mediator (medSeed med) (medStepDirect med)
 
 -- | Linear mediator: no residual, every input is forwarded immediately.
 medLinear :: Med (Maybe a) a a
