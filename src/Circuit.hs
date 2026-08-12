@@ -324,6 +324,7 @@ import Circuit.Mediate
   ( Mediator (..),
     count,
     linear,
+    mediateLoop,
     pairSum,
     runMediator,
   )

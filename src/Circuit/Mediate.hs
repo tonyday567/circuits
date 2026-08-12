@@ -1,17 +1,23 @@
--- | Mediator abstraction for Track B.
+-- | Mediator abstraction as a thin wrapper over 'Circuit.Process'.
 --
--- A mediator is a state machine with residual state @s@. It consumes inputs of
--- type @a@ and may produce outputs of type @b@. The residual state is what
--- persists between interactions; it is the locus of the "Ends-with-residual"
--- design.
+-- A mediator is a Mealy-style state machine with residual state @s@. It
+-- consumes inputs of type @a@ and may produce outputs of type @b@. The
+-- residual state is what persists between interactions.
 --
--- The channel type itself carries no residual field. The residual is supplied
--- by a mediator value when two channels are composed.
+-- Conceptually a mediator is just a 'Process' that may skip outputs:
 --
--- Whether the mediator is best implemented as a plain state-passing record or
--- as a 'Circuit.Hyper.HyperF' is the deferred B1/B3 question. This module
--- starts with the record version because it is the minimal design that
--- reproduces the B0 oracles.
+-- @
+--   Mediator s a b  ≈  Process a (Maybe b)
+-- @
+--
+-- The wrapper keeps the residual type @s@ exposed so that close certification
+-- can inspect the final state. All streaming behaviour is delegated to the
+-- underlying 'Process': 'runMediator' is 'scan' followed by 'catMaybes',
+-- and 'mediateLoop' is 'Circuit.Process.encode'.
+--
+-- The shared-medium fusion ('mediateSharedBody') exposes the two poles of the
+-- mediator as the store and emit bodies of an @Ends (Kleisli (State s))@
+-- channel, threaded by a 'Circuit.Tensor.Fire' schedule.
 module Circuit.Mediate
   ( -- * Mediator state machine
     Mediator (..),
@@ -28,8 +34,9 @@ module Circuit.Mediate
     medCounit,
     medComult,
 
-    -- * Stream view
+    -- * Stream / loop views
     mediateProcess,
+    mediateLoop,
 
     -- * Reusable mediator configurations
     linear,
@@ -43,7 +50,9 @@ module Circuit.Mediate
   )
 where
 
-import Circuit.Process (Process (..))
+import Circuit.Loop (Loop)
+import Circuit.Process (Process, scan)
+import Circuit.Process qualified as Process
 import Circuit.Tensor (Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL)
 import Data.Maybe (catMaybes)
@@ -54,8 +63,8 @@ import Data.Maybe (catMaybes)
 -- emit zero or one output. A 'Nothing' output means the mediator is still
 -- accumulating residual state.
 --
--- This is the minimal strict-alternation model suggested by the B0 spike:
--- the mediator owns the buffer that the old @composeEnds@ flattened to @()@.
+-- This record is a thin wrapper: the canonical stream view is obtained via
+-- 'mediateProcess'.
 data Mediator s a b = Mediator
   { -- | Initial residual state.
     medInit :: s,
@@ -65,6 +74,9 @@ data Mediator s a b = Mediator
 
 -- | Run a mediator over a list of inputs, collecting both the emitted outputs
 -- and the final residual state.
+--
+-- This is the direct state-passing semantics; it is the reference against
+-- which the 'Process'-derived 'runMediator' is checked.
 runMediatorState :: Mediator s a b -> s -> [a] -> (s, [b])
 runMediatorState m s0 xs =
   let (sFinal, mys) = mapAccumL (medStep m) s0 xs
@@ -72,10 +84,10 @@ runMediatorState m s0 xs =
 
 -- | Run a mediator over a list of inputs, collecting emitted outputs.
 --
--- This is the reference semantics for the mediator: push inputs strictly and
+-- This delegates to the underlying 'Process' view: push inputs strictly and
 -- pull whenever the mediator is willing to emit.
 runMediator :: Mediator s a b -> [a] -> [b]
-runMediator m = snd . runMediatorState m (medInit m)
+runMediator m = catMaybes . scan (mediateProcess m (medInit m))
 
 -- | Types whose residual state has a canonical empty value. A 'closeCertified'
 -- run asserts that the mediator's residual has returned to this value.
@@ -171,14 +183,21 @@ medComult m = (m, m)
 -- seed @s0@ is the initial residual, following the register pattern.
 --
 -- This is the honest stream cut: the residual state is carried by the
--- process's feedback wire, exactly as 'encode' carries it in a
+-- process's feedback wire, exactly as 'Process.encode' carries it in a
 -- @Loop Either (->) [a] [Maybe b]@.
 mediateProcess :: Mediator s a b -> s -> Process a (Maybe b)
 mediateProcess med s0 =
-  Process
+  Process.Process
     (\a -> let (s', my) = medStep med s0 a in (s', my))
     (\(s, _) a -> let (s', my) = medStep med s a in (s', my))
     snd
+
+-- | View a mediator as a 'Loop' over input / output lists.
+--
+-- This is the wrapper collapsed one layer further: the mediator is just a
+-- traced state machine iterating over lists.
+mediateLoop :: Mediator s a b -> Loop Either (->) [a] [Maybe b]
+mediateLoop m = Process.encode (mediateProcess m (medInit m))
 
 -- | Linear mediator: no residual, every input is forwarded immediately.
 --

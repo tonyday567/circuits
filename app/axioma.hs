@@ -16,7 +16,7 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, register, scan)
@@ -943,6 +943,13 @@ main = do
           catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int]) == [3, 7],
         check "Mediate process agrees with runMediator" $
           catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int])
+            == runMediator pairSum [1, 2, 3, 4],
+        -- Mediate loop oracles (B3c)
+        check "Mediate loop is encode of mediateProcess" $
+          run (mediateLoop pairSum) [1, 2, 3, 4 :: Int]
+            == scan (mediateProcess pairSum Nothing) [1, 2, 3, 4],
+        check "Mediate loop outputs stripped Nothings agree with runMediator" $
+          catMaybes (run (mediateLoop pairSum) [1, 2, 3, 4 :: Int])
             == runMediator pairSum [1, 2, 3, 4],
         -- Mediate close certification oracles (B4)
         check "closeCertified linear closes cleanly" $
