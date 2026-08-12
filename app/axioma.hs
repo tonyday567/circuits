@@ -394,6 +394,26 @@ leftOnlyMaybe = Schedule (,L)
 rightOnlyMaybe :: Schedule (Maybe Int)
 rightOnlyMaybe = Schedule (,R)
 
+-- | Premonoidal left-first product of two knot bodies.
+--
+-- This is the composite @(f ⊗ id) ; (id ⊗ g)@ in the category of knot bodies
+-- @Body (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
+bodyParL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, These b d))
+bodyParL f g (s, (a, c)) =
+  let (s', b) = f (s, a)
+      (s'', d) = g (s', c)
+   in (s'', These b d)
+
+-- | Premonoidal right-first product of two knot bodies.
+--
+-- This is the composite @(id ⊗ g) ; (f ⊗ id)@.  It threads the shared state
+-- through @g@ first, then @f@.
+bodyParR :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, These b d))
+bodyParR f g (s, (a, c)) =
+  let (s', d) = g (s, c)
+      (s'', b) = f (s', a)
+   in (s'', These b d)
+
 -- ---------------------------------------------------------------------------
 -- Residual-oracle helpers
 -- ---------------------------------------------------------------------------
@@ -939,6 +959,16 @@ main = do
               k2 = markerBody 2
            in run (sharedKnotBy rightFirst k1 k2) ((), ())
                 /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+        check "sharedBy Both LeftFirst equals premonoidal left-first product" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+           in sharedBy (Schedule (,Both LeftFirst) :: Schedule [Int]) k1 k2 input == bodyParL k1 k2 input,
+        check "sharedBy Both RightFirst equals premonoidal right-first product" $
+          let k1 = markerBody 1
+              k2 = markerBody 2
+              input = ([], ((), ())) :: ([Int], ((), ()))
+           in sharedBy (Schedule (,Both RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
