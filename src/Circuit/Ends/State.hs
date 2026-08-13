@@ -47,9 +47,11 @@ module Circuit.Ends.State
 
     -- * Reusable mediator configurations
     medLinear,
-    PS (..),
     medPairSum,
     medCount,
+
+    -- * Re-exported residual types
+    Mediate.PS (..),
   )
 where
 
@@ -66,7 +68,7 @@ import Circuit.Body
     sArrToBody,
   )
 import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
+import Circuit.Ends (Ends (..), HasDual (..), In (..), Out (..), close, emit, ends0, splay0)
 import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
 import Circuit.Process (Machine (..), Process (..))
@@ -81,7 +83,7 @@ import Prelude hiding (id, (.))
 -- This instance is technically orphan because 'SArr' now lives in
 -- 'Circuit.Body', but keeping it here keeps the 'Ends' plumbing local to this
 -- conversions module.
-instance HasUnit () (SArr s) where
+instance HasDual () (SArr s) where
   open =
     let outU = Out $ \_ -> SArr $ \(s, _) -> (s, ())
         inU = In $ \o -> emit o inU
@@ -269,35 +271,13 @@ medLinear =
         Nothing -> (Nothing, Nothing)
     }
 
--- | Three-state residual for pair summation.
---
--- * 'Empty'  : no buffered value.
--- * 'Held'   : one value buffered, not yet ready.
--- * 'Ready'  : a sum is ready for emission.
-data PS = Empty | Held Int | Ready Int
-  deriving (Eq, Show)
-
-instance Mediate.LinearResidual PS where
-  emptyResidual = Empty
-
 -- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
 --
--- State is 'PS'.  'Held' carries a buffered value; 'Ready' carries a value
--- ready for emission.  'Empty' cleanly represents the absence of a residual,
--- so zero is a valid input.
-medPairSum :: Med PS Int Int
-medPairSum =
-  Med
-    { medSeed = Empty,
-      medIn = \case
-        (Empty, x) -> Held x
-        (Held y, x) -> Ready (x + y)
-        (Ready _, x) -> Held x,
-      medOut = \case
-        Empty -> (Empty, Nothing)
-        Held y -> (Held y, Nothing)
-        Ready z -> (Empty, Just z)
-    }
+-- State is 'Mediate.PS' extended with the output-buffer slot introduced by
+-- 'mediatorToMed'.  'Held' carries a buffered value; 'Empty' cleanly represents
+-- the absence of a residual, so zero is a valid input.
+medPairSum :: Med (Mediate.PS, Maybe (Maybe Int)) Int Int
+medPairSum = mediatorToMed Mediate.pairSum
 
 -- | Count mediator: emits the number of inputs seen so far.
 medCount :: Med Int () Int

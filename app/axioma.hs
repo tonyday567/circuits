@@ -5,12 +5,12 @@
 module Main where
 
 import Circuit.Algebra qualified as Alg
-import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
+import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
-import Circuit.Ends (Bias (..), Ends (..), box, close, composeEnds0, copycat, ends0, endsK, pairEnds, prefixIn, raceEnds, splay0, suffixOut)
+import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
 import Circuit.Ends qualified as Chu
 import Circuit.Ends.State qualified as MedState
 import Circuit.FinRel
@@ -18,7 +18,7 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation (..), Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
+import Circuit.Mediate (FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -397,23 +397,19 @@ leftFirst = Schedule $ \s -> (0 : s, Both LeftFirst)
 rightFirst :: Schedule [Int]
 rightFirst = Schedule $ \s -> (0 : s, Both RightFirst)
 
--- | Schedules for the @Maybe Int@ residual used in the B3 mediator-hyper oracles.
-leftFirstMaybe :: Schedule (Maybe Int)
-leftFirstMaybe = Schedule (,Both LeftFirst)
+-- | Schedules for the @PS@ residual used in the B3 mediator-hyper oracles.
+leftFirstPS :: Schedule PS
+leftFirstPS = Schedule (,Both LeftFirst)
 
-rightFirstMaybe :: Schedule (Maybe Int)
-rightFirstMaybe = Schedule (,Both RightFirst)
+rightFirstPS :: Schedule PS
+rightFirstPS = Schedule (,Both RightFirst)
 
--- | Gating schedules for the @Maybe Int@ residual: advance only one body.
-leftOnlyMaybe :: Schedule (Maybe Int)
-leftOnlyMaybe = Schedule (,L)
-
-rightOnlyMaybe :: Schedule (Maybe Int)
-rightOnlyMaybe = Schedule (,R)
-
--- | Gating schedule for the @PS@ residual used by 'MedState.medPairSum'.
-leftOnlyPS :: Schedule MedState.PS
+-- | Gating schedules for the @PS@ residual: advance only one body.
+leftOnlyPS :: Schedule PS
 leftOnlyPS = Schedule (,L)
+
+rightOnlyPS :: Schedule PS
+rightOnlyPS = Schedule (,R)
 
 -- | Premonoidal left-first product of two knot bodies.
 --
@@ -868,6 +864,16 @@ main = do
           r1 <- runKleisli (Chu.chuPair chu (conjoint e, companion e)) 7
           r2 <- runKleisli (Chu.chuPair chu'' (conjoint e, companion e)) 7
           pure (r1 == 7 && r2 == 7),
+        check "Bool as a non-terminal 'Ends' pole composes write then read" $
+          let e :: Ends (->) Int Int
+              e = ends @(->) @Int @Int @Bool (const False) (\b -> if b then 1 :: Int else 0)
+              (w, r) = splay @(->) @Int @Int @Bool e
+           in not (w 42) && r False == 0 && close (conjoint e) (companion e) 42 == 0,
+        check "Bool copycat is not identity (Bool is not terminal)" $
+          let e :: Ends (->) Bool Bool
+              e = copycat @(->) @Bool
+           in not (close (conjoint e) (companion e) True)
+                && not (close (conjoint e) (companion e) False),
         -- Additive Ends oracles
         check "Additive pairEnds pairs outputs" $
           let e1 :: Ends (->) () Int
@@ -907,6 +913,13 @@ main = do
         check "Boundary fmap acts on Payload" $
           let p = fmap length (Payload "hi" :: Boundary String String)
            in isPayload p && p == Payload 2,
+        -- Linear marks (Z6c) — SwapQ integration is deferred
+        check "Linear marker round-trips through unLinear" $
+          unLinear (Linear 42 :: Linear Int) == (42 :: Int),
+        check "NotLinear constraint accepts plain payloads" $
+          let acceptsNonLinear :: (NotLinear a) => a -> a
+              acceptsNonLinear = id
+           in acceptsNonLinear (42 :: Int) == 42,
         -- Chu construction
         check "Chu negation is involutive" $
           let e :: (Int, Int) -> Bool
@@ -1373,7 +1386,9 @@ main = do
         check "Ends.State medPairSum under left-only gating schedule reports violation" $
           let med = MedState.medToMediator MedState.medPairSum
               s0 = MedState.medSeed MedState.medPairSum
-              step s x = fst (mediateSharedBody med leftOnlyPS (s, (x, 0)))
+              leftOnlyBufferedPS :: Schedule (MedState.PS, Maybe (Maybe Int))
+              leftOnlyBufferedPS = Schedule $ \(s, buf) -> ((s, buf), L)
+              step s x = fst (mediateSharedBody med leftOnlyBufferedPS (s, (x, 0)))
               sFinal = foldl step s0 [1, 2, 3 :: Int]
            in case closeCertified med sFinal [] of
                 Left (LinearityViolation msg) -> "Held 3" `isInfixOf` msg
@@ -1406,29 +1421,29 @@ main = do
            in MedState.runSomeEnds ends [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
-          snd (mediateSharedBody pairSum leftFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
+          snd (mediateSharedBody pairSum leftFirstPS (Empty :: PS, (1, 2 :: Int)))
             == These () (Just 3),
         check "Mediate shared body right-first emits Nothing" $
-          snd (mediateSharedBody pairSum rightFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))
+          snd (mediateSharedBody pairSum rightFirstPS (Empty :: PS, (1, 2 :: Int)))
             == These () Nothing,
         check "Mediate shared body left-only stores but does not emit" $
-          mediateSharedBody pairSum leftOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
-            == (Just 1, This ()),
+          mediateSharedBody pairSum leftOnlyPS (Empty :: PS, (1, 2 :: Int))
+            == (Held 1, This ()),
         check "Mediate shared body right-only emits nothing without residual" $
-          mediateSharedBody pairSum rightOnlyMaybe (Nothing :: Maybe Int, (1, 2 :: Int))
-            == (Just 2, That Nothing),
+          mediateSharedBody pairSum rightOnlyPS (Empty :: PS, (1, 2 :: Int))
+            == (Held 2, That Nothing),
         -- Mediate process stream oracles (B3b)
         check "Mediate process pairSum [1,2] returns [3]" $
-          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2 :: Int]) == [3],
+          catMaybes (scan (mediateProcess pairSum Empty) [1, 2 :: Int]) == [3],
         check "Mediate process pairSum [1,2,3,4] returns [3,7]" $
-          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int]) == [3, 7],
+          catMaybes (scan (mediateProcess pairSum Empty) [1, 2, 3, 4 :: Int]) == [3, 7],
         check "Mediate process agrees with runMediator" $
-          catMaybes (scan (mediateProcess pairSum Nothing) [1, 2, 3, 4 :: Int])
+          catMaybes (scan (mediateProcess pairSum Empty) [1, 2, 3, 4 :: Int])
             == runMediator pairSum [1, 2, 3, 4],
         -- Mediate loop oracles (B3c)
         check "Mediate loop is encode of mediateProcess" $
           run (mediateLoop pairSum) [1, 2, 3, 4 :: Int]
-            == scan (mediateProcess pairSum Nothing) [1, 2, 3, 4],
+            == scan (mediateProcess pairSum Empty) [1, 2, 3, 4],
         check "Mediate loop outputs stripped Nothings agree with runMediator" $
           catMaybes (run (mediateLoop pairSum) [1, 2, 3, 4 :: Int])
             == runMediator pairSum [1, 2, 3, 4],
@@ -1436,7 +1451,7 @@ main = do
         check "closeCertified linear closes cleanly" $
           closeCertified linear () [1, 2, 3 :: Int] == Right [1, 2, 3],
         check "closeCertified pairSum odd leaves residual" $
-          case closeCertified pairSum (Nothing :: Maybe Int) [1, 2, 3 :: Int] of
+          case closeCertified pairSum (Empty :: PS) [1, 2, 3 :: Int] of
             Left _ -> True
             Right _ -> False,
         check "closeCertified count leaves residual" $
@@ -1445,21 +1460,20 @@ main = do
             Right _ -> False,
         -- Mediate drain oracles (B4b)
         check "closeCertifiedWith drains count residual clean" $
-          closeCertifiedWith (== 0) (\n -> Just (n, 0 :: Int)) count (0 :: Int) [(), (), ()]
+          closeCertifiedWith count (0 :: Int) [()]
+            == Right [1, 1],
+        check "closeCertifiedWith flushes final count on close" $
+          closeCertifiedWith count (0 :: Int) [(), (), ()]
             == Right [1, 2, 3, 3],
-        check "closeCertifiedWith refuses to drain pairSum half-pair" $
-          case closeCertifiedWith isNothing (const Nothing) pairSum (Nothing :: Maybe Int) [1, 2, 3 :: Int] of
-            Left _ -> True
-            Right _ -> False,
-        check "closeCertifiedWith drains list residual via uncons" $
+        check "closeCertifiedWithBy drains list residual via uncons" $
           let buffer = Mediator [] $ \s x -> (x : s, Nothing :: Maybe Int)
-           in closeCertifiedWith null uncons buffer ([] :: [Int]) [1, 2, 3]
+           in closeCertifiedWithBy null uncons buffer ([] :: [Int]) [1, 2, 3]
                 == Right [3, 2, 1],
         -- Mediate ?-comonoid oracles
         check "medCounit linear closes empty residual cleanly" $
           medCounit linear () == (Right [] :: Either LinearityViolation [Int]),
         check "medCounit pairSum non-empty residual reports violation" $
-          case medCounit pairSum (Just 1 :: Maybe Int) of
+          case medCounit pairSum (Held 1 :: PS) of
             Left _ -> True
             Right _ -> False,
         check "medComult linear duplicates policy faithfully" $

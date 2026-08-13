@@ -1,3 +1,6 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+
 -- | The free boundary @K + payload@.
 --
 -- A token on the boundary is either a mark from a finite alphabet @k@ or a
@@ -10,6 +13,11 @@ module Circuit.Boundary
 
     -- * Stamped values
     Stamped (..),
+
+    -- * Linearity marks
+    Linear (..),
+    IsLinear,
+    NotLinear,
   )
 where
 
@@ -75,3 +83,30 @@ data Stamped r a = Stamped
 
 instance Bifunctor Stamped where
   bimap f g (Stamped r a) = Stamped (f r) (g a)
+
+-- ---------------------------------------------------------------------------
+-- Linearity marks
+-- ---------------------------------------------------------------------------
+
+-- | A compile-time marker that a payload is linear: it must be used exactly
+-- once and cannot be silently copied or discarded.
+--
+-- Wrapping a value in 'Linear' changes its type-level 'IsLinear' status to
+-- @'True@.  Combinators that need to copy, discard, or swap a payload should
+-- require 'NotLinear'.
+--
+-- The intended use is for quantifier-swap operations such as a future
+-- @SwapQ@: a channel carrying @Linear a@ will refuse @SwapQ@ at compile
+-- time because 'Linear a' does not satisfy 'NotLinear'.
+newtype Linear a = Linear {unLinear :: a}
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+-- | Type-level predicate: is this type marked linear?
+type family IsLinear a :: Bool where
+  IsLinear (Linear _) = 'True
+  IsLinear _ = 'False
+
+-- | Constraint that a type is not marked linear.
+--
+-- Copy/discard/swap combinators should require this on their payload.
+type NotLinear a = IsLinear a ~ 'False

@@ -108,7 +108,7 @@ module Circuit
     dimapEnds,
     lmapEnds,
     rmapEnds,
-    HasUnit (..),
+    HasDual (..),
 
     -- * Copycat / multiplicative excluded middle
     copycat,
@@ -194,6 +194,11 @@ module Circuit
     isMark,
     isPayload,
 
+    -- * Linearity marks
+    Linear (..),
+    IsLinear,
+    NotLinear,
+
     -- * Additive ends
     Bias (..),
     IsSilent (..),
@@ -228,7 +233,7 @@ module Circuit
   )
 where
 
-import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
+import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
 import Circuit.Category (Ob, (.>), (<|), (|>))
 import Circuit.Channel
   ( Strength,
@@ -262,8 +267,8 @@ import Circuit.Ends
     ChuObj (..),
     ChuSemiring (..),
     Ends (..),
+    HasDual (..),
     HasSilent (..),
-    HasUnit (..),
     In (..),
     IsSilent (..),
     Out (..),

@@ -74,8 +74,8 @@ module Circuit.Ends
     lmapEnds,
     rmapEnds,
 
-    -- * Unit ends (requires constant morphisms)
-    HasUnit (..),
+    -- * Dualising object / unit ends (requires constant morphisms)
+    HasDual (..),
 
     -- * Copycat / multiplicative excluded middle
     copycat,
@@ -205,20 +205,25 @@ suffixOut :: forall arr a b. (Discrete arr) => Out arr a -> arr a b -> Out arr b
 suffixOut o g = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @a $ withOb @arr @b $ emit o i .> g
 
 -- ---------------------------------------------------------------------------
--- Unit ends
+-- Dualising object / unit ends
 -- ---------------------------------------------------------------------------
 
--- | Arrows that have unit channel ends for a given unit object @u@.
+-- | Arrows that have channel ends for a given dualising object @bot@.
 --
--- The unit ends are the identity-on-@u@ morphism split into its two
--- polar halves.  The companion is constant; the conjoint delegates to
--- the opposing companion.
+-- The dualising object is the target of the Chu pairing and the object
+-- through which the two poles of an 'Ends' are plugged together.  In the
+-- cartesian case it is the monoidal unit @()@; for halt-mark / delivery
+-- pairings it can be 'Bool'.
+--
+-- The ends are the identity-on-@bot@ morphism split into its two polar
+-- halves.  The companion is constant; the conjoint delegates to the
+-- opposing companion.
 --
 -- These ends require the base arrow to support constant morphisms, so
 -- they are captured by this class rather than being definable for all
 -- arrows.
-class (Category arr) => HasUnit u arr where
-  -- | The monoidal unit as channel ends.
+class (Category arr) => HasDual bot arr where
+  -- | The dualising object as channel ends.
   --
   -- === Yank
   --
@@ -226,7 +231,7 @@ class (Category arr) => HasUnit u arr where
   -- >>> close (conjoint ends) (companion ends) ()
   -- ()
   --
-  -- === Unit plug
+  -- === Plug
   --
   -- >>> let endsA = open :: Ends (->) () ()
   -- >>> let endsU = open :: Ends (->) () ()
@@ -234,26 +239,27 @@ class (Category arr) => HasUnit u arr where
   -- ()
   -- >>> emit (companion endsA) (conjoint endsU) ()
   -- ()
-  open :: Ends arr u u
+  open :: Ends arr bot bot
 
--- | The copycat strategy at the unit type @u@.
+-- | The copycat strategy at the dualising object @bot@.
 --
--- This is the multiplicative excluded middle @u ⅋ u⊥@ for arrows that have
--- unit ends at @u@: a self-dual channel whose 'close' is the identity on @u@.
--- It routes between the two poles without ever deciding which one holds.
+-- This is the multiplicative excluded middle @bot ⅋ bot⊥@ for arrows that
+-- have ends at @bot@: a self-dual channel whose 'close' is the identity on
+-- @bot@.  It routes between the two poles without ever deciding which one
+-- holds.
 --
--- The additive excluded middle @u ⊕ u⊥@ — a verdict, now — is /not/
--- supported; there is no @decide :: Either u u@ here, because only the
+-- The additive excluded middle @bot ⊕ bot⊥@ — a verdict, now — is /not/
+-- supported; there is no @decide :: Either bot bot@ here, because only the
 -- routing witness is provable.
-copycat :: forall arr u. (HasUnit u arr) => Ends arr u u
+copycat :: forall arr bot. (HasDual bot arr) => Ends arr bot bot
 copycat = open
 {-# INLINE copycat #-}
 
 -- | Build an @Ends@ from a write morphism and a read morphism.
 --
--- @write :: arr a ()@ consumes the input payload and produces the unit;
--- @read :: arr () b@ consumes the unit and produces the output payload.
--- The unit ends wire the two halves together.
+-- @write :: arr a bot@ consumes the input payload and produces the dualising
+-- object; @read :: arr bot b@ consumes the dualising object and produces the
+-- output payload.  The dualising-object ends wire the two halves together.
 --
 -- This is the canonical way to turn a pair of primitive channel actions
 -- into a matched pair of @In@ and @Out@ ends.
@@ -265,19 +271,19 @@ copycat = open
 --   Ends (prefixIn write (conjoint open)) (suffixOut (companion open) receive)
 -- @
 ends ::
-  forall arr a b u.
-  (Discrete arr, HasUnit u arr) =>
-  arr a u ->
-  arr u b ->
+  forall arr a b bot.
+  (Discrete arr, HasDual bot arr) =>
+  arr a bot ->
+  arr bot b ->
   Ends arr a b
 ends write receive =
   Ends
     (prefixIn write (conjoint open))
     (suffixOut (companion open) receive)
 
--- | Convenience version of 'ends' when the unit object is @()@.
+-- | Convenience version of 'ends' when the dualising object is @()@.
 ends0 ::
-  (Discrete arr, HasUnit () arr) =>
+  (Discrete arr, HasDual () arr) =>
   arr a () ->
   arr () b ->
   Ends arr a b
@@ -286,9 +292,9 @@ ends0 = ends @_ @_ @_ @()
 
 -- | Specialization of 'ends' for @Kleisli@ actions.
 --
--- @write :: a -> m u@ consumes the input payload; @receive :: m b@
--- produces the output payload. The unit handling is hidden inside the
--- @Kleisli@ wrappers.
+-- @write :: a -> m ()@ consumes the input payload; @receive :: m b@
+-- produces the output payload. The dualising-object handling is hidden
+-- inside the @Kleisli@ wrappers.
 endsK ::
   forall m a b.
   (Monad m) =>
@@ -298,28 +304,28 @@ endsK ::
 endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
 
 -- | Extract the primitive write and read actions from an @Ends@ by
--- plugging each end with the unit ends.
+-- plugging each end with the dualising-object ends.
 --
 -- For an @Ends@ built with 'ends', this recovers the original
--- @write :: arr a u@ and @receive :: arr u b@.
+-- @write :: arr a bot@ and @receive :: arr bot b@.
 --
 -- >>> let e = ends0 (\() -> ()) (const (42 :: Int)) :: Ends (->) () Int
 -- >>> let (write, receive) = splay0 e
 -- >>> (write (), receive ())
 -- ((),42)
 splay ::
-  forall arr a b u.
-  (HasUnit u arr) =>
+  forall arr a b bot.
+  (HasDual bot arr) =>
   Ends arr a b ->
-  (arr a u, arr u b)
+  (arr a bot, arr bot b)
 splay e =
-  ( commit (conjoint e) (companion (open :: Ends arr u u)),
-    emit (companion e) (conjoint (open :: Ends arr u u))
+  ( commit (conjoint e) (companion (open :: Ends arr bot bot)),
+    emit (companion e) (conjoint (open :: Ends arr bot bot))
   )
 
--- | Convenience version of 'splay' when the unit object is @()@.
+-- | Convenience version of 'splay' when the dualising object is @()@.
 splay0 ::
-  (HasUnit () arr) =>
+  (HasDual () arr) =>
   Ends arr a b ->
   (arr a (), arr () b)
 splay0 = splay @_ @_ @_ @()
@@ -346,8 +352,8 @@ splay0 = splay @_ @_ @_ @()
 -- >>> run (box @(,) (composeEnds0 e1 e2)) ()
 -- 2
 composeEnds ::
-  forall arr a b c u.
-  (Discrete arr, HasUnit u arr) =>
+  forall arr a b c bot.
+  (Discrete arr, HasDual bot arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
@@ -355,14 +361,14 @@ composeEnds e1 e2 =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @u $
-          let (write1, read1) = splay e1 :: (arr a u, arr u b)
-              (write2, read2) = splay e2 :: (arr b u, arr u c)
+        withOb @arr @bot $
+          let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
+              (write2, read2) = splay e2 :: (arr b bot, arr bot c)
            in ends write1 (read1 .> write2 .> read2)
 
--- | Convenience version of 'composeEnds' when the unit object is @()@.
+-- | Convenience version of 'composeEnds' when the dualising object is @()@.
 composeEnds0 ::
-  (Discrete arr, HasUnit () arr) =>
+  (Discrete arr, HasDual () arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
@@ -371,42 +377,42 @@ composeEnds0 = composeEnds @_ @_ @_ @_ @()
 
 -- | Forward-composition operator for @Ends@.  @e1 >:> e2 = composeEnds e1 e2@.
 (>:>) ::
-  forall arr a b c u.
-  (Discrete arr, HasUnit u arr) =>
+  forall arr a b c bot.
+  (Discrete arr, HasDual bot arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
-e1 >:> e2 = composeEnds @arr @a @b @c @u e1 e2
+e1 >:> e2 = composeEnds @arr @a @b @c @bot e1 e2
 
 infixr 1 >:>
 
 -- | Parallel composition of @Ends@.
 --
 -- Pair two @Ends@ side by side on the tensor @t@.  The primitive
--- actions are tensored and then collapsed to and from the unit with the
--- tensor unitors.  This requires the tensor unit to coincide with the
--- @Ends@ unit @u@; in practice this is the cartesian @(,)@ tensor with
--- @u = ()@.
+-- actions are tensored and then collapsed to and from the dualising object
+-- with the tensor unitors.  This requires the tensor unit to coincide with
+-- the dualising object @bot@; in practice this is the cartesian @(,)@ tensor
+-- with @bot = ()@.
 --
 -- >>> let e1 = ends0 (const ()) (const 1 :: () -> Int) :: Ends (->) () Int
 -- >>> let e2 = ends0 (const ()) (const 2 :: () -> Int) :: Ends (->) () Int
 -- >>> run (box @(,) (parEnds e1 e2)) ((), ())
 -- (1,2)
 parEnds ::
-  forall t arr a b c d u.
-  (Tensor t arr, Discrete arr, HasUnit u arr, Unit t ~ u) =>
+  forall t arr a b c d bot.
+  (Tensor t arr, Discrete arr, HasDual bot arr, Unit t ~ bot) =>
   Ends arr a b ->
   Ends arr c d ->
   Ends arr (t a c) (t b d)
 parEnds e1 e2 =
   withOb @arr @(t a c) $
     withOb @arr @(t b d) $
-      withOb @arr @(t u u) $
-        withOb @arr @u $
-          let (write1, read1) = splay e1 :: (arr a u, arr u b)
-              (write2, read2) = splay e2 :: (arr c u, arr u d)
-              write = par write1 write2 .> (unitr :: arr (t u u) u)
-              readEnds = (unitl' :: arr u (t u u)) .> par read1 read2
+      withOb @arr @(t bot bot) $
+        withOb @arr @bot $
+          let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
+              (write2, read2) = splay e2 :: (arr c bot, arr bot d)
+              write = par write1 write2 .> (unitr :: arr (t bot bot) bot)
+              readEnds = (unitl' :: arr bot (t bot bot)) .> par read1 read2
            in ends write readEnds
 
 -- | Precompose the input and postcompose the output of an @Ends@.
@@ -446,24 +452,60 @@ rmapEnds ::
   Ends arr a b'
 rmapEnds g (Ends i o) = Ends i (suffixOut o g)
 
--- | Unit ends for @(->)@ with unit @()@.
+-- | Dualising object @()@ for @(->)@.
 --
 -- The companion is the constant function returning @()@; the conjoint
 -- recursively emits through the supplied companion.
-instance HasUnit () (->) where
+instance HasDual () (->) where
   open = Ends inU outU
     where
       outU = Out $ \_ -> const ()
       inU = In $ \o -> emit o inU
 
--- | Unit ends for @Kleisli@ @m@ with unit @()@.
+-- | Dualising object @()@ for @Kleisli@ @m@.
 --
 -- Same shape as the @(->)@ instance, but the constant companion returns
 -- @()@ in the monad.
-instance (Monad m) => HasUnit () (Kleisli m) where
+instance (Monad m) => HasDual () (Kleisli m) where
   open = Ends inU outU
     where
       outU = Out $ \_ -> Kleisli $ \_ -> pure ()
+      inU = In $ \o -> emit o inU
+
+-- === Notes on the dualising object
+--
+-- The class parameter @bot@ is the object through which the two poles of an
+-- 'Ends' are plugged.  For the cartesian @(,)@ tensor this is the monoidal
+-- unit @()@, which is terminal.  'copycat' yanks to the identity on @bot@
+-- exactly when @bot@ is terminal; for non-terminal objects such as 'Bool'
+-- the same 'open' still typechecks but 'copycat' becomes a constant
+-- endomorphism rather than the identity.
+--
+-- The unification with halt-mark / delivery 'Bool' pairings therefore lives
+-- partly in the Chu construction: a 'Bool'-valued pairing @arr (a, b) Bool@
+-- can be supplied to 'endsAsChu' as the dualising object, while 'HasDual'
+-- governs the object used for unit plumbing.  The 'Bool' instances below
+-- make that plumbing explicit.
+
+-- | Dualising object 'Bool' for @(->)@.
+--
+-- The companion is the constant function returning 'False'; the conjoint
+-- recursively emits through the supplied companion.  Because 'Bool' is not
+-- terminal, 'copycat' at 'Bool' is the constant function, not the identity.
+instance HasDual Bool (->) where
+  open = Ends inU outU
+    where
+      outU = Out $ \_ -> const False
+      inU = In $ \o -> emit o inU
+
+-- | Dualising object 'Bool' for @Kleisli@ @m@.
+--
+-- Same shape as the @(->)@ instance, but the constant companion returns
+-- 'False' in the monad.
+instance (Monad m) => HasDual Bool (Kleisli m) where
+  open = Ends inU outU
+    where
+      outU = Out $ \_ -> Kleisli $ \_ -> pure False
       inU = In $ \o -> emit o inU
 
 -- ---------------------------------------------------------------------------
@@ -487,7 +529,7 @@ instance (Monad m) => HasUnit () (Kleisli m) where
 -- 42
 box ::
   forall t arr a b.
-  (HasUnit (Unit t) arr, Ob arr a, Ob arr b, Ob arr (Unit t)) =>
+  (HasDual (Unit t) arr, Ob arr a, Ob arr b, Ob arr (Unit t)) =>
   Ends arr a b ->
   Loop t arr a b
 box ends' =
@@ -495,18 +537,19 @@ box ends' =
     commit (conjoint ends') (companion (open :: Ends arr (Unit t) (Unit t)))
       .> emit (companion ends') (conjoint (open :: Ends arr (Unit t) (Unit t)))
 
--- | Asymmetric box with units exposed on opposite sides.
+-- | Asymmetric box with the dualising object exposed on opposite sides.
 --
 -- Uses 'par' at the base arrow level and lifts the result with 'Lift'.
--- The input carries the unit on the right and the output carries the unit
--- on the left; most users will prefer the unit-normalised 'box'.
+-- The input carries the dualising object on the right and the output carries
+-- it on the left; most users will prefer the dualising-object-normalised
+-- 'box'.
 --
 -- >>> let e = ends0 (const ()) (const 42) :: Ends (->) () Int
 -- >>> run (boxAsymmetric @(,) e) ((), ())
 -- ((),42)
 boxAsymmetric ::
   forall t arr a b.
-  (HasUnit (Unit t) arr, Tensor t arr) =>
+  (HasDual (Unit t) arr, Tensor t arr) =>
   Ends arr a b ->
   Loop t arr (t a (Unit t)) (t (Unit t) b)
 boxAsymmetric ends' =

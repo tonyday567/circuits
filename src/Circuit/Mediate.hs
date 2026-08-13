@@ -31,9 +31,11 @@ module Circuit.Mediate
 
     -- * Close certification
     LinearResidual (..),
+    FlushableResidual (..),
     LinearityViolation (..),
     closeCertified,
     closeCertifiedWith,
+    closeCertifiedWithBy,
 
     -- * ?-comonoid structure
     medCounit,
@@ -48,6 +50,9 @@ module Circuit.Mediate
     pairSum,
     count,
 
+    -- * Pair-sum residual (distinguishes held half-pair from ready output)
+    PS (..),
+
     -- * Shared-medium fusion
     mediateSharedBody,
     mediateStoreBody,
@@ -59,8 +64,8 @@ import Circuit.Loop (Loop)
 import Circuit.Process (Process, scan)
 import Circuit.Process qualified as Process
 import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), chooseS)
-import Data.List (mapAccumL)
-import Data.Maybe (catMaybes)
+import Data.List (mapAccumL, uncons)
+import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))
 
 -- | A mediator with residual state @s@, input @a@, output @b@.
@@ -101,18 +106,78 @@ class LinearResidual s where
   -- | The canonical empty residual state.
   emptyResidual :: s
 
+  -- | Test whether the residual is the canonical empty value.
+  --
+  -- This removes the 'Eq' requirement from 'closeCertified' and lets
+  -- non-trivial equality tests (e.g. a predicate on a record) live with the
+  -- instance.
+  isEmptyResidual :: s -> Bool
+
 instance LinearResidual () where
   emptyResidual = ()
+  isEmptyResidual _ = True
 
 instance LinearResidual (Maybe a) where
   emptyResidual = Nothing
+  isEmptyResidual = isNothing
 
 instance LinearResidual [a] where
   emptyResidual = []
+  isEmptyResidual = null
 
 -- | @Int@ is treated as a count residual; the empty value is @0@.
 instance LinearResidual Int where
   emptyResidual = 0
+  isEmptyResidual = (== 0)
+
+-- | Product residuals are empty when both components are empty.
+--
+-- This supports the buffer-slot residual shape @(s, Maybe (Maybe b))@ used by
+-- 'mediatorToMed'.
+instance (LinearResidual s, LinearResidual t) => LinearResidual (s, t) where
+  emptyResidual = (emptyResidual, emptyResidual)
+  isEmptyResidual (s, t) = isEmptyResidual s && isEmptyResidual t
+
+-- | Residuals that can be drained into output at close time.
+--
+-- A flushable residual is still a linear residual: if it is empty, close is
+-- clean.  When it is non-empty, 'flushStep' may emit one output value and
+-- leave a smaller residual.  If 'flushStep' returns 'Nothing', the residual is
+-- a genuine violation.
+--
+-- 'count' and list buffers are flushable; a held half-pair ('PS.Held') is not.
+class (LinearResidual s) => FlushableResidual s b where
+  -- | Drain one output from the residual, returning the remaining residual.
+  flushStep :: s -> Maybe (b, s)
+
+-- | @Int@ count residual flushes its accumulated value once and resets to 0.
+instance FlushableResidual Int Int where
+  flushStep n = if isEmptyResidual n then Nothing else Just (n, 0)
+
+-- | List residual flushes head-first.
+instance FlushableResidual [a] a where
+  flushStep = uncons
+
+-- | @Maybe b@ residual flushes a held output value.
+instance FlushableResidual (Maybe b) b where
+  flushStep Nothing = Nothing
+  flushStep (Just b) = Just (b, Nothing)
+
+-- | Two-state residual for pair summation.
+--
+-- * 'Empty' : no buffered value.
+-- * 'Held'  : one value buffered, not yet ready.
+--
+-- The Mealy-style 'pairSum' emits the sum in the same tick that completes the
+-- pair and returns to 'Empty'.  A 'Held' value at close is a genuine half-pair
+-- violation; there is no 'FlushableResidual' instance for 'PS'.
+data PS = Empty | Held Int
+  deriving (Eq, Show)
+
+instance LinearResidual PS where
+  emptyResidual = Empty
+  isEmptyResidual Empty = True
+  isEmptyResidual _ = False
 
 -- | A violation reported when a certified close finds the residual state is not
 -- empty.
@@ -122,28 +187,40 @@ newtype LinearityViolation = LinearityViolation String
 -- | Run a mediator over a stream and certify that the residual is empty at
 -- close.
 --
--- If the final residual state equals 'emptyResidual', return the emitted
--- outputs. Otherwise report a 'LinearityViolation' carrying the offending
--- residual.
+-- If the final residual state is 'emptyResidual', return the emitted outputs.
+-- Otherwise report a 'LinearityViolation' carrying the offending residual.
 --
 -- This is the /strict/ close semantics: a residual is a violation even if it
 -- could be flushed into output.  For flushable residuals use
 -- 'closeCertifiedWith'.
-closeCertified :: (LinearResidual s, Eq s, Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
+closeCertified :: (LinearResidual s, Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
 closeCertified m s0 as =
   let (sFinal, bs) = runMediatorState m s0 as
-   in if sFinal == emptyResidual
+   in if isEmptyResidual sFinal
         then Right bs
         else Left (LinearityViolation ("close: residual not empty: " ++ show sFinal))
 
 -- | Run a mediator over a stream and certify that any remaining residual can
--- be drained via the supplied function.
+-- be drained according to its 'FlushableResidual' instance.
 --
--- The drain function returns 'Nothing' when the residual cannot be drained.
--- This is the flush semantics: a residual is a violation only when it cannot
--- be drained into output. For list residuals this is 'uncons'; for count-like
--- residuals it emits the accumulated value once.
+-- This is the flush semantics: a residual is a violation only when 'flushStep'
+-- cannot drain it.  'count' flushes its accumulated value once; a list
+-- residual flushes head-first; a 'Ready' sum flushes; a 'Held' half-pair
+-- reports a violation.
 closeCertifiedWith ::
+  (FlushableResidual s b, Show s) =>
+  Mediator s a b ->
+  s ->
+  [a] ->
+  Either LinearityViolation [b]
+closeCertifiedWith = closeCertifiedWithBy isEmptyResidual flushStep
+
+-- | Run a mediator over a stream and certify that any remaining residual can
+-- be drained via explicit empty/drain functions.
+--
+-- This is the escape hatch for custom residual policies that do not have a
+-- 'FlushableResidual' instance.
+closeCertifiedWithBy ::
   (Show s) =>
   -- | Test for the empty residual.
   (s -> Bool) ->
@@ -153,7 +230,7 @@ closeCertifiedWith ::
   s ->
   [a] ->
   Either LinearityViolation [b]
-closeCertifiedWith isEmpty drain m s0 as =
+closeCertifiedWithBy isEmpty drain m s0 as =
   let (sFinal, bs) = runMediatorState m s0 as
    in case drainAll sFinal of
         Just bs' -> Right (bs ++ bs')
@@ -171,7 +248,7 @@ closeCertifiedWith isEmpty drain m s0 as =
 -- state is already empty.  This is the discard law for the exponential:
 -- a buffered channel cannot be silently dropped.
 medCounit ::
-  (LinearResidual s, Eq s, Show s) =>
+  (LinearResidual s, Show s) =>
   Mediator s a b ->
   s ->
   Either LinearityViolation [b]
@@ -218,13 +295,14 @@ linear = Mediator () $ \() x -> ((), Just x)
 
 -- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
 --
--- Residual state is 'Maybe Int'. This reproduces the B0 @pairSum@ oracle
--- without an external 'TQueue'.
-pairSum :: Mediator (Maybe Int) Int Int
+-- Residual state is 'PS' so that a held half-pair ('Held') is a genuine
+-- linearity violation on close.  The sum is emitted in the same tick that
+-- completes the pair.
+pairSum :: Mediator PS Int Int
 pairSum =
-  Mediator Nothing $ \s x -> case s of
-    Nothing -> (Just x, Nothing)
-    Just y -> (Nothing, Just (x + y))
+  Mediator Empty $ \s x -> case s of
+    Empty -> (Held x, Nothing)
+    Held y -> (Empty, Just (x + y))
 
 -- | Count mediator: emits the number of inputs seen so far.
 --
