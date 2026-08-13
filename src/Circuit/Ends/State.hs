@@ -2,39 +2,30 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Stateful arrows, knot bodies, and pole-unfused mediators as channel ends.
+-- | Pole-unfused mediators and polynomial machines as channel ends over 'SArr'.
 --
--- This is a spike for the 'Ends-state unification' thesis from
--- @loom/ends-state.md@ and the 'Body-loop' thesis from @loom/body-loop.md@:
--- a stateful morphism @(s, a) -> (s, b)@ is a base arrow in its own right,
--- 'Body t arr s' generalises that to any tensor @t@ and base arrow @arr@,
--- and a mediator is just a pair of channel ends over the cartesian instance
--- split by the unit pole @()@.
+-- This module is now a conversions layer over 'Circuit.Body': it takes the
+-- cartesian ambient-state arrow 'SArr' and the 'Circuit.Ends' companion/conjoint
+-- split, and exposes 'Med', 'System', and 'Machine' as different ways to write
+-- the same stateful morphism.
 --
--- @
---   Body t arr s a b  =  arr (t s a) (t s b)
---   SArr s a b        =  Body (,) (->) s a b
---   Med  s a b        ≅  (s, Ends (SArr s) a (Maybe b))
--- @
---
--- The @Med@ record keeps the seed and the two pole functions explicit. The
--- step function is recovered as 'close' on the unit ends, i.e. as sequential
--- composition of the write pole followed by the read pole.
+-- The core knot-body category lives in 'Circuit.Body'.
 module Circuit.Ends.State
-  ( -- * Stateful arrow
+  ( -- * Re-exports from 'Circuit.Body'
     SArr (..),
     SomeSArr (..),
     runSomeSArr,
     processToSomeSArr,
-
-    -- * Knot-body category
     Body (..),
     SomeBody (..),
     bodyToLoop,
     bodyToSArr,
     sArrToBody,
     processToBody,
+    loopToSomeSArr,
+    loopEitherToSomeSArr,
 
     -- * Pole-unfused mediator
     Med (..),
@@ -50,10 +41,6 @@ module Circuit.Ends.State
     systemToEnds,
     machineToEnds,
 
-    -- * Loop as ambient-state arrow
-    loopToSomeSArr,
-    loopEitherToSomeSArr,
-
     -- * Mediate view
     mediatorToMed,
     medToMediator,
@@ -66,86 +53,44 @@ module Circuit.Ends.State
   )
 where
 
+import Circuit.Body
+  ( Body (..),
+    SArr (..),
+    SomeBody (..),
+    SomeSArr (..),
+    bodyToLoop,
+    bodyToSArr,
+    loopEitherToSomeSArr,
+    loopToSomeSArr,
+    runSomeSArr,
+    sArrToBody,
+  )
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
-import Circuit.Layer (run)
-import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
-import Circuit.Poly (Dir, Pos, System (..), SystemEval (..))
+import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
 import Circuit.Process (Machine (..), Process (..))
-import Data.Bifunctor (second)
 import Data.Maybe (catMaybes)
 import Prelude hiding (id, (.))
 
--- | The ambient-state arrow: a morphism that threads a state wire @s@.
+-- | Unit ends for @SArr s@ at the unit object @()@.
 --
--- This is the underlying category of the Ends-state unification. Composition
--- threads the state sequentially.
-newtype SArr s a b = SArr {runSArr :: (s, a) -> (s, b)}
-
-instance Category (SArr s) where
-  type Ob (SArr s) a = ()
-
-  id :: SArr s a a
-  id = SArr id
-  {-# INLINE id #-}
-
-  (.) :: SArr s b c -> SArr s a b -> SArr s a c
-  SArr g . SArr f = SArr $ \(s, a) ->
-    let (s', b) = f (s, a)
-     in g (s', b)
-  {-# INLINE (.) #-}
-
--- | @SArr s@ has trivial object constraints, so it is discrete.
-instance Discrete (SArr s) where
-  withOb x = x
-
--- | The knot-body category: morphisms @arr (t s a) (t s b)@ for a fixed
--- feedback/state type @s@, base arrow @arr@, and tensor @t@.
+-- The companion discards its input and returns @()@; the conjoint delegates
+-- to the companion. Yanking recovers the identity on @()@.
 --
--- Composition is just @arr@ composition; no @Channel@, @Strength@, or @Traced@
--- structure is required. This is the category Loop's 'Knot' hides before tracing.
---
--- @SArr s = Body (,) (->) s@ is the cartesian instance.
-newtype Body t arr s a b = Body {runBody :: arr (t s a) (t s b)}
-
-instance (Category arr) => Category (Body t arr s) where
-  type Ob (Body t arr s) a = Ob arr (t s a)
-
-  id :: forall a. (Ob arr (t s a)) => Body t arr s a a
-  id = Body id
-  {-# INLINE id #-}
-
-  (.) :: forall a b c. (Ob arr (t s a), Ob arr (t s b), Ob arr (t s c)) => Body t arr s b c -> Body t arr s a b -> Body t arr s a c
-  Body g . Body f = Body (g . f)
-  {-# INLINE (.) #-}
-
--- | @Body t arr s@ has the same discreteness as its base arrow.
-instance (Discrete arr) => Discrete (Body t arr s) where
-  withOb @a = withOb @arr @(t s a)
-
--- | Cartesian instance: @SArr s@ is exactly @Body (,) (->) s@.
-sArrToBody :: SArr s a b -> Body (,) (->) s a b
-sArrToBody (SArr f) = Body f
-
-bodyToSArr :: Body (,) (->) s a b -> SArr s a b
-bodyToSArr (Body f) = SArr f
-
--- | A 'Body' with its state type hidden, for the same reason 'SomeSArr' exists.
-data SomeBody t arr a b where
-  SomeBody :: s -> Body t arr s a b -> SomeBody t arr a b
-
--- | Lift a knot body into a 'Loop' by hiding the state wire.
-bodyToLoop ::
-  (Ob arr s, Ob arr (t s a), Ob arr (t s b)) =>
-  Body t arr s a b ->
-  Loop t arr a b
-bodyToLoop (Body f) = Knot f
+-- This instance is technically orphan because 'SArr' now lives in
+-- 'Circuit.Body', but keeping it here keeps the 'Ends' plumbing local to this
+-- conversions module.
+instance HasUnit () (SArr s) where
+  open =
+    let outU = Out $ \_ -> SArr $ \(s, _) -> (s, ())
+        inU = In $ \o -> emit o inU
+     in Ends inU outU
 
 -- | View a 'Process' as a knot body over the 'Either' tensor.
 --
 -- This is the same body used by 'Circuit.Process.encode', now exposed as a value
--- of 'Body Either (->) s'. It confirms the Process / Loop Either round-trip
+-- of @Body Either (->) s@. It confirms the Process / Loop Either round-trip
 -- factors through the knot-body category.
 processToBody :: Process a b -> SomeBody Either (->) [a] [b]
 processToBody (Process inject step extract) =
@@ -159,29 +104,6 @@ processToBody (Process inject step extract) =
       let s' = step s a
        in Left (Just s', as, extract s' : bs)
     Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
-
--- | Unit ends for @SArr s@ at the unit object @()@.
---
--- The companion discards its input and returns @()@; the conjoint delegates
--- to the companion. Yanking recovers the identity on @()@.
-instance HasUnit () (SArr s) where
-  open =
-    let outU = Out $ \_ -> SArr $ \(s, _) -> (s, ())
-        inU = In $ \o -> emit o inU
-     in Ends inU outU
-
--- | An existentially-quantified ambient-state arrow.
---
--- This is the packing that lets us treat a 'Process' as a value of the form
--- @exists s. SArr s a b@.
-data SomeSArr a b where
-  SomeSArr :: s -> SArr s a b -> SomeSArr a b
-
--- | Run an existentially-packed stateful arrow over a list of inputs.
-runSomeSArr :: SomeSArr a b -> [a] -> [b]
-runSomeSArr (SomeSArr s0 (SArr f)) xs =
-  let (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
-   in reverse bs
 
 -- | View a 'Process' as an existentially-quantified 'SArr'.
 --
@@ -198,63 +120,6 @@ processToSomeSArr (Process inject step extract) =
     (Just s, a) ->
       let s' = step s a
        in (Just s', extract s')
-
--- | View a 'Loop (,) (->)' as an existentially-quantified 'SArr'.
---
--- The hidden feedback channel of the loop becomes the ambient unit state of the
--- 'SArr'; the runner is just 'run' on the underlying traced category.
-loopToSomeSArr :: Loop (,) (->) a b -> SomeSArr a b
-loopToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)
-
--- | View a 'Loop Either (->)' as an existentially-quantified 'SArr'.
---
--- Same idea as 'loopToSomeSArr' for the iteration tensor: the loop is
--- interpreted into functions, then wrapped in a trivial ambient state.
-loopEitherToSomeSArr :: Loop Either (->) a b -> SomeSArr a b
-loopEitherToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)
-
--- | An existentially-quantified pair of channel ends, carrying its seed.
-data SomeEnds a b where
-  SomeEnds :: s -> Ends (SArr s) a b -> SomeEnds a b
-
--- | Run an existentially-packed pair of ends over a list of inputs.
-runSomeEnds :: SomeEnds a b -> [a] -> [b]
-runSomeEnds (SomeEnds s0 ends) xs =
-  let (write, receive) = splay0 ends
-      SArr f = write .> receive
-      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
-   in reverse bs
-
--- | Convert a '(->)' 'System' into companion/conjoint channel ends over @SArr@.
---
--- The write pole runs the step and discards the output position; the read pole
--- runs the step with the supplied probe direction and returns the position.
--- This is a lower-level split than 'Machine' provides: it does not assume a
--- separate observation map.
-systemToEnds :: Dir p -> System (->) s p -> Ends (SArr s) (Dir p) (Pos p)
-systemToEnds probe (System sys) =
-  ends0
-    (SArr $ \(s, d) -> (fst (sys (s, d)), ()))
-    (SArr $ \(s, ()) -> sys (s, probe))
-
--- | Convert a 'Machine' into companion/conjoint channel ends over @SArr@.
---
--- The state carrier is wrapped in 'Maybe' because the initial state is produced
--- by the injector only once a real direction is supplied.  The write pole
--- handles the first input via 'medInit' and subsequent inputs via the step
--- system; the read pole observes the current state without stepping.
-machineToEnds :: Machine (->) p -> SomeEnds (Dir p) (Pos p)
-machineToEnds (Machine i ex (System sys)) =
-  SomeEnds Nothing $
-    ends0
-      ( SArr $ \case
-          (Nothing, d) -> (Just (i d), ())
-          (Just s, d) -> (Just (fst (sys (s, d))), ())
-      )
-      ( SArr $ \case
-          (Nothing, ()) -> error "machineToEnds: read before first input"
-          (Just s, ()) -> (Just s, ex s)
-      )
 
 -- | A pole-unfused mediator with residual state @s@, input @a@, output @b@.
 --
@@ -317,6 +182,49 @@ runMed :: Med s a b -> [a] -> [b]
 runMed med xs =
   let (_, mys) = foldl (\(s, acc) a -> let (s', mb) = medStep med s a in (s', mb : acc)) (medSeed med, []) xs
    in reverse (catMaybes mys)
+
+-- | An existentially-quantified pair of channel ends, carrying its seed.
+data SomeEnds a b where
+  SomeEnds :: s -> Ends (SArr s) a b -> SomeEnds a b
+
+-- | Run an existentially-packed pair of ends over a list of inputs.
+runSomeEnds :: SomeEnds a b -> [a] -> [b]
+runSomeEnds (SomeEnds s0 ends) xs =
+  let (write, receive) = splay0 ends
+      SArr f = write .> receive
+      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
+   in reverse bs
+
+-- | Convert a '(->)' 'System' into companion/conjoint channel ends over @SArr@.
+--
+-- The write pole runs the step and discards the output position; the read pole
+-- runs the step with the supplied probe direction and returns the position.
+-- This is a lower-level split than 'Machine' provides: it does not assume a
+-- separate observation map.
+systemToEnds :: Dir p -> System (->) s p -> Ends (SArr s) (Dir p) (Pos p)
+systemToEnds probe sys =
+  ends0
+    (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+    (SArr $ \(s, ()) -> runSystem sys (s, probe))
+
+-- | Convert a 'Machine' into companion/conjoint channel ends over @SArr@.
+--
+-- The state carrier is wrapped in 'Maybe' because the initial state is produced
+-- by the injector only once a real direction is supplied.  The write pole
+-- handles the first input via 'medInit' and subsequent inputs via the step
+-- system; the read pole observes the current state without stepping.
+machineToEnds :: Machine (->) p -> SomeEnds (Dir p) (Pos p)
+machineToEnds (Machine i ex sys) =
+  SomeEnds Nothing $
+    ends0
+      ( SArr $ \case
+          (Nothing, d) -> (Just (i d), ())
+          (Just s, d) -> (Just (fst (runSystem sys (s, d))), ())
+      )
+      ( SArr $ \case
+          (Nothing, ()) -> error "machineToEnds: read before first input"
+          (Just s, ()) -> (Just s, ex s)
+      )
 
 -- | Embed a Mealy-style 'Mediator' into a pole-unfused 'Med' over 'SArr'.
 --
@@ -396,6 +304,8 @@ medCount :: Med Int () Int
 medCount =
   Med
     { medSeed = 0,
-      medIn = \(n, ()) -> n + 1,
-      medOut = \n -> (n, Just n)
+      medIn = \case
+        (n, ()) -> n + 1,
+      medOut = \case
+        n -> (n, Just n)
     }

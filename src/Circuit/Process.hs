@@ -65,7 +65,7 @@ import Circuit.Dagger (CopyDiscard, MergeZero)
 import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Poly (Dir, Mono, Pos, System (..))
+import Circuit.Poly (Dir, Mono, Pos, System, SystemT (..), runSystem, system)
 import Circuit.Tensor (Action (..), Bias (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
 import Control.Category qualified as Cat
 import Data.Bifunctor (bimap, first, second)
@@ -146,7 +146,7 @@ processToMachine (P i st ex) =
   Machine
     (i . dirToA)
     (bToPos . ex)
-    ( System $ \case
+    ( system $ \case
         (_, Left v) -> absurd v
         (s, Right a) ->
           let s' = st s a
@@ -155,10 +155,10 @@ processToMachine (P i st ex) =
 
 -- | Convert a monomial 'Machine' back into a classic 'Process' triple.
 machineToProcess :: Machine (->) (Mono a b) -> Process a b
-machineToProcess (Machine i ex (System sys)) =
+machineToProcess (Machine i ex sys) =
   Process
     (i . aToDir)
-    (\s a -> fst (sys (s, Right a)))
+    (\s a -> fst (runSystem sys (s, Right a)))
     (posToB . ex)
 
 -- | First-step observation: the position produced from the initial state,

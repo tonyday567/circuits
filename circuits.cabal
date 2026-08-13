@@ -47,6 +47,7 @@ library
   exposed-modules:
     Circuit
     Circuit.Algebra
+    Circuit.Body
     Circuit.Boundary
     Circuit.Category
     Circuit.Channel

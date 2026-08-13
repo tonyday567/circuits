@@ -93,7 +93,10 @@ module Circuit.Poly
     prismMatch,
 
     -- * Dynamical systems
-    System (..),
+    SystemT (..),
+    System,
+    system,
+    runSystem,
     SystemEval (..),
     step,
     fromEvalSystem,
@@ -103,6 +106,7 @@ module Circuit.Poly
   )
 where
 
+import Circuit.Body (Body (..))
 import Circuit.Category (Category (..), Discrete (..))
 import Data.Bifunctor
 import Data.Kind (Type)
@@ -390,10 +394,10 @@ tensorEval v w =
 -- This is the entry point for acyclic wiring over the Dirichlet tensor —
 -- boxes in parallel, pins assigned jointly.
 parWiring :: System (->) s p -> System (->) t q -> System (->) (s, t) (Tensor p q)
-parWiring (System sp) (System sq) =
-  System $ \((s, t), (dp, dq)) ->
-    let (s', posP) = sp (s, dp)
-        (t', posQ) = sq (t, dq)
+parWiring sp sq =
+  system $ \((s, t), (dp, dq)) ->
+    let (s', posP) = runSystem sp (s, dp)
+        (t', posQ) = runSystem sq (t, dq)
      in ((s', t'), (posP, posQ))
 
 -- $netlist-roundtrip
@@ -750,15 +754,28 @@ prismMatch p s = case runMorphism p (EP (EK s, EE id)) of
   ES (Left (EP (EK a, _))) -> Left a
   ES (Right (EP (EK s', _))) -> Right s'
 
--- | A dynamical system with interface @p@, carrier @s@, over base arrow @arr@.
+-- | A dynamical system with interface @p@, carrier @s@, over base arrow @arr@,
+-- parameterised by the state-pairing tensor @t@.
 --
 -- Uncurried netlist form: the state and the current input direction are fed
--- together, and the result is the next state together with the current output
--- position.  For the monomial @Mono i o@ this is exactly the Moore body
--- @arr (s, i) (s, o)@ after collapsing the unit positions.
-newtype System (arr :: Type -> Type -> Type) s (p :: Poly)
-  = System
-      (arr (s, Dir p) (s, Pos p))
+-- together under @t@, and the result is the next state together with the current
+-- output position.  For the monomial @Mono i o@ and @t = (,)@ this is exactly
+-- the Moore body @arr (s, i) (s, o)@ after collapsing the unit positions.
+--
+-- The cartesian specialisation @SystemT (,)@ is kept as the type synonym
+-- 'System'; use 'system' and 'runSystem' to construct and inspect it.
+newtype SystemT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) s (p :: Poly)
+  = SystemT (Body t arr s (Dir p) (Pos p))
+
+type System = SystemT (,)
+
+-- | Construct a cartesian 'System' from its underlying arrow.
+system :: arr (s, Dir p) (s, Pos p) -> System arr s p
+system = SystemT . Body
+
+-- | Inspect a cartesian 'System' as its underlying arrow.
+runSystem :: System arr s p -> arr (s, Dir p) (s, Pos p)
+runSystem (SystemT (Body f)) = f
 
 -- | Extract the monomial direction from its 'Either Void' encoding.
 monoDir :: Dir (Mono i o) -> i
@@ -771,15 +788,15 @@ monoIn = Right
 
 -- | Convert an eval-form '(->)' system into the arrow form.
 fromEvalSystem :: (SystemEval p) => (s -> Eval p s) -> System (->) s p
-fromEvalSystem f = System $ \(s, d) ->
+fromEvalSystem f = system $ \(s, d) ->
   let (pos, next) = evalToSystem (f s)
    in (next d, pos)
 
 -- | Convert an arrow-form '(->)' system back into eval form.
 toEvalSystem :: forall p s. (SystemEval p) => System (->) s p -> s -> Eval p s
-toEvalSystem (System sys) s = evalFromSystem pos (\d -> fst (sys (s, d)))
+toEvalSystem sys s = evalFromSystem pos (\d -> fst (runSystem sys (s, d)))
   where
-    pos = snd (sys (s, probeDir @p))
+    pos = snd (runSystem sys (s, probeDir @p))
 
 -- | Run one step: observe the current @p@-output from state @s@.
 step :: (SystemEval p) => System (->) s p -> s -> Eval p s

@@ -20,7 +20,7 @@ import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (LinearResidual (..), LinearityViolation (..), Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
-import Circuit.Poly (Dir, Eval (..), Mono, System (..), fromEvalSystem, lens, monoDir, monoIn)
+import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Machine (..), Process (..), delay, encode, fold, processToMachine, register, scan)
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
@@ -543,7 +543,7 @@ expectSystem ::
   (s -> r) ->
   s ->
   r
-expectSystem states (System sys) is q s0 =
+expectSystem states sys is q s0 =
   foldl' sAdd sZero [q s `sMul` distFinal s | s <- states]
   where
     distFinal = foldl' step initDist is
@@ -552,7 +552,7 @@ expectSystem states (System sys) is q s0 =
       foldl' sAdd sZero [dist s `sMul` pTrans s i s' | s <- states]
     pTrans s i s' =
       runProb
-        sys
+        (runSystem sys)
         (\((), (s'', _)) -> if s' == s'' then sOne else sZero)
         ((), (s, monoIn i))
 
@@ -565,7 +565,7 @@ data S3 = S0 | S1 | S2
 -- From each state, stay with probability 0.5 and move to the next state
 -- (cyclically) with probability 0.5.
 chain3Prob :: System (Prob (->) Double) S3 (Mono () ())
-chain3Prob = System $ Prob $ \k (x, (s, d)) ->
+chain3Prob = system $ Prob $ \k (x, (s, d)) ->
   let next = case s of
         S0 -> [(S0, 0.5), (S1, 0.5)]
         S1 -> [(S1, 0.5), (S2, 0.5)]
@@ -577,7 +577,7 @@ chain3Prob = System $ Prob $ \k (x, (s, d)) ->
 -- Staying costs 1, moving costs 2. The cheapest n-step path to a state is the
 -- Viterbi value.
 chain3Tropical :: System (Prob (->) Tropical) S3 (Mono () ())
-chain3Tropical = System $ Prob $ \k (x, (s, d)) ->
+chain3Tropical = system $ Prob $ \k (x, (s, d)) ->
   let next = case s of
         S0 -> [(S0, Tropical 1), (S1, Tropical 2)]
         S1 -> [(S1, Tropical 1), (S2, Tropical 2)]
@@ -1376,10 +1376,10 @@ main = do
         check "Ends.State systemToEnds recovers running sum" $
           let sys :: System (->) Int (Mono Int Int)
               sys =
-                System $ \(s, d) -> case d of
+                system $ \(s, d) -> case d of
                   Left v -> absurd v
                   Right i -> let s' = s + i in (s', (s', ()))
-              runSys s0 = foldl (\(s, acc) i -> let System f = sys; (s', pos) = f (s, Right i) in (s', pos : acc)) (s0, [])
+              runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
            in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
                 == reverse (snd (runSys 0 [1, 2, 3])),
         check "Ends.State machineToEnds recovers Process sum" $

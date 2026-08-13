@@ -53,7 +53,7 @@ import Circuit.Poly
     Netlist,
     Poly (..),
     Pos,
-    System (..),
+    System,
     SystemEval (..),
     applyLens,
     evalToSystem,
@@ -61,6 +61,7 @@ import Circuit.Poly
     lens,
     nestedToComp,
     runMorphism,
+    system,
     toEvalSystem,
   )
 import Circuit.Process (Process (..))
@@ -122,7 +123,7 @@ mapChannel ::
   Channel (->) p ->
   Channel (->) q
 mapChannel m (Ch s sys) =
-  Ch s (System step)
+  Ch s (system step)
   where
     step (s', d') =
       let tgtEval = runMorphism m (toEvalSystem sys s')
