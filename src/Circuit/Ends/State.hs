@@ -44,6 +44,16 @@ module Circuit.Ends.State
     medStepDirect,
     runMed,
 
+    -- * System / Machine as channel ends
+    SomeEnds (..),
+    runSomeEnds,
+    systemToEnds,
+    machineToEnds,
+
+    -- * Loop as ambient-state arrow
+    loopToSomeSArr,
+    loopEitherToSomeSArr,
+
     -- * Mediate view
     mediatorToMed,
     medToMediator,
@@ -58,9 +68,12 @@ where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
+import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
-import Circuit.Process (Process (..))
+import Circuit.Poly (Dir, Pos, System (..), SystemEval (..))
+import Circuit.Process (Machine (..), Process (..))
+import Data.Bifunctor (second)
 import Data.Maybe (catMaybes)
 import Prelude hiding (id, (.))
 
@@ -185,6 +198,63 @@ processToSomeSArr (Process inject step extract) =
     (Just s, a) ->
       let s' = step s a
        in (Just s', extract s')
+
+-- | View a 'Loop (,) (->)' as an existentially-quantified 'SArr'.
+--
+-- The hidden feedback channel of the loop becomes the ambient unit state of the
+-- 'SArr'; the runner is just 'run' on the underlying traced category.
+loopToSomeSArr :: Loop (,) (->) a b -> SomeSArr a b
+loopToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)
+
+-- | View a 'Loop Either (->)' as an existentially-quantified 'SArr'.
+--
+-- Same idea as 'loopToSomeSArr' for the iteration tensor: the loop is
+-- interpreted into functions, then wrapped in a trivial ambient state.
+loopEitherToSomeSArr :: Loop Either (->) a b -> SomeSArr a b
+loopEitherToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)
+
+-- | An existentially-quantified pair of channel ends, carrying its seed.
+data SomeEnds a b where
+  SomeEnds :: s -> Ends (SArr s) a b -> SomeEnds a b
+
+-- | Run an existentially-packed pair of ends over a list of inputs.
+runSomeEnds :: SomeEnds a b -> [a] -> [b]
+runSomeEnds (SomeEnds s0 ends) xs =
+  let (write, receive) = splay0 ends
+      SArr f = write .> receive
+      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
+   in reverse bs
+
+-- | Convert a '(->)' 'System' into companion/conjoint channel ends over @SArr@.
+--
+-- The write pole runs the step and discards the output position; the read pole
+-- runs the step with the supplied probe direction and returns the position.
+-- This is a lower-level split than 'Machine' provides: it does not assume a
+-- separate observation map.
+systemToEnds :: Dir p -> System (->) s p -> Ends (SArr s) (Dir p) (Pos p)
+systemToEnds probe (System sys) =
+  ends0
+    (SArr $ \(s, d) -> (fst (sys (s, d)), ()))
+    (SArr $ \(s, ()) -> sys (s, probe))
+
+-- | Convert a 'Machine' into companion/conjoint channel ends over @SArr@.
+--
+-- The state carrier is wrapped in 'Maybe' because the initial state is produced
+-- by the injector only once a real direction is supplied.  The write pole
+-- handles the first input via 'medInit' and subsequent inputs via the step
+-- system; the read pole observes the current state without stepping.
+machineToEnds :: Machine (->) p -> SomeEnds (Dir p) (Pos p)
+machineToEnds (Machine i ex (System sys)) =
+  SomeEnds Nothing $
+    ends0
+      ( SArr $ \case
+          (Nothing, d) -> (Just (i d), ())
+          (Just s, d) -> (Just (fst (sys (s, d))), ())
+      )
+      ( SArr $ \case
+          (Nothing, ()) -> error "machineToEnds: read before first input"
+          (Just s, ()) -> (Just s, ex s)
+      )
 
 -- | A pole-unfused mediator with residual state @s@, input @a@, output @b@.
 --

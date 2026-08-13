@@ -20,9 +20,9 @@ import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (LinearResidual (..), LinearityViolation (..), Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
-import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
+import Circuit.Poly (Dir, Eval (..), Mono, System (..), fromEvalSystem, lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
-import Circuit.Process (Process (..), delay, encode, fold, register, scan)
+import Circuit.Process (Machine (..), Process (..), delay, encode, fold, processToMachine, register, scan)
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
@@ -1363,6 +1363,30 @@ main = do
                 Right _ -> False,
         check "Ends.State runMed count emits accumulating residual" $
           MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
+        -- Ends.State conversion oracles (Z4)
+        check "Ends.State loopToSomeSArr runs Loop (,) as SArr" $
+          let loop = Knot (\ ~(s, ()) -> (0 : s, take 3 s)) :: Loop (,) (->) () [Int]
+           in MedState.runSomeSArr (MedState.loopToSomeSArr loop) [(), ()]
+                == map (run loop) [(), ()],
+        check "Ends.State loopEitherToSomeSArr runs Loop Either as SArr" $
+          let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
+              loop = encode sumProc :: Loop Either (->) [Int] [Int]
+           in MedState.runSomeSArr (MedState.loopEitherToSomeSArr loop) [[1, 2, 3], [4, 5 :: Int]]
+                == map (run loop) [[1, 2, 3], [4, 5]],
+        check "Ends.State systemToEnds recovers running sum" $
+          let sys :: System (->) Int (Mono Int Int)
+              sys =
+                System $ \(s, d) -> case d of
+                  Left v -> absurd v
+                  Right i -> let s' = s + i in (s', (s', ()))
+              runSys s0 = foldl (\(s, acc) i -> let System f = sys; (s', pos) = f (s, Right i) in (s', pos : acc)) (s0, [])
+           in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
+                == reverse (snd (runSys 0 [1, 2, 3])),
+        check "Ends.State machineToEnds recovers Process sum" $
+          let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
+              mach = processToMachine sumProc
+              ends = MedState.machineToEnds mach
+           in MedState.runSomeEnds ends [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
           snd (mediateSharedBody pairSum leftFirstMaybe (Nothing :: Maybe Int, (1, 2 :: Int)))

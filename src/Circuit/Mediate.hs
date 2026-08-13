@@ -125,6 +125,10 @@ newtype LinearityViolation = LinearityViolation String
 -- If the final residual state equals 'emptyResidual', return the emitted
 -- outputs. Otherwise report a 'LinearityViolation' carrying the offending
 -- residual.
+--
+-- This is the /strict/ close semantics: a residual is a violation even if it
+-- could be flushed into output.  For flushable residuals use
+-- 'closeCertifiedWith'.
 closeCertified :: (LinearResidual s, Eq s, Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
 closeCertified m s0 as =
   let (sFinal, bs) = runMediatorState m s0 as
