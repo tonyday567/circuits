@@ -12,8 +12,8 @@
 
 -- | The free traced monoidal category, in existential normal form.
 --
--- @Loop t arr a b@ is the free traced monoidal category over a base
--- morphism @arr@ with tensor @t@. The two constructors encode:
+-- @Loop t arr a b@ is the free traced monoidal category over a /monoidal/
+-- base morphism @arr@ with tensor @t@. The two constructors encode:
 --
 --   * 'Lift' — a plain base arrow.
 --   * 'Knot' — a feedback loop with a hidden feedback channel.
@@ -21,6 +21,12 @@
 -- The laws of traced monoidal categories are performed by the 'Category'
 -- and 'Traced' instances, so every value is already in normal form: at most
 -- one 'Knot' at the top, over a base-arrow body.
+--
+-- Over a premonoidal base the normal form is sound only when the 'Channel'
+-- structural maps ('assoc', 'slide', etc.) are central. This is the
+-- Benton–Hyland Central Sliding side-condition; see 'Circuit.Channel.Traced'
+-- and the @circuits-axioma@ oracle "Loop trace requires centrality over
+-- Kleisli IO".
 --
 -- For example, a @Loop (,) (->)@ is the initial traced monoidal cartesian
 -- category over Haskell functions.

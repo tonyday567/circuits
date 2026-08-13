@@ -1136,38 +1136,32 @@ main = do
                 pre = trace (f . par @(,) @(Kleisli IO) g id)
             (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
             pure (l /= r),
-        -- Loop normal form bakes in a state-threading order. Two Knot bodies
-        -- share an IORef but have disjoint feedback types. Loop's (.) fuses
-        -- them into one Knot that threads g's state wire first, then f's.
-        -- The opposite threading (f first, then g) is a different Loop value
-        -- and produces a different observable result over Kleisli IO.
-        checkIO "Loop (.) hardwires state-threading order over Kleisli IO" $
+        -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
+        -- Central Sliding side-condition from its base. A non-central effectful
+        -- morphism g slid past f gives a different result depending on order.
+        -- Loop's 'trace' discharges into the base 'trace', so the same witness
+        -- that fails for Kleisli IO directly also fails for Loop (,) (Kleisli IO).
+        checkIO "Loop trace requires centrality over Kleisli IO (Central Sliding)" $
           do
             ref <- newIORef 1
-            let g = Kleisli $ \ ~(s, a) -> do
+            let f = Kleisli $ \ ~((), ()) -> do
                   v <- readIORef ref
-                  writeIORef ref (v + 1)
-                  pure (s, v + a)
-                f = Kleisli $ \ ~(s, b) -> do
-                  v <- readIORef ref
-                  writeIORef ref (v * 2)
-                  pure (s, v * b)
-                loopFG = Knot f . Knot g :: Loop (,) (Kleisli IO) Int Int
-                -- Hand-built single knot with the opposite threading: f's state
-                -- wire first, then g's. This is the normal form of Knot g . Knot f,
-                -- not of Knot f . Knot g.
-                handBuiltGF =
-                  Knot $
-                    Kleisli $
-                      \ ~((s2, s1), a) -> do
-                        (s2', b) <- runKleisli f (s2, a)
-                        (s1', c) <- runKleisli g (s1, b)
-                        pure ((s2', s1'), c)
-            r1 <- runKleisli (run loopFG) 5
+                  modifyIORef' ref (+ 1)
+                  pure ((), v) :: IO ((), Int)
+                g = Kleisli $ \ ~() -> do
+                  modifyIORef' ref (* 2)
+                  pure ()
+                post = trace (Lift f . Lift (par @(,) @(Kleisli IO) g id)) :: Loop (,) (Kleisli IO) () Int
+                pre = trace (Lift (par @(,) @(Kleisli IO) g id) . Lift f) :: Loop (,) (Kleisli IO) () Int
+            l <- runKleisli (run post) ()
             writeIORef ref 1
-            r2 <- runKleisli (run handBuiltGF) 5
-            pure (r1 /= r2),
-        checkIO "Loop normal form of Knot f . Knot g matches same-threading hand build" $
+            r <- runKleisli (run pre) ()
+            pure (l /= r),
+        -- Loop (.) preserves the semantic order of composed Knot bodies over
+        -- an effectful base. This is not a centrality claim; it just checks
+        -- that Loop's normal form agrees with a hand-built body that threads
+        -- state in the same order.
+        checkIO "Loop (.) preserves semantic order of composed Knot bodies" $
           do
             ref <- newIORef 1
             let g = Kleisli $ \ ~(s, a) -> do
