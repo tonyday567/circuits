@@ -22,7 +22,7 @@ import Circuit.Mediate (FlushableResidual (..), LinearResidual (..), LinearityVi
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
-import Circuit.Process (Machine (..), Process (..), delay, encode, fold, processToMachine, register, scan)
+import Circuit.Process (Machine (..), Process (..), delay, encode, fold, machineToProcess, mooreMachine, register, scan)
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
@@ -1414,9 +1414,8 @@ main = do
               runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
            in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
                 == reverse (snd (runSys 0 [1, 2, 3])),
-        check "Ends machineToEnds recovers Process sum" $
-          let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
-              mach = processToMachine sumProc
+        check "Ends machineToEnds recovers pointed Machine sum" $
+          let mach = mooreMachine (0 :: Int) ((+) :: Int -> Int -> Int) id :: Machine (->) (Mono Int Int)
               ends = MedState.machineToEnds mach
            in MedState.runSomeEnds ends [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)

@@ -35,8 +35,10 @@
 --
 -- The polymorphic counterpart is 'Machine' @arr p@: a Moore coalgebra over an
 -- arbitrary base arrow @arr@ and polynomial interface @p@.  'Process' @a b@
--- is isomorphic to @Machine (->) (Mono a b)@ via 'processToMachine' and
--- 'machineToProcess'; the two views round-trip exactly.
+-- embeds into @Machine (->) (Mono a b)@ via 'machineToProcess'.
+-- The converse direction is not canonical because a 'Process' seeds its state
+-- from the first input, while a 'Machine' carries an explicit seed; use
+-- 'mooreMachine' to build a pointed machine directly.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
@@ -44,7 +46,7 @@ module Circuit.Process
 
     -- * Polymorphic process carrier
     Machine (..),
-    processToMachine,
+    mooreMachine,
     machineToProcess,
     step0,
 
@@ -102,17 +104,20 @@ pattern P i st ex = Process i st ex
 
 -- | A Moore machine over base arrow @arr@ and polynomial interface @p@.
 --
--- The existential state type @s@ is hidden; the observable interface is the
--- coalgebra consisting of an initial-state injector, a state-to-position
--- observation, and a step system.  For the monomial special case
--- @Machine (->) (Mono a b)@ this collapses to the classic Moore triple
--- @(inject, step, extract)@ carried by 'Process'.
+-- The existential state type @s@ is hidden.  The machine is a /pointed/
+-- coalgebra: an initial state @s@, an observation @arr s (Pos p)@, and a
+-- step system @System arr s p@.  For the monomial special case
+-- @Machine (->) (Mono a b)@ this is a classic Moore machine with an explicit
+-- seed.
+--
+-- Contrast 'Process', which seeds its state from the first input rather than
+-- from a separate point.
 data Machine arr p where
   Machine ::
     forall arr s p.
     (Ob arr s, Ob arr (Dir p), Ob arr (Pos p)) =>
-    -- | Inject the first direction into an initial state.
-    arr (Dir p) s ->
+    -- | Initial state.
+    s ->
     -- | Observe the current position from the current state.
     arr s (Pos p) ->
     -- | Step the state and produce the current position.
@@ -140,11 +145,11 @@ posToB = fst
 bToPos :: b -> Pos (Mono a b)
 bToPos b = (b, ())
 
--- | Convert a classic 'Process' triple into a monomial 'Machine'.
-processToMachine :: Process a b -> Machine (->) (Mono a b)
-processToMachine (P i st ex) =
+-- | Build a pointed monomial 'Machine' from a seed, step, and extract.
+mooreMachine :: s -> (s -> a -> s) -> (s -> b) -> Machine (->) (Mono a b)
+mooreMachine s0 st ex =
   Machine
-    (i . dirToA)
+    s0
     (bToPos . ex)
     ( system $ \case
         (_, Left v) -> absurd v
@@ -153,21 +158,24 @@ processToMachine (P i st ex) =
            in (s', (ex s', ()))
     )
 
--- | Convert a monomial 'Machine' back into a classic 'Process' triple.
+-- | Convert a monomial 'Machine' back into a first-input-seeded 'Process'.
+--
+-- The machine's seed is used to step on the first input; subsequent steps use
+-- the machine's step system directly.
 machineToProcess :: Machine (->) (Mono a b) -> Process a b
-machineToProcess (Machine i ex sys) =
+machineToProcess (Machine s0 ex sys) =
   Process
-    (i . aToDir)
+    (\a -> fst (runSystem sys (s0, Right a)))
     (\s a -> fst (runSystem sys (s, Right a)))
     (posToB . ex)
 
--- | First-step observation: the position produced from the initial state,
--- before any transition.
+-- | First-step observation: the position produced from the seed, before any
+-- input is consumed.
 --
--- For a monomial stream transformer this is the first output emitted by
--- 'scan'.
-step0 :: (Category arr) => Machine arr p -> arr (Dir p) (Pos p)
-step0 (Machine inject extract _) = extract . inject
+-- For a monomial stream transformer this is the output that would be emitted
+-- before the first 'scan' step.
+step0 :: Machine (->) p -> Pos p
+step0 (Machine s0 extract _) = extract s0
 
 -- | Strict pair, reused from the original mealy package for fused composition.
 data Pair' a b = Pair' !a !b

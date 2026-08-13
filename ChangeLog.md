@@ -16,6 +16,17 @@ knot-body category, polynomial interfaces, and close certification.
   `processToBody` → `processToThread`, `bodyToLoop` → `threadToLoop`,
   `bodyToSArr` → `threadToSArr`, `sArrToBody` → `sArrToThread`.
 
+*Machine pointing*
+
+- `Circuit.Process.Machine` is now a pointed coalgebra: it stores an initial
+  state @s@, an observation @arr s (Pos p)@, and a step @System arr s p@.
+- Removed the old `arr (Dir p) s` injector.
+- Replaced `processToMachine` with `mooreMachine` for building a pointed
+  monomial machine from a seed/step/extract triple.
+- `machineToProcess` now interprets a pointed machine back into a
+  first-input-seeded `Process`.
+- `machineToEnds` no longer wraps the state in `Maybe`.
+
 *Multiplicative disjunction and scheduling*
 
 - `Circuit.Tensor.Shared` with `sharedBy` / `sharedKnotBy` implements the ⅋

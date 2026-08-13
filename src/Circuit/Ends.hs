@@ -1078,24 +1078,17 @@ systemToEnds probe sys =
     (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
     (SArr $ \(s, ()) -> runSystem sys (s, probe))
 
--- | Convert a 'Machine' into companion/conjoint channel ends over @SArr@.
+-- | Convert a pointed 'Machine' into companion/conjoint channel ends over @SArr@.
 --
--- The state carrier is wrapped in 'Maybe' because the initial state is produced
--- by the injector only once a real direction is supplied.  The write pole
--- handles the first input via 'medInit' and subsequent inputs via the step
--- system; the read pole observes the current state without stepping.
+-- The state carrier is the machine's state @s@ and the seed @s0@ is carried by
+-- 'SomeEnds'.  The write pole steps with the supplied direction; the read pole
+-- observes the current state without stepping.
 machineToEnds :: Machine (->) p -> SomeEnds (Dir p) (Pos p)
-machineToEnds (Machine i ex sys) =
-  SomeEnds Nothing $
+machineToEnds (Machine s0 ex sys) =
+  SomeEnds s0 $
     ends0
-      ( SArr $ \case
-          (Nothing, d) -> (Just (i d), ())
-          (Just s, d) -> (Just (fst (runSystem sys (s, d))), ())
-      )
-      ( SArr $ \case
-          (Nothing, ()) -> error "machineToEnds: read before first input"
-          (Just s, ()) -> (Just s, ex s)
-      )
+      (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+      (SArr $ \(s, ()) -> (s, ex s))
 
 -- | Embed a Mealy-style 'Mediator' into a pole-unfused 'Med' over 'SArr'.
 --
