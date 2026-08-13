@@ -1136,6 +1136,22 @@ main = do
                 pre = trace (f . par @(,) @(Kleisli IO) g id)
             (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
             pure (l /= r),
+        -- Body (,) (Kleisli IO) must compose as a category. This is the untested
+        -- edge of parameterising Body over arr; Z2's Loop-level witness stands
+        -- on it. The bodies touch a shared IORef to confirm composition threads
+        -- state through the Kleisli base, not just the function base.
+        checkIO "Body (,) (Kleisli IO) composes as a category" $
+          do
+            ref <- newIORef 0
+            let f = MedState.Body $ Kleisli $ \(s, a) -> do
+                  writeIORef ref (s + 1)
+                  pure (s + 1, a + 1)
+                g = MedState.Body $ Kleisli $ \(s, b) -> do
+                  v <- readIORef ref
+                  pure (s + v, b * 2)
+                gf = g . f
+            (sOut, c) <- runKleisli (MedState.runBody gf) (0, 5)
+            pure (sOut == 2 && c == 12),
         -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful
         -- morphism g slid past f gives a different result depending on order.
