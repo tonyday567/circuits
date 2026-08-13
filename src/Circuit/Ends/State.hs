@@ -1,17 +1,21 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- | Stateful arrows and pole-unfused mediators as channel ends.
+-- | Stateful arrows, knot bodies, and pole-unfused mediators as channel ends.
 --
 -- This is a spike for the 'Ends-state unification' thesis from
--- @loom/ends-state.md@: a stateful morphism @(s, a) -> (s, b)@ is a base arrow
--- in its own right, and a mediator is just a pair of channel ends over that
--- arrow split by the unit pole @()@.
+-- @loom/ends-state.md@ and the 'Body-loop' thesis from @loom/body-loop.md@:
+-- a stateful morphism @(s, a) -> (s, b)@ is a base arrow in its own right,
+-- 'Body t arr s' generalises that to any tensor @t@ and base arrow @arr@,
+-- and a mediator is just a pair of channel ends over the cartesian instance
+-- split by the unit pole @()@.
 --
 -- @
---   SArr s a b  =  (s, a) -> (s, b)
---   Med  s a b  ≈  Ends (SArr s) a (Maybe b)
+--   Body t arr s a b  =  arr (t s a) (t s b)
+--   SArr s a b        =  Body (,) (->) s a b
+--   Med  s a b        ≈  Ends (SArr s) a (Maybe b)
 -- @
 --
 -- The @Med@ record keeps the seed and the two pole functions explicit. The
@@ -23,6 +27,14 @@ module Circuit.Ends.State
     SomeSArr (..),
     runSomeSArr,
     processToSomeSArr,
+
+    -- * Knot-body category
+    Body (..),
+    SomeBody (..),
+    bodyToLoop,
+    bodyToSArr,
+    sArrToBody,
+    processToBody,
 
     -- * Pole-unfused mediator
     Med (..),
@@ -45,6 +57,7 @@ where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Ends (Ends (..), HasUnit (..), In (..), Out (..), close, emit, ends0, splay0)
+import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
 import Circuit.Process (Process (..))
 import Data.Maybe (catMaybes)
@@ -72,6 +85,66 @@ instance Category (SArr s) where
 -- | @SArr s@ has trivial object constraints, so it is discrete.
 instance Discrete (SArr s) where
   withOb x = x
+
+-- | The knot-body category: morphisms @arr (t s a) (t s b)@ for a fixed
+-- feedback/state type @s@, base arrow @arr@, and tensor @t@.
+--
+-- Composition is just @arr@ composition; no @Channel@, @Strength@, or @Traced@
+-- structure is required. This is the category Loop's 'Knot' hides before tracing.
+--
+-- @SArr s = Body (,) (->) s@ is the cartesian instance.
+newtype Body t arr s a b = Body {runBody :: arr (t s a) (t s b)}
+
+instance (Category arr) => Category (Body t arr s) where
+  type Ob (Body t arr s) a = Ob arr (t s a)
+
+  id :: forall a. (Ob arr (t s a)) => Body t arr s a a
+  id = Body id
+  {-# INLINE id #-}
+
+  (.) :: forall a b c. (Ob arr (t s a), Ob arr (t s b), Ob arr (t s c)) => Body t arr s b c -> Body t arr s a b -> Body t arr s a c
+  Body g . Body f = Body (g . f)
+  {-# INLINE (.) #-}
+
+-- | @Body t arr s@ has the same discreteness as its base arrow.
+instance (Discrete arr) => Discrete (Body t arr s) where
+  withOb @a = withOb @arr @(t s a)
+
+-- | Cartesian instance: @SArr s@ is exactly @Body (,) (->) s@.
+sArrToBody :: SArr s a b -> Body (,) (->) s a b
+sArrToBody (SArr f) = Body f
+
+bodyToSArr :: Body (,) (->) s a b -> SArr s a b
+bodyToSArr (Body f) = SArr f
+
+-- | A 'Body' with its state type hidden, for the same reason 'SomeSArr' exists.
+data SomeBody t arr a b where
+  SomeBody :: s -> Body t arr s a b -> SomeBody t arr a b
+
+-- | Lift a knot body into a 'Loop' by hiding the state wire.
+bodyToLoop ::
+  (Ob arr s, Ob arr (t s a), Ob arr (t s b)) =>
+  Body t arr s a b ->
+  Loop t arr a b
+bodyToLoop (Body f) = Knot f
+
+-- | View a 'Process' as a knot body over the 'Either' tensor.
+--
+-- This is the same body used by 'Circuit.Process.encode', now exposed as a value
+-- of 'Body Either (->) s'. It confirms the Process / Loop Either round-trip
+-- factors through the knot-body category.
+processToBody :: Process a b -> SomeBody Either (->) [a] [b]
+processToBody (Process inject step extract) =
+  SomeBody (Nothing, [], []) $ Body $ \case
+    Right [] -> Right []
+    Right (a : as) ->
+      let s0 = inject a
+       in Left (Just s0, as, [extract s0])
+    Left (_, [], bs) -> Right (reverse bs)
+    Left (Just s, a : as, bs) ->
+      let s' = step s a
+       in Left (Just s', as, extract s' : bs)
+    Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
 
 -- | Unit ends for @SArr s@ at the unit object @()@.
 --

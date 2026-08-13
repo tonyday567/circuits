@@ -720,6 +720,12 @@ main = do
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
+        -- Process / Loop Either round-trip factors through Body Either (->)
+        check "Process encode factors through Body Either (->)" $
+          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ b -> MedState.bodyToLoop b
+           in scan sumP [1, 2, 3] == run (viaBody sumP) [1, 2, 3]
+                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
+                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
         -- Process as a base arrow for Loop / Net / Shared
         check "Process lifts into Loop (,) Process" $
           scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]

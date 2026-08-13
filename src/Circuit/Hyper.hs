@@ -30,6 +30,15 @@
 -- @HyperF@ lives in the same module so the function API is literally a
 -- specialisation of the generic one.
 --
+-- === stateful arrows
+--
+-- A stateful function @(s, a) -> (s, b)@ is isomorphic to a Kleisli arrow
+-- @a -> State s b@. 'stateKleisli' records that isomorphism; it is the bridge
+-- between 'Circuit.Ends.State.SArr' (the cartesian stateful arrow) and the
+-- state monad. The same isomorphism justifies 'Circuit.Ends.State.Body' for
+-- general tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
+-- tensor-paired carrier @t s -@.
+--
 -- === doctests
 --
 -- >>> import Circuit.Hyper
