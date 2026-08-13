@@ -1280,6 +1280,23 @@ main = do
                       )
                   )
            in Alg.eval term ((), ()) == That [2, 2, 2],
+        -- Free-syntax bridge: SigMediate is the algebraic ? connective
+        check "AlgMediate eval agrees with runMediator (pairSum)" $
+          let term :: Alg.AlgMediate (,) (->) [Int] [Int]
+              term = Alg.algMediate pairSum
+           in Alg.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
+        check "AlgMediate eval agrees with runMediator (count)" $
+          let term :: Alg.AlgMediate (,) (->) [()] [Int]
+              term = Alg.algMediate count
+           in Alg.eval term [(), (), ()] == runMediator count [(), (), ()],
+        check "AlgMediate eval agrees with runMediator (linear)" $
+          let term :: Alg.AlgMediate (,) (->) [Int] [Int]
+              term = Alg.algMediate linear
+           in Alg.eval term [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
+        check "AlgMediate term composes with Lift inside the algebra" $
+          let term :: Alg.AlgMediate (,) (->) [Int] [Int]
+              term = Alg.Op (Alg.L (Alg.SigCompose (Alg.algMediate pairSum) (Alg.Lift (map (* 2)))))
+           in Alg.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [2, 4, 6, 8],
         -- Mediator-hyper oracles (B8)
         -- Pure @(->)@ 'Ends' boxes are constant, so the shared-medium bodies
         -- below are used as the channel-end representatives.  The schedule is

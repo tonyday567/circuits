@@ -43,6 +43,7 @@
 -- * @SigKnot@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition (the tensor product ⊗)
 -- * @SigShared@  — shared-medium fusion (the par product ⅋), parameterised by a schedule
+-- * @SigMediate@ — exponential / why-not (@?@), parameterised by a mediator
 -- * @SigSwap@    — symmetric braiding
 -- * @SigCopyDiscard@ — copy, discard
 -- * @SigMergeZero@   — plus, zero
@@ -68,21 +69,27 @@ module Circuit.Algebra
     -- * Individual signatures
     SigCompose (..),
     SigKnot (..),
+    SigMediate (..),
     SigPar (..),
     SigShared (..),
     SigSwap (..),
     SigCopyDiscard (..),
     SigMergeZero (..),
 
+    -- * Mediator interpretation
+    Mediable (..),
+
     -- * Common syntax combinations
     AlgCat,
     AlgLoop,
+    AlgMediate,
     AlgShared,
     AlgSym,
     AlgBimonoidal,
     AlgNet,
 
     -- * Direct <-> algebra isomorphisms
+    algMediate,
     algLoop,
     runAlgLoop,
     algNet,
@@ -95,6 +102,7 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
 import Circuit.Loop qualified as C
+import Circuit.Mediate (Mediator (..), runMediator)
 import Circuit.Net qualified as N
 import Circuit.Tensor (Action (..), Bias (..), Fire, Schedule (..), Shared (..), Tensor (..), sharedBy)
 import Data.Kind (Constraint, Type)
@@ -254,6 +262,37 @@ instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   type Ctx (SigShared t) arr arr' = Shared t arr'
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
 
+-- | Exponential / why-not (@?@): a mediator policy as a circuit constructor.
+--
+-- A mediator is a Mealy-style state machine with residual state @s@, input @a@,
+-- and optional output @b@.  The @?@ connective embeds it as a stream morphism
+-- @[a] -> [b]@.  The residual state is hidden inside the constructor; the
+-- algebra interprets the policy in a target category that knows how to run
+-- mediators.
+--
+-- This is the exponential counterpart to the additive and multiplicative
+-- connectives: while 'SigCopyDiscard' gives explicit copy/discard capability,
+-- 'SigMediate' is the policy that the exponential modalises.
+data SigMediate arr rec a b where
+  SigMediate :: Mediator s a b -> SigMediate arr rec [a] [b]
+
+-- | Categories that can interpret a mediator as a morphism.
+--
+-- The canonical instance is over functions, where a mediator denotes the
+-- causal stream function @[a] -> [b]@ obtained by running from its seed.
+-- Other instances (stateful arrows, Kleisli arrows with state) can be added
+-- as needed.
+class Mediable arr where
+  mediate :: Mediator s a b -> arr [a] [b]
+
+-- | Functions interpret a mediator by running it as a stream transducer.
+instance Mediable (->) where
+  mediate = runMediator
+
+instance (Mediable arr') => Algebra SigMediate arr arr' where
+  type Ctx SigMediate arr arr' = Mediable arr'
+  alg _ _ (SigMediate med) = mediate med
+
 -- | Symmetric braiding.
 data SigSwap arr rec a b where
   SigSwap :: SigSwap arr rec (a, b) (b, a)
@@ -326,6 +365,9 @@ type AlgSym arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
 type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
+
+-- | Free traced category with mediator policies (the @?@ connective).
+type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigKnot t) arr
 
 -- | Free bimonoidal category.
 type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
@@ -434,6 +476,10 @@ instance (Category arr, Discrete arr) => Discrete (AlgLoop t arr) where
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> algebra isomorphisms
+
+-- | Embed a mediator policy into the free @?@ syntax.
+algMediate :: forall t arr s a b. Mediator s a b -> AlgMediate t arr [a] [b]
+algMediate med = Op (R (L (SigMediate med)))
 
 -- | Embed the direct 'C.Loop' GADT into the signature-based form.
 algLoop :: forall t arr a b. C.Loop t arr a b -> AlgLoop t arr a b
