@@ -18,7 +18,7 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Mediate (LinearResidual (..), LinearityViolation, Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
+import Circuit.Mediate (LinearResidual (..), LinearityViolation (..), Mediator (..), closeCertified, closeCertifiedWith, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Eval (..), Mono, System (..), lens, monoDir, monoIn)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
@@ -26,7 +26,7 @@ import Circuit.Process (Process (..), delay, encode, fold, register, scan)
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
-import Data.List (foldl', scanl', sort, uncons)
+import Data.List (foldl', isInfixOf, scanl', sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
 import Data.These (These (..), these)
@@ -410,6 +410,10 @@ leftOnlyMaybe = Schedule (,L)
 
 rightOnlyMaybe :: Schedule (Maybe Int)
 rightOnlyMaybe = Schedule (,R)
+
+-- | Gating schedule for the @PS@ residual used by 'MedState.medPairSum'.
+leftOnlyPS :: Schedule MedState.PS
+leftOnlyPS = Schedule (,L)
 
 -- | Premonoidal left-first product of two knot bodies.
 --
@@ -1333,7 +1337,7 @@ main = do
           MedState.runMed (MedState.mediatorToMed pairSum) [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
         check "mediatorToMed count agrees with runMediator" $
           MedState.runMed (MedState.mediatorToMed count) [(), (), ()] == runMediator count [(), (), ()],
-        check "medToMediator . mediatorToMed round-trips on pairSum" $
+        check "medToMediator . mediatorToMed round-trips behaviourally on pairSum" $
           let m = MedState.medToMediator (MedState.mediatorToMed pairSum)
            in runMediator m [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
         -- Circuit.Ends.State oracles
@@ -1349,6 +1353,14 @@ main = do
           MedState.runMed MedState.medPairSum [0, 0 :: Int] == [0],
         check "Ends.State runMed pairSum odd input leaves residual" $
           MedState.runMed MedState.medPairSum [1, 2, 3 :: Int] == [3],
+        check "Ends.State medPairSum under left-only gating schedule reports violation" $
+          let med = MedState.medToMediator MedState.medPairSum
+              s0 = MedState.medSeed MedState.medPairSum
+              step s x = fst (mediateSharedBody med leftOnlyPS (s, (x, 0)))
+              sFinal = foldl step s0 [1, 2, 3 :: Int]
+           in case closeCertified med sFinal [] of
+                Left (LinearityViolation msg) -> "Held 3" `isInfixOf` msg
+                Right _ -> False,
         check "Ends.State runMed count emits accumulating residual" $
           MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
         -- Mediate.Tensor oracles (B3)
