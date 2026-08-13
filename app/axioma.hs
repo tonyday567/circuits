@@ -12,7 +12,7 @@ import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChann
 import Circuit.Dagger (CopyDiscard (..), Dagger (..), MergeZero (..), transpose)
 import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
 import Circuit.Ends qualified as Chu
-import Circuit.Ends.State qualified as MedState
+import Circuit.Ends qualified as MedState
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop

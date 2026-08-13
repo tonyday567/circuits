@@ -54,7 +54,6 @@ library
     Circuit.ChannelPoly
     Circuit.Dagger
     Circuit.Ends
-    Circuit.Ends.State
     Circuit.FinRel
     Circuit.Hyper
     Circuit.Layer
