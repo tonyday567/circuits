@@ -69,6 +69,9 @@ import Control.Category (id, (.))
 import Data.Functor (void)
 import Prelude hiding (id, (.))
 
+-- $setup
+-- >>> import Circuit.Poly (System, Mono, Morphism, lens, applyLens)
+
 -- | A channel whose interface is the polynomial @p@.
 --
 -- Internally it is a Moore system with hidden state @s@. The state is

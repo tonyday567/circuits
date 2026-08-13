@@ -34,13 +34,17 @@
 --
 -- == Overview
 --
--- This library provides two representations of feedback:
+-- This library provides three views on feedback:
 --
 -- * `Loop` (in "Circuit.Loop") — the initial, inspectable GADT encoding.
 -- * @Hyper@ (in "Circuit.Hyper") — the final, coinductive encoding.
+-- * `Thread` (in "Circuit.Thread") — the knot-body category
+--   @arr (t s a) (t s b)@, the stateful substrate that `Loop` hides before
+--   tracing. `SArr` is its cartesian instance.
 --
 -- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
--- currently supporting lazy knots with @(,@) and iteration with `Either`.
+-- supporting lazy knots with @(,@), iteration with `Either`, and scheduling
+-- with `These`.
 --
 -- All braided, cartesian, and cocartesian structure, plus the general
 -- `ambientBy` state-threading combinator, lives in "Circuit.Tensor".
@@ -48,7 +52,7 @@
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a `Loop` (currently @(,@) or `Either`).
+--   inside a `Loop` (currently @(,@), `Either`, or `These` for scheduling).
 --
 -- * __Feedback value__: The component that travels around the loop (first
 --   parameter of the tensor in a `Loop`).
@@ -90,9 +94,28 @@ module Circuit
     constChannel,
     mapChannel,
 
-    -- * Channel ends (bi-polar effectful/process API; still the right tool
+    -- * Thread (knot-body category)
+    Thread (..),
+    SomeThread (..),
+    SArr (..),
+    SomeSArr (..),
+    threadToLoop,
+    runSomeSArr,
 
-    -- for Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
+    -- * Polynomial interfaces
+    System,
+    system,
+    runSystem,
+    Mono,
+    Morphism (..),
+    lens,
+    applyLens,
+    prism,
+    Pos,
+    Dir,
+
+    -- * Channel ends (bi-polar effectful/process API; still the right tool for
+    -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
     Ends (..),
@@ -226,6 +249,12 @@ module Circuit
 
     -- * Mediator (Track B residual)
     Mediator (..),
+    PS (..),
+    LinearResidual (..),
+    FlushableResidual (..),
+    LinearityViolation (..),
+    closeCertified,
+    closeCertifiedWith,
     count,
     linear,
     pairSum,
@@ -326,12 +355,38 @@ import Circuit.Layer
 import Circuit.Loop (Loop (..))
 import Circuit.Loop qualified as Loop
 import Circuit.Mediate
-  ( Mediator (..),
+  ( FlushableResidual (..),
+    LinearityViolation (..),
+    LinearResidual (..),
+    Mediator (..),
+    PS (..),
+    closeCertified,
+    closeCertifiedWith,
     count,
     linear,
     mediateLoop,
     pairSum,
     runMediator,
+  )
+import Circuit.Poly
+  ( Dir,
+    Mono,
+    Morphism (..),
+    Pos,
+    System,
+    applyLens,
+    lens,
+    prism,
+    runSystem,
+    system,
+  )
+import Circuit.Thread
+  ( SArr (..),
+    SomeSArr (..),
+    SomeThread (..),
+    Thread (..),
+    runSomeSArr,
+    threadToLoop,
   )
 import Circuit.Net
   ( Net,

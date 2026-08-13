@@ -371,7 +371,7 @@ checkIO name act = do
 -- ⅋ probe helpers
 -- ---------------------------------------------------------------------------
 
--- | Body that prepends a marker to the shared feedback list and emits the
+-- | Thread that prepends a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
 markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
 markerBody n (ns, ()) = (n : ns, take 3 ns)
@@ -414,7 +414,7 @@ rightOnlyPS = Schedule (,R)
 -- | Premonoidal left-first product of two knot bodies.
 --
 -- This is the composite @(f ⊗ id) ; (id ⊗ g)@ in the category of knot bodies
--- @Body (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
+-- @Thread (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
 bodyParL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, These b d))
 bodyParL f g (s, (a, c)) =
   let (s', b) = f (s, a)
@@ -434,7 +434,7 @@ bodyParR f g (s, (a, c)) =
 -- | Centrality of two knot bodies at a chosen input.
 --
 -- Two bodies are central when the premonoidal left-first and right-first
--- products agree.  For the cartesian instance @Body (,) (->) s@ this is the
+-- products agree.  For the cartesian instance @Thread (,) (->) s@ this is the
 -- statement that order of state threading is invisible.
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
@@ -720,12 +720,12 @@ main = do
         -- QuickCheck Process / Loop equivalence
         qcCheck "QC: scan == run . encode" prop_scan_encode,
         qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
-        -- Process / Loop Either round-trip factors through Body Either (->)
-        check "Process encode factors through Body Either (->)" $
-          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ b -> MedState.bodyToLoop b
-           in scan sumP [1, 2, 3] == run (viaBody sumP) [1, 2, 3]
-                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
-                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
+        -- Process / Loop Either round-trip factors through Thread Either (->)
+        check "Process encode factors through Thread Either (->)" $
+          let viaThread p = case MedState.processToThread p of MedState.SomeThread _ b -> MedState.threadToLoop b
+           in scan sumP [1, 2, 3] == run (viaThread sumP) [1, 2, 3]
+                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaThread swapPairP) [(1, 2), (3, 4), (5, 6)]
+                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaThread (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
         -- Process as a base arrow for Loop / Net / Shared
         check "Process lifts into Loop (,) Process" $
           scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]
@@ -1153,21 +1153,21 @@ main = do
                 pre = trace (f . par @(,) @(Kleisli IO) g id)
             (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
             pure (l /= r),
-        -- Body (,) (Kleisli IO) must compose as a category. This is the untested
+        -- Thread (,) (Kleisli IO) must compose as a category. This is the untested
         -- edge of parameterising Body over arr; Z2's Loop-level witness stands
         -- on it. The bodies touch a shared IORef to confirm composition threads
         -- state through the Kleisli base, not just the function base.
-        checkIO "Body (,) (Kleisli IO) composes as a category" $
+        checkIO "Thread (,) (Kleisli IO) composes as a category" $
           do
             ref <- newIORef 0
-            let f = MedState.Body $ Kleisli $ \(s, a) -> do
+            let f = MedState.Thread $ Kleisli $ \(s, a) -> do
                   writeIORef ref (s + 1)
                   pure (s + 1, a + 1)
-                g = MedState.Body $ Kleisli $ \(s, b) -> do
+                g = MedState.Thread $ Kleisli $ \(s, b) -> do
                   v <- readIORef ref
                   pure (s + v, b * 2)
                 gf = g . f
-            (sOut, c) <- runKleisli (MedState.runBody gf) (0, 5)
+            (sOut, c) <- runKleisli (MedState.runThread gf) (0, 5)
             pure (sOut == 2 && c == 12),
         -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful
@@ -1360,7 +1360,7 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
-        -- Mediate / Ends.State equivalence oracles
+        -- Mediate / Ends equivalence oracles
         check "mediatorToMed linear agrees with runMediator" $
           MedState.runMed (MedState.mediatorToMed linear) [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
         check "mediatorToMed pairSum agrees with runMediator" $
@@ -1370,20 +1370,20 @@ main = do
         check "medToMediator . mediatorToMed round-trips behaviourally on pairSum" $
           let m = MedState.medToMediator (MedState.mediatorToMed pairSum)
            in runMediator m [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        -- Circuit.Ends.State oracles
-        check "Ends.State medStep agrees with medStepDirect (linear)" $
+        -- Circuit.Ends oracles
+        check "Ends medStep agrees with medStepDirect (linear)" $
           let s = Nothing :: Maybe Int
               a = 42
            in MedState.medStep MedState.medLinear s a == MedState.medStepDirect MedState.medLinear s a,
-        check "Ends.State runMed linear forwards every input" $
+        check "Ends runMed linear forwards every input" $
           MedState.runMed MedState.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
-        check "Ends.State runMed pairSum buffers and sums pairs" $
+        check "Ends runMed pairSum buffers and sums pairs" $
           MedState.runMed MedState.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
-        check "Ends.State runMed pairSum zeroes are valid inputs" $
+        check "Ends runMed pairSum zeroes are valid inputs" $
           MedState.runMed MedState.medPairSum [0, 0 :: Int] == [0],
-        check "Ends.State runMed pairSum odd input leaves residual" $
+        check "Ends runMed pairSum odd input leaves residual" $
           MedState.runMed MedState.medPairSum [1, 2, 3 :: Int] == [3],
-        check "Ends.State medPairSum under left-only gating schedule reports violation" $
+        check "Ends medPairSum under left-only gating schedule reports violation" $
           let med = MedState.medToMediator MedState.medPairSum
               s0 = MedState.medSeed MedState.medPairSum
               leftOnlyBufferedPS :: Schedule (MedState.PS, Maybe (Maybe Int))
@@ -1393,19 +1393,19 @@ main = do
            in case closeCertified med sFinal [] of
                 Left (LinearityViolation msg) -> "Held 3" `isInfixOf` msg
                 Right _ -> False,
-        check "Ends.State runMed count emits accumulating residual" $
+        check "Ends runMed count emits accumulating residual" $
           MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
-        -- Ends.State conversion oracles (Z4)
-        check "Ends.State loopToSomeSArr runs Loop (,) as SArr" $
+        -- Ends conversion oracles (Z4)
+        check "Ends loopToSomeSArr runs Loop (,) as SArr" $
           let loop = Knot (\ ~(s, ()) -> (0 : s, take 3 s)) :: Loop (,) (->) () [Int]
            in MedState.runSomeSArr (MedState.loopToSomeSArr loop) [(), ()]
                 == map (run loop) [(), ()],
-        check "Ends.State loopEitherToSomeSArr runs Loop Either as SArr" $
+        check "Ends loopEitherToSomeSArr runs Loop Either as SArr" $
           let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
               loop = encode sumProc :: Loop Either (->) [Int] [Int]
            in MedState.runSomeSArr (MedState.loopEitherToSomeSArr loop) [[1, 2, 3], [4, 5 :: Int]]
                 == map (run loop) [[1, 2, 3], [4, 5]],
-        check "Ends.State systemToEnds recovers running sum" $
+        check "Ends systemToEnds recovers running sum" $
           let sys :: System (->) Int (Mono Int Int)
               sys =
                 system $ \(s, d) -> case d of
@@ -1414,7 +1414,7 @@ main = do
               runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
            in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
                 == reverse (snd (runSys 0 [1, 2, 3])),
-        check "Ends.State machineToEnds recovers Process sum" $
+        check "Ends machineToEnds recovers Process sum" $
           let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
               mach = processToMachine sumProc
               ends = MedState.machineToEnds mach

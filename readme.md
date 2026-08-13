@@ -73,6 +73,10 @@ graph LR
   Hyper["Circuit.Hyper"]
   Dagger["Circuit.Dagger"]
   Ends["Circuit.Ends"]
+  Thread["Circuit.Thread"]
+  Poly["Circuit.Poly"]
+  Algebra["Circuit.Algebra"]
+  Mediate["Circuit.Mediate"]
 
   Category --> ChannelClass --> Strength --> Traced
   Category --> TensorClass --> Action
@@ -80,12 +84,17 @@ graph LR
   Loop --> Hyper
   Dagger --> Net
   Ends --> Loop
+  Poly --> Thread
+  Thread --> Loop
+  Algebra --> Net
+  Algebra --> Loop
+  Mediate --> Ends
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
   linkStyle 5,6 stroke:#8FB83A,stroke-width:2px
   linkStyle 7,8 stroke:#9B6BC0,stroke-width:2px
-  linkStyle 9 stroke:#4B96B0,stroke-width:2px
+  linkStyle 9,10,11,12,13,14 stroke:#4B96B0,stroke-width:2px
 
   style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
@@ -102,6 +111,10 @@ graph LR
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Ends fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style Thread fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style Algebra fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Mediate fill:#4B9680,stroke:#4B9680,color:#1b1e23
 ```
 
 ## the shape of the library
@@ -137,6 +150,24 @@ be evaluated into any target category that satisfies the right laws; the GADT's
 constructors are forgotten one at a time. `Layer` captures this pattern
 uniformly, and `Algebra` provides the same deck à la carte from signature
 functors.
+
+**Four axes.** The library's breadth comes from four independent parameters:
+
+- `t` — the feedback tensor: `(,)` for lazy dataflow, `Either` for iteration,
+  `These` for scheduling / shared-medium fusion (the ⅋ connective).
+- `arr` — the base arrow: `(->)`, `Kleisli m` for effects, `Prob` for exact
+  probabilistic dynamics, `FinRel` for nondeterminism, matrices over a semiring.
+- `s` — the residual state carried by a `Thread` / `Mediator`; close
+  certification (`closeCertified`, `closeCertifiedWith`) makes linearity
+  violations observable.
+- `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
+  machine / lens, general `p` adds sums, products, dependent lenses and prisms,
+  giving `Circuit.ChannelPoly` its interactive channel model.
+
+The recent refactor crystallised this around `Thread t arr s a b`, the
+knot-body category `arr (t s a) (t s b)` that `Loop` wraps before tracing.
+Everything stateful — `SArr`, `SystemT`, `Process.Machine`, `Ends.Med` — is a
+specialisation or projection of it.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a

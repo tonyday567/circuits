@@ -1,5 +1,5 @@
 -- | Mediator abstraction as a thin wrapper over 'Circuit.Process' and
--- 'Circuit.Ends.State'.
+-- 'Circuit.Ends'.
 --
 -- A mediator is a Mealy-style state machine with residual state @s@. It
 -- consumes inputs of type @a@ and may produce outputs of type @b@. The
@@ -12,8 +12,8 @@
 -- @
 --
 -- It is also a pole-unfused pair of channel ends over the ambient-state arrow
--- @SArr (s, Maybe b)@; see 'Circuit.Ends.State.mediatorToMed' and
--- 'Circuit.Ends.State.medToMediator' for the conversions.
+-- @SArr (s, Maybe b)@; see 'Circuit.Ends.mediatorToMed' and
+-- 'Circuit.Ends.medToMediator' for the conversions.
 --
 -- The wrapper keeps the residual type @s@ exposed so that close certification
 -- can inspect the final state. All streaming behaviour is delegated to the

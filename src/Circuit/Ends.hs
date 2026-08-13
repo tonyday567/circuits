@@ -110,12 +110,12 @@ module Circuit.Ends
     SArr (..),
     SomeSArr (..),
     runSomeSArr,
-    Body (..),
-    SomeBody (..),
-    bodyToLoop,
-    bodyToSArr,
-    sArrToBody,
-    processToBody,
+    Thread (..),
+    SomeThread (..),
+    threadToLoop,
+    threadToSArr,
+    sArrToThread,
+    processToThread,
     processToSomeSArr,
     loopToSomeSArr,
     loopEitherToSomeSArr,
@@ -148,17 +148,17 @@ module Circuit.Ends
   )
 where
 
-import Circuit.Body
-  ( Body (..),
-    SArr (..),
-    SomeBody (..),
+import Circuit.Thread
+  ( SArr (..),
     SomeSArr (..),
-    bodyToLoop,
-    bodyToSArr,
+    SomeThread (..),
+    Thread (..),
     loopEitherToSomeSArr,
     loopToSomeSArr,
     runSomeSArr,
-    sArrToBody,
+    sArrToThread,
+    threadToLoop,
+    threadToSArr,
   )
 import Circuit.Category (Category (..), Discrete (..), (.>))
 import Circuit.Dagger (CopyDiscard (..))
@@ -950,7 +950,7 @@ deliveryMatrix agents recipients =
 -- to the companion. Yanking recovers the identity on @()@.
 --
 -- This instance is technically orphan because 'SArr' now lives in
--- 'Circuit.Body', but keeping it here keeps the 'Ends' plumbing local to the
+-- 'Circuit.Thread', but keeping it here keeps the 'Ends' plumbing local to the
 -- conversions section.
 instance HasDual () (SArr s) where
   open =
@@ -961,11 +961,11 @@ instance HasDual () (SArr s) where
 -- | View a 'Process' as a knot body over the 'Either' tensor.
 --
 -- This is the same body used by 'Circuit.Process.encode', now exposed as a value
--- of @Body Either (->) s@. It confirms the Process / Loop Either round-trip
+-- of @Thread Either (->) s@. It confirms the Process / Loop Either round-trip
 -- factors through the knot-body category.
-processToBody :: Process a b -> SomeBody Either (->) [a] [b]
-processToBody (Process inject step extract) =
-  SomeBody (Nothing, [], []) $ Body $ \case
+processToThread :: Process a b -> SomeThread Either (->) [a] [b]
+processToThread (Process inject step extract) =
+  SomeThread (Nothing, [], []) $ Thread $ \case
     Right [] -> Right []
     Right (a : as) ->
       let s0 = inject a
@@ -974,7 +974,7 @@ processToBody (Process inject step extract) =
     Left (Just s, a : as, bs) ->
       let s' = step s a
        in Left (Just s', as, extract s' : bs)
-    Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
+    Left (Nothing, _, _) -> error "processToThread: feedback reached before first input"
 
 -- | View a 'Process' as an existentially-quantified 'SArr'.
 --

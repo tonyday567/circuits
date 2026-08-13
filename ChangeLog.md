@@ -1,5 +1,63 @@
 # Revision history for circuits
 
+## 0.4.0.0 — unreleased
+
+Linear-logic refactor: multiplicative/additive/exponential connectives, the
+knot-body category, polynomial interfaces, and close certification.
+
+*Thread (knot-body category)*
+
+- New module `Circuit.Thread` introduces `Thread t arr s a b`, the category
+  `arr (t s a) (t s b)` that `Loop.Knot` wraps before tracing.
+- `SArr s` is its cartesian instance (`Thread (,) (->) s`).
+- `Circuit.Poly.SystemT` is now parameterised by tensor and base arrow:
+  `SystemT t arr s p = Thread t arr s (Dir p) (Pos p)`.
+- Renamed in `Circuit.Ends`: `Body` → `Thread`, `SomeBody` → `SomeThread`,
+  `processToBody` → `processToThread`, `bodyToLoop` → `threadToLoop`,
+  `bodyToSArr` → `threadToSArr`, `sArrToBody` → `sArrToThread`.
+
+*Multiplicative disjunction and scheduling*
+
+- `Circuit.Tensor.Shared` with `sharedBy` / `sharedKnotBy` implements the ⅋
+  connective over a shared state channel.
+- `Bias` / `Fire` / `Schedule` replace the old `LR`/`RL` schedule wording;
+  `L` and `R` now emit partial `These` products and discard the gated body's
+  input.
+- `superpose` fuses two `Knot`s into one when the feedback tensor matches.
+
+*Free syntax*
+
+- `Circuit.Algebra.SigShared` gives the ⅋ connective in the à-la-carte
+  signature.
+- `Circuit.Algebra.SigMediate` gives the ? connective, with `Mediable` for
+  direct evaluation.
+
+*Exponential slice and linearity*
+
+- `Circuit.Mediate` adds `LinearResidual`, `FlushableResidual`,
+  `LinearityViolation`, `closeCertified`, and `closeCertifiedWith` for
+  drain-vs-violation close semantics.
+- `Circuit.Boundary.Linear` / `IsLinear` / `NotLinear` are compile-time marks
+  for lossless payloads.
+
+*Negation and dualising object*
+
+- `Circuit.Ends.HasDual bot arr` parameterises ends by a dualising object;
+  `()` and `Bool` instances live alongside the original interaction pairing.
+- `copycat @Bool` is documented as the constant `False` strategy, not identity.
+
+*Trace honesty*
+
+- `Circuit.Loop` documents the Central Sliding side-condition
+  (Benton–Hyland Def 3.2): the free traced monoidal normal form is sound over
+  a premonoidal base only when structural maps are central.
+- New axioma oracles witness centrality and Kleisli-IO sliding failure.
+
+*Removed / merged*
+
+- `Circuit.Ends.State` is merged into `Circuit.Ends`; stale
+  `Circuit.Ends.State.*` references are updated.
+
 ## 0.3.0.0 — 2026-07-22
 
 Kernel tidy before release: split the bimonoid signature and make

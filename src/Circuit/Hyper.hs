@@ -34,8 +34,8 @@
 --
 -- A stateful function @(s, a) -> (s, b)@ is isomorphic to a Kleisli arrow
 -- @a -> State s b@. 'stateKleisli' records that isomorphism; it is the bridge
--- between 'Circuit.Ends.State.SArr' (the cartesian stateful arrow) and the
--- state monad. The same isomorphism justifies 'Circuit.Ends.State.Body' for
+-- between 'Circuit.Thread.SArr' (the cartesian stateful arrow) and the
+-- state monad. The same isomorphism justifies 'Circuit.Thread.Thread' for
 -- general tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
 -- tensor-paired carrier @t s -@.
 --
@@ -43,8 +43,12 @@
 --
 -- >>> import Circuit.Hyper
 -- >>> import Circuit.Channel (trace)
+-- >>> import Circuit.Layer (Free (..), run)
+-- >>> import Circuit.Loop (Loop (..))
+-- >>> import qualified Circuit.Loop as Loop
 -- >>> import Control.Arrow (Kleisli (..))
 -- >>> import Data.Functor.Identity (Identity (..))
+-- >>> import Data.Profunctor (dimap)
 --
 -- >>> let body = liftH (Kleisli (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: Kleisli Identity ([Int], ()) ([Int], [Int]))
 -- >>> runIdentity (observeH (trace body) ())
@@ -111,9 +115,11 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Prelude
--- >>> import Data.Profunctor (dimap, lmap, rmap)
+-- >>> import Data.Profunctor
 -- >>> import Circuit.Channel (Traced (..))
 -- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..), invoke)
+-- >>> import Circuit.Layer (Free (..), run)
+-- >>> import qualified Circuit.Loop as Loop
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -430,7 +436,11 @@ runEither f b = runHyper (encodeEither f) (Right b)
 --
 -- 'dimap' routes both input and output through the continuation
 -- structure.
---
+instance Profunctor Hyper where
+  dimap f g h = Hyper $ g . invoke h . dimap g f
+  lmap f h = Hyper $ invoke h . rmap f
+  rmap f h = Hyper $ f . invoke h . lmap f
+
 -- Profunctor identity: dimap id id = id
 --
 -- >>> observe (dimap id id h) 5
@@ -456,10 +466,6 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- 12
 -- >>> observe (dimap id ((*2) :: Int -> Int) h) 5
 -- 12
-instance Profunctor Hyper where
-  dimap f g h = Hyper $ g . invoke h . dimap g f
-  lmap f h = Hyper $ invoke h . rmap f
-  rmap f h = Hyper $ f . invoke h . lmap f
 
 instance Functor (Hyper a) where
   fmap = rmap

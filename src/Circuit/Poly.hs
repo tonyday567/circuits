@@ -106,7 +106,7 @@ module Circuit.Poly
   )
 where
 
-import Circuit.Body (Body (..))
+import Circuit.Thread (Thread (..))
 import Circuit.Category (Category (..), Discrete (..))
 import Data.Bifunctor
 import Data.Kind (Type)
@@ -765,17 +765,18 @@ prismMatch p s = case runMorphism p (EP (EK s, EE id)) of
 -- The cartesian specialisation @SystemT (,)@ is kept as the type synonym
 -- 'System'; use 'system' and 'runSystem' to construct and inspect it.
 newtype SystemT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) s (p :: Poly)
-  = SystemT (Body t arr s (Dir p) (Pos p))
+  = SystemT (Thread t arr s (Dir p) (Pos p))
 
+-- | Cartesian systems: the state-pairing tensor is @(,)@.
 type System = SystemT (,)
 
 -- | Construct a cartesian 'System' from its underlying arrow.
 system :: arr (s, Dir p) (s, Pos p) -> System arr s p
-system = SystemT . Body
+system = SystemT . Thread
 
 -- | Inspect a cartesian 'System' as its underlying arrow.
 runSystem :: System arr s p -> arr (s, Dir p) (s, Pos p)
-runSystem (SystemT (Body f)) = f
+runSystem (SystemT (Thread f)) = f
 
 -- | Extract the monomial direction from its 'Either Void' encoding.
 monoDir :: Dir (Mono i o) -> i
