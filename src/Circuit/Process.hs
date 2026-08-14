@@ -31,24 +31,19 @@
 -- * The arrow-level 'Traced' Either instance is per-tick Conway/Elgot settle,
 --   not cross-tick state feedback; see 'register' for the latter.
 --
--- = Polymorphic generalisation
+-- = Pointed systems
 --
--- The polymorphic counterpart is 'Machine' @arr p@: a Moore coalgebra over an
--- arbitrary base arrow @arr@ and polynomial interface @p@.  'Process' @a b@
--- embeds into @Machine (->) (Mono a b)@ via 'machineToProcess'.
--- The converse direction is not canonical because a 'Process' seeds its state
--- from the first input, while a 'Machine' carries an explicit seed; use
--- 'mooreMachine' to build a pointed machine directly.
+-- The pointed-Moore view of a stateful morphism is 'Circuit.Poly.System' with
+-- an explicit seed.  Use 'Circuit.Poly.mooreSystem' to build such a system,
+-- and 'systemToProcess' to turn it into a first-input-seeded 'Process'.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
     pattern P,
 
-    -- * Polymorphic process carrier
-    Machine (..),
-    mooreMachine,
-    machineToProcess,
-    step0,
+    -- * System <-> Process conversions
+    systemToProcess,
+    markSystem,
 
     -- * Runners
     scan,
@@ -61,13 +56,14 @@ module Circuit.Process
   )
 where
 
+import Circuit.Boundary (Boundary (..))
 import Circuit.Category (Category (..), Discrete (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (CopyDiscard, MergeZero)
 import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Poly (Dir, Mono, Pos, System, SystemT (..), runSystem, system)
+import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
 import Circuit.Tensor (Action (..), Bias (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
 import Control.Category qualified as Cat
 import Data.Bifunctor (bimap, first, second)
@@ -102,80 +98,46 @@ pattern P i st ex = Process i st ex
 
 {-# COMPLETE P #-}
 
--- | A Moore machine over base arrow @arr@ and polynomial interface @p@.
+-- | Convert a monomial 'System', an explicit seed, and a state observation
+-- into a first-input-seeded 'Process'.
 --
--- The existential state type @s@ is hidden.  The machine is a /pointed/
--- coalgebra: an initial state @s@, an observation @arr s (Pos p)@, and a
--- step system @System arr s p@.  For the monomial special case
--- @Machine (->) (Mono a b)@ this is a classic Moore machine with an explicit
--- seed.
---
--- Contrast 'Process', which seeds its state from the first input rather than
--- from a separate point.
-data Machine arr p where
-  Machine ::
-    forall arr s p.
-    (Ob arr s, Ob arr (Dir p), Ob arr (Pos p)) =>
-    -- | Initial state.
-    s ->
-    -- | Observe the current position from the current state.
-    arr s (Pos p) ->
-    -- | Step the state and produce the current position.
-    System arr s p ->
-    Machine arr p
-
--- ---------------------------------------------------------------------------
--- Process <-> Machine isomorphism
--- ---------------------------------------------------------------------------
-
--- | Convert a monomial direction into the underlying input.
-dirToA :: Dir (Mono a b) -> a
-dirToA (Left v) = absurd v
-dirToA (Right a) = a
-
--- | Inject an input into a monomial direction.
-aToDir :: a -> Dir (Mono a b)
-aToDir = Right
-
--- | Project a monomial position onto the underlying output.
-posToB :: Pos (Mono a b) -> b
-posToB = fst
-
--- | Inject an output into a monomial position.
-bToPos :: b -> Pos (Mono a b)
-bToPos b = (b, ())
-
--- | Build a pointed monomial 'Machine' from a seed, step, and extract.
-mooreMachine :: s -> (s -> a -> s) -> (s -> b) -> Machine (->) (Mono a b)
-mooreMachine s0 st ex =
-  Machine
-    s0
-    (bToPos . ex)
-    ( system $ \case
-        (_, Left v) -> absurd v
-        (s, Right a) ->
-          let s' = st s a
-           in (s', (ex s', ()))
-    )
-
--- | Convert a monomial 'Machine' back into a first-input-seeded 'Process'.
---
--- The machine's seed is used to step on the first input; subsequent steps use
--- the machine's step system directly.
-machineToProcess :: Machine (->) (Mono a b) -> Process a b
-machineToProcess (Machine s0 ex sys) =
+-- The observation @s -> b@ is applied to the /current/ state to produce each
+-- output, including the first output from the seed.  The step system is used
+-- only for state transitions.
+systemToProcess :: s -> (s -> b) -> System (->) s (Mono a b) -> Process a b
+systemToProcess s0 ex sys =
   Process
     (\a -> fst (runSystem sys (s0, Right a)))
     (\s a -> fst (runSystem sys (s, Right a)))
-    (posToB . ex)
+    ex
 
--- | First-step observation: the position produced from the seed, before any
--- input is consumed.
+-- | Lift a monomial 'System' and a state observation into a boundary system
+-- over 'Boundary' tokens.
 --
--- For a monomial stream transformer this is the output that would be emitted
--- before the first 'scan' step.
-step0 :: Machine (->) p -> Pos p
-step0 (Machine s0 extract _) = extract s0
+-- Payloads are stepped through the inner system.  Marks satisfying the halt
+-- predicate freeze the system and produce 'Nothing' thereafter; non-halt
+-- marks leave the state unchanged and emit the current output.  The halted
+-- state remembers the final inner state.
+--
+-- The returned system carries state @Either s s@: 'Left' is running, 'Right'
+-- is halted.  This is the core combinator behind mark-driven halt: the finite
+-- mark alphabet @k@ carries control tokens, while payloads carry data.
+markSystem ::
+  (k -> Bool) ->
+  (s -> b) ->
+  System (->) s (Mono a b) ->
+  System (->) (Either s s) (Mono (Boundary k a) (Maybe b))
+markSystem isHalt ex sys =
+  mooreSystem
+    ( \s tok -> case (s, tok) of
+        (Left s', Payload a) -> Left (fst (runSystem sys (s', Right a)))
+        (Left s', Mark k) -> if isHalt k then Right s' else Left s'
+        (Right s', _) -> Right s'
+    )
+    ( \case
+        Left s -> Just (ex s)
+        Right _ -> Nothing
+    )
 
 -- | Strict pair, reused from the original mealy package for fused composition.
 data Pair' a b = Pair' !a !b

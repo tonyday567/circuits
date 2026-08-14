@@ -128,11 +128,11 @@ module Circuit.Ends
     medStepDirect,
     runMed,
 
-    -- * System / Machine as channel ends
+    -- * System as channel ends
     SomeEnds (..),
     runSomeEnds,
     systemToEnds,
-    machineToEnds,
+    systemWithSeedToEnds,
 
     -- * Mediate view
     mediatorToMed,
@@ -165,7 +165,7 @@ import Circuit.Dagger (CopyDiscard (..))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
-import Circuit.Process (Machine (..), Process (..))
+import Circuit.Process (Process (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
 import Control.Arrow (Kleisli (..))
 import Data.Maybe (catMaybes, isNothing)
@@ -1070,21 +1070,22 @@ runSomeEnds (SomeEnds s0 e) xs =
 --
 -- The write pole runs the step and discards the output position; the read pole
 -- runs the step with the supplied probe direction and returns the position.
--- This is a lower-level split than 'Machine' provides: it does not assume a
--- separate observation map.
+-- This is a lower-level split than a pointed Moore machine: it does not assume
+-- a separate observation map.
 systemToEnds :: Dir p -> System (->) s p -> Ends (SArr s) (Dir p) (Pos p)
 systemToEnds probe sys =
   ends0
     (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
     (SArr $ \(s, ()) -> runSystem sys (s, probe))
 
--- | Convert a pointed 'Machine' into companion/conjoint channel ends over @SArr@.
+-- | Convert a pointed 'System' into companion/conjoint channel ends over @SArr@.
 --
--- The state carrier is the machine's state @s@ and the seed @s0@ is carried by
+-- The state carrier is the system's state @s@ and the seed @s0@ is carried by
 -- 'SomeEnds'.  The write pole steps with the supplied direction; the read pole
--- observes the current state without stepping.
-machineToEnds :: Machine (->) p -> SomeEnds (Dir p) (Pos p)
-machineToEnds (Machine s0 ex sys) =
+-- observes the current state without stepping, using the supplied observation
+-- function.
+systemWithSeedToEnds :: s -> (s -> Pos p) -> System (->) s p -> SomeEnds (Dir p) (Pos p)
+systemWithSeedToEnds s0 ex sys =
   SomeEnds s0 $
     ends0
       (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))

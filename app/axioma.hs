@@ -20,12 +20,12 @@ import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate (FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
-import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, runSystem, system)
+import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
-import Circuit.Process (Machine (..), Process (..), delay, encode, fold, machineToProcess, mooreMachine, register, scan)
+import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
-import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', isInfixOf, scanl', sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
@@ -522,6 +522,15 @@ instance Semiring Tropical where
   sZero = Tropical (1 / 0)
   sOne = Tropical 0
 
+-- | Boolean semiring: addition is disjunction (reachability), multiplication
+-- is conjunction (path validity).  This is the model-checking row of the
+-- keystone instance table.
+instance Semiring Bool where
+  sAdd = (||)
+  sMul = (&&)
+  sZero = False
+  sOne = True
+
 -- | Run a finite-state stochastic Moore machine by expectation.
 --
 -- Given an enumeration of the state space, the machine, a list of inputs, a
@@ -561,7 +570,7 @@ data S3 = S0 | S1 | S2
 -- From each state, stay with probability 0.5 and move to the next state
 -- (cyclically) with probability 0.5.
 chain3Prob :: System (Prob (->) Double) S3 (Mono () ())
-chain3Prob = system $ Prob $ \k (x, (s, d)) ->
+chain3Prob = system $ Prob $ \k (x, (s, _)) ->
   let next = case s of
         S0 -> [(S0, 0.5), (S1, 0.5)]
         S1 -> [(S1, 0.5), (S2, 0.5)]
@@ -573,7 +582,7 @@ chain3Prob = system $ Prob $ \k (x, (s, d)) ->
 -- Staying costs 1, moving costs 2. The cheapest n-step path to a state is the
 -- Viterbi value.
 chain3Tropical :: System (Prob (->) Tropical) S3 (Mono () ())
-chain3Tropical = system $ Prob $ \k (x, (s, d)) ->
+chain3Tropical = system $ Prob $ \k (x, (s, _)) ->
   let next = case s of
         S0 -> [(S0, Tropical 1), (S1, Tropical 2)]
         S1 -> [(S1, Tropical 1), (S2, Tropical 2)]
@@ -614,6 +623,107 @@ occupancyProb n =
 viterbiCost :: Int -> [Double]
 viterbiCost n =
   [getTropical (expectSystem [S0, S1, S2] chain3Tropical (replicate n ()) (\s' -> if s' == s then sOne else sZero) S0) | s <- [S0, S1, S2]]
+
+-- | Cyclic successor on the three-state chain.
+nextS :: S3 -> S3
+nextS S0 = S1
+nextS S1 = S2
+nextS S2 = S0
+
+-- | Boolean semantics: from each state, staying and moving are both possible.
+--
+-- This is the reachability / model-checking row:
+-- @expectSystem@ with @r = Bool@ answers "is there a path from @s0@ to a state
+-- satisfying @q@ in exactly @n@ steps?"
+chain3Bool :: System (Prob (->) Bool) S3 (Mono () ())
+chain3Bool = system $ Prob $ \k (x, (s, _)) ->
+  let next = case s of
+        S0 -> [S0, S1]
+        S1 -> [S1, S2]
+        S2 -> [S2, S0]
+   in foldl' sAdd sZero [k (x, (s', ((), ()))) | s' <- next]
+
+-- | States reachable from @S0@ in exactly @n@ steps under the Boolean
+-- transition relation.
+--
+-- >>> reachable 0
+-- [S0]
+--
+-- >>> reachable 1
+-- [S0,S1]
+--
+-- >>> reachable 2
+-- [S0,S1,S2]
+reachable :: Int -> [S3]
+reachable n = filter (\s -> expectSystem [S0, S1, S2] chain3Bool (replicate n ()) (== s) S0) [S0, S1, S2]
+
+-- ---------------------------------------------------------------------------
+-- Keystone row: Kleisli IO (Monte Carlo rollout)
+--
+-- The scalar axis lists @Log Double@ for this row; the executable uses plain
+-- @Double@ for normalized sampling.  The @Log Double@ variant is the same
+-- structure accumulating log importance weights.
+-- ---------------------------------------------------------------------------
+
+-- | Tiny deterministic RNG so the Monte Carlo axioms are reproducible without
+-- adding a dependency.
+data RNG = RNG {rngState :: Int}
+
+-- | Linear congruential generator step, returning a value in @[0,1)@.
+stepRNG :: RNG -> (Double, RNG)
+stepRNG (RNG s) =
+  let modulus = 2 ^ (31 :: Int) :: Int
+      s' = (1103515245 * s + 12345) `rem` modulus
+   in (fromIntegral s' / fromIntegral modulus, RNG s')
+
+sampleDouble :: IORef RNG -> IO Double
+sampleDouble ref = do
+  rng <- readIORef ref
+  let (u, rng') = stepRNG rng
+  writeIORef ref rng'
+  pure u
+
+-- | Monte Carlo version of the three-state chain: sample a successor rather
+-- than enumerating the expectation.
+chain3IO :: IORef RNG -> System (Prob (Kleisli IO) Double) S3 (Mono () ())
+chain3IO ref = system $ Prob $ \k -> Kleisli $ \(x, (s, _)) -> do
+  u <- sampleDouble ref
+  let s' = if u < 0.5 then s else nextS s
+  runKleisli k (x, (s', ((), ())))
+
+-- | Run one @Kleisli IO@ trajectory for @n@ steps, returning the final state.
+--
+-- The continuation passed to 'runProb' returns a dummy scalar and writes the
+-- sampled next state into a fresh 'IORef'; this is how we extract the state
+-- from an expectation transformer.
+runTrajectoryIO :: System (Prob (Kleisli IO) Double) S3 (Mono () ()) -> Int -> S3 -> IO S3
+runTrajectoryIO sys n s0 = go n s0
+  where
+    go 0 s = pure s
+    go m s = step s >>= go (m - 1)
+    step s = do
+      nextRef <- newIORef s
+      let cont = Kleisli $ \(_, (s', ((), ()))) -> writeIORef nextRef s' >> pure 0
+      _ <- runKleisli (runProb (runSystem sys) cont) ((), (s, monoIn ()))
+      readIORef nextRef
+
+-- | Empirical occupancy probabilities after @nSteps@, estimated from
+-- @nTrials@ trajectories starting at @s0@.
+mcOccupancy :: System (Prob (Kleisli IO) Double) S3 (Mono () ()) -> Int -> Int -> S3 -> IO [Double]
+mcOccupancy sys nTrials nSteps s0 = do
+  counts <- newIORef (0 :: Int, 0, 0)
+  let trial = do
+        s <- runTrajectoryIO sys nSteps s0
+        modifyIORef' counts $ \(c0, c1, c2) -> case s of
+          S0 -> (c0 + 1, c1, c2)
+          S1 -> (c0, c1 + 1, c2)
+          S2 -> (c0, c1, c2 + 1)
+  sequence_ (replicate nTrials trial)
+  (c0, c1, c2) <- readIORef counts
+  let total = fromIntegral nTrials :: Double
+  let toDouble :: Int -> Double
+      toDouble = fromIntegral
+  pure [toDouble c0 / total, toDouble c1 / total, toDouble c2 / total]
 
 main :: IO ()
 main = do
@@ -913,6 +1023,32 @@ main = do
         check "Boundary fmap acts on Payload" $
           let p = fmap length (Payload "hi" :: Boundary String String)
            in isPayload p && p == Payload 2,
+        -- Mark system (circuits-residual §7)
+        check "markSystem steps payloads through the inner system" $
+          let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
+              sys = markSystem (== "HALT") id innerSys
+              p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+           in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
+        check "markSystem halts on a halt mark and emits Nothing thereafter" $
+          let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
+              sys = markSystem (== "HALT") id innerSys
+              p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+           in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
+        check "markSystem treats non-halt marks as no-ops" $
+          let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
+              sys = markSystem (== "HALT") id innerSys
+              p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+           in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
+        check "markSystem halts immediately when the first input is a halt mark" $
+          let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
+              sys = markSystem (== "HALT") id innerSys
+              p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+           in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
+        check "markSystem round-trips through systemToProcess" $
+          let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
+              sys = markSystem (== "HALT") id innerSys
+              p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+           in scan p [] == [] && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
         -- Linear marks (Z6c) — SwapQ integration is deferred
         check "Linear marker round-trips through unLinear" $
           unLinear (Linear 42 :: Linear Int) == (42 :: Int),
@@ -1414,9 +1550,9 @@ main = do
               runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
            in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
                 == reverse (snd (runSys 0 [1, 2, 3])),
-        check "Ends machineToEnds recovers pointed Machine sum" $
-          let mach = mooreMachine (0 :: Int) ((+) :: Int -> Int -> Int) id :: Machine (->) (Mono Int Int)
-              ends = MedState.machineToEnds mach
+        check "Ends systemWithSeedToEnds recovers pointed System sum" $
+          let sys = mooreSystem ((+) :: Int -> Int -> Int) id :: System (->) Int (Mono Int Int)
+              ends = MedState.systemWithSeedToEnds 0 (\s -> (s, ())) sys
            in MedState.runSomeEnds ends [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
@@ -1510,7 +1646,23 @@ main = do
         check "Keystone: tropical Viterbi cost after 2 steps" $
           viterbiCost 2 == [2.0, 3.0, 4.0],
         check "Keystone: tropical Viterbi cost after 3 steps" $
-          viterbiCost 3 == [3.0, 4.0, 5.0]
+          viterbiCost 3 == [3.0, 4.0, 5.0],
+        -- Bool reachability row
+        check "Keystone: System (Prob Bool) S3 (Mono () ()) typechecks" $
+          length (reachable 0) == 1,
+        check "Keystone: reachability after 1 step" $
+          reachable 1 == [S0, S1],
+        check "Keystone: reachability after 2 steps" $
+          reachable 2 == [S0, S1, S2],
+        -- Kleisli IO Monte Carlo row
+        checkIO "Keystone: System (Prob (Kleisli IO) Double) S3 (Mono () ()) typechecks" $ do
+          ref <- newIORef (RNG 0)
+          occ <- mcOccupancy (chain3IO ref) 10000 2 S0
+          pure $ length occ == 3,
+        checkIO "Keystone: Monte Carlo occupancy after 2 steps" $ do
+          ref <- newIORef (RNG 0)
+          [p0, p1, p2] <- mcOccupancy (chain3IO ref) 10000 2 S0
+          pure $ abs (p0 - 0.25) < 0.02 && abs (p1 - 0.5) < 0.02 && abs (p2 - 0.25) < 0.02
       ]
   if and results
     then putStrLn "\nAll tests passed."

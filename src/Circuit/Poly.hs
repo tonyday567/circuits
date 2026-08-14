@@ -97,6 +97,7 @@ module Circuit.Poly
     System,
     system,
     runSystem,
+    mooreSystem,
     SystemEval (..),
     step,
     fromEvalSystem,
@@ -777,6 +778,20 @@ system = SystemT . Thread
 -- | Inspect a cartesian 'System' as its underlying arrow.
 runSystem :: System arr s p -> arr (s, Dir p) (s, Pos p)
 runSystem (SystemT (Thread f)) = f
+
+-- | Build a monomial 'System' from a step and an observation.
+--
+-- This is the pointed-Moore view of a stateful morphism, expressed directly
+-- in 'System' terminology.  The state transition @s -> a -> s@ and the
+-- observation @s -> b@ are explicit; the seed is supplied later (for example
+-- by 'Circuit.Process.systemToProcess').
+mooreSystem :: (s -> a -> s) -> (s -> b) -> System (->) s (Mono a b)
+mooreSystem st ex =
+  system $ \case
+    (_, Left v) -> absurd v
+    (s, Right a) ->
+      let s' = st s a
+       in (s', (ex s', ()))
 
 -- | Extract the monomial direction from its 'Either Void' encoding.
 monoDir :: Dir (Mono i o) -> i

@@ -12,7 +12,7 @@
 -- @
 --
 -- 'Thread' is the category that 'Circuit.Loop.Knot' wraps before tracing.
--- Every other stateful view — 'Circuit.Poly.System', 'Circuit.Process.Machine',
+-- Every other stateful view — 'Circuit.Poly.System', 'Circuit.Process.Process',
 -- 'Circuit.Ends.Med' — is a specialisation or projection of it.
 module Circuit.Thread
   ( -- * Cartesian ambient-state arrow

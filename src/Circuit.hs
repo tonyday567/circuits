@@ -106,6 +106,7 @@ module Circuit
     System,
     system,
     runSystem,
+    mooreSystem,
     Mono,
     Morphism (..),
     lens,
@@ -113,6 +114,15 @@ module Circuit
     prism,
     Pos,
     Dir,
+
+    -- * Stream transformer (first-input-seeded processes)
+    Process (..),
+    scan,
+    fold,
+    systemToProcess,
+    markSystem,
+    delay,
+    register,
 
     -- * Channel ends (bi-polar effectful/process API; still the right tool for
     -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
@@ -376,9 +386,19 @@ import Circuit.Poly
     System,
     applyLens,
     lens,
+    mooreSystem,
     prism,
     runSystem,
     system,
+  )
+import Circuit.Process
+  ( Process (..),
+    delay,
+    fold,
+    markSystem,
+    register,
+    scan,
+    systemToProcess,
   )
 import Circuit.Thread
   ( SArr (..),
