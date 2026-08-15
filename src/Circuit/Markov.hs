@@ -1,0 +1,82 @@
+{-# LANGUAGE FlexibleContexts #-}
+
+-- | Markov-category tests for affine structural morphisms.
+--
+-- A Markov category is a semicartesian symmetric monoidal category in which
+-- every object carries a distinguished commutative comonoid (copy, discard)
+-- and the monoidal unit is terminal.  In our setting the structural morphisms
+-- are explicit capabilities ('Copy' / 'Discard'), so this module provides
+-- /law tests/ rather than a bundled class.
+--
+-- The key observation from the excavation (Ex9) is that copyability and
+-- discardability are morphism-level properties, not object-level modalities:
+--
+-- * A map @f :: a -> b@ is /discard-natural/ when
+--   @discard . f = discard@.  In 'Prob' this is exactly the mass-1 fragment;
+--   in 'FinRel' it is the total relations.
+-- * A map @f :: a -> b@ is /copy-natural/ when
+--   @copy . f = par f f . copy@.  These are the deterministic maps: partial
+--   functions in 'FinRel', embedded functions in 'Prob'.
+--
+-- The copy-natural maps form a cartesian subcategory; the discard-natural
+-- maps form a semicartesian one.
+module Circuit.Markov
+  ( -- * Naturality tests
+    copyNatural,
+    discardNatural,
+
+    -- * Deterministic centre
+    deterministic,
+  )
+where
+
+import Circuit.Category (Category (..))
+import Circuit.Dagger (Copy (..), Discard (..))
+import Circuit.Tensor (Tensor (..))
+import Prelude hiding (id, (.))
+
+-- The object constraints are required by the local 'Category' class: every
+-- object that appears in a composition must satisfy @Ob arr@.
+
+-- | Test whether @f@ is a homomorphism from the copy comonoid on @a@ to the
+-- copy comonoid on @b@.
+--
+-- > copy . f == par f f . copy
+copyNatural ::
+  (Ob arr a, Ob arr b, Ob arr (a, a), Ob arr (b, b), Tensor (,) arr, Copy arr a, Copy arr b, Eq (arr a (b, b))) =>
+  arr a b ->
+  Bool
+copyNatural f = copy . f == par f f . copy
+{-# INLINE copyNatural #-}
+
+-- | Test whether @f@ is a homomorphism from the discard comonoid on @a@ to
+-- the discard comonoid on @b@.
+--
+-- > discard . f == discard
+discardNatural ::
+  (Category arr, Ob arr a, Ob arr b, Ob arr (), Discard arr a, Discard arr b, Eq (arr a ())) =>
+  arr a b ->
+  Bool
+discardNatural f = discard . f == discard
+{-# INLINE discardNatural #-}
+
+-- | A map is deterministic precisely when it is both copy-natural and
+-- discard-natural: it preserves the full cartesian comonoid.
+deterministic ::
+  ( Ob arr a,
+    Ob arr b,
+    Ob arr (a, a),
+    Ob arr (b, b),
+    Ob arr (),
+    Tensor (,) arr,
+    Copy arr a,
+    Copy arr b,
+    Discard arr a,
+    Discard arr b,
+    Eq (arr a (b, b)),
+    Eq (arr a ())
+  ) =>
+  arr a b ->
+  Bool
+deterministic f = copyNatural f && discardNatural f
+{-# INLINE deterministic #-}

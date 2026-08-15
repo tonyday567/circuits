@@ -374,6 +374,11 @@ import Circuit.Layer
   )
 import Circuit.Loop (Loop (..))
 import Circuit.Loop qualified as Loop
+import Circuit.Markov
+  ( copyNatural,
+    deterministic,
+    discardNatural,
+  )
 import Circuit.Mediate
   ( FlushableResidual (..),
     LinearityViolation (..),

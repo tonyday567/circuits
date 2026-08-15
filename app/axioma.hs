@@ -18,6 +18,7 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
+import Circuit.Markov (copyNatural, deterministic, discardNatural)
 import Circuit.Mediate (FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
@@ -257,6 +258,26 @@ discard0 = discard
 
 zero0 :: FinRel F () ()
 zero0 = zero
+
+-- ---------------------------------------------------------------------------
+-- Markov-category examples over FinRel Bool (GF(2))
+-- ---------------------------------------------------------------------------
+
+-- | Identity relation on N1 — deterministic.
+finRelId :: FinRel F N1 N1
+finRelId = FinRel 1 1 [[True, True]]
+
+-- | Zero map on N1 — deterministic.
+finRelZeroMap :: FinRel F N1 N1
+finRelZeroMap = FinRel 1 1 [[True, False]]
+
+-- | Total relation on N1 — total but not a function.
+finRelTotal :: FinRel F N1 N1
+finRelTotal = FinRel 1 1 [[True, False], [False, True]]
+
+-- | Neither total nor functional: relates 0 to both 0 and 1.
+finRelNeither :: FinRel F N1 N1
+finRelNeither = FinRel 1 1 [[False, True]]
 
 -- ---------------------------------------------------------------------------
 -- QuickCheck oracles for Process / Loop equivalence
@@ -787,6 +808,15 @@ main = do
           (finScalar False :: FinRel F N1 N1) . finScalar True == finScalar False,
         check "scalar True after scalar False" $
           (finScalar True :: FinRel F N1 N1) . finScalar False == finScalar False,
+        -- Markov-category oracles (Ex9): copy/discard naturality is morphism-level
+        check "FinRel finRelId is deterministic" $
+          deterministic finRelId,
+        check "FinRel finRelZeroMap is deterministic" $
+          deterministic finRelZeroMap,
+        check "FinRel finRelTotal is discard-natural but not copy-natural" $
+          discardNatural finRelTotal && not (copyNatural finRelTotal),
+        check "FinRel finRelNeither is neither copy- nor discard-natural" $
+          not (copyNatural finRelNeither) && not (discardNatural finRelNeither),
         -- traced structure
         check "trace yanking (n=1)" $
           trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,

@@ -58,6 +58,7 @@ library
     Circuit.Hyper
     Circuit.Layer
     Circuit.Loop
+    Circuit.Markov
     Circuit.Mediate
     Circuit.Net
     Circuit.Poly
