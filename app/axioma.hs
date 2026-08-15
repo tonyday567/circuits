@@ -10,8 +10,8 @@ import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
-import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
-import Circuit.Ends qualified as Chu
+import Circuit.Chu qualified as Chu
+import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, endsAsChu, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
 import Circuit.Ends qualified as MedState
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
@@ -964,12 +964,12 @@ main = do
           pure (r1 == r2 && r1 == 1 && residual1 == 5 && residual2 == 5),
         checkIO "ends embed: Kleisli IO end yanks through Chu embedding" $ do
           e <- mkIdentityEnd
-          let chu = Chu.endsAsChu e
+          let chu = endsAsChu e
           r <- runKleisli (Chu.chuPair chu (conjoint e, companion e)) 42
           pure (r == 42),
         checkIO "ends embed: Chu negation is involutive on Kleisli IO end" $ do
           e <- mkIdentityEnd
-          let chu = Chu.endsAsChu e
+          let chu = endsAsChu e
               chu'' = Chu.negateChu (Chu.negateChu chu)
           r1 <- runKleisli (Chu.chuPair chu (conjoint e, companion e)) 7
           r2 <- runKleisli (Chu.chuPair chu'' (conjoint e, companion e)) 7
@@ -1105,7 +1105,7 @@ main = do
         check "copycat witness is fixed by Chu negation and Dagger transpose" $
           let e :: Ends (->) () ()
               e = copycat
-              chu = Chu.endsAsChu e
+              chu = endsAsChu e
               chuNeg = Chu.negateChu chu
               d = Dagger id id :: Dagger (->) () ()
            in Chu.chuPair chu (conjoint e, companion e) () == Chu.chuPair chuNeg (companion e, conjoint e) ()
@@ -1113,7 +1113,7 @@ main = do
         check "constant self-map witness is fixed by Chu negation and Dagger transpose" $
           let e :: Ends (->) Int Int
               e = ends0 (const ()) (const 42)
-              chu = Chu.endsAsChu e
+              chu = endsAsChu e
               chuNeg = Chu.negateChu chu
               d = Dagger (const 42) (const 42) :: Dagger (->) Int Int
            in Chu.chuPair chu (conjoint e, companion e) 0 == Chu.chuPair chuNeg (companion e, conjoint e) 0

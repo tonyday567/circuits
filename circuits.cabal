@@ -51,6 +51,7 @@ library
     Circuit.Category
     Circuit.Channel
     Circuit.ChannelPoly
+    Circuit.Chu
     Circuit.Dagger
     Circuit.Ends
     Circuit.FinRel
