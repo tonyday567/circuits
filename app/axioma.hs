@@ -1087,6 +1087,12 @@ main = do
               acceptsNonLinear = id
            in acceptsNonLinear (42 :: Int) == 42,
         -- Chu construction
+        check "Chu is a base arrow: id and composition typecheck" $
+          let cid :: Chu.Chu (,) Bool (->) (Chu.ChuObj (,) Bool (->) Int Int) (Chu.ChuObj (,) Bool (->) Int Int)
+              cid = Chu.Chu (Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Int Int Int Int)
+              ccompose = cid . cid
+           in case ccompose of
+                Chu.Chu (Chu.ChuMorphism f g) -> f 0 == 0 && g 0 == 0,
         check "Chu negation is involutive" $
           let e :: (Int, Int) -> Bool
               e (x, y) = x == y

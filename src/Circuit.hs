@@ -309,8 +309,10 @@ import Circuit.Dagger
     transpose,
   )
 import Circuit.Chu
-  ( ChuMorphism (..),
+  ( Chu (..),
+    ChuMorphism (..),
     ChuObj (..),
+    ChuObjShape (..),
     ChuSemiring (..),
     chuLaw,
     chuLawAt,

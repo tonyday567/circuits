@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | The Chu construction over a monoidal base category.
 --
@@ -23,6 +24,8 @@ module Circuit.Chu
     -- * Chu objects and morphisms
     ChuObj (..),
     ChuMorphism (..),
+    Chu (..),
+    ChuObjShape (..),
     negateChu,
     idChu,
     composeChu,
@@ -38,7 +41,7 @@ module Circuit.Chu
 where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
-import Circuit.Tensor (Action (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
@@ -134,6 +137,42 @@ composeChu ::
   ChuMorphism t r arr a b e f
 composeChu (ChuMorphism f2 g2) (ChuMorphism f1 g1) =
   ChuMorphism (f2 . f1) (g1 . g2)
+
+-- ---------------------------------------------------------------------------
+-- Chu as a base arrow
+-- ---------------------------------------------------------------------------
+
+-- | Object-shape evidence for the 'Category' instance.  Every object of
+-- @Chu(C, ⊥)@ is a 'ChuObj'; this class exposes its carriers so that
+-- identity and composition can be typed uniformly.
+class ChuObjShape a where
+  type ChuPosType a :: Type
+  type ChuNegType a :: Type
+
+instance ChuObjShape (ChuObj t r arr p n) where
+  type ChuPosType (ChuObj t r arr p n) = p
+  type ChuNegType (ChuObj t r arr p n) = n
+
+-- | @Chu t r arr@ is the Chu construction as a base arrow.  Objects are
+-- 'ChuObj's; morphisms are adjoint pairs wrapped by the 'Chu' constructor.
+newtype Chu (t :: Type -> Type -> Type) (r :: Type) (arr :: Type -> Type -> Type) (a :: Type) (b :: Type) where
+  Chu ::
+    ChuMorphism t r arr (ChuPosType a) (ChuNegType a) (ChuPosType b) (ChuNegType b) ->
+    Chu t r arr a b
+
+instance (Category arr) => Category (Chu t r arr) where
+  type Ob (Chu t r arr) a = (ChuObjShape a, Ob arr (ChuPosType a), Ob arr (ChuNegType a))
+
+  id :: forall a. (Ob (Chu t r arr) a) => Chu t r arr a a
+  id = Chu (idChu :: ChuMorphism t r arr (ChuPosType a) (ChuNegType a) (ChuPosType a) (ChuNegType a))
+
+  (.) ::
+    forall a b c.
+    (Ob (Chu t r arr) a, Ob (Chu t r arr) b, Ob (Chu t r arr) c) =>
+    Chu t r arr b c ->
+    Chu t r arr a b ->
+    Chu t r arr a c
+  Chu g . Chu f = Chu (composeChu g f)
 
 -- | The adjoint law for @arr = (->)@ and the cartesian tensor.
 --
