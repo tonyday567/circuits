@@ -98,6 +98,54 @@ chuObjPostInt = Chu.ChuObj (mkChuPost 0 [] 0) 0 (uncurry chuDelivers)
 chuTwo :: Chu.ChuObj (,) Bool (->) Bool Bool
 chuTwo = Chu.ChuObj True True (uncurry (==))
 
+-- | Negation as a Chu endomorphism of the self-dual @Bool@ object.
+chuNot :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+chuNot = Chu.ChuMorphism not not
+
+-- | Positive and negative carriers for the finite @chuTwo@ object.
+chuTwoPos :: [Bool]
+chuTwoPos = [True, False]
+
+-- | Enumerated negative carrier of @chuTwo ⊗ chuTwo@.
+chuTwoTensorNegs :: [Chu.ChuTensorNeg Bool Bool Bool Bool]
+chuTwoTensorNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos chuTwoPos chuTwo chuTwo
+
+-- | Enumerated positive carrier of @chuTwo ⅋ chuTwo@.
+chuTwoParPoss :: [Chu.ChuParPos Bool Bool Bool Bool]
+chuTwoParPoss = Chu.chuParPoss chuTwoPos chuTwoPos chuTwoPos chuTwoPos chuTwo chuTwo
+
+-- | Equality of Chu morphisms on the tensor of two @chuTwo@s.
+--
+-- The backward component returns a 'ChuTensorNeg', which contains functions,
+-- so we compare pointwise over the finite domains.
+eqTensorMorphism ::
+  Chu.ChuMorphism (,) Bool (->) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) ->
+  Chu.ChuMorphism (,) Bool (->) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) ->
+  Bool
+eqTensorMorphism m1 m2 =
+  let pos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+      eqTensorNeg n1 n2 =
+        all (\a -> Chu.ctnForward n1 a == Chu.ctnForward n2 a) chuTwoPos
+          && all (\c -> Chu.ctnBackward n1 c == Chu.ctnBackward n2 c) chuTwoPos
+   in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos2
+        && all (\n -> eqTensorNeg (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoTensorNegs
+
+-- | Equality of Chu morphisms on the par of two @chuTwo@s.
+--
+-- The forward component returns a 'ChuParPos', which contains functions, so we
+-- compare pointwise over the finite domains.
+eqParMorphism ::
+  Chu.ChuMorphism (,) Bool (->) (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) ->
+  Chu.ChuMorphism (,) Bool (->) (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) ->
+  Bool
+eqParMorphism m1 m2 =
+  let neg2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+      eqParPos p1 p2 =
+        all (\b -> Chu.cppForward p1 b == Chu.cppForward p2 b) chuTwoPos
+          && all (\d -> Chu.cppBackward p1 d == Chu.cppBackward p2 d) chuTwoPos
+   in all (\p -> eqParPos (Chu.chuForward m1 p) (Chu.chuForward m2 p)) chuTwoParPoss
+        && all (\n -> Chu.chuBackward m1 n == Chu.chuBackward m2 n) neg2
+
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
   forall n.
@@ -1132,6 +1180,30 @@ main = do
         check "Chu Bool self-dual object is separated and extensional" $
           let pos = [True, False]
            in Chu.chuSeparated pos pos chuTwo && Chu.chuExtensional pos pos chuTwo,
+        check "Chu tensor preserves identity" $
+          let idC = Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+              tId = Chu.tensorChu idC idC
+           in eqTensorMorphism tId Chu.idChu,
+        check "Chu tensor preserves composition" $
+          let idC = Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+              lhs = Chu.tensorChu (Chu.composeChu chuNot chuNot) idC
+              rhs = Chu.composeChu (Chu.tensorChu chuNot idC) (Chu.tensorChu chuNot idC)
+           in eqTensorMorphism lhs rhs,
+        check "Chu tensor morphism satisfies adjoint law" $
+          let tObj = Chu.tensorChuObj chuTwo chuTwo
+              tMor = Chu.tensorChu chuNot idC
+              idC = Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+              pos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+           in all (\p -> all (\n -> Chu.chuLaw tObj tObj tMor p n) chuTwoTensorNegs) pos2,
+        check "Chu par preserves identity" $
+          let idC = Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+              pId = Chu.parChu idC idC
+           in eqParMorphism pId Chu.idChu,
+        check "Chu par preserves composition" $
+          let idC = Chu.idChu :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
+              lhs = Chu.parChu (Chu.composeChu chuNot chuNot) idC
+              rhs = Chu.composeChu (Chu.parChu chuNot idC) (Chu.parChu chuNot idC)
+           in eqParMorphism lhs rhs,
         check "Chu delivery matrix commutes with prefix morphism (Bool)" $
           let domainAgents = [1, 2] :: [Int]
               codomainAgents = map prefixName domainAgents
