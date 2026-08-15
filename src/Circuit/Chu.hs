@@ -51,6 +51,10 @@ module Circuit.Chu
     chuParPoss,
     chuSeparated,
     chuExtensional,
+    leftUnitorChu,
+    leftUnitorChuInv,
+    rightUnitorChu,
+    rightUnitorChuInv,
   )
 where
 
@@ -342,6 +346,35 @@ chuUnitObj = ChuObj () (error "chuUnitObj: negative carrier unused") snd
 -- | Bottom object @⊥ = (K, 1)@, dual of the unit.
 chuBottomObj :: ChuObj (,) r (->) r ()
 chuBottomObj = ChuObj (error "chuBottomObj: positive carrier unused") () (\(k, ()) -> k)
+
+-- | Left unitor @λ_A : I ⊗ A → A@ over @Set@.
+--
+-- Forward drops the unit; backward maps a negative point @b@ to the unique
+-- Chu tensor negative with @f() = b@ and @g a = e(a, b)@.
+leftUnitorChu ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) ((), a) (ChuTensorNeg () r a b) a b
+leftUnitorChu (ChuObj _ _ e) =
+  ChuMorphism snd (\b -> ChuTensorNeg (const b) (\a -> e (a, b)))
+
+-- | Inverse of the left unitor.
+leftUnitorChuInv ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) a b ((), a) (ChuTensorNeg () r a b)
+leftUnitorChuInv _ = ChuMorphism ((),) (\(ChuTensorNeg f _) -> f ())
+
+-- | Right unitor @ρ_A : A ⊗ I → A@ over @Set@.
+rightUnitorChu ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) (a, ()) (ChuTensorNeg a b () r) a b
+rightUnitorChu (ChuObj _ _ e) =
+  ChuMorphism fst (\b -> ChuTensorNeg (\a -> e (a, b)) (const b))
+
+-- | Inverse of the right unitor.
+rightUnitorChuInv ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) a b (a, ()) (ChuTensorNeg a b () r)
+rightUnitorChuInv _ = ChuMorphism (\a -> (a, ())) (\(ChuTensorNeg _ g) -> g ())
 
 -- | Enumerate all 'ChuTensorNeg' values for finite carriers.
 chuTensorNegs ::

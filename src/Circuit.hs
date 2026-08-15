@@ -200,6 +200,10 @@ module Circuit
     chuParPoss,
     chuSeparated,
     chuExtensional,
+    leftUnitorChu,
+    leftUnitorChuInv,
+    rightUnitorChu,
+    rightUnitorChuInv,
 
     -- * Dagger (bimonoid + dagger)
     Copy (..),
@@ -347,6 +351,10 @@ import Circuit.Chu
     chuParPoss,
     chuSeparated,
     chuExtensional,
+    leftUnitorChu,
+    leftUnitorChuInv,
+    rightUnitorChu,
+    rightUnitorChuInv,
   )
 import Circuit.Ends
   ( Bias (..),

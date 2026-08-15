@@ -114,6 +114,53 @@ chuTwoTensorNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos chuTwoPos chu
 chuTwoParPoss :: [Chu.ChuParPos Bool Bool Bool Bool]
 chuTwoParPoss = Chu.chuParPoss chuTwoPos chuTwoPos chuTwoPos chuTwoPos chuTwo chuTwo
 
+-- | Unit object @I@ used in the Chu unit-law oracles.
+chuUnitObjBool :: Chu.ChuObj (,) Bool (->) () Bool
+chuUnitObjBool = Chu.chuUnitObj
+
+-- | Enumerated negative carrier of @I ⊗ chuTwo@.
+chuTwoLeftUnitNegs :: [Chu.ChuTensorNeg () Bool Bool Bool]
+chuTwoLeftUnitNegs = Chu.chuTensorNegs [()] chuTwoPos chuTwoPos chuTwoPos chuUnitObjBool chuTwo
+
+-- | Enumerated negative carrier of @chuTwo ⊗ I@.
+chuTwoRightUnitNegs :: [Chu.ChuTensorNeg Bool Bool () Bool]
+chuTwoRightUnitNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos [()] chuTwoPos chuTwo chuUnitObjBool
+
+-- | Equality of Chu endomorphisms of @chuTwo@.
+eqChuMorphismAA ::
+  Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool ->
+  Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool ->
+  Bool
+eqChuMorphismAA m1 m2 =
+  all (\a -> Chu.chuForward m1 a == Chu.chuForward m2 a) chuTwoPos
+    && all (\b -> Chu.chuBackward m1 b == Chu.chuBackward m2 b) chuTwoPos
+
+-- | Equality of Chu endomorphisms of @I ⊗ chuTwo@.
+eqChuMorphismIIA ::
+  Chu.ChuMorphism (,) Bool (->) ((), Bool) (Chu.ChuTensorNeg () Bool Bool Bool) ((), Bool) (Chu.ChuTensorNeg () Bool Bool Bool) ->
+  Chu.ChuMorphism (,) Bool (->) ((), Bool) (Chu.ChuTensorNeg () Bool Bool Bool) ((), Bool) (Chu.ChuTensorNeg () Bool Bool Bool) ->
+  Bool
+eqChuMorphismIIA m1 m2 =
+  let pos2 = [((), x) | x <- chuTwoPos]
+      eqTensorNeg n1 n2 =
+        Chu.ctnForward n1 () == Chu.ctnForward n2 ()
+          && all (\c -> Chu.ctnBackward n1 c == Chu.ctnBackward n2 c) chuTwoPos
+   in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos2
+        && all (\n -> eqTensorNeg (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoLeftUnitNegs
+
+-- | Equality of Chu endomorphisms of @chuTwo ⊗ I@.
+eqChuMorphismAII ::
+  Chu.ChuMorphism (,) Bool (->) (Bool, ()) (Chu.ChuTensorNeg Bool Bool () Bool) (Bool, ()) (Chu.ChuTensorNeg Bool Bool () Bool) ->
+  Chu.ChuMorphism (,) Bool (->) (Bool, ()) (Chu.ChuTensorNeg Bool Bool () Bool) (Bool, ()) (Chu.ChuTensorNeg Bool Bool () Bool) ->
+  Bool
+eqChuMorphismAII m1 m2 =
+  let pos2 = [(x, ()) | x <- chuTwoPos]
+      eqTensorNeg n1 n2 =
+        all (\a -> Chu.ctnForward n1 a == Chu.ctnForward n2 a) chuTwoPos
+          && Chu.ctnBackward n1 () == Chu.ctnBackward n2 ()
+   in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos2
+        && all (\n -> eqTensorNeg (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoRightUnitNegs
+
 -- | Equality of Chu morphisms on the tensor of two @chuTwo@s.
 --
 -- The backward component returns a 'ChuTensorNeg', which contains functions,
@@ -1204,6 +1251,28 @@ main = do
               lhs = Chu.parChu (Chu.composeChu chuNot chuNot) idC
               rhs = Chu.composeChu (Chu.parChu chuNot idC) (Chu.parChu chuNot idC)
            in eqParMorphism lhs rhs,
+        check "Chu left unitor satisfies adjoint law" $
+          let iObj = Chu.tensorChuObj chuUnitObjBool chuTwo
+              mor = Chu.leftUnitorChu chuTwo
+              pos2 = [((), x) | x <- chuTwoPos]
+           in all (\p -> all (\b -> Chu.chuLaw iObj chuTwo mor p b) chuTwoPos) pos2,
+        check "Chu left unitor is inverse on A" $
+          let iso = Chu.composeChu (Chu.leftUnitorChu chuTwo) (Chu.leftUnitorChuInv chuTwo)
+           in eqChuMorphismAA iso Chu.idChu,
+        check "Chu left unitor inverse is inverse on I ⊗ A" $
+          let iso = Chu.composeChu (Chu.leftUnitorChuInv chuTwo) (Chu.leftUnitorChu chuTwo)
+           in eqChuMorphismIIA iso Chu.idChu,
+        check "Chu right unitor satisfies adjoint law" $
+          let iObj = Chu.tensorChuObj chuTwo chuUnitObjBool
+              mor = Chu.rightUnitorChu chuTwo
+              pos2 = [(x, ()) | x <- chuTwoPos]
+           in all (\p -> all (\b -> Chu.chuLaw iObj chuTwo mor p b) chuTwoPos) pos2,
+        check "Chu right unitor is inverse on A" $
+          let iso = Chu.composeChu (Chu.rightUnitorChu chuTwo) (Chu.rightUnitorChuInv chuTwo)
+           in eqChuMorphismAA iso Chu.idChu,
+        check "Chu right unitor inverse is inverse on A ⊗ I" $
+          let iso = Chu.composeChu (Chu.rightUnitorChuInv chuTwo) (Chu.rightUnitorChu chuTwo)
+           in eqChuMorphismAII iso Chu.idChu,
         check "Chu delivery matrix commutes with prefix morphism (Bool)" $
           let domainAgents = [1, 2] :: [Int]
               codomainAgents = map prefixName domainAgents
