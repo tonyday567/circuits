@@ -44,6 +44,11 @@ module Circuit.Chu
     tensorChuObj,
     parChuObj,
     lolliChuObj,
+    withChuObj,
+    oplusChuObj,
+    topChuObj,
+    zeroChuObj,
+    evalChu,
     tensorChu,
     parChu,
     chuUnitObj,
@@ -63,6 +68,7 @@ import Circuit.Category (Category (..), Ob, ObDict (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Kind (Type)
 import Data.Traversable (sequenceA)
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
@@ -330,6 +336,62 @@ lolliChuObj ::
   ChuObj (,) r (->) c d ->
   ChuObj (,) r (->) (ChuParPos b a c d) (a, d)
 lolliChuObj a b = parChuObj (negateChu a) b
+
+-- | Additive conjunction @A & B@ over @Set@.
+--
+-- Positive carrier is @A⁺ × B⁺@; negative carrier is the disjoint union
+-- @A⁻ + B⁻@.
+withChuObj ::
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuObj (,) r (->) (a, c) (Either b d)
+withChuObj (ChuObj _ _ eA) (ChuObj _ _ eB) =
+  ChuObj (error "withChuObj: positive carrier unused") (error "withChuObj: negative carrier unused") $
+    \((x, y), q) -> case q of
+      Left b -> eA (x, b)
+      Right d -> eB (y, d)
+
+-- | Additive disjunction @A ⊕ B@ over @Set@.
+--
+-- Positive carrier is the disjoint union @A⁺ + B⁺@; negative carrier is
+-- @A⁻ × B⁻@.
+oplusChuObj ::
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuObj (,) r (->) (Either a c) (b, d)
+oplusChuObj (ChuObj _ _ eA) (ChuObj _ _ eB) =
+  ChuObj (error "oplusChuObj: positive carrier unused") (error "oplusChuObj: negative carrier unused") $
+    \(q, (x, y)) -> case q of
+      Left a -> eA (a, x)
+      Right c -> eB (c, y)
+
+-- | Additive unit @⊤@ over @Set@.
+--
+-- Positive carrier is the terminal object @1@; negative carrier is the
+-- initial object @0@.
+topChuObj :: ChuObj (,) r (->) () Void
+topChuObj = ChuObj () (error "topChuObj: negative carrier unused") (\((), v) -> absurd v)
+
+-- | Additive unit @0@ over @Set@.
+--
+-- Positive carrier is the initial object @0@; negative carrier is the
+-- terminal object @1@.
+zeroChuObj :: ChuObj (,) r (->) Void ()
+zeroChuObj = ChuObj (error "zeroChuObj: positive carrier unused") () (\(v, ()) -> absurd v)
+
+-- | Evaluation counit @A ⊗ (A ⊸ B) → B@ over @Set@.
+--
+-- Forward applies the Chu morphism stored in the implication object.
+-- Backward pairs the argument with its own positive point, recovering the
+-- adjoint condition.
+evalChu ::
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuMorphism (,) r (->) (a, ChuParPos b a c d) (ChuTensorNeg a b (ChuParPos b a c d) (a, d)) c d
+evalChu _ _ =
+  ChuMorphism
+    (\(x, m) -> cppForward m x)
+    (\d -> ChuTensorNeg (\x -> (x, d)) (\m -> cppBackward m d))
 
 -- | Tensor of two Chu morphisms.
 tensorChu ::

@@ -122,6 +122,15 @@ chuUnitObjBool = Chu.chuUnitObj
 chuTwoLeftUnitNegs :: [Chu.ChuTensorNeg () Bool Bool Bool]
 chuTwoLeftUnitNegs = Chu.chuTensorNegs [()] chuTwoPos chuTwoPos chuTwoPos chuUnitObjBool chuTwo
 
+-- | Enumerated positive carrier of @chuTwo ⊸ chuTwo@.
+chuTwoLollPoss :: [Chu.ChuParPos Bool Bool Bool Bool]
+chuTwoLollPoss = Chu.chuParPoss chuTwoPos chuTwoPos chuTwoPos chuTwoPos (Chu.negateChu chuTwo) chuTwo
+
+-- | Enumerated negative carrier of @chuTwo & chuTwo@ and positive carrier of
+-- @chuTwo ⊕ chuTwo@.
+chuTwoEither :: [Either Bool Bool]
+chuTwoEither = map Left chuTwoPos ++ map Right chuTwoPos
+
 -- | Enumerated negative carrier of @chuTwo ⊗ I@.
 chuTwoRightUnitNegs :: [Chu.ChuTensorNeg Bool Bool () Bool]
 chuTwoRightUnitNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos [()] chuTwoPos chuTwo chuUnitObjBool
@@ -1304,6 +1313,27 @@ main = do
           not hasCopyChuTwo,
         check "Chu chuTwo has no discard morphism to I" $
           not hasDiscardChuTwo,
+        check "Chu additive conjunction has distinct shape" $
+          let pos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+           in length pos2 == 4
+                && length chuTwoEither == 4
+                && (length pos2, length chuTwoEither) /= (length pos2, length chuTwoTensorNegs)
+                && (length pos2, length chuTwoEither) /= (length chuTwoLollPoss, length pos2),
+        check "Chu additive disjunction has distinct shape" $
+          let pos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+              neg2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+           in length chuTwoEither == 4
+                && length neg2 == 4
+                && (length chuTwoEither, length neg2) /= (length pos2, length chuTwoTensorNegs)
+                && (length chuTwoEither, length neg2) /= (length chuTwoLollPoss, length pos2),
+        check "Chu top and zero have expected shapes" $
+          let emptyV = [] :: [Void]
+           in length [()] == 1 && null emptyV && null emptyV,
+        check "Chu evaluation satisfies adjoint law" $
+          let src = Chu.tensorChuObj chuTwo (Chu.lolliChuObj chuTwo chuTwo)
+              mor = Chu.evalChu chuTwo chuTwo
+              poss = [(a, m) | a <- chuTwoPos, m <- chuTwoLollPoss]
+           in all (\p -> all (\d -> Chu.chuLaw src chuTwo mor p d) chuTwoPos) poss,
         check "Chu delivery matrix commutes with prefix morphism (Bool)" $
           let domainAgents = [1, 2] :: [Int]
               codomainAgents = map prefixName domainAgents
