@@ -37,12 +37,27 @@ module Circuit.Chu
     -- * Delivery pairing
     deliversToSemiring,
     deliveryMatrix,
+
+    -- * Tensor and par over Set
+    ChuTensorNeg (..),
+    ChuParPos (..),
+    tensorChuObj,
+    parChuObj,
+    tensorChu,
+    parChu,
+    chuUnitObj,
+    chuBottomObj,
+    chuTensorNegs,
+    chuParPoss,
+    chuSeparated,
+    chuExtensional,
   )
 where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Kind (Type)
+import Data.Traversable (sequenceA)
 import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
@@ -240,3 +255,166 @@ deliveryMatrix ::
   [[r]]
 deliveryMatrix agents recipients =
   [map (deliversToSemiring recips) agents | recips <- recipients]
+
+
+-- ===========================================================================
+-- Tensor and par structure over Set (arr = (->), t = (,))
+-- ===========================================================================
+--
+-- The Chu construction Chu(Set, K) is *-autonomous on the full subcategory of
+-- separated extensional objects.  The operations below are defined for
+-- arbitrary Chu objects, but the unit laws hold only when the objects are
+-- separated and extensional.  See Barr, "The separated extensional Chu
+-- category" (TAC 1998).
+
+-- | Negative part of the Chu tensor @A ⊗ B@.
+--
+-- A value @(f, g)@ lives here when @e_A(a, g(b)) = e_B(b, f(a))@ for all
+-- @a ∈ A⁺@, @b ∈ B⁺@.
+data ChuTensorNeg a b c d = ChuTensorNeg
+  { -- | @A⁺ -> B⁻@
+    ctnForward :: a -> d,
+    -- | @B⁺ -> A⁻@
+    ctnBackward :: c -> b
+  }
+
+-- | Positive part of the Chu par @A ⅋ B@.
+--
+-- A value @(f, g)@ lives here when @e_A(g(d), a) = e_B(f(a), d)@ for all
+-- @a ∈ A⁻@, @d ∈ B⁻@.
+data ChuParPos a b c d = ChuParPos
+  { -- | @A⁻ -> C⁺@
+    cppForward :: b -> c,
+    -- | @D⁻ -> A⁺@
+    cppBackward :: d -> a
+  }
+
+-- | Tensor product of Chu objects over @Set@.
+tensorChuObj ::
+  (Eq r) =>
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuObj (,) r (->) (a, c) (ChuTensorNeg a b c d)
+tensorChuObj (ChuObj _ _ r) (ChuObj _ _ s) =
+  ChuObj (error "tensorChuObj: positive carrier unused") (error "tensorChuObj: negative carrier unused") $
+    \((x, y), ChuTensorNeg f g) ->
+      let lhs = r (x, g y)
+          rhs = s (y, f x)
+       in if lhs == rhs then lhs else error "tensorChuObj: ChuTensorNeg violates bilinear law"
+
+-- | Par product of Chu objects over @Set@.
+parChuObj ::
+  (Eq r) =>
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuObj (,) r (->) (ChuParPos a b c d) (b, d)
+parChuObj (ChuObj _ _ r) (ChuObj _ _ s) =
+  ChuObj (error "parChuObj: positive carrier unused") (error "parChuObj: negative carrier unused") $
+    \(ChuParPos f g, (x, y)) ->
+      let lhs = r (g y, x)
+          rhs = s (f x, y)
+       in if lhs == rhs then lhs else error "parChuObj: ChuParPos violates bilinear law"
+
+-- | Tensor of two Chu morphisms.
+tensorChu ::
+  ChuMorphism (,) r (->) a b c d ->
+  ChuMorphism (,) r (->) e f g h ->
+  ChuMorphism (,) r (->) (a, e) (ChuTensorNeg a b e f) (c, g) (ChuTensorNeg c d g h)
+tensorChu (ChuMorphism fPos fNeg) (ChuMorphism gPos gNeg) =
+  ChuMorphism
+    (\(x, y) -> (fPos x, gPos y))
+    (\(ChuTensorNeg h k) -> ChuTensorNeg (gNeg . h . fPos) (fNeg . k . gPos))
+
+-- | Par of two Chu morphisms.
+parChu ::
+  ChuMorphism (,) r (->) a b c d ->
+  ChuMorphism (,) r (->) e f g h ->
+  ChuMorphism (,) r (->) (ChuParPos a b e f) (b, f) (ChuParPos c d g h) (d, h)
+parChu (ChuMorphism fPos fNeg) (ChuMorphism gPos gNeg) =
+  ChuMorphism
+    (\(ChuParPos h k) -> ChuParPos (gPos . h . fNeg) (fPos . k . gNeg))
+    (\(x, y) -> (fNeg x, gNeg y))
+
+-- | Unit object @I = (1, K)@ with pairing @snd@.
+chuUnitObj :: ChuObj (,) r (->) () r
+chuUnitObj = ChuObj () (error "chuUnitObj: negative carrier unused") snd
+
+-- | Bottom object @⊥ = (K, 1)@, dual of the unit.
+chuBottomObj :: ChuObj (,) r (->) r ()
+chuBottomObj = ChuObj (error "chuBottomObj: positive carrier unused") () (\(k, ()) -> k)
+
+-- | Enumerate all 'ChuTensorNeg' values for finite carriers.
+chuTensorNegs ::
+  (Eq r, Eq a, Eq c) =>
+  [a] ->
+  [b] ->
+  [c] ->
+  [d] ->
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  [ChuTensorNeg a b c d]
+chuTensorNegs as bs cs ds (ChuObj _ _ r) (ChuObj _ _ s) =
+  [ ChuTensorNeg f g
+    | f <- functions as ds,
+      g <- functions cs bs,
+      all (\(a, c) -> r (a, g c) == s (c, f a)) (cartesian as cs)
+  ]
+
+-- | Enumerate all 'ChuParPos' values for finite carriers.
+chuParPoss ::
+  (Eq r, Eq b, Eq d) =>
+  [a] ->
+  [b] ->
+  [c] ->
+  [d] ->
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  [ChuParPos a b c d]
+chuParPoss as bs cs ds (ChuObj _ _ r) (ChuObj _ _ s) =
+  [ ChuParPos f g
+    | f <- functions bs cs,
+      g <- functions ds as,
+      all (\(b, d) -> r (g d, b) == s (f b, d)) (cartesian bs ds)
+  ]
+
+-- | All functions from a finite domain to a finite codomain.
+functions :: (Eq a) => [a] -> [b] -> [a -> b]
+functions [] _ = [const (error "functions: empty domain")]
+functions domain codomain = map (listToFunction domain) (sequenceA (replicate (length domain) codomain))
+
+listToFunction :: (Eq a) => [a] -> [b] -> a -> b
+listToFunction domain values x = fromJust (lookup x (zip domain values))
+  where
+    fromJust (Just y) = y
+    fromJust Nothing = error "listToFunction: input not in domain"
+
+-- | Cartesian product of two lists.
+cartesian :: [a] -> [b] -> [(a, b)]
+cartesian xs ys = [(x, y) | x <- xs, y <- ys]
+
+-- | A Chu object is /separated/ when the pairing distinguishes every pair of
+-- positive points.  Equivalently, the transposed pairing @A⁺ -> (A⁻ ⊸ ⊥)@ is
+-- injective.
+chuSeparated ::
+  (Eq r, Eq a) =>
+  [a] ->
+  [b] ->
+  ChuObj (,) r (->) a b ->
+  Bool
+chuSeparated as bs (ChuObj _ _ e) =
+  all
+    (\(a1, a2) -> a1 == a2 || any (\b -> e (a1, b) /= e (a2, b)) bs)
+    (cartesian as as)
+
+-- | A Chu object is /extensional/ when the pairing distinguishes every pair of
+-- negative points.  Equivalently, the pairing @A⁻ -> (A⁺ ⊸ ⊥)@ is injective.
+chuExtensional ::
+  (Eq r, Eq b) =>
+  [a] ->
+  [b] ->
+  ChuObj (,) r (->) a b ->
+  Bool
+chuExtensional as bs (ChuObj _ _ e) =
+  all
+    (\(b1, b2) -> b1 == b2 || any (\a -> e (a, b1) /= e (a, b2)) as)
+    (cartesian bs bs)

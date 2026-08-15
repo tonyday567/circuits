@@ -94,6 +94,10 @@ chuDelivers p = Chu.deliversToSemiring (chuTo p)
 chuObjPostInt :: Chu.ChuObj (,) Bool (->) ChuPost Int
 chuObjPostInt = Chu.ChuObj (mkChuPost 0 [] 0) 0 (uncurry chuDelivers)
 
+-- | A tiny self-dual Chu object over @Bool@ with equality pairing.
+chuTwo :: Chu.ChuObj (,) Bool (->) Bool Bool
+chuTwo = Chu.ChuObj True True (uncurry (==))
+
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
   forall n.
@@ -1117,6 +1121,17 @@ main = do
               fwd p = p {chuTo = prefixTo (chuTo p)}
               bwd = id
            in not (all (\p -> all (Chu.chuLaw chuObjPostInt chuObjPostInt (Chu.ChuMorphism fwd bwd) p) subs) posts),
+        check "Chu tensor and par have different shapes over Bool" $
+          let pos = [True, False]
+              pos2 = [(x, y) | x <- pos, y <- pos]
+              tensNegs = Chu.chuTensorNegs pos pos pos pos chuTwo chuTwo
+              parPoss = Chu.chuParPoss pos pos pos pos chuTwo chuTwo
+           in length tensNegs == 2
+                && length parPoss == 2
+                && (length pos2, length tensNegs) /= (length parPoss, length pos2),
+        check "Chu Bool self-dual object is separated and extensional" $
+          let pos = [True, False]
+           in Chu.chuSeparated pos pos chuTwo && Chu.chuExtensional pos pos chuTwo,
         check "Chu delivery matrix commutes with prefix morphism (Bool)" $
           let domainAgents = [1, 2] :: [Int]
               codomainAgents = map prefixName domainAgents
