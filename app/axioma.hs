@@ -161,6 +161,26 @@ eqChuMorphismAII m1 m2 =
    in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos2
         && all (\n -> eqTensorNeg (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoRightUnitNegs
 
+-- | Does @chuTwo@ admit a copy morphism @chuTwo -> chuTwo ⊗ chuTwo@?
+hasCopyChuTwo :: Bool
+hasCopyChuTwo =
+  let tensObj = Chu.tensorChuObj chuTwo chuTwo
+      negs = chuTwoTensorNegs
+      ok hVals =
+        all
+          (\(n, hVal) -> all (\a -> Chu.chuPair tensObj ((a, a), n) == Chu.chuPair chuTwo (a, hVal)) chuTwoPos)
+          (zip negs hVals)
+   in any ok (sequenceA (replicate (length negs) [True, False]))
+
+-- | Does @chuTwo@ admit a discard morphism @chuTwo -> I@?
+hasDiscardChuTwo :: Bool
+hasDiscardChuTwo =
+  let ok gVals =
+        all
+          (\(k, gVal) -> all (\a -> Chu.chuPair chuUnitObjBool ((), k) == Chu.chuPair chuTwo (a, gVal)) chuTwoPos)
+          (zip [True, False] gVals)
+   in any ok (sequenceA (replicate 2 [True, False]))
+
 -- | Equality of Chu morphisms on the tensor of two @chuTwo@s.
 --
 -- The backward component returns a 'ChuTensorNeg', which contains functions,
@@ -1273,6 +1293,17 @@ main = do
         check "Chu right unitor inverse is inverse on A ⊗ I" $
           let iso = Chu.composeChu (Chu.rightUnitorChuInv chuTwo) (Chu.rightUnitorChu chuTwo)
            in eqChuMorphismAII iso Chu.idChu,
+        check "Chu implication object differs from compact A⊥ ⊗ B" $
+          let lollPoss = Chu.chuParPoss chuTwoPos chuTwoPos chuTwoPos chuTwoPos (Chu.negateChu chuTwo) chuTwo
+              compactNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos chuTwoPos (Chu.negateChu chuTwo) chuTwo
+              compactPos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+           in length lollPoss == 2
+                && length compactNegs == 2
+                && (length compactPos2, length compactNegs) /= (length lollPoss, length compactPos2),
+        check "Chu chuTwo has no copy morphism to chuTwo ⊗ chuTwo" $
+          not hasCopyChuTwo,
+        check "Chu chuTwo has no discard morphism to I" $
+          not hasDiscardChuTwo,
         check "Chu delivery matrix commutes with prefix morphism (Bool)" $
           let domainAgents = [1, 2] :: [Int]
               codomainAgents = map prefixName domainAgents

@@ -43,6 +43,7 @@ module Circuit.Chu
     ChuParPos (..),
     tensorChuObj,
     parChuObj,
+    lolliChuObj,
     tensorChu,
     parChu,
     chuUnitObj,
@@ -318,6 +319,17 @@ parChuObj (ChuObj _ _ r) (ChuObj _ _ s) =
       let lhs = r (g y, x)
           rhs = s (f x, y)
        in if lhs == rhs then lhs else error "parChuObj: ChuParPos violates bilinear law"
+
+-- | Linear implication @A ⊸ B = A⊥ ⅋ B@ over @Set@.
+--
+-- The positive carrier is the set of Chu morphisms @A → B@, packaged as
+-- 'ChuParPos' after negating @A@.
+lolliChuObj ::
+  (Eq r) =>
+  ChuObj (,) r (->) a b ->
+  ChuObj (,) r (->) c d ->
+  ChuObj (,) r (->) (ChuParPos b a c d) (a, d)
+lolliChuObj a b = parChuObj (negateChu a) b
 
 -- | Tensor of two Chu morphisms.
 tensorChu ::

@@ -345,6 +345,7 @@ import Circuit.Chu
     tensorChuObj,
     parChu,
     parChuObj,
+    lolliChuObj,
     chuUnitObj,
     chuBottomObj,
     chuTensorNegs,
