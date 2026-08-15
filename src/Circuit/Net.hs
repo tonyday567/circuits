@@ -243,7 +243,19 @@ melt (Compose @_ @b1 @_ @_ @_ g f) =
     withOb @arr @b1 $
       withOb @arr @b $
         (melt g . melt f)
-melt (Par f g) = par (melt f) (melt g)
+melt (Par f g) = go f g
+  where
+    go ::
+      forall a1 b1 c d.
+      Net t arr a1 b1 ->
+      Net t arr c d ->
+      C.Loop t arr (a1, c) (b1, d)
+    go f' g' =
+      withOb @arr @a1 $
+        withOb @arr @b1 $
+          withOb @arr @c $
+            withOb @arr @d $
+              par (melt f') (melt g')
 melt Swap =
   withOb @arr @(Fst a) $
     withOb @arr @(Snd a) $

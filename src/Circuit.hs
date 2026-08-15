@@ -211,6 +211,14 @@ module Circuit
     rightUnitorChu,
     rightUnitorChuInv,
 
+    -- * Object-indexed Chu category
+    ChuObject (..),
+    OChu (..),
+    ChuOUnit (..),
+    ChuOTensor (..),
+    ChuTwo (..),
+    swapChu,
+
     -- * Dagger (bimonoid + dagger)
     Copy (..),
     Discard (..),
@@ -367,6 +375,12 @@ import Circuit.Chu
     leftUnitorChuInv,
     rightUnitorChu,
     rightUnitorChuInv,
+    ChuObject (..),
+    OChu (..),
+    ChuOUnit (..),
+    ChuOTensor (..),
+    ChuTwo (..),
+    swapChu,
   )
 import Circuit.Ends
   ( Bias (..),

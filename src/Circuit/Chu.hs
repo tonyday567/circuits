@@ -1,4 +1,7 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -61,6 +64,14 @@ module Circuit.Chu
     leftUnitorChuInv,
     rightUnitorChu,
     rightUnitorChuInv,
+
+    -- * Object-indexed Chu category (SepChu / OChu)
+    ChuObject (..),
+    OChu (..),
+    ChuOUnit (..),
+    ChuOTensor (..),
+    ChuTwo (..),
+    swapChu,
   )
 where
 
@@ -525,3 +536,81 @@ chuExtensional as bs (ChuObj _ _ e) =
   all
     (\(b1, b2) -> b1 == b2 || any (\a -> e (a, b1) /= e (a, b2)) as)
     (cartesian bs bs)
+
+-- ===========================================================================
+-- Object-indexed Chu category (OChu / SepChu)
+-- ===========================================================================
+--
+-- The existing 'Chu' category treats any 'ChuObj'-shaped type as an object.
+-- That is too unstructured for a 'Tensor' instance: the unit object is not
+-- the bare @()@, and structural morphisms such as the unitors need the
+-- object's pairing.  'OChu' restricts objects to types that carry a canonical
+-- 'ChuObj' value via the 'ChuObject' class.  This is the "constrained
+-- category" reading of SepChu.
+
+-- | A type-level Chu object: a 'ChuObjShape' together with a canonical value.
+class ChuObjShape a => ChuObject (r :: Type) a where
+  chuObject :: ChuObj (,) r (->) (ChuPosType a) (ChuNegType a)
+
+-- | Unit object type for 'OChu'.
+data ChuOUnit (r :: Type) = ChuOUnit
+
+instance ChuObjShape (ChuOUnit r) where
+  type ChuPosType (ChuOUnit r) = ()
+  type ChuNegType (ChuOUnit r) = r
+
+instance ChuObject r (ChuOUnit r) where
+  chuObject = chuUnitObj
+
+-- | Tensor object type for 'OChu'.
+data ChuOTensor (r :: Type) a b = ChuOTensor
+
+type instance Unit (ChuOTensor r) = ChuOUnit r
+
+instance ChuObjShape (ChuOTensor r a b) where
+  type ChuPosType (ChuOTensor r a b) = (ChuPosType a, ChuPosType b)
+  type ChuNegType (ChuOTensor r a b) = ChuTensorNeg (ChuPosType a) (ChuNegType a) (ChuPosType b) (ChuNegType b)
+
+instance (Eq r, ChuObject r a, ChuObject r b) => ChuObject r (ChuOTensor r a b) where
+  chuObject = tensorChuObj (chuObject @r @a) (chuObject @r @b)
+
+-- | The self-dual two-point Chu object used in the oracles.
+data ChuTwo = ChuTwo
+
+instance ChuObjShape ChuTwo where
+  type ChuPosType ChuTwo = Bool
+  type ChuNegType ChuTwo = Bool
+
+instance ChuObject Bool ChuTwo where
+  chuObject = ChuObj True True (uncurry (==))
+
+-- | The object-indexed Chu construction as a base arrow.
+newtype OChu (r :: Type) (a :: Type) (b :: Type) = OChu {unOChu :: Chu (,) r (->) a b}
+
+instance Category (OChu r) where
+  type Ob (OChu r) a = ChuObject r a
+  id :: forall a. Ob (OChu r) a => OChu r a a
+  id = OChu id
+  (.) :: forall a b c. (Ob (OChu r) a, Ob (OChu r) b, Ob (OChu r) c) => OChu r b c -> OChu r a b -> OChu r a c
+  OChu g . OChu f = OChu (g . f)
+
+-- | Symmetric braiding for the Chu tensor over @Set@.
+swapChu ::
+  ChuMorphism (,) r (->) (a, c) (ChuTensorNeg a b c d) (c, a) (ChuTensorNeg c d a b)
+swapChu = ChuMorphism (\(x, y) -> (y, x)) (\(ChuTensorNeg h k) -> ChuTensorNeg k h)
+
+instance Tensor (ChuOTensor r) (OChu r) where
+  par :: forall a b c d. OChu r a b -> OChu r c d -> OChu r (ChuOTensor r a c) (ChuOTensor r b d)
+  par (OChu (Chu f)) (OChu (Chu g)) = OChu (Chu (tensorChu f g))
+  unitl :: forall a. Ob (OChu r) a => OChu r (ChuOTensor r (ChuOUnit r) a) a
+  unitl = OChu (Chu (leftUnitorChu (chuObject @r @a)))
+  unitl' :: forall a. Ob (OChu r) a => OChu r a (ChuOTensor r (ChuOUnit r) a)
+  unitl' = OChu (Chu (leftUnitorChuInv (chuObject @r @a)))
+  unitr :: forall a. Ob (OChu r) a => OChu r (ChuOTensor r a (ChuOUnit r)) a
+  unitr = OChu (Chu (rightUnitorChu (chuObject @r @a)))
+  unitr' :: forall a. Ob (OChu r) a => OChu r a (ChuOTensor r a (ChuOUnit r))
+  unitr' = OChu (Chu (rightUnitorChuInv (chuObject @r @a)))
+
+instance Action (ChuOTensor r) (OChu r) where
+  swap :: forall a b. OChu r (ChuOTensor r a b) (ChuOTensor r b a)
+  swap = OChu (Chu swapChu)

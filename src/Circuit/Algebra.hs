@@ -241,9 +241,21 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
 data SigPar arr rec a b where
   SigPar :: rec a b -> rec c d -> SigPar arr rec (a, c) (b, d)
 
-instance (Tensor (,) arr') => Algebra SigPar arr arr' where
-  type Ctx SigPar arr arr' = Tensor (,) arr'
-  alg _ rec (SigPar f g) = par (rec f) (rec g)
+instance (Tensor (,) arr', Discrete arr') => Algebra SigPar arr arr' where
+  type Ctx SigPar arr arr' = (Tensor (,) arr', Discrete arr')
+  alg _ rec (SigPar f g) = go (rec f) (rec g)
+    where
+      go ::
+        forall a1 b1 c d.
+        arr' a1 b1 ->
+        arr' c d ->
+        arr' (a1, c) (b1, d)
+      go f' g' =
+        withOb @arr' @a1 $
+          withOb @arr' @b1 $
+            withOb @arr' @c $
+              withOb @arr' @d $
+                par f' g'
 
 -- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
 --

@@ -274,7 +274,7 @@ class (Category arr) => Tensor t arr where
   --
   -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
-  par :: arr a b -> arr c d -> arr (t a c) (t b d)
+  par :: (Ob arr a, Ob arr b, Ob arr c, Ob arr d) => arr a b -> arr c d -> arr (t a c) (t b d)
 
   -- | Left unitor: @I ⊗ a -> a@.
   unitl :: (Ob arr a) => arr (t (Unit t) a) a
@@ -518,24 +518,29 @@ superpose ::
   Loop t arr a b ->
   Loop t arr c d ->
   Loop t arr (t a c) (t b d)
-superpose x y = case (x, y) of
-  (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
-    withOb @arr @(t s s1) $
-      withOb @arr @(t (t s s1) (t a c)) $
-        withOb @arr @(t (t s s1) (t b d)) $
-          Knot $
-            pre .>> par f g .>> post
-  (Knot @_ @s @_ @_ @_ f, Lift g) ->
-    withOb @arr @(t s (t a c)) $
-      withOb @arr @(t s (t b d)) $
-        Knot $
-          assoc'_ .>> par f g .>> assoc_
-  (Lift f, Knot @_ @s @_ @_ @_ g) ->
-    withOb @arr @(t s (t a c)) $
-      withOb @arr @(t s (t b d)) $
-        Knot $
-          braid_ .>> par f g .>> braid_
-  (Lift f, Lift g) -> Lift (par f g)
+superpose x y =
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @d $
+          case (x, y) of
+            (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
+              withOb @arr @(t s s1) $
+                withOb @arr @(t (t s s1) (t a c)) $
+                  withOb @arr @(t (t s s1) (t b d)) $
+                    Knot $
+                      pre .>> par f g .>> post
+            (Knot @_ @s @_ @_ @_ f, Lift g) ->
+              withOb @arr @(t s (t a c)) $
+                withOb @arr @(t s (t b d)) $
+                  Knot $
+                    assoc'_ .>> par f g .>> assoc_
+            (Lift f, Knot @_ @s @_ @_ @_ g) ->
+              withOb @arr @(t s (t a c)) $
+                withOb @arr @(t s (t b d)) $
+                  Knot $
+                    braid_ .>> par f g .>> braid_
+            (Lift f, Lift g) -> Lift (par f g)
   where
     (.>>) :: forall x y z. arr x y -> arr y z -> arr x z
     (.>>) f' g' = withOb @arr @x $ withOb @arr @y $ withOb @arr @z $ g' . f'

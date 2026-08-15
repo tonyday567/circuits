@@ -455,15 +455,19 @@ parEnds ::
   Ends arr c d ->
   Ends arr (t a c) (t b d)
 parEnds e1 e2 =
-  withOb @arr @(t a c) $
-    withOb @arr @(t b d) $
-      withOb @arr @(t bot bot) $
-        withOb @arr @bot $
-          let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
-              (write2, read2) = splay e2 :: (arr c bot, arr bot d)
-              write = par write1 write2 .> (unitr :: arr (t bot bot) bot)
-              readEnds = (unitl' :: arr bot (t bot bot)) .> par read1 read2
-           in ends write readEnds
+  withOb @arr @a $
+    withOb @arr @b $
+      withOb @arr @c $
+        withOb @arr @d $
+          withOb @arr @(t a c) $
+            withOb @arr @(t b d) $
+              withOb @arr @(t bot bot) $
+                withOb @arr @bot $
+                  let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
+                      (write2, read2) = splay e2 :: (arr c bot, arr bot d)
+                      write = par write1 write2 .> (unitr :: arr (t bot bot) bot)
+                      readEnds = (unitl' :: arr bot (t bot bot)) .> par read1 read2
+                   in ends write readEnds
 
 -- | Precompose the input and postcompose the output of an @Ends@.
 --
@@ -599,14 +603,17 @@ box ends' =
 -- ((),42)
 boxAsymmetric ::
   forall t arr a b.
-  (HasDual (Unit t) arr, Tensor t arr) =>
+  (HasDual (Unit t) arr, Tensor t arr, Discrete arr) =>
   Ends arr a b ->
   Loop t arr (t a (Unit t)) (t (Unit t) b)
 boxAsymmetric ends' =
-  Lift $
-    par
-      (commit (conjoint ends') (companion open))
-      (emit (companion ends') (conjoint open))
+  withOb @arr @a $
+    withOb @arr @(Unit t) $
+      withOb @arr @b $
+        Lift $
+          par
+            (commit (conjoint ends') (companion open))
+            (emit (companion ends') (conjoint open))
 
 -- $setup
 -- >>> import Circuit.Ends

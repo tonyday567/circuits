@@ -206,6 +206,12 @@ eqTensorMorphism m1 m2 =
    in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos2
         && all (\n -> eqTensorNeg (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoTensorNegs
 
+-- | Extract the underlying 'ChuMorphism' from an 'OChu' arrow.
+ochuToChuMorphism ::
+  Chu.OChu r a b ->
+  Chu.ChuMorphism (,) r (->) (Chu.ChuPosType a) (Chu.ChuNegType a) (Chu.ChuPosType b) (Chu.ChuNegType b)
+ochuToChuMorphism (Chu.OChu (Chu.Chu m)) = m
+
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
 -- The forward component returns a 'ChuParPos', which contains functions, so we
@@ -1371,6 +1377,45 @@ main = do
               d = Dagger (const 42) (const 42) :: Dagger (->) Int Int
            in Chu.chuPair chu (conjoint e, companion e) 0 == Chu.chuPair chuNeg (companion e, conjoint e) 0
                 && (let Dagger f g = transpose d in f 0 == 42 && g 0 == 42),
+        -- Object-indexed Chu category (OChu) Tensor / Action instances
+        check "OChu left unitor round-trips on ChuTwo" $
+          let u :: Chu.OChu Bool (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo) Chu.ChuTwo
+              u = unitl
+              u' :: Chu.OChu Bool Chu.ChuTwo (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo)
+              u' = unitl'
+           in eqChuMorphismAA (ochuToChuMorphism (u . u')) Chu.idChu,
+        check "OChu left unitor inverse round-trips on I ⊗ ChuTwo" $
+          let t :: Chu.OChu Bool (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo) (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo)
+              t = id
+              u :: Chu.OChu Bool (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo) Chu.ChuTwo
+              u = unitl
+              u' :: Chu.OChu Bool Chu.ChuTwo (Chu.ChuOTensor Bool (Chu.ChuOUnit Bool) Chu.ChuTwo)
+              u' = unitl'
+           in eqChuMorphismIIA (ochuToChuMorphism (u' . u)) (ochuToChuMorphism t),
+        check "OChu right unitor round-trips on ChuTwo" $
+          let u :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool)) Chu.ChuTwo
+              u = unitr
+              u' :: Chu.OChu Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool))
+              u' = unitr'
+           in eqChuMorphismAA (ochuToChuMorphism (u . u')) Chu.idChu,
+        check "OChu right unitor inverse round-trips on ChuTwo ⊗ I" $
+          let t :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool)) (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool))
+              t = id
+              u :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool)) Chu.ChuTwo
+              u = unitr
+              u' :: Chu.OChu Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool))
+              u' = unitr'
+           in eqChuMorphismAII (ochuToChuMorphism (u' . u)) (ochuToChuMorphism t),
+        check "OChu par preserves identity on ChuTwo ⊗ ChuTwo" $
+          let idChuTwo = id :: Chu.OChu Bool Chu.ChuTwo Chu.ChuTwo
+              idT = id :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+              p = par idChuTwo idChuTwo :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+           in eqTensorMorphism (ochuToChuMorphism p) (ochuToChuMorphism idT),
+        check "OChu swap is involutive on ChuTwo ⊗ ChuTwo" $
+          let s :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+              s = swap
+              idT = id :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+           in eqTensorMorphism (ochuToChuMorphism (s . s)) (ochuToChuMorphism idT),
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)
