@@ -103,14 +103,14 @@ data Net (t :: Type -> Type -> Type) arr a b where
   Par :: Net t arr a b -> Net t arr c d -> Net t arr (a, c) (b, d)
   -- | Symmetric braiding.
   Swap :: Net t arr (a, b) (b, a)
-  -- | Copy: fan-out.  Requires 'Dg.CopyDiscard'.
-  Copy :: (Dg.CopyDiscard arr a) => Net t arr a (a, a)
-  -- | Discard: erase.  Requires 'Dg.CopyDiscard'.
-  Discard :: (Dg.CopyDiscard arr a) => Net t arr a ()
-  -- | Plus: fan-in.  Requires 'Dg.MergeZero'.
-  Plus :: (Dg.MergeZero arr a) => Net t arr (a, a) a
-  -- | Zero: the neutral element.  Requires 'Dg.MergeZero'.
-  Zero :: (Dg.MergeZero arr a) => Net t arr () a
+  -- | Copy: fan-out.  Requires 'Dg.Copy'.
+  Copy :: (Dg.Copy arr a) => Net t arr a (a, a)
+  -- | Discard: erase.  Requires 'Dg.Discard'.
+  Discard :: (Dg.Discard arr a) => Net t arr a ()
+  -- | Plus: fan-in.  Requires 'Dg.Merge'.
+  Plus :: (Dg.Merge arr a) => Net t arr (a, a) a
+  -- | Zero: the neutral element.  Requires 'Dg.Zero'.
+  Zero :: (Dg.Zero arr a) => Net t arr () a
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow.
   --
   -- The constructor carries the 'Ob' evidence for the feedback channel in

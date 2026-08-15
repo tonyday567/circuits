@@ -43,7 +43,7 @@ where
 
 import Circuit.Category (Category (..), ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Dagger (CopyDiscard (..), MergeZero (..))
+import Circuit.Dagger (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
 import Data.List (findIndex, foldl', transpose)
@@ -483,12 +483,16 @@ instance (Field k) => Traced (,) (FinRel k) where
 -- Bimonoid generators
 -- ===========================================================================
 
-instance (Field k, KnownNat n) => CopyDiscard (FinRel k) (FinObj n) where
+instance (Field k, KnownNat n) => Copy (FinRel k) (FinObj n) where
   copy = finCopy
+
+instance (Field k, KnownNat n) => Discard (FinRel k) (FinObj n) where
   discard = finDiscard
 
-instance (Field k, KnownNat n) => MergeZero (FinRel k) (FinObj n) where
+instance (Field k, KnownNat n) => Merge (FinRel k) (FinObj n) where
   plus = finPlus
+
+instance (Field k, KnownNat n) => Zero (FinRel k) (FinObj n) where
   zero = finZero
 
 finCopyUnit :: FinRel k () ((), ())
@@ -503,10 +507,14 @@ finPlusUnit = FinRel 0 0 []
 finZeroUnit :: FinRel k () ()
 finZeroUnit = FinRel 0 0 []
 
-instance CopyDiscard (FinRel k) () where
+instance Copy (FinRel k) () where
   copy = finCopyUnit
+
+instance Discard (FinRel k) () where
   discard = finDiscardUnit
 
-instance MergeZero (FinRel k) () where
+instance Merge (FinRel k) () where
   plus = finPlusUnit
+
+instance Zero (FinRel k) () where
   zero = finZeroUnit

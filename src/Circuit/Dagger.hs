@@ -9,9 +9,9 @@
 -- This module collects the algebraic structure that every wire carries in a
 -- circuit category:
 --
--- * 'CopyDiscard' — the comonoid on channel objects (fan-out of values).
--- * 'MergeZero' — the monoid on channel objects (fan-in of contributions).
--- * 'Bimonoid' — both together, the precondition for 'Circuit.Net.transpose'.
+-- * 'Copy' / 'Discard' — the comonoid on channel objects (fan-out of values).
+-- * 'Merge' / 'Zero' — the monoid on channel objects (fan-in of contributions).
+-- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.transpose'.
 -- * @Dagger@ — the free dagger category over a base arrow, pairing a forward
 --   arrow with a backward arrow.  'transpose' is the dagger operation.
 --
@@ -21,14 +21,27 @@
 -- copy and add are adjoint, as are discard and zero.  @Dagger@ makes that
 -- duality explicit: a dagger wire's forward direction copies while its
 -- backward direction adds.
+--
+-- The older bundled classes 'CopyDiscard' and 'MergeZero' are retained as
+-- constraint synonyms for compatibility, but the four capabilities can now be
+-- required independently.  This exposes affine settings where discard is
+-- natural but copy is not (or vice versa).
 module Circuit.Dagger
-  ( -- * CopyDiscard
-    CopyDiscard (..),
+  ( -- * Copy
+    Copy (..),
 
-    -- * MergeZero
-    MergeZero (..),
+    -- * Discard
+    Discard (..),
 
-    -- * Bimonoid
+    -- * Merge
+    Merge (..),
+
+    -- * Zero
+    Zero (..),
+
+    -- * Bundled synonyms
+    CopyDiscard,
+    MergeZero,
     Bimonoid,
 
     -- * Dagger
@@ -50,20 +63,23 @@ import Prelude hiding (id, (.))
 -- >>> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
--- MergeZero: monoid structure on channel objects
+-- Merge / Zero: monoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
--- | A commutative monoid on channel objects.
+-- | Combine two values of the channel type.
 --
 -- Not the same as arithmetic '+'; this is the operation by which parallel
 -- contributions to the same wire combine.  Fan-out on the forward pass
 -- becomes fan-in (summation) on the backward pass.
-class MergeZero arr a where
-  -- | Combine two values of the channel type.
+class Merge arr a where
   plus :: arr (a, a) a
 
-  -- | The neutral element.
+-- | The neutral element for 'plus'.
+class Zero arr a where
   zero :: arr () a
+
+-- | The older bundled monoid class, retained as a synonym.
+type MergeZero arr a = (Merge arr a, Zero arr a)
 
 -- | The unit type carries the trivial monoid.
 --
@@ -71,9 +87,11 @@ class MergeZero arr a where
 -- ()
 -- >>> zero () :: ()
 -- ()
-instance MergeZero (->) () where
+instance Merge (->) () where
   plus _ = ()
   {-# INLINE plus #-}
+
+instance Zero (->) () where
   zero _ = ()
   {-# INLINE zero #-}
 
@@ -87,27 +105,35 @@ instance MergeZero (->) () where
 -- 3.0
 -- >>> zero () :: Double
 -- 0.0
-instance MergeZero (->) Int where
+instance Merge (->) Int where
   plus = uncurry (+)
   {-# INLINE plus #-}
+
+instance Zero (->) Int where
   zero _ = 0
   {-# INLINE zero #-}
 
-instance MergeZero (->) Integer where
+instance Merge (->) Integer where
   plus = uncurry (+)
   {-# INLINE plus #-}
+
+instance Zero (->) Integer where
   zero _ = 0
   {-# INLINE zero #-}
 
-instance MergeZero (->) Double where
+instance Merge (->) Double where
   plus = uncurry (+)
   {-# INLINE plus #-}
+
+instance Zero (->) Double where
   zero _ = 0
   {-# INLINE zero #-}
 
-instance MergeZero (->) Float where
+instance Merge (->) Float where
   plus = uncurry (+)
   {-# INLINE plus #-}
+
+instance Zero (->) Float where
   zero _ = 0
   {-# INLINE zero #-}
 
@@ -119,9 +145,11 @@ instance MergeZero (->) Float where
 -- True
 -- >>> zero () :: Bool
 -- False
-instance MergeZero (->) Bool where
+instance Merge (->) Bool where
   plus = uncurry (||)
   {-# INLINE plus #-}
+
+instance Zero (->) Bool where
   zero _ = False
   {-# INLINE zero #-}
 
@@ -129,9 +157,11 @@ instance MergeZero (->) Bool where
 --
 -- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
-instance (MergeZero (->) a, MergeZero (->) b) => MergeZero (->) (a, b) where
+instance (Merge (->) a, Merge (->) b) => Merge (->) (a, b) where
   plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
   {-# INLINE plus #-}
+
+instance (Zero (->) a, Zero (->) b) => Zero (->) (a, b) where
   zero u = (zero u, zero u)
   {-# INLINE zero #-}
 
@@ -144,7 +174,7 @@ instance (MergeZero (->) a, MergeZero (->) b) => MergeZero (->) (a, b) where
 -- [4,6,5]
 -- >>> plus ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
-instance (MergeZero (->) a) => MergeZero (->) [a] where
+instance (Merge (->) a, Zero (->) a) => Merge (->) [a] where
   plus (xs, ys) = go xs ys
     where
       go [] [] = []
@@ -152,14 +182,16 @@ instance (MergeZero (->) a) => MergeZero (->) [a] where
       go (x : xs') [] = plus (x, zero ()) : go xs' []
       go (x : xs') (y : ys') = plus (x, y) : go xs' ys'
   {-# INLINE plus #-}
+
+instance Zero (->) [a] where
   zero _ = []
   {-# INLINE zero #-}
 
 -- ---------------------------------------------------------------------------
--- CopyDiscard: comonoid structure on channel objects
+-- Copy / Discard: comonoid structure on channel objects
 -- ---------------------------------------------------------------------------
 
--- | A cocommutative comonoid on channel objects.
+-- | Copy a value into a pair.
 --
 -- Laws:
 --
@@ -169,19 +201,22 @@ instance (MergeZero (->) a) => MergeZero (->) [a] where
 --   (copy × id) . copy = (id × copy) . copy  -- coassociativity
 --   swap . copy = copy            -- cocommutativity
 -- @
-class CopyDiscard arr a where
-  -- | Copy a value into a pair.
+class Copy arr a where
   copy :: arr a (a, a)
 
-  -- | Discard a value.
+-- | Discard a value.
+class Discard arr a where
   discard :: arr a ()
+
+-- | The older bundled comonoid class, retained as a synonym.
+type CopyDiscard arr a = (Copy arr a, Discard arr a)
 
 -- | Both the comonoid and monoid on a channel object.
 --
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
 -- 'Circuit.Net.transpose' to be total.
-type Bimonoid arr a = (CopyDiscard arr a, MergeZero arr a)
+type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
 
 -- | Copy/discard is no longer an ambient assumption on @(->)@.  The
 -- exponential slice makes copying an explicit capability: a value of type
@@ -197,9 +232,11 @@ type Bimonoid arr a = (CopyDiscard arr a, MergeZero arr a)
 -- ((),())
 -- >>> discard (() :: ())
 -- ()
-instance CopyDiscard (->) () where
+instance Copy (->) () where
   copy u = (u, u)
   {-# INLINE copy #-}
+
+instance Discard (->) () where
   discard _ = ()
   {-# INLINE discard #-}
 
@@ -209,27 +246,35 @@ instance CopyDiscard (->) () where
 -- (42,42)
 -- >>> discard (42 :: Int)
 -- ()
-instance CopyDiscard (->) Int where
+instance Copy (->) Int where
   copy a = (a, a)
   {-# INLINE copy #-}
+
+instance Discard (->) Int where
   discard _ = ()
   {-# INLINE discard #-}
 
-instance CopyDiscard (->) Integer where
+instance Copy (->) Integer where
   copy a = (a, a)
   {-# INLINE copy #-}
+
+instance Discard (->) Integer where
   discard _ = ()
   {-# INLINE discard #-}
 
-instance CopyDiscard (->) Double where
+instance Copy (->) Double where
   copy a = (a, a)
   {-# INLINE copy #-}
+
+instance Discard (->) Double where
   discard _ = ()
   {-# INLINE discard #-}
 
-instance CopyDiscard (->) Float where
+instance Copy (->) Float where
   copy a = (a, a)
   {-# INLINE copy #-}
+
+instance Discard (->) Float where
   discard _ = ()
   {-# INLINE discard #-}
 
@@ -239,30 +284,38 @@ instance CopyDiscard (->) Float where
 -- (True,True)
 -- >>> discard True
 -- ()
-instance CopyDiscard (->) Bool where
+instance Copy (->) Bool where
   copy a = (a, a)
   {-# INLINE copy #-}
+
+instance Discard (->) Bool where
   discard _ = ()
   {-# INLINE discard #-}
 
 -- | Products copy and discard as a whole value.
-instance CopyDiscard (->) (a, b) where
+instance Copy (->) (a, b) where
   copy ab = (ab, ab)
   {-# INLINE copy #-}
+
+instance Discard (->) (a, b) where
   discard _ = ()
   {-# INLINE discard #-}
 
 -- | Lists copy and discard as a whole value.
-instance CopyDiscard (->) [a] where
+instance Copy (->) [a] where
   copy as = (as, as)
   {-# INLINE copy #-}
+
+instance Discard (->) [a] where
   discard _ = ()
   {-# INLINE discard #-}
 
 -- | Maybe copies and discards as a whole value.
-instance CopyDiscard (->) (Maybe a) where
+instance Copy (->) (Maybe a) where
   copy m = (m, m)
   {-# INLINE copy #-}
+
+instance Discard (->) (Maybe a) where
   discard _ = ()
   {-# INLINE discard #-}
 
@@ -326,16 +379,20 @@ instance (Traced t arr) => Traced t (Dagger arr) where
   {-# INLINE trace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
-instance (CopyDiscard arr a, MergeZero arr a) => CopyDiscard (Dagger arr) a where
+instance (Copy arr a, Merge arr a) => Copy (Dagger arr) a where
   copy = Dagger copy plus
   {-# INLINE copy #-}
+
+instance (Discard arr a, Zero arr a) => Discard (Dagger arr) a where
   discard = Dagger discard zero
   {-# INLINE discard #-}
 
 -- | Forward add, backward copy.
-instance (CopyDiscard arr a, MergeZero arr a) => MergeZero (Dagger arr) a where
+instance (Merge arr a, Copy arr a) => Merge (Dagger arr) a where
   plus = Dagger plus copy
   {-# INLINE plus #-}
+
+instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
   zero = Dagger zero discard
   {-# INLINE zero #-}
 

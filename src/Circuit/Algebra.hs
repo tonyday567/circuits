@@ -313,11 +313,11 @@ instance (Action (,) arr') => Algebra SigSwap arr arr' where
 
 -- | Comonoid operations: copy, discard.
 --
--- Each constructor carries its own 'Dg.CopyDiscard' constraint, resolved at
--- pattern-match time rather than in the algebra context.
+-- Each constructor carries its own 'Dg.Copy' or 'Dg.Discard' constraint,
+-- resolved at pattern-match time rather than in the algebra context.
 data SigCopyDiscard arr rec a b where
-  SigCopy :: (Dg.CopyDiscard arr a) => SigCopyDiscard arr rec a (a, a)
-  SigDiscard :: (Dg.CopyDiscard arr a) => SigCopyDiscard arr rec a ()
+  SigCopy :: (Dg.Copy arr a) => SigCopyDiscard arr rec a (a, a)
+  SigDiscard :: (Dg.Discard arr a) => SigCopyDiscard arr rec a ()
 
 -- | 'alg' for copy/discard generators sends each generator to the image
 -- under @emb@ of the source dictionary.
@@ -333,11 +333,11 @@ instance Algebra SigCopyDiscard arr arr' where
 
 -- | Monoid operations: plus, zero.
 --
--- Each constructor carries its own 'Dg.MergeZero' constraint, resolved at
--- pattern-match time rather than in the algebra context.
+-- Each constructor carries its own 'Dg.Merge' or 'Dg.Zero' constraint,
+-- resolved at pattern-match time rather than in the algebra context.
 data SigMergeZero arr rec a b where
-  SigPlus :: (Dg.MergeZero arr a) => SigMergeZero arr rec (a, a) a
-  SigZero :: (Dg.MergeZero arr a) => SigMergeZero arr rec () a
+  SigPlus :: (Dg.Merge arr a) => SigMergeZero arr rec (a, a) a
+  SigZero :: (Dg.Zero arr a) => SigMergeZero arr rec () a
 
 -- | 'alg' for plus/zero generators sends each generator to the image under
 -- @emb@ of the source dictionary.

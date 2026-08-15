@@ -188,8 +188,12 @@ module Circuit
     negateChu,
 
     -- * Dagger (bimonoid + dagger)
-    CopyDiscard (..),
-    MergeZero (..),
+    Copy (..),
+    Discard (..),
+    Merge (..),
+    Zero (..),
+    CopyDiscard,
+    MergeZero,
     Dagger (..),
     Bimonoid,
     transpose,
@@ -295,9 +299,13 @@ import Circuit.ChannelPoly
   )
 import Circuit.Dagger
   ( Bimonoid,
-    CopyDiscard (..),
+    Copy (..),
+    CopyDiscard,
+    Discard (..),
     Dagger (..),
-    MergeZero (..),
+    Merge (..),
+    MergeZero,
+    Zero (..),
     transpose,
   )
 import Circuit.Ends

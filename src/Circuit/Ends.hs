@@ -161,7 +161,7 @@ import Circuit.Thread
     threadToSArr,
   )
 import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Dagger (CopyDiscard (..))
+import Circuit.Dagger (Copy (copy), Discard (discard))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
@@ -665,7 +665,7 @@ instance HasSilent (Maybe a) where
 -- >>> run (box @(,) (pairEnds e1 e2)) ()
 -- (1,2)
 pairEnds ::
-  (CopyDiscard (->) a) =>
+  (Copy (->) a, Discard (->) a) =>
   Ends (->) a b ->
   Ends (->) a c ->
   Ends (->) a (b, c)
@@ -690,7 +690,7 @@ pairEnds e1 e2 =
 -- >>> run (box @(,) (raceEnds RightFirst eL eR)) ()
 -- Just 2
 raceEnds ::
-  (CopyDiscard (->) a, IsSilent b) =>
+  (Copy (->) a, Discard (->) a, IsSilent b) =>
   Bias ->
   Ends (->) a b ->
   Ends (->) a b ->

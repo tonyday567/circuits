@@ -59,7 +59,7 @@ where
 import Circuit.Boundary (Boundary (..))
 import Circuit.Category (Category (..), Discrete (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Dagger (CopyDiscard, MergeZero)
+import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
@@ -438,12 +438,16 @@ instance Traced Either Process where
 -- Bimonoid instances (pointwise lift)
 -- ---------------------------------------------------------------------------
 
-instance (CopyDiscard (->) a) => CopyDiscard Process a where
+instance (Copy (->) a) => Copy Process a where
   copy = P id (\_ x -> x) Dagger.copy
+
+instance (Discard (->) a) => Discard Process a where
   discard = P id (\_ x -> x) (const ())
 
-instance (MergeZero (->) a) => MergeZero Process a where
+instance (Merge (->) a) => Merge Process a where
   plus = P id (\_ x -> x) Dagger.plus
+
+instance (Zero (->) a) => Zero Process a where
   zero = P id (\_ x -> x) Dagger.zero
 
 -- ---------------------------------------------------------------------------
