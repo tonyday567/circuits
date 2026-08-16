@@ -502,6 +502,14 @@ eqIToTwo m1 m2 =
   Chu.chuForward m1 () == Chu.chuForward m2 ()
     && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
 
+eqIToWhy ::
+  Chu.ChuMorphism (,) Bool (->) () Bool (Bool -> Bool) Bool ->
+  Chu.ChuMorphism (,) Bool (->) () Bool (Bool -> Bool) Bool ->
+  Bool
+eqIToWhy m1 m2 =
+  eqFun (Chu.chuForward m1 ()) (Chu.chuForward m2 ())
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
+
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
 -- The forward component returns a 'ChuParPos', which contains functions, so we
@@ -1811,13 +1819,24 @@ main = do
                       any (\n -> eqIToTwo (composeITo (Chu.derelictChu chuTwo) m) n) toTwo
                   )
                   toBang,
-        check "Exponential OChu ?A is (!A⊥)⊥" $
+        check "Exponential OChu Hom(I, ?ChuTwo) is the functionals" $
           let why = Chu.whyNotChuObj chuTwo
-              viaNeg = Chu.negateChu (Chu.bangChuObj (Chu.negateChu chuTwo))
-              funs = chuTwoFuns
-           in all
-                (\f -> all (\d -> Chu.chuPair why (f, d) == Chu.chuPair viaNeg (f, d)) chuTwoPos)
-                funs,
+           in length (iHomsChuTwo why chuTwoFuns chuTwoPos) == 4,
+        check "Exponential OChu introduce is injective on I-points" $
+          let toA = iHomsChuTwo chuTwo chuTwoPos chuTwoPos
+              via = fmap (composeITo (Chu.introduceChu chuTwo)) toA
+           in case via of
+                [m1, m2] -> not (eqIToWhy m1 m2)
+                _ -> False,
+        check "Exponential OChu pointwise ?-merge is not a tensor morphism" $
+          let cand d = Chu.ChuTensorNeg (const d) (const d)
+              bilinear n =
+                all
+                  ( \(f, g) ->
+                      f (Chu.ctnBackward n g) == g (Chu.ctnForward n f)
+                  )
+                  [(f, g) | f <- chuTwoFuns, g <- chuTwoFuns]
+           in not (all (\d -> bilinear (cand d)) chuTwoPos),
         check "Exponential OChu introduce ChuTwo -> ?ChuTwo is a Chu morphism" $
           let why = Chu.whyNotChuObj chuTwo
               mor = Chu.introduceChu chuTwo

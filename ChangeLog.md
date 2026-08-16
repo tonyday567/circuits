@@ -26,7 +26,12 @@ knot-body category, polynomial interfaces, and close certification.
 - `Exponential t arr` with `Bang` / `WhyNot`, `copyE` / `discardE` /
   `derelict` / `introduce`. Cartesian collapse `!A ≅ A`. Chu construction
   `!A = (A⁺, A⁺ → r, eval)` and `?A = (!A⊥)⊥`. Oracles on `ChuTwo`:
-  comonoid laws, I-point bijection, dual iso, introduce and zero.
+  comonoid laws, I-point bijection, `Hom(I,?A)` cardinality, introduce
+  injective on I-points, and a falsifier that pointwise `?`-merge is not
+  a tensor morphism.
+- Composite `ChuObj` constructors (`tensorChuObj`, `parChuObj`,
+  `bangChuObj`, additives, unitors) leave unused carriers as `error`.
+  Pairing is the payload; `chuPos` / `chuNeg` of a composite are bottom.
 
 *Thread (knot-body category)*
 
