@@ -24,7 +24,7 @@ import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
-import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
+import Circuit.Tensor (Action (..), Bot, Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', isInfixOf, sort, uncons)
@@ -34,7 +34,8 @@ import Data.These (These (..), these)
 import Data.Tuple qualified as Tuple
 import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
-import Prelude hiding (id, (.))
+import Prelude hiding (curry, id, uncurry, (.))
+import Prelude qualified as Pre
 
 type F = Bool
 
@@ -79,11 +80,11 @@ chuDelivers p = Chu.deliversToSemiring (chuTo p)
 
 -- | Sample Chu object over posts and names with boolean delivery pairing.
 chuObjPostInt :: Chu.ChuObj (,) Bool (->) ChuPost Int
-chuObjPostInt = Chu.ChuObj (mkChuPost 0 [] 0) 0 (uncurry chuDelivers)
+chuObjPostInt = Chu.ChuObj (mkChuPost 0 [] 0) 0 (Pre.uncurry chuDelivers)
 
 -- | A tiny self-dual Chu object over @Bool@ with equality pairing.
 chuTwo :: Chu.ChuObj (,) Bool (->) Bool Bool
-chuTwo = Chu.ChuObj True True (uncurry (==))
+chuTwo = Chu.ChuObj True True (Pre.uncurry (==))
 
 -- | Negation as a Chu endomorphism of the self-dual @Bool@ object.
 chuNot :: Chu.ChuMorphism (,) Bool (->) Bool Bool Bool Bool
@@ -402,6 +403,64 @@ eqPentagonMorphism m1 m2 =
   all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) chuTwoPos4L
     && all (\n -> eqTensorNeg4L (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoNeg4R
 
+-- | Equality of morphisms @ChuTwo ⊗ I → ChuTwo@.
+eqChuTwoUnitr ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, ())
+    (Chu.ChuTensorNeg Bool Bool () Bool)
+    Bool
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, ())
+    (Chu.ChuTensorNeg Bool Bool () Bool)
+    Bool
+    Bool ->
+  Bool
+eqChuTwoUnitr m1 m2 =
+  let pos = [(x, ()) | x <- chuTwoPos]
+      eqN n1 n2 =
+        all (\a -> Chu.ctnForward n1 a == Chu.ctnForward n2 a) chuTwoPos
+          && Chu.ctnBackward n1 () == Chu.ctnBackward n2 ()
+   in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) pos
+        && all (\b -> eqN (Chu.chuBackward m1 b) (Chu.chuBackward m2 b)) chuTwoPos
+
+eqTensorNegLolli ::
+  Chu.ChuTensorNeg Bool Bool (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) ->
+  Chu.ChuTensorNeg Bool Bool (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool) ->
+  Bool
+eqTensorNegLolli n1 n2 =
+  all (\a -> Chu.ctnForward n1 a == Chu.ctnForward n2 a) chuTwoPos
+    && all (\m -> Chu.ctnBackward n1 m == Chu.ctnBackward n2 m) chuTwoLollPoss
+
+eqChuMorphismLolliEval ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, Chu.ChuParPos Bool Bool Bool Bool)
+    (Chu.ChuTensorNeg Bool Bool (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool))
+    Bool
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, Chu.ChuParPos Bool Bool Bool Bool)
+    (Chu.ChuTensorNeg Bool Bool (Chu.ChuParPos Bool Bool Bool Bool) (Bool, Bool))
+    Bool
+    Bool ->
+  Bool
+eqChuMorphismLolliEval m1 m2 =
+  let poss = [(a, m) | a <- chuTwoPos, m <- chuTwoLollPoss]
+   in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) poss
+        && all (\d -> eqTensorNegLolli (Chu.chuBackward m1 d) (Chu.chuBackward m2 d)) chuTwoPos
+
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
 -- The forward component returns a 'ChuParPos', which contains functions, so we
@@ -467,7 +526,7 @@ ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Shared-medium body: adds the input to the shared state and echoes it.
 sharedAddP :: Process (Int, Int) (Int, Int)
-sharedAddP = Process (uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
+sharedAddP = Process (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
 
 -- | Shared-medium body: doubles the shared state and echoes the input.
 sharedDoubleP :: Process (Int, Int) (Int, Int)
@@ -1621,6 +1680,38 @@ main = do
                   )
               bot3 = par id assoc
            in eqPentagonMorphism (ochuToChuMorphism (top2 . top1)) (ochuToChuMorphism (bot3 . bot2 . bot1)),
+        -- Lolli: internal hom
+        check "Lolli (->) curry/uncurry are inverse" $
+          let f (x, y) = x + y :: Int
+              g x y = x * y :: Int
+           in uncurry @(,) @(->) (curry @(,) @(->) f) (3, 4) == f (3, 4)
+                && curry @(,) @(->) (uncurry @(,) @(->) g) 3 4 == g 3 4,
+        check "Lolli (->) eval is application" $
+          eval @(,) @(->) (3 :: Int, (+ 1)) == 4,
+        check "Lolli (->) eval is uncurry id . swap" $
+          let apply (x, f) = eval @(,) @(->) (x, f) :: Int
+              derived = uncurry @(,) @(->) id . swap
+           in apply (3, (* 2)) == derived (3, (* 2)),
+        check "Lolli OChu implication shape is (2, 4) not compact (4, 2)" $
+          let lollPoss = chuTwoLollPoss
+              compactPos = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+              compactNegs = Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos chuTwoPos (Chu.negateChu chuTwo) chuTwo
+           in (length lollPoss, length compactPos) == (2, 4)
+                && (length compactPos, length compactNegs) == (4, 2),
+        check "Lolli OChu curry/uncurry are inverse on right unitor" $
+          let u :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOUnit Bool)) Chu.ChuTwo
+              u = unitr
+              recovered =
+                uncurry @(Chu.ChuOTensor Bool) @(Chu.OChu Bool) (curry @(Chu.ChuOTensor Bool) @(Chu.OChu Bool) u)
+           in eqChuTwoUnitr (ochuToChuMorphism recovered) (ochuToChuMorphism u),
+        check "Lolli OChu eval agrees with evalChu on ChuTwo" $
+          let evL ::
+                Chu.OChu
+                  Bool
+                  (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOLolli Bool Chu.ChuTwo Chu.ChuTwo))
+                  Chu.ChuTwo
+              evL = eval @(Chu.ChuOTensor Bool) @(Chu.OChu Bool)
+           in eqChuMorphismLolliEval (ochuToChuMorphism evL) (Chu.evalChu chuTwo chuTwo),
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)
@@ -1769,7 +1860,7 @@ main = do
            in bodyCentral (liftBody (const ())) sharedAddF input,
         check "plus witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((1, 2), 3)) :: (Int, ((Int, Int), Int))
-           in bodyCentral (liftBody (uncurry (+))) sharedAddF input,
+           in bodyCentral (liftBody (Pre.uncurry (+))) sharedAddF input,
         check "zero witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((), 3)) :: (Int, ((), Int))
            in bodyCentral (liftBody (const 0)) sharedAddF input,

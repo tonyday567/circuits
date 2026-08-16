@@ -14,6 +14,13 @@ knot-body category, polynomial interfaces, and close certification.
 - Associator `assocChu` / `assocChuInv` and slide `slideChu`, with a
   `Channel` instance for `ChuOTensor`. Pentagon checked on `ChuTwo`.
 
+*Lolli (internal hom)*
+
+- `Lolli t arr` with associated `LolliT`, methods `lolli` / `eval` /
+  `curry` / `uncurry`. Instances for `(->)` (function space) and `OChu`
+  (`ChuOLolli` = `A⊥ ⅋ B`). Curry/uncurry inverse and shape `(2,4)` vs
+  compact `(4,2)` checked on `ChuTwo`.
+
 *Thread (knot-body category)*
 
 - New module `Circuit.Thread` introduces `Thread t arr s a b`, the category

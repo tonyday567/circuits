@@ -85,16 +85,19 @@ module Circuit.Chu
     swapChu,
     dnUnitChu,
     dnCounitChu,
+    ChuOLolli (..),
+    curryChu,
+    uncurryChu,
   )
 where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
 import Circuit.Channel (Channel (..))
-import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Lolli (..), Tensor (..), Unit)
 import Data.Kind (Type)
 import Data.Traversable (sequenceA)
 import Data.Void (Void, absurd)
-import Prelude hiding (id, (.))
+import Prelude hiding (curry, id, uncurry, (.))
 
 -- ---------------------------------------------------------------------------
 -- Minimal semiring
@@ -793,3 +796,77 @@ dnCounitChu =
               (ChuNegType a)
         )
     )
+
+-- | Object-level linear implication @A ⊸ B = A⊥ ⅋ B@.
+data ChuOLolli (r :: Type) a b = ChuOLolli
+
+instance ChuObjShape (ChuOLolli r a b) where
+  type ChuPosType (ChuOLolli r a b) = ChuParPos (ChuNegType a) (ChuPosType a) (ChuPosType b) (ChuNegType b)
+  type ChuNegType (ChuOLolli r a b) = (ChuPosType a, ChuNegType b)
+
+instance (Eq r, ChuObject r a, ChuObject r b) => ChuObject r (ChuOLolli r a b) where
+  chuObject = lolliChuObj (chuObject @r @a) (chuObject @r @b)
+
+instance (Eq r, ChuSeparated r a, ChuSeparated r b) => ChuSeparated r (ChuOLolli r a b)
+
+instance (Eq r, ChuExtensional r a, ChuExtensional r b) => ChuExtensional r (ChuOLolli r a b)
+
+-- | Curry @(A ⊗ B → C) → (A → B ⊸ C)@ over @Set@.
+curryChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (a, c)
+    (ChuTensorNeg a b c d)
+    e
+    f ->
+  ChuMorphism
+    (,)
+    r
+    (->)
+    a
+    b
+    (ChuParPos d c e f)
+    (c, f)
+curryChu (ChuMorphism fPos fNeg) =
+  ChuMorphism
+    (\x -> ChuParPos (\y -> fPos (x, y)) (\z -> ctnForward (fNeg z) x))
+    (\(y, z) -> ctnBackward (fNeg z) y)
+{-# INLINE curryChu #-}
+
+-- | Uncurry @(A → B ⊸ C) → (A ⊗ B → C)@ over @Set@.
+uncurryChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    a
+    b
+    (ChuParPos d c e f)
+    (c, f) ->
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (a, c)
+    (ChuTensorNeg a b c d)
+    e
+    f
+uncurryChu (ChuMorphism gPos gNeg) =
+  ChuMorphism
+    (\(x, y) -> cppForward (gPos x) y)
+    (\z -> ChuTensorNeg (\x -> cppBackward (gPos x) z) (\y -> gNeg (y, z)))
+{-# INLINE uncurryChu #-}
+
+-- | Closed structure on 'OChu': implication is 'ChuOLolli'.
+instance Lolli (ChuOTensor r) (OChu r) where
+  type LolliT (ChuOTensor r) (OChu r) a b = ChuOLolli r a b
+  lolli _ = id
+  eval ::
+    forall a b.
+    (Ob (OChu r) a, Ob (OChu r) b) =>
+    OChu r (ChuOTensor r a (ChuOLolli r a b)) b
+  eval = OChu (Chu (evalChu (chuObject @r @a) (chuObject @r @b)))
+  curry (OChu (Chu f)) = OChu (Chu (curryChu f))
+  uncurry (OChu (Chu g)) = OChu (Chu (uncurryChu g))

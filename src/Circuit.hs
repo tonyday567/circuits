@@ -228,6 +228,9 @@ module Circuit
     swapChu,
     dnUnitChu,
     dnCounitChu,
+    ChuOLolli (..),
+    curryChu,
+    uncurryChu,
 
     -- * Dagger (bimonoid + dagger)
     Copy (..),
@@ -293,6 +296,9 @@ module Circuit
     distR,
     mix,
 
+    -- * Linear implication (internal hom)
+    Lolli (..),
+
     -- * Channel product
     Tensor (..),
     Action (..),
@@ -343,6 +349,7 @@ import Circuit.Chu
   ( Chu (..),
     ChuExtensional,
     ChuMorphism (..),
+    ChuOLolli (..),
     ChuONeg (..),
     ChuOTensor (..),
     ChuOUnit (..),
@@ -367,6 +374,7 @@ import Circuit.Chu
     chuTensorNegs,
     chuUnitObj,
     composeChu,
+    curryChu,
     deliversToSemiring,
     deliveryMatrix,
     dnCounitChu,
@@ -387,6 +395,7 @@ import Circuit.Chu
     tensorChu,
     tensorChuObj,
     topChuObj,
+    uncurryChu,
     withChuObj,
     zeroChuObj,
   )
@@ -507,6 +516,7 @@ import Circuit.Tensor
     Bot,
     Braided (..),
     Fire (..),
+    Lolli (..),
     Par (..),
     Schedule (..),
     Shared (..),
@@ -527,7 +537,7 @@ import Circuit.Thread
     runSomeSArr,
     threadToLoop,
   )
-import Prelude
+import Prelude hiding (curry, uncurry)
 
 -- | Close a feedback loop. See "Circuit.Channel".
 trace ::

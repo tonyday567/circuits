@@ -65,6 +65,9 @@ module Circuit.Tensor
     distL,
     distR,
     mix,
+
+    -- * Linear implication (internal hom)
+    Lolli (..),
   )
 where
 
@@ -79,7 +82,7 @@ import Data.Kind (Type)
 import Data.Profunctor (Profunctor, dimap)
 import Data.These (These (..))
 import Data.Void (Void, absurd)
-import Prelude hiding (id, (.))
+import Prelude hiding (curry, id, uncurry, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
@@ -757,3 +760,74 @@ distR (Right c, a) = Right (c, a)
 mix :: Void -> ()
 mix = absurd
 {-# INLINE mix #-}
+
+-- ===========================================================================
+-- Linear implication (internal hom)
+-- ===========================================================================
+
+-- | Closed monoidal structure: @A ⊸ B@ is the right adjoint of tensor.
+--
+-- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
+-- 'eval' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
+-- That is the existing Chu convention; it differs from @uncurry id@ by a
+-- 'swap'.  'lolli' is identity on the implication object, used to mention
+-- it.
+--
+-- Kind is fixed to 'Type' so type applications stay concrete (GHC 9.14
+-- panics on kind-polymorphic @TypeApplications@ here).
+class (Category arr) => Lolli (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
+  -- | The implication object @A ⊸ B@.
+  --
+  -- Indexed by the base arrow as well as the tensor, so @(->)@ and
+  -- @Mat@ can both close @(,)@ without colliding.
+  type LolliT t arr a b :: Type
+
+  -- | Identity at the implication object.  The argument is a type proxy.
+  lolli ::
+    (Ob arr a, Ob arr b, Ob arr (LolliT t arr a b)) =>
+    arr a b ->
+    arr (LolliT t arr a b) (LolliT t arr a b)
+
+  -- | Evaluation counit @A ⊗ (A ⊸ B) -> B@.
+  eval ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr (LolliT t arr a b),
+      Ob arr (t a (LolliT t arr a b))
+    ) =>
+    arr (t a (LolliT t arr a b)) b
+
+  -- | Curry the left factor: @(A ⊗ B -> C) -> (A -> B ⊸ C)@.
+  curry ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr (t a b),
+      Ob arr (LolliT t arr b c)
+    ) =>
+    arr (t a b) c ->
+    arr a (LolliT t arr b c)
+
+  -- | Uncurry the left factor: @(A -> B ⊸ C) -> (A ⊗ B -> C)@.
+  uncurry ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr (t a b),
+      Ob arr (LolliT t arr b c)
+    ) =>
+    arr a (LolliT t arr b c) ->
+    arr (t a b) c
+
+-- | Cartesian closed structure on functions: implication collapses to
+-- function space.
+instance Lolli (,) (->) where
+  type LolliT (,) (->) a b = a -> b
+  lolli _ = id
+  {-# INLINE lolli #-}
+  eval (a, f) = f a
+  {-# INLINE eval #-}
+  curry f a b = f (a, b)
+  {-# INLINE curry #-}
+  uncurry g (a, b) = g a b
+  {-# INLINE uncurry #-}
