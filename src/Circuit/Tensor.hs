@@ -68,6 +68,9 @@ module Circuit.Tensor
 
     -- * Linear implication (internal hom)
     Lolli (..),
+
+    -- * Exponentials
+    Exponential (..),
   )
 where
 
@@ -831,3 +834,53 @@ instance Lolli (,) (->) where
   {-# INLINE curry #-}
   uncurry g (a, b) = g a b
   {-# INLINE uncurry #-}
+
+-- ===========================================================================
+-- Exponentials (! and ?)
+-- ===========================================================================
+
+-- | Cofree cocommutative comonoid @!A@ and free commutative monoid @?A@.
+--
+-- @!A@ is a comonoid with dereliction @!A → A@.  On a cartesian base this
+-- collapses to @!A ≅ A@.  @?A@ is the dual exponential @(!A⊥)⊥@, with
+-- unit @A → ?A@.  The monoid on @?A@ is the dual of the comonoid on @!A@
+-- and lives on ⅋, not on ⊗.
+class (Tensor t arr) => Exponential t arr where
+  type Bang t arr a :: Type
+  type WhyNot t arr a :: Type
+
+  -- | Copy on the cofree comonoid: @!A → !A ⊗ !A@.
+  copyE ::
+    ( Ob arr a,
+      Ob arr (Bang t arr a),
+      Ob arr (t (Bang t arr a) (Bang t arr a))
+    ) =>
+    arr (Bang t arr a) (t (Bang t arr a) (Bang t arr a))
+
+  -- | Discard on the cofree comonoid: @!A → I@.
+  discardE ::
+    (Ob arr a, Ob arr (Bang t arr a), Ob arr (Unit t)) =>
+    arr (Bang t arr a) (Unit t)
+
+  -- | Dereliction / counit @!A → A@.
+  derelict ::
+    (Ob arr a, Ob arr (Bang t arr a)) =>
+    arr (Bang t arr a) a
+
+  -- | Unit / introduction @A → ?A@.
+  introduce ::
+    (Ob arr a, Ob arr (WhyNot t arr a)) =>
+    arr a (WhyNot t arr a)
+
+-- | Cartesian collapse: @!A ≅ A@, and @?A@ is the free monoid of lists.
+instance Exponential (,) (->) where
+  type Bang (,) (->) a = a
+  type WhyNot (,) (->) a = [a]
+  copyE x = (x, x)
+  {-# INLINE copyE #-}
+  discardE _ = ()
+  {-# INLINE discardE #-}
+  derelict = id
+  {-# INLINE derelict #-}
+  introduce x = [x]
+  {-# INLINE introduce #-}

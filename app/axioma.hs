@@ -24,7 +24,7 @@ import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
-import Circuit.Tensor (Action (..), Bot, Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
+import Circuit.Tensor (Action (..), Bot, Exponential (..), Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (foldl', isInfixOf, sort, uncons)
@@ -460,6 +460,47 @@ eqChuMorphismLolliEval m1 m2 =
   let poss = [(a, m) | a <- chuTwoPos, m <- chuTwoLollPoss]
    in all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) poss
         && all (\d -> eqTensorNegLolli (Chu.chuBackward m1 d) (Chu.chuBackward m2 d)) chuTwoPos
+
+chuTwoFuns :: [Bool -> Bool]
+chuTwoFuns = Chu.chuFunctionals chuTwoPos [True, False]
+
+eqFun :: (Bool -> Bool) -> (Bool -> Bool) -> Bool
+eqFun f g = all (\a -> f a == g a) chuTwoPos
+
+-- | Chu morphisms @I → A@ for a Set-based object with finite carriers.
+iHoms ::
+  (Eq r) =>
+  [a] ->
+  [b] ->
+  Chu.ChuObj (,) r (->) a b ->
+  [Chu.ChuMorphism (,) r (->) () r a b]
+iHoms as bs obj =
+  [ m
+  | a <- as,
+    let m = Chu.ChuMorphism (const a) (\d -> Chu.chuPair obj (a, d)),
+    all (\d -> Chu.chuLaw Chu.chuUnitObj obj m () d) bs
+  ]
+
+iHomsChuTwo ::
+  Chu.ChuObj (,) Bool (->) a b ->
+  [a] ->
+  [b] ->
+  [Chu.ChuMorphism (,) Bool (->) () Bool a b]
+iHomsChuTwo obj as bs = iHoms as bs obj
+
+composeITo ::
+  Chu.ChuMorphism (,) Bool (->) a b c d ->
+  Chu.ChuMorphism (,) Bool (->) () Bool a b ->
+  Chu.ChuMorphism (,) Bool (->) () Bool c d
+composeITo = Chu.composeChu
+
+eqIToTwo ::
+  Chu.ChuMorphism (,) Bool (->) () Bool Bool Bool ->
+  Chu.ChuMorphism (,) Bool (->) () Bool Bool Bool ->
+  Bool
+eqIToTwo m1 m2 =
+  Chu.chuForward m1 () == Chu.chuForward m2 ()
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
 
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
@@ -1712,6 +1753,79 @@ main = do
                   Chu.ChuTwo
               evL = eval @(Chu.ChuOTensor Bool) @(Chu.OChu Bool)
            in eqChuMorphismLolliEval (ochuToChuMorphism evL) (Chu.evalChu chuTwo chuTwo),
+        -- Exponentials
+        check "Exponential (->) !A is A" $
+          derelict @(,) @(->) (7 :: Int) == 7
+            && copyE @(,) @(->) (7 :: Int) == (7, 7)
+            && discardE @(,) @(->) (7 :: Int) == (),
+        check "Exponential (->) ?A is the free list monoid" $
+          introduce @(,) @(->) (7 :: Int) == [7]
+            && introduce @(,) @(->) (7 :: Int) ++ introduce @(,) @(->) (8 :: Int) == [7, 8],
+        check "Exponential OChu !ChuTwo exists and is separated-extensional" $
+          let bangObj = Chu.bangChuObj chuTwo
+              funs = chuTwoFuns
+              ext =
+                all
+                  ( \(f, g) ->
+                      eqFun f g
+                        || any (\a -> Chu.chuPair bangObj (a, f) /= Chu.chuPair bangObj (a, g)) chuTwoPos
+                  )
+                  [(f, g) | f <- funs, g <- funs]
+           in Chu.chuSeparated chuTwoPos funs bangObj
+                && ext
+                && length funs == 4,
+        check "Exponential OChu copy/discard are a comonoid on !ChuTwo" $
+          let bangObj = Chu.bangChuObj chuTwo
+              tensObj = Chu.tensorChuObj bangObj bangObj
+              iLeft = Chu.tensorChuObj Chu.chuUnitObj bangObj
+              iRight = Chu.tensorChuObj bangObj Chu.chuUnitObj
+              copyM = Chu.copyBangChu
+              discM = Chu.discardBangChu
+              pos = chuTwoPos
+              funs = chuTwoFuns
+              tensNegs = Chu.chuTensorNegs pos funs pos funs bangObj bangObj
+              leftNegs = Chu.chuTensorNegs [()] [True, False] pos funs Chu.chuUnitObj bangObj
+              rightNegs = Chu.chuTensorNegs pos funs [()] [True, False] bangObj Chu.chuUnitObj
+              leftCounit = Chu.composeChu (Chu.tensorChu discM Chu.idChu) copyM
+              rightCounit = Chu.composeChu (Chu.tensorChu Chu.idChu discM) copyM
+           in all (\a -> all (\n -> Chu.chuLaw bangObj tensObj copyM a n) tensNegs) pos
+                && all (\a -> all (\k -> Chu.chuLaw bangObj Chu.chuUnitObj discM a k) [True, False]) pos
+                && all (\a -> Chu.chuForward copyM a == (a, a) && Chu.chuForward discM a == ()) pos
+                && all (\a -> Chu.chuForward leftCounit a == ((), a)) pos
+                && all (\a -> Chu.chuForward rightCounit a == (a, ())) pos
+                && all (\a -> all (\n -> Chu.chuLaw bangObj iLeft leftCounit a n) leftNegs) pos
+                && all (\a -> all (\n -> Chu.chuLaw bangObj iRight rightCounit a n) rightNegs) pos,
+        check "Exponential OChu derelict !ChuTwo -> ChuTwo is a Chu morphism" $
+          let bangObj = Chu.bangChuObj chuTwo
+              mor = Chu.derelictChu chuTwo
+           in all (\a -> all (\d -> Chu.chuLaw bangObj chuTwo mor a d) chuTwoPos) chuTwoPos
+                && all (\a -> Chu.chuForward mor a == a) chuTwoPos,
+        check "Exponential OChu derelict is the unique I-point bijection" $
+          let bangObj = Chu.bangChuObj chuTwo
+              toBang = iHomsChuTwo bangObj chuTwoPos chuTwoFuns
+              toTwo = iHomsChuTwo chuTwo chuTwoPos chuTwoPos
+           in length toBang == 2
+                && length toTwo == 2
+                && all
+                  ( \m ->
+                      any (\n -> eqIToTwo (composeITo (Chu.derelictChu chuTwo) m) n) toTwo
+                  )
+                  toBang,
+        check "Exponential OChu ?A is (!A⊥)⊥" $
+          let why = Chu.whyNotChuObj chuTwo
+              viaNeg = Chu.negateChu (Chu.bangChuObj (Chu.negateChu chuTwo))
+              funs = chuTwoFuns
+           in all
+                (\f -> all (\d -> Chu.chuPair why (f, d) == Chu.chuPair viaNeg (f, d)) chuTwoPos)
+                funs,
+        check "Exponential OChu introduce ChuTwo -> ?ChuTwo is a Chu morphism" $
+          let why = Chu.whyNotChuObj chuTwo
+              mor = Chu.introduceChu chuTwo
+           in all (\a -> all (\d -> Chu.chuLaw chuTwo why mor a d) chuTwoPos) chuTwoPos,
+        check "Exponential OChu zero I -> ?ChuTwo is a Chu morphism" $
+          let why = Chu.whyNotChuObj chuTwo
+              mor = Chu.zeroWhyNotChu
+           in all (\d -> Chu.chuLaw Chu.chuUnitObj why mor () d) chuTwoPos,
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)

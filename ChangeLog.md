@@ -21,6 +21,13 @@ knot-body category, polynomial interfaces, and close certification.
   (`ChuOLolli` = `A⊥ ⅋ B`). Curry/uncurry inverse and shape `(2,4)` vs
   compact `(4,2)` checked on `ChuTwo`.
 
+*Exponentials*
+
+- `Exponential t arr` with `Bang` / `WhyNot`, `copyE` / `discardE` /
+  `derelict` / `introduce`. Cartesian collapse `!A ≅ A`. Chu construction
+  `!A = (A⁺, A⁺ → r, eval)` and `?A = (!A⊥)⊥`. Oracles on `ChuTwo`:
+  comonoid laws, I-point bijection, dual iso, introduce and zero.
+
 *Thread (knot-body category)*
 
 - New module `Circuit.Thread` introduces `Thread t arr s a b`, the category

@@ -88,12 +88,22 @@ module Circuit.Chu
     ChuOLolli (..),
     curryChu,
     uncurryChu,
+    chuFunctionals,
+    bangChuObj,
+    whyNotChuObj,
+    copyBangChu,
+    discardBangChu,
+    derelictChu,
+    zeroWhyNotChu,
+    introduceChu,
+    ChuOBang (..),
+    ChuOWhyNot (..),
   )
 where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
 import Circuit.Channel (Channel (..))
-import Circuit.Tensor (Action (..), Lolli (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Exponential (..), Lolli (..), Tensor (..), Unit)
 import Data.Kind (Type)
 import Data.Traversable (sequenceA)
 import Data.Void (Void, absurd)
@@ -870,3 +880,110 @@ instance Lolli (ChuOTensor r) (OChu r) where
   eval = OChu (Chu (evalChu (chuObject @r @a) (chuObject @r @b)))
   curry (OChu (Chu f)) = OChu (Chu (curryChu f))
   uncurry (OChu (Chu g)) = OChu (Chu (uncurryChu g))
+
+-- ===========================================================================
+-- Exponentials: !A = (A⁺, A⁺ → r, eval), ?A = (!A⊥)⊥
+-- ===========================================================================
+
+-- | All functions from a finite domain to a finite codomain.
+chuFunctionals :: (Eq a) => [a] -> [r] -> [a -> r]
+chuFunctionals = functions
+
+-- | Cofree cocommutative comonoid on a Set-based Chu object.
+--
+-- Positives are those of @A@; negatives are every functional @A⁺ → r@;
+-- the pairing is evaluation.  Original negatives embed by Yoneda
+-- @d ↦ \\a -> e(a, d)@, and constants @k ↦ const k@ supply discard.
+bangChuObj :: ChuObj (,) r (->) a b -> ChuObj (,) r (->) a (a -> r)
+bangChuObj (ChuObj a _ _) = ChuObj a (const (error "bangChuObj: negative unused")) (\(x, f) -> f x)
+
+-- | Free commutative monoid @?A = (!A⊥)⊥@.
+--
+-- Positives are the functionals @A⁻ → r@; negatives are those of @A@.
+whyNotChuObj :: ChuObj (,) r (->) a b -> ChuObj (,) r (->) (b -> r) b
+whyNotChuObj a = negateChu (bangChuObj (negateChu a))
+
+-- | Copy @!A → !A ⊗ !A@: diagonal on points, contraction on functionals.
+copyBangChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    a
+    (a -> r)
+    (a, a)
+    (ChuTensorNeg a (a -> r) a (a -> r))
+copyBangChu =
+  ChuMorphism
+    (\x -> (x, x))
+    (\n x -> ctnBackward n x x)
+{-# INLINE copyBangChu #-}
+
+-- | Discard @!A → I@: the constant functionals.
+discardBangChu ::
+  ChuMorphism (,) r (->) a (a -> r) () r
+discardBangChu =
+  ChuMorphism (\_ -> ()) const
+{-# INLINE discardBangChu #-}
+
+-- | Dereliction @!A → A@: identity on points, Yoneda on negatives.
+derelictChu ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) a (a -> r) a b
+derelictChu (ChuObj _ _ e) =
+  ChuMorphism id (\d a -> e (a, d))
+{-# INLINE derelictChu #-}
+
+-- | Introduction @A → ?A@: Yoneda on positives, identity on negatives.
+introduceChu ::
+  ChuObj (,) r (->) a b ->
+  ChuMorphism (,) r (->) a b (b -> r) b
+introduceChu (ChuObj _ _ e) =
+  ChuMorphism (\x d -> e (x, d)) id
+{-# INLINE introduceChu #-}
+
+-- | Zero @I → ?A@.  The unit functional is constantly 'sZero'.
+zeroWhyNotChu ::
+  (ChuSemiring r) =>
+  ChuMorphism (,) r (->) () r (b -> r) b
+zeroWhyNotChu =
+  ChuMorphism (\_ -> const sZero) (\_ -> sZero)
+{-# INLINE zeroWhyNotChu #-}
+
+-- | Object-level @!A@.
+data ChuOBang (r :: Type) a = ChuOBang
+
+instance ChuObjShape (ChuOBang r a) where
+  type ChuPosType (ChuOBang r a) = ChuPosType a
+  type ChuNegType (ChuOBang r a) = ChuPosType a -> r
+
+instance (ChuObject r a) => ChuObject r (ChuOBang r a) where
+  chuObject = bangChuObj (chuObject @r @a)
+
+instance (ChuSeparated r a) => ChuSeparated r (ChuOBang r a)
+
+instance (ChuObject r a) => ChuExtensional r (ChuOBang r a)
+
+-- | Object-level @?A = (!A⊥)⊥@.
+data ChuOWhyNot (r :: Type) a = ChuOWhyNot
+
+instance ChuObjShape (ChuOWhyNot r a) where
+  type ChuPosType (ChuOWhyNot r a) = ChuNegType a -> r
+  type ChuNegType (ChuOWhyNot r a) = ChuNegType a
+
+instance (ChuObject r a) => ChuObject r (ChuOWhyNot r a) where
+  chuObject = whyNotChuObj (chuObject @r @a)
+
+instance (ChuObject r a) => ChuSeparated r (ChuOWhyNot r a)
+
+instance (ChuExtensional r a) => ChuExtensional r (ChuOWhyNot r a)
+
+instance Exponential (ChuOTensor r) (OChu r) where
+  type Bang (ChuOTensor r) (OChu r) a = ChuOBang r a
+  type WhyNot (ChuOTensor r) (OChu r) a = ChuOWhyNot r a
+  copyE = OChu (Chu copyBangChu)
+  discardE = OChu (Chu discardBangChu)
+  derelict :: forall a. (Ob (OChu r) a) => OChu r (ChuOBang r a) a
+  derelict = OChu (Chu (derelictChu (chuObject @r @a)))
+  introduce :: forall a. (Ob (OChu r) a) => OChu r a (ChuOWhyNot r a)
+  introduce = OChu (Chu (introduceChu (chuObject @r @a)))
