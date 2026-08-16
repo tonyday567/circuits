@@ -29,6 +29,10 @@ knot-body category, polynomial interfaces, and close certification.
   comonoid laws, I-point bijection, `Hom(I,?A)` cardinality, introduce
   injective on I-points, and a falsifier that pointwise `?`-merge is not
   a tensor morphism.
+- ⅋-monoid on `?A`: `mergeWhyNotParChu` (`?A ⅋ ?A → ?A`),
+  `zeroWhyNotParChu` (`⊥ → ?A`), par unitors, associator, and `swapParChu`.
+  Oracles on `?ChuTwo`: morphism laws, left/right unit, commutativity,
+  associator inverse, associativity.
 - Composite `ChuObj` constructors (`tensorChuObj`, `parChuObj`,
   `bangChuObj`, additives, unitors) leave unused carriers as `error`.
   Pairing is the payload; `chuPos` / `chuNeg` of a composite are bottom.

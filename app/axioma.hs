@@ -510,6 +510,185 @@ eqIToWhy m1 m2 =
   eqFun (Chu.chuForward m1 ()) (Chu.chuForward m2 ())
     && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
 
+whyNotTwo :: Chu.ChuObj (,) Bool (->) (Bool -> Bool) Bool
+whyNotTwo = Chu.whyNotChuObj chuTwo
+
+whyNotTwoParPoss :: [Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool]
+whyNotTwoParPoss =
+  Chu.chuParPoss chuTwoFuns chuTwoPos chuTwoFuns chuTwoPos whyNotTwo whyNotTwo
+
+eqWhyParPos ::
+  Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool ->
+  Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool ->
+  Bool
+eqWhyParPos p1 p2 =
+  all (\b -> eqFun (Chu.cppForward p1 b) (Chu.cppForward p2 b)) chuTwoPos
+    && all (\d -> eqFun (Chu.cppBackward p1 d) (Chu.cppBackward p2 d)) chuTwoPos
+
+eqMergeWhy ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+    (Bool, Bool)
+    (Bool -> Bool)
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+    (Bool, Bool)
+    (Bool -> Bool)
+    Bool ->
+  Bool
+eqMergeWhy m1 m2 =
+  all (\p -> eqFun (Chu.chuForward m1 p) (Chu.chuForward m2 p)) whyNotTwoParPoss
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
+
+botWhyParPoss :: [Chu.ChuParPos Bool () (Bool -> Bool) Bool]
+botWhyParPoss =
+  Chu.chuParPoss [True, False] [()] chuTwoFuns chuTwoPos Chu.chuBottomObj whyNotTwo
+
+eqLeftUnitWhy ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos Bool () (Bool -> Bool) Bool)
+    ((), Bool)
+    (Bool -> Bool)
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos Bool () (Bool -> Bool) Bool)
+    ((), Bool)
+    (Bool -> Bool)
+    Bool ->
+  Bool
+eqLeftUnitWhy m1 m2 =
+  all (\p -> eqFun (Chu.chuForward m1 p) (Chu.chuForward m2 p)) botWhyParPoss
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
+
+whyBotParPoss :: [Chu.ChuParPos (Bool -> Bool) Bool Bool ()]
+whyBotParPoss =
+  Chu.chuParPoss chuTwoFuns chuTwoPos [True, False] [()] whyNotTwo Chu.chuBottomObj
+
+eqRightUnitWhy ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos (Bool -> Bool) Bool Bool ())
+    (Bool, ())
+    (Bool -> Bool)
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Chu.ChuParPos (Bool -> Bool) Bool Bool ())
+    (Bool, ())
+    (Bool -> Bool)
+    Bool ->
+  Bool
+eqRightUnitWhy m1 m2 =
+  all (\p -> eqFun (Chu.chuForward m1 p) (Chu.chuForward m2 p)) whyBotParPoss
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
+
+eqWhyParPos3 ::
+  Chu.ChuParPos
+    (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+    (Bool, Bool)
+    (Bool -> Bool)
+    Bool ->
+  Chu.ChuParPos
+    (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+    (Bool, Bool)
+    (Bool -> Bool)
+    Bool ->
+  Bool
+eqWhyParPos3 p1 p2 =
+  let pos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+   in all (\xy -> eqFun (Chu.cppForward p1 xy) (Chu.cppForward p2 xy)) pos2
+        && all (\z -> eqWhyParPos (Chu.cppBackward p1 z) (Chu.cppBackward p2 z)) chuTwoPos
+
+whyNotTwoPar3LPoss ::
+  [ Chu.ChuParPos
+      (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+      (Bool, Bool)
+      (Bool -> Bool)
+      Bool
+  ]
+whyNotTwoPar3LPoss =
+  Chu.chuParPoss
+    whyNotTwoParPoss
+    [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+    chuTwoFuns
+    chuTwoPos
+    (Chu.parChuObj whyNotTwo whyNotTwo)
+    whyNotTwo
+
+eqAssocWhyL ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ( Chu.ChuParPos
+        (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+        (Bool, Bool)
+        (Bool -> Bool)
+        Bool
+    )
+    ((Bool, Bool), Bool)
+    ( Chu.ChuParPos
+        (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+        (Bool, Bool)
+        (Bool -> Bool)
+        Bool
+    )
+    ((Bool, Bool), Bool) ->
+  Bool
+eqAssocWhyL m =
+  let negs = [((x, y), z) | x <- chuTwoPos, y <- chuTwoPos, z <- chuTwoPos]
+   in all (\p -> eqWhyParPos3 (Chu.chuForward m p) p) whyNotTwoPar3LPoss
+        && all (\n -> Chu.chuBackward m n == n) negs
+
+eqWhy3ToWhy ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ( Chu.ChuParPos
+        (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+        (Bool, Bool)
+        (Bool -> Bool)
+        Bool
+    )
+    ((Bool, Bool), Bool)
+    (Bool -> Bool)
+    Bool ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ( Chu.ChuParPos
+        (Chu.ChuParPos (Bool -> Bool) Bool (Bool -> Bool) Bool)
+        (Bool, Bool)
+        (Bool -> Bool)
+        Bool
+    )
+    ((Bool, Bool), Bool)
+    (Bool -> Bool)
+    Bool ->
+  Bool
+eqWhy3ToWhy m1 m2 =
+  all (\p -> eqFun (Chu.chuForward m1 p) (Chu.chuForward m2 p)) whyNotTwoPar3LPoss
+    && all (\d -> Chu.chuBackward m1 d == Chu.chuBackward m2 d) chuTwoPos
+
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
 -- The forward component returns a 'ChuParPos', which contains functions, so we
@@ -1837,6 +2016,47 @@ main = do
                   )
                   [(f, g) | f <- chuTwoFuns, g <- chuTwoFuns]
            in not (all (\d -> bilinear (cand d)) chuTwoPos),
+        check "Exponential OChu merge ?A ⅋ ?A -> ?A is a Chu morphism" $
+          let parObj = Chu.parChuObj whyNotTwo whyNotTwo
+              mor = Chu.mergeWhyNotParChu
+           in all
+                (\p -> all (\d -> Chu.chuLaw parObj whyNotTwo mor p d) chuTwoPos)
+                whyNotTwoParPoss,
+        check "Exponential OChu ⅋-unit ⊥ -> ?A is a Chu morphism" $
+          let mor = Chu.zeroWhyNotParChu
+           in all
+                (\k -> all (\d -> Chu.chuLaw Chu.chuBottomObj whyNotTwo mor k d) chuTwoPos)
+                [True, False],
+        check "Exponential OChu ⅋-monoid left unit on ?ChuTwo" $
+          let via =
+                Chu.composeChu
+                  Chu.mergeWhyNotParChu
+                  (Chu.parChu Chu.zeroWhyNotParChu Chu.idChu)
+           in eqLeftUnitWhy via Chu.leftUnitorParChu,
+        check "Exponential OChu ⅋-monoid right unit on ?ChuTwo" $
+          let via =
+                Chu.composeChu
+                  Chu.mergeWhyNotParChu
+                  (Chu.parChu Chu.idChu Chu.zeroWhyNotParChu)
+           in eqRightUnitWhy via Chu.rightUnitorParChu,
+        check "Exponential OChu ⅋-monoid is commutative on ?ChuTwo" $
+          let via = Chu.composeChu Chu.mergeWhyNotParChu Chu.swapParChu
+           in eqMergeWhy via Chu.mergeWhyNotParChu,
+        check "Exponential OChu ⅋-associator is inverse on ?ChuTwo" $
+          eqAssocWhyL (Chu.composeChu Chu.assocParChuInv Chu.assocParChu),
+        check "Exponential OChu ⅋-monoid is associative on ?ChuTwo" $
+          let lhs =
+                Chu.composeChu
+                  Chu.mergeWhyNotParChu
+                  ( Chu.composeChu
+                      (Chu.parChu Chu.idChu Chu.mergeWhyNotParChu)
+                      Chu.assocParChu
+                  )
+              rhs =
+                Chu.composeChu
+                  Chu.mergeWhyNotParChu
+                  (Chu.parChu Chu.mergeWhyNotParChu Chu.idChu)
+           in eqWhy3ToWhy lhs rhs,
         check "Exponential OChu introduce ChuTwo -> ?ChuTwo is a Chu morphism" $
           let why = Chu.whyNotChuObj chuTwo
               mor = Chu.introduceChu chuTwo

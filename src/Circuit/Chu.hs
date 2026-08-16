@@ -96,6 +96,13 @@ module Circuit.Chu
     derelictChu,
     zeroWhyNotChu,
     introduceChu,
+    mergeWhyNotParChu,
+    zeroWhyNotParChu,
+    leftUnitorParChu,
+    rightUnitorParChu,
+    assocParChu,
+    assocParChuInv,
+    swapParChu,
     ChuOBang (..),
     ChuOWhyNot (..),
   )
@@ -943,12 +950,118 @@ introduceChu (ChuObj _ _ e) =
 {-# INLINE introduceChu #-}
 
 -- | Zero @I → ?A@.  The unit functional is constantly 'sZero'.
+--
+-- This is not the ⅋-monoid unit (that is 'zeroWhyNotParChu' : @⊥ → ?A@).
 zeroWhyNotChu ::
   (ChuSemiring r) =>
   ChuMorphism (,) r (->) () r (b -> r) b
 zeroWhyNotChu =
   ChuMorphism (\_ -> const sZero) (\_ -> sZero)
 {-# INLINE zeroWhyNotChu #-}
+
+-- | Merge @?A ⅋ ?A → ?A@: the dual of 'copyBangChu'.
+--
+-- A par-positive is a pair of functionals @A⁻ → (A⁻ → r)@ satisfying
+-- @g y x = f x y@.  Merge contracts the diagonal @\\x -> g x x@.
+mergeWhyNotParChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (ChuParPos (b -> r) b (b -> r) b)
+    (b, b)
+    (b -> r)
+    b
+mergeWhyNotParChu =
+  ChuMorphism
+    (\(ChuParPos _ g) x -> g x x)
+    (\d -> (d, d))
+{-# INLINE mergeWhyNotParChu #-}
+
+-- | ⅋-monoid unit @⊥ → ?A@: constants, dual of 'discardBangChu'.
+zeroWhyNotParChu ::
+  ChuMorphism (,) r (->) r () (b -> r) b
+zeroWhyNotParChu =
+  ChuMorphism const (\_ -> ())
+{-# INLINE zeroWhyNotParChu #-}
+
+-- | Left unitor @⊥ ⅋ A → A@ over @Set@.
+leftUnitorParChu ::
+  ChuMorphism (,) r (->) (ChuParPos r () p n) ((), n) p n
+leftUnitorParChu =
+  ChuMorphism (\q -> cppForward q ()) (\d -> ((), d))
+{-# INLINE leftUnitorParChu #-}
+
+-- | Right unitor @A ⅋ ⊥ → A@ over @Set@.
+rightUnitorParChu ::
+  ChuMorphism (,) r (->) (ChuParPos p n r ()) (n, ()) p n
+rightUnitorParChu =
+  ChuMorphism (\q -> cppBackward q ()) (\d -> (d, ()))
+{-# INLINE rightUnitorParChu #-}
+
+-- | Associator @(A ⅋ B) ⅋ C → A ⅋ (B ⅋ C)@ over @Set@.
+assocParChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (ChuParPos (ChuParPos a b c d) (b, d) e f)
+    ((b, d), f)
+    (ChuParPos a b (ChuParPos c d e f) (d, f))
+    (b, (d, f))
+assocParChu =
+  ChuMorphism
+    ( \p ->
+        ChuParPos
+          ( \x ->
+              ChuParPos
+                (\y -> cppForward p (x, y))
+                (\z -> cppForward (cppBackward p z) x)
+          )
+          (\(y, z) -> cppBackward (cppBackward p z) y)
+    )
+    (\(x, (y, z)) -> ((x, y), z))
+{-# INLINE assocParChu #-}
+
+-- | Inverse associator @A ⅋ (B ⅋ C) → (A ⅋ B) ⅋ C@ over @Set@.
+assocParChuInv ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (ChuParPos a b (ChuParPos c d e f) (d, f))
+    (b, (d, f))
+    (ChuParPos (ChuParPos a b c d) (b, d) e f)
+    ((b, d), f)
+assocParChuInv =
+  ChuMorphism
+    ( \q ->
+        ChuParPos
+          (\(x, y) -> cppForward (cppForward q x) y)
+          ( \z ->
+              ChuParPos
+                (\x -> cppBackward (cppForward q x) z)
+                (\y -> cppBackward q (y, z))
+          )
+    )
+    (\((x, y), z) -> (x, (y, z)))
+{-# INLINE assocParChuInv #-}
+
+-- | Symmetric braiding @A ⅋ B → B ⅋ A@ over @Set@.
+swapParChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (ChuParPos a b c d)
+    (b, d)
+    (ChuParPos c d a b)
+    (d, b)
+swapParChu =
+  ChuMorphism
+    (\(ChuParPos f g) -> ChuParPos g f)
+    (\(x, y) -> (y, x))
+{-# INLINE swapParChu #-}
 
 -- | Object-level @!A@.
 data ChuOBang (r :: Type) a = ChuOBang
