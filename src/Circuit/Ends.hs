@@ -138,6 +138,19 @@ module Circuit.Ends
   )
 where
 
+import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Chu
+  ( ChuMorphism (..),
+    ChuObj (..),
+    deliversToSemiring,
+    deliveryMatrix,
+  )
+import Circuit.Dagger (Copy (copy), Discard (discard))
+import Circuit.Loop (Loop (..))
+import Circuit.Mediate qualified as Mediate
+import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
+import Circuit.Process (Process (..))
+import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
 import Circuit.Thread
   ( SArr (..),
     SomeSArr (..),
@@ -150,19 +163,6 @@ import Circuit.Thread
     threadToLoop,
     threadToSArr,
   )
-import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Chu
-  ( ChuMorphism (..),
-    ChuObj (..),
-    deliveryMatrix,
-    deliversToSemiring,
-  )
-import Circuit.Dagger (Copy (copy), Discard (discard))
-import Circuit.Loop (Loop (..))
-import Circuit.Mediate qualified as Mediate
-import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
-import Circuit.Process (Process (..))
-import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
 import Control.Arrow (Kleisli (..))
 import Data.Maybe (catMaybes, isNothing)
 import Data.Void (Void)
