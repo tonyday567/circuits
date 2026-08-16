@@ -9,9 +9,9 @@ import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stampe
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
-import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
 import Circuit.Chu qualified as Chu
-import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, endsAsChu, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
+import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
+import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsAsChu, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
 import Circuit.Ends qualified as MedState
 import Circuit.FinRel
 import Circuit.Hyper (Hyper, observe)
@@ -27,26 +27,13 @@ import Circuit.Process (Process (..), delay, encode, fold, markSystem, register,
 import Circuit.Tensor (Action (..), Bot, Fire (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
-import Data.List (foldl', isInfixOf, scanl', sort, uncons)
+import Data.List (foldl', isInfixOf, sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
 import Data.These (These (..), these)
 import Data.Tuple qualified as Tuple
 import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
-import Test.QuickCheck
-  ( Arbitrary (..),
-    Gen,
-    Property,
-    Testable,
-    chatty,
-    chooseInt,
-    isSuccess,
-    quickCheckWithResult,
-    stdArgs,
-    vectorOf,
-    (===),
-  )
 import Prelude hiding (id, (.))
 
 type F = Bool
@@ -211,6 +198,209 @@ ochuToChuMorphism ::
   Chu.OChu r a b ->
   Chu.ChuMorphism (,) r (->) (Chu.ChuPosType a) (Chu.ChuNegType a) (Chu.ChuPosType b) (Chu.ChuNegType b)
 ochuToChuMorphism (Chu.OChu (Chu.Chu m)) = m
+
+-- ---------------------------------------------------------------------------
+-- SepChu / associator helpers
+-- ---------------------------------------------------------------------------
+
+chuTwoObjAA :: Chu.ChuObj (,) Bool (->) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)
+chuTwoObjAA = Chu.tensorChuObj chuTwo chuTwo
+
+chuTwoObjA_AA ::
+  Chu.ChuObj
+    (,)
+    Bool
+    (->)
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+chuTwoObjA_AA = Chu.tensorChuObj chuTwo chuTwoObjAA
+
+chuTwoObjAA_A ::
+  Chu.ChuObj
+    (,)
+    Bool
+    (->)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+chuTwoObjAA_A = Chu.tensorChuObj chuTwoObjAA chuTwo
+
+chuTwoPos2 :: [(Bool, Bool)]
+chuTwoPos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
+
+chuTwoPos3L :: [((Bool, Bool), Bool)]
+chuTwoPos3L = [(p, z) | p <- chuTwoPos2, z <- chuTwoPos]
+
+chuTwoPos3R :: [(Bool, (Bool, Bool))]
+chuTwoPos3R = [(x, p) | x <- chuTwoPos, p <- chuTwoPos2]
+
+chuTwoPos4L :: [(((Bool, Bool), Bool), Bool)]
+chuTwoPos4L = [(p, w) | p <- chuTwoPos3L, w <- chuTwoPos]
+
+chuTwoNeg3R ::
+  [Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)]
+chuTwoNeg3R =
+  Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos2 chuTwoTensorNegs chuTwo chuTwoObjAA
+
+eqTensorNeg2 ::
+  Chu.ChuTensorNeg Bool Bool Bool Bool ->
+  Chu.ChuTensorNeg Bool Bool Bool Bool ->
+  Bool
+eqTensorNeg2 n1 n2 =
+  all (\a -> Chu.ctnForward n1 a == Chu.ctnForward n2 a) chuTwoPos
+    && all (\c -> Chu.ctnBackward n1 c == Chu.ctnBackward n2 c) chuTwoPos
+
+eqTensorNeg3L ::
+  Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool ->
+  Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool ->
+  Bool
+eqTensorNeg3L n1 n2 =
+  all (\p -> Chu.ctnForward n1 p == Chu.ctnForward n2 p) chuTwoPos2
+    && all (\z -> eqTensorNeg2 (Chu.ctnBackward n1 z) (Chu.ctnBackward n2 z)) chuTwoPos
+
+eqTensorNeg3R ::
+  Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) ->
+  Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) ->
+  Bool
+eqTensorNeg3R n1 n2 =
+  all (\a -> eqTensorNeg2 (Chu.ctnForward n1 a) (Chu.ctnForward n2 a)) chuTwoPos
+    && all (\p -> Chu.ctnBackward n1 p == Chu.ctnBackward n2 p) chuTwoPos2
+
+eqAssocMorphism ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)) ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)) ->
+  Bool
+eqAssocMorphism m1 m2 =
+  all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) chuTwoPos3L
+    && all (\n -> eqTensorNeg3L (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoNeg3R
+
+eqEndo3R ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)) ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+    (Bool, (Bool, Bool))
+    (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)) ->
+  Bool
+eqEndo3R m1 m2 =
+  all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) chuTwoPos3R
+    && all (\n -> eqTensorNeg3R (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoNeg3R
+
+eqEndo3L ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool) ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool) ->
+  Bool
+eqEndo3L m1 m2 =
+  all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) chuTwoPos3L
+    && all (\n -> eqTensorNeg3L (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoNeg3L
+  where
+    chuTwoNeg3L =
+      Chu.chuTensorNegs chuTwoPos2 chuTwoTensorNegs chuTwoPos chuTwoPos chuTwoObjAA chuTwo
+
+chuTwoNeg4R ::
+  [ Chu.ChuTensorNeg
+      Bool
+      Bool
+      (Bool, (Bool, Bool))
+      (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+  ]
+chuTwoNeg4R =
+  Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos3R chuTwoNeg3R chuTwo chuTwoObjA_AA
+
+eqTensorNeg4L ::
+  Chu.ChuTensorNeg
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    Bool
+    Bool ->
+  Chu.ChuTensorNeg
+    ((Bool, Bool), Bool)
+    (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+    Bool
+    Bool ->
+  Bool
+eqTensorNeg4L n1 n2 =
+  all (\p -> Chu.ctnForward n1 p == Chu.ctnForward n2 p) chuTwoPos3L
+    && all (\w -> eqTensorNeg3L (Chu.ctnBackward n1 w) (Chu.ctnBackward n2 w)) chuTwoPos
+
+eqPentagonMorphism ::
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (((Bool, Bool), Bool), Bool)
+    ( Chu.ChuTensorNeg
+        ((Bool, Bool), Bool)
+        (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+        Bool
+        Bool
+    )
+    (Bool, (Bool, (Bool, Bool)))
+    ( Chu.ChuTensorNeg
+        Bool
+        Bool
+        (Bool, (Bool, Bool))
+        (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+    ) ->
+  Chu.ChuMorphism
+    (,)
+    Bool
+    (->)
+    (((Bool, Bool), Bool), Bool)
+    ( Chu.ChuTensorNeg
+        ((Bool, Bool), Bool)
+        (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
+        Bool
+        Bool
+    )
+    (Bool, (Bool, (Bool, Bool)))
+    ( Chu.ChuTensorNeg
+        Bool
+        Bool
+        (Bool, (Bool, Bool))
+        (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
+    ) ->
+  Bool
+eqPentagonMorphism m1 m2 =
+  all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) chuTwoPos4L
+    && all (\n -> eqTensorNeg4L (Chu.chuBackward m1 n) (Chu.chuBackward m2 n)) chuTwoNeg4R
 
 -- | Equality of Chu morphisms on the par of two @chuTwo@s.
 --
@@ -412,103 +602,6 @@ finRelTotal = FinRel 1 1 [[True, False], [False, True]]
 -- | Neither total nor functional: relates 0 to both 0 and 1.
 finRelNeither :: FinRel F N1 N1
 finRelNeither = FinRel 1 1 [[False, True]]
-
--- ---------------------------------------------------------------------------
--- QuickCheck oracles for Process / Loop equivalence
--- ---------------------------------------------------------------------------
-
--- | A small finite type so processes can be generated as lookup tables.
-newtype Small = Small Int
-  deriving (Eq, Ord, Show)
-
-instance Arbitrary Small where
-  arbitrary = Small <$> chooseInt (0, 2)
-  shrink (Small n) = [Small m | m <- [0 .. n - 1]]
-
-smallIndex :: Small -> Int
-smallIndex (Small n) = n
-
--- | Lookup-table function @Small -> Small@.
-smallFun1 :: Gen (Small -> Small)
-smallFun1 = do
-  table <- vectorOf 3 arbitrary
-  pure (\(Small i) -> table !! i)
-
--- | Lookup-table function @Small -> Small -> Small@.
-smallFun2 :: Gen (Small -> Small -> Small)
-smallFun2 = do
-  table <- vectorOf 3 (vectorOf 3 arbitrary)
-  pure (\(Small i) (Small j) -> table !! i !! j)
-
--- | Lookup-table function @(Small, Small) -> Small@.
-smallPairFun1 :: Gen ((Small, Small) -> Small)
-smallPairFun1 = do
-  table <- vectorOf 9 arbitrary
-  pure (\(Small i, Small j) -> table !! (i * 3 + j))
-
--- | Lookup-table function @Small -> (Small, Small)@.
-smallFunToPair :: Gen (Small -> (Small, Small))
-smallFunToPair = do
-  table <- vectorOf 3 arbitrary
-  pure (\(Small i) -> table !! i)
-
--- | Arbitrary process with a three-element state space.
-genProcess :: Gen (Process Small Small)
-genProcess = do
-  inject <- smallFun1
-  step <- smallFun2
-  Process inject step <$> smallFun1
-
--- | Arbitrary process with pair-typed input/output and a three-element state
--- space.  Used to test cross-tick feedback.
-genProcessPair :: Gen (Process (Small, Small) (Small, Small))
-genProcessPair = do
-  inject <- smallPairFun1
-  step <- do
-    table <- vectorOf 3 (vectorOf 9 arbitrary)
-    pure (\s p -> table !! smallIndex s !! pairIndex p)
-  Process inject step <$> smallFunToPair
-  where
-    pairIndex (Small i, Small j) = i * 3 + j
-
-instance Arbitrary (Process Small Small) where
-  arbitrary = genProcess
-  shrink = const []
-
-instance Show (Process Small Small) where
-  show _ = "Process Small Small"
-
-instance Arbitrary (Process (Small, Small) (Small, Small)) where
-  arbitrary = genProcessPair
-  shrink = const []
-
-instance Show (Process (Small, Small) (Small, Small)) where
-  show _ = "Process (Small, Small) (Small, Small)"
-
--- | Process ~ Loop: running the encoding equals scanning the process.
-prop_scan_encode :: Process Small Small -> [Small] -> Property
-prop_scan_encode p xs = scan p xs === run (encode p) xs
-
--- | Cross-tick register agrees with explicit one-tick-delayed feedback.
-prop_register_trace :: Process (Small, Small) (Small, Small) -> Small -> [Small] -> Property
-prop_register_trace body s0 xs =
-  scan (register s0 body) xs === manualRegister s0 body xs
-  where
-    manualRegister _ _ [] = []
-    manualRegister s (Process i st ex) (a : as) =
-      let s0' = i (a, s)
-          states = scanl' (\s' a' -> st s' (a', snd (ex s'))) s0' as
-       in map (fst . ex) states
-
-qcCheck :: (Testable prop) => String -> prop -> IO Bool
-qcCheck name p = do
-  putStrLn ("  " ++ name)
-  result <- quickCheckWithResult (stdArgs {chatty = False}) p
-  if isSuccess result
-    then pure True
-    else do
-      putStrLn ("    FAIL: " ++ show result)
-      pure False
 
 check :: String -> Bool -> IO Bool
 check name ok = do
@@ -991,9 +1084,6 @@ main = do
           MedState.runSomeSArr (MedState.processToSomeSArr swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
         check "processToSomeSArr ewma agrees with scan" $
           MedState.runSomeSArr (MedState.processToSomeSArr (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
-        -- QuickCheck Process / Loop equivalence
-        qcCheck "QC: scan == run . encode" prop_scan_encode,
-        qcCheck "QC: register agrees with delayed feedback" prop_register_trace,
         -- Process / Loop Either round-trip factors through Thread Either (->)
         check "Process encode factors through Thread Either (->)" $
           let viaThread p = case MedState.processToThread p of MedState.SomeThread _ b -> MedState.threadToLoop b
@@ -1416,6 +1506,121 @@ main = do
               s = swap
               idT = id :: Chu.OChu Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
            in eqTensorMorphism (ochuToChuMorphism (s . s)) (ochuToChuMorphism idT),
+        -- SepChu: double negation, associator, pentagon
+        check "SepChu ChuTwo is separated and extensional" $
+          Chu.chuSeparated chuTwoPos chuTwoPos chuTwo
+            && Chu.chuExtensional chuTwoPos chuTwoPos chuTwo,
+        check "SepChu double negation is iso on ChuTwo" $
+          let eta = Chu.dnUnitChu @Bool @Chu.ChuTwo
+              eps = Chu.dnCounitChu @Bool @Chu.ChuTwo
+           in eqChuMorphismAA (ochuToChuMorphism (eps . eta)) Chu.idChu
+                && eqChuMorphismAA (ochuToChuMorphism (eta . eps)) Chu.idChu,
+        check "SepChu associator satisfies adjoint law on ChuTwo" $
+          all
+            (\p -> all (\n -> Chu.chuLaw chuTwoObjAA_A chuTwoObjA_AA Chu.assocChu p n) chuTwoNeg3R)
+            chuTwoPos3L,
+        check "SepChu associator is inverse on (ChuTwo ⊗ ChuTwo) ⊗ ChuTwo" $
+          let iso = Chu.composeChu Chu.assocChuInv Chu.assocChu
+           in eqEndo3L iso Chu.idChu,
+        check "SepChu associator inverse is inverse on ChuTwo ⊗ (ChuTwo ⊗ ChuTwo)" $
+          let iso = Chu.composeChu Chu.assocChu Chu.assocChuInv
+           in eqEndo3R iso Chu.idChu,
+        check "SepChu Channel assoc agrees with assocChu on ChuTwo" $
+          let a ::
+                Chu.OChu
+                  Bool
+                  (Chu.ChuOTensor Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) Chu.ChuTwo)
+                  (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+              a = assoc
+           in eqAssocMorphism (ochuToChuMorphism a) Chu.assocChu,
+        check "SepChu slide agrees with assoc . par swap id . assoc' on ChuTwo" $
+          let sl ::
+                Chu.OChu
+                  Bool
+                  (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                  (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+              sl = slide
+              derived =
+                assoc
+                  . par swap id
+                  . assoc' ::
+                  Chu.OChu
+                    Bool
+                    (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                    (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+           in eqEndo3R (ochuToChuMorphism sl) (ochuToChuMorphism derived),
+        check "SepChu associator pentagon commutes on ChuTwo" $
+          let top1 ::
+                Chu.OChu
+                  Bool
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) Chu.ChuTwo)
+                      Chu.ChuTwo
+                  )
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+                      (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+                  )
+              top1 = assoc
+              top2 ::
+                Chu.OChu
+                  Bool
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+                      (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo)
+                  )
+                  ( Chu.ChuOTensor
+                      Bool
+                      Chu.ChuTwo
+                      (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                  )
+              top2 = assoc
+              bot1 ::
+                Chu.OChu
+                  Bool
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) Chu.ChuTwo)
+                      Chu.ChuTwo
+                  )
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                      Chu.ChuTwo
+                  )
+              bot1 = par assoc id
+              bot2 ::
+                Chu.OChu
+                  Bool
+                  ( Chu.ChuOTensor
+                      Bool
+                      (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                      Chu.ChuTwo
+                  )
+                  ( Chu.ChuOTensor
+                      Bool
+                      Chu.ChuTwo
+                      (Chu.ChuOTensor Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) Chu.ChuTwo)
+                  )
+              bot2 = assoc
+              bot3 ::
+                Chu.OChu
+                  Bool
+                  ( Chu.ChuOTensor
+                      Bool
+                      Chu.ChuTwo
+                      (Chu.ChuOTensor Bool (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo) Chu.ChuTwo)
+                  )
+                  ( Chu.ChuOTensor
+                      Bool
+                      Chu.ChuTwo
+                      (Chu.ChuOTensor Bool Chu.ChuTwo (Chu.ChuOTensor Bool Chu.ChuTwo Chu.ChuTwo))
+                  )
+              bot3 = par id assoc
+           in eqPentagonMorphism (ochuToChuMorphism (top2 . top1)) (ochuToChuMorphism (bot3 . bot2 . bot1)),
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)

@@ -5,6 +5,15 @@
 Linear-logic refactor: multiplicative/additive/exponential connectives, the
 knot-body category, polynomial interfaces, and close certification.
 
+*SepChu (separated-extensional subcategory)*
+
+- `OChu` object constraints now require `ChuSeparated` and `ChuExtensional`.
+  `SepChu` is a synonym for this reading.
+- Object-level negation `ChuONeg`, double-negation maps `dnUnitChu` /
+  `dnCounitChu`.
+- Associator `assocChu` / `assocChuInv` and slide `slideChu`, with a
+  `Channel` instance for `ChuOTensor`. Pentagon checked on `ChuTwo`.
+
 *Thread (knot-body category)*
 
 - New module `Circuit.Thread` introduces `Thread t arr s a b`, the category

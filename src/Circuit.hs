@@ -125,6 +125,7 @@ module Circuit
     register,
 
     -- * Channel ends (bi-polar effectful/process API; still the right tool for
+
     -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
@@ -210,14 +211,23 @@ module Circuit
     leftUnitorChuInv,
     rightUnitorChu,
     rightUnitorChuInv,
+    assocChu,
+    assocChuInv,
+    slideChu,
 
     -- * Object-indexed Chu category
     ChuObject (..),
+    ChuSeparated,
+    ChuExtensional,
     OChu (..),
+    SepChu,
     ChuOUnit (..),
     ChuOTensor (..),
+    ChuONeg (..),
     ChuTwo (..),
     swapChu,
+    dnUnitChu,
+    dnCounitChu,
 
     -- * Dagger (bimonoid + dagger)
     Copy (..),
@@ -329,58 +339,67 @@ import Circuit.ChannelPoly
     idChannel,
     mapChannel,
   )
+import Circuit.Chu
+  ( Chu (..),
+    ChuExtensional,
+    ChuMorphism (..),
+    ChuONeg (..),
+    ChuOTensor (..),
+    ChuOUnit (..),
+    ChuObj (..),
+    ChuObjShape (..),
+    ChuObject (..),
+    ChuParPos (..),
+    ChuSemiring (..),
+    ChuSeparated,
+    ChuTensorNeg (..),
+    ChuTwo (..),
+    OChu (..),
+    SepChu,
+    assocChu,
+    assocChuInv,
+    chuBottomObj,
+    chuExtensional,
+    chuLaw,
+    chuLawAt,
+    chuParPoss,
+    chuSeparated,
+    chuTensorNegs,
+    chuUnitObj,
+    composeChu,
+    deliversToSemiring,
+    deliveryMatrix,
+    dnCounitChu,
+    dnUnitChu,
+    evalChu,
+    idChu,
+    leftUnitorChu,
+    leftUnitorChuInv,
+    lolliChuObj,
+    negateChu,
+    oplusChuObj,
+    parChu,
+    parChuObj,
+    rightUnitorChu,
+    rightUnitorChuInv,
+    slideChu,
+    swapChu,
+    tensorChu,
+    tensorChuObj,
+    topChuObj,
+    withChuObj,
+    zeroChuObj,
+  )
 import Circuit.Dagger
   ( Bimonoid,
     Copy (..),
     CopyDiscard,
-    Discard (..),
     Dagger (..),
+    Discard (..),
     Merge (..),
     MergeZero,
     Zero (..),
     transpose,
-  )
-import Circuit.Chu
-  ( Chu (..),
-    ChuMorphism (..),
-    ChuObj (..),
-    ChuObjShape (..),
-    ChuSemiring (..),
-    ChuTensorNeg (..),
-    ChuParPos (..),
-    chuLaw,
-    chuLawAt,
-    composeChu,
-    deliversToSemiring,
-    deliveryMatrix,
-    idChu,
-    negateChu,
-    tensorChu,
-    tensorChuObj,
-    parChu,
-    parChuObj,
-    lolliChuObj,
-    withChuObj,
-    oplusChuObj,
-    topChuObj,
-    zeroChuObj,
-    evalChu,
-    chuUnitObj,
-    chuBottomObj,
-    chuTensorNegs,
-    chuParPoss,
-    chuSeparated,
-    chuExtensional,
-    leftUnitorChu,
-    leftUnitorChuInv,
-    rightUnitorChu,
-    rightUnitorChuInv,
-    ChuObject (..),
-    OChu (..),
-    ChuOUnit (..),
-    ChuOTensor (..),
-    ChuTwo (..),
-    swapChu,
   )
 import Circuit.Ends
   ( Bias (..),
@@ -443,8 +462,8 @@ import Circuit.Markov
   )
 import Circuit.Mediate
   ( FlushableResidual (..),
-    LinearityViolation (..),
     LinearResidual (..),
+    LinearityViolation (..),
     Mediator (..),
     PS (..),
     closeCertified,
@@ -454,6 +473,12 @@ import Circuit.Mediate
     mediateLoop,
     pairSum,
     runMediator,
+  )
+import Circuit.Net
+  ( Net,
+    Sym,
+    enrich,
+    melt,
   )
 import Circuit.Poly
   ( Dir,
@@ -477,20 +502,6 @@ import Circuit.Process
     scan,
     systemToProcess,
   )
-import Circuit.Thread
-  ( SArr (..),
-    SomeSArr (..),
-    SomeThread (..),
-    Thread (..),
-    runSomeSArr,
-    threadToLoop,
-  )
-import Circuit.Net
-  ( Net,
-    Sym,
-    enrich,
-    melt,
-  )
 import Circuit.Tensor
   ( Action (..),
     Bot,
@@ -507,6 +518,14 @@ import Circuit.Tensor
     mix,
     sharedKnotBy,
     superpose,
+  )
+import Circuit.Thread
+  ( SArr (..),
+    SomeSArr (..),
+    SomeThread (..),
+    Thread (..),
+    runSomeSArr,
+    threadToLoop,
   )
 import Prelude
 

@@ -1,7 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -64,18 +68,28 @@ module Circuit.Chu
     leftUnitorChuInv,
     rightUnitorChu,
     rightUnitorChuInv,
+    assocChu,
+    assocChuInv,
+    slideChu,
 
     -- * Object-indexed Chu category (SepChu / OChu)
     ChuObject (..),
+    ChuSeparated,
+    ChuExtensional,
     OChu (..),
+    SepChu,
     ChuOUnit (..),
     ChuOTensor (..),
+    ChuONeg (..),
     ChuTwo (..),
     swapChu,
+    dnUnitChu,
+    dnCounitChu,
   )
 where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
+import Circuit.Channel (Channel (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Kind (Type)
 import Data.Traversable (sequenceA)
@@ -278,7 +292,6 @@ deliveryMatrix ::
 deliveryMatrix agents recipients =
   [map (deliversToSemiring recips) agents | recips <- recipients]
 
-
 -- ===========================================================================
 -- Tensor and par structure over Set (arr = (->), t = (,))
 -- ===========================================================================
@@ -461,6 +474,74 @@ rightUnitorChuInv ::
   ChuMorphism (,) r (->) a b (a, ()) (ChuTensorNeg a b () r)
 rightUnitorChuInv _ = ChuMorphism (\a -> (a, ())) (\(ChuTensorNeg _ g) -> g ())
 
+-- | Associator @(A ⊗ B) ⊗ C → A ⊗ (B ⊗ C)@ over @Set@.
+--
+-- Positives reassociate as pairs.  Negatives reassociate the adjoint
+-- pairs: a negative of @A ⊗ (B ⊗ C)@ is sent to a negative of
+-- @(A ⊗ B) ⊗ C@ by unpacking the inner 'ChuTensorNeg'.
+assocChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    ((a, c), e)
+    (ChuTensorNeg (a, c) (ChuTensorNeg a b c d) e f)
+    (a, (c, e))
+    (ChuTensorNeg a b (c, e) (ChuTensorNeg c d e f))
+assocChu =
+  ChuMorphism
+    (\((x, y), z) -> (x, (y, z)))
+    ( \(ChuTensorNeg h k) ->
+        ChuTensorNeg
+          (\(x, y) -> ctnForward (h x) y)
+          (\z -> ChuTensorNeg (\x -> ctnBackward (h x) z) (\y -> k (y, z)))
+    )
+{-# INLINE assocChu #-}
+
+-- | Inverse associator @A ⊗ (B ⊗ C) → (A ⊗ B) ⊗ C@ over @Set@.
+assocChuInv ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (a, (c, e))
+    (ChuTensorNeg a b (c, e) (ChuTensorNeg c d e f))
+    ((a, c), e)
+    (ChuTensorNeg (a, c) (ChuTensorNeg a b c d) e f)
+assocChuInv =
+  ChuMorphism
+    (\(x, (y, z)) -> ((x, y), z))
+    ( \(ChuTensorNeg f g) ->
+        ChuTensorNeg
+          (\x -> ChuTensorNeg (\y -> f (x, y)) (\z -> ctnForward (g z) x))
+          (\(y, z) -> ctnBackward (g z) y)
+    )
+{-# INLINE assocChuInv #-}
+
+-- | Slide @A ⊗ (B ⊗ C) → B ⊗ (A ⊗ C)@ over @Set@.
+--
+-- This is the Channel 'slide', derived as @assoc . par swap id . assoc'@
+-- and written directly so the instance does not have to manufacture
+-- intermediate object constraints.
+slideChu ::
+  ChuMorphism
+    (,)
+    r
+    (->)
+    (a, (c, e))
+    (ChuTensorNeg a b (c, e) (ChuTensorNeg c d e f))
+    (c, (a, e))
+    (ChuTensorNeg c d (a, e) (ChuTensorNeg a b e f))
+slideChu =
+  ChuMorphism
+    (\(x, (y, z)) -> (y, (x, z)))
+    ( \(ChuTensorNeg h' k') ->
+        ChuTensorNeg
+          (\x -> ChuTensorNeg (\y -> ctnForward (h' y) x) (\z -> k' (x, z)))
+          (\(y, z) -> ctnBackward (h' y) z)
+    )
+{-# INLINE slideChu #-}
+
 -- | Enumerate all 'ChuTensorNeg' values for finite carriers.
 chuTensorNegs ::
   (Eq r, Eq a, Eq c) =>
@@ -473,9 +554,9 @@ chuTensorNegs ::
   [ChuTensorNeg a b c d]
 chuTensorNegs as bs cs ds (ChuObj _ _ r) (ChuObj _ _ s) =
   [ ChuTensorNeg f g
-    | f <- functions as ds,
-      g <- functions cs bs,
-      all (\(a, c) -> r (a, g c) == s (c, f a)) (cartesian as cs)
+  | f <- functions as ds,
+    g <- functions cs bs,
+    all (\(a, c) -> r (a, g c) == s (c, f a)) (cartesian as cs)
   ]
 
 -- | Enumerate all 'ChuParPos' values for finite carriers.
@@ -490,9 +571,9 @@ chuParPoss ::
   [ChuParPos a b c d]
 chuParPoss as bs cs ds (ChuObj _ _ r) (ChuObj _ _ s) =
   [ ChuParPos f g
-    | f <- functions bs cs,
-      g <- functions ds as,
-      all (\(b, d) -> r (g d, b) == s (f b, d)) (cartesian bs ds)
+  | f <- functions bs cs,
+    g <- functions ds as,
+    all (\(b, d) -> r (g d, b) == s (f b, d)) (cartesian bs ds)
   ]
 
 -- | All functions from a finite domain to a finite codomain.
@@ -545,12 +626,26 @@ chuExtensional as bs (ChuObj _ _ e) =
 -- That is too unstructured for a 'Tensor' instance: the unit object is not
 -- the bare @()@, and structural morphisms such as the unitors need the
 -- object's pairing.  'OChu' restricts objects to types that carry a canonical
--- 'ChuObj' value via the 'ChuObject' class.  This is the "constrained
--- category" reading of SepChu.
+-- 'ChuObj' value via the 'ChuObject' class, and its 'Ob' further requires
+-- separation and extensionality.  That is Barr's separated-extensional
+-- subcategory: the room where @A ≅ A⊥⊥@ and the associator pentagon lives.
+-- 'SepChu' is a synonym for this reading.
 
 -- | A type-level Chu object: a 'ChuObjShape' together with a canonical value.
-class ChuObjShape a => ChuObject (r :: Type) a where
+class (ChuObjShape a) => ChuObject (r :: Type) a where
   chuObject :: ChuObj (,) r (->) (ChuPosType a) (ChuNegType a)
+
+-- | Marker: the pairing distinguishes positive points.
+--
+-- Runtime evidence is 'chuSeparated'.  Instances close the constructors
+-- we admit ('ChuTwo', 'ChuOUnit', tensor, negation).
+class (ChuObject r a) => ChuSeparated r a
+
+-- | Marker: the pairing distinguishes negative points.
+--
+-- Runtime evidence is 'chuExtensional'.  Negation swaps this with
+-- 'ChuSeparated'.
+class (ChuObject r a) => ChuExtensional r a
 
 -- | Unit object type for 'OChu'.
 data ChuOUnit (r :: Type) = ChuOUnit
@@ -561,6 +656,10 @@ instance ChuObjShape (ChuOUnit r) where
 
 instance ChuObject r (ChuOUnit r) where
   chuObject = chuUnitObj
+
+instance ChuSeparated r (ChuOUnit r)
+
+instance ChuExtensional r (ChuOUnit r)
 
 -- | Tensor object type for 'OChu'.
 data ChuOTensor (r :: Type) a b = ChuOTensor
@@ -574,6 +673,28 @@ instance ChuObjShape (ChuOTensor r a b) where
 instance (Eq r, ChuObject r a, ChuObject r b) => ChuObject r (ChuOTensor r a b) where
   chuObject = tensorChuObj (chuObject @r @a) (chuObject @r @b)
 
+instance (Eq r, ChuSeparated r a, ChuSeparated r b) => ChuSeparated r (ChuOTensor r a b)
+
+instance (Eq r, ChuExtensional r a, ChuExtensional r b) => ChuExtensional r (ChuOTensor r a b)
+
+-- | Object-level negation @A⊥@.
+--
+-- Carriers swap; the pairing is 'negateChu' of the underlying object.
+-- Separation and extensionality swap: if @A@ is separated then @A⊥@ is
+-- extensional, and conversely.
+data ChuONeg (r :: Type) a = ChuONeg
+
+instance ChuObjShape (ChuONeg r a) where
+  type ChuPosType (ChuONeg r a) = ChuNegType a
+  type ChuNegType (ChuONeg r a) = ChuPosType a
+
+instance (ChuObject r a) => ChuObject r (ChuONeg r a) where
+  chuObject = negateChu (chuObject @r @a)
+
+instance (ChuExtensional r a) => ChuSeparated r (ChuONeg r a)
+
+instance (ChuSeparated r a) => ChuExtensional r (ChuONeg r a)
+
 -- | The self-dual two-point Chu object used in the oracles.
 data ChuTwo = ChuTwo
 
@@ -584,12 +705,21 @@ instance ChuObjShape ChuTwo where
 instance ChuObject Bool ChuTwo where
   chuObject = ChuObj True True (uncurry (==))
 
+instance ChuSeparated Bool ChuTwo
+
+instance ChuExtensional Bool ChuTwo
+
 -- | The object-indexed Chu construction as a base arrow.
 newtype OChu (r :: Type) (a :: Type) (b :: Type) = OChu {unOChu :: Chu (,) r (->) a b}
 
+-- | Barr's separated-extensional subcategory of 'OChu'.
+--
+-- Same arrows; 'Ob' requires 'ChuSeparated' and 'ChuExtensional'.
+type SepChu = OChu
+
 instance Category (OChu r) where
-  type Ob (OChu r) a = ChuObject r a
-  id :: forall a. Ob (OChu r) a => OChu r a a
+  type Ob (OChu r) a = (ChuSeparated r a, ChuExtensional r a)
+  id :: forall a. (Ob (OChu r) a) => OChu r a a
   id = OChu id
   (.) :: forall a b c. (Ob (OChu r) a, Ob (OChu r) b, Ob (OChu r) c) => OChu r b c -> OChu r a b -> OChu r a c
   OChu g . OChu f = OChu (g . f)
@@ -602,15 +732,64 @@ swapChu = ChuMorphism (\(x, y) -> (y, x)) (\(ChuTensorNeg h k) -> ChuTensorNeg k
 instance Tensor (ChuOTensor r) (OChu r) where
   par :: forall a b c d. OChu r a b -> OChu r c d -> OChu r (ChuOTensor r a c) (ChuOTensor r b d)
   par (OChu (Chu f)) (OChu (Chu g)) = OChu (Chu (tensorChu f g))
-  unitl :: forall a. Ob (OChu r) a => OChu r (ChuOTensor r (ChuOUnit r) a) a
+  unitl :: forall a. (Ob (OChu r) a) => OChu r (ChuOTensor r (ChuOUnit r) a) a
   unitl = OChu (Chu (leftUnitorChu (chuObject @r @a)))
-  unitl' :: forall a. Ob (OChu r) a => OChu r a (ChuOTensor r (ChuOUnit r) a)
+  unitl' :: forall a. (Ob (OChu r) a) => OChu r a (ChuOTensor r (ChuOUnit r) a)
   unitl' = OChu (Chu (leftUnitorChuInv (chuObject @r @a)))
-  unitr :: forall a. Ob (OChu r) a => OChu r (ChuOTensor r a (ChuOUnit r)) a
+  unitr :: forall a. (Ob (OChu r) a) => OChu r (ChuOTensor r a (ChuOUnit r)) a
   unitr = OChu (Chu (rightUnitorChu (chuObject @r @a)))
-  unitr' :: forall a. Ob (OChu r) a => OChu r a (ChuOTensor r a (ChuOUnit r))
+  unitr' :: forall a. (Ob (OChu r) a) => OChu r a (ChuOTensor r a (ChuOUnit r))
   unitr' = OChu (Chu (rightUnitorChuInv (chuObject @r @a)))
 
 instance Action (ChuOTensor r) (OChu r) where
   swap :: forall a b. OChu r (ChuOTensor r a b) (ChuOTensor r b a)
   swap = OChu (Chu swapChu)
+
+-- | Monoidal structure on the object-level Chu tensor.
+--
+-- 'assoc' / 'assoc'' / 'slide' are the Set-level maps 'assocChu',
+-- 'assocChuInv', and 'slideChu'.  The pentagon is checked on 'ChuTwo'
+-- by finite enumeration in @circuits-axioma@.
+instance (Eq r) => Channel (ChuOTensor r) (OChu r) where
+  assoc = OChu (Chu assocChu)
+  assoc' = OChu (Chu assocChuInv)
+  slide = OChu (Chu slideChu)
+  withTensorOb ObDict ObDict x = x
+
+-- | Double-negation unit @A → A⊥⊥@.
+--
+-- On carriers this is the identity: two swaps restore @A⁺@ and @A⁻@, and
+-- the pairing is @e . swap . swap = e@.  It is an isomorphism precisely
+-- on separated-extensional objects.
+dnUnitChu :: forall r a. OChu r a (ChuONeg r (ChuONeg r a))
+dnUnitChu =
+  OChu
+    ( Chu
+        ( idChu ::
+            ChuMorphism
+              (,)
+              r
+              (->)
+              (ChuPosType a)
+              (ChuNegType a)
+              (ChuPosType (ChuONeg r (ChuONeg r a)))
+              (ChuNegType (ChuONeg r (ChuONeg r a)))
+        )
+    )
+
+-- | Double-negation counit @A⊥⊥ → A@.
+dnCounitChu :: forall r a. OChu r (ChuONeg r (ChuONeg r a)) a
+dnCounitChu =
+  OChu
+    ( Chu
+        ( idChu ::
+            ChuMorphism
+              (,)
+              r
+              (->)
+              (ChuPosType (ChuONeg r (ChuONeg r a)))
+              (ChuNegType (ChuONeg r (ChuONeg r a)))
+              (ChuPosType a)
+              (ChuNegType a)
+        )
+    )
