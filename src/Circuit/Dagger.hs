@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeAbstractions #-}
@@ -51,6 +52,10 @@ module Circuit.Dagger
     CoAffine,
     CoRelevant,
 
+    -- * Tensor-generic capabilities
+    CopyT (..),
+    DiscardT (..),
+
     -- * Dagger
     Dagger (..),
     transpose,
@@ -59,7 +64,7 @@ where
 
 import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -224,6 +229,23 @@ type CopyDiscard arr a = (Copy arr a, Discard arr a)
 -- every type carries both structures.  This is the precondition for
 -- 'Circuit.Net.transpose' to be total.
 type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
+
+-- ---------------------------------------------------------------------------
+-- Tensor-generic capabilities
+-- ---------------------------------------------------------------------------
+
+-- | Copy a value into the tensor product with itself.
+--
+-- This is the tensor-generic form of 'Copy'.  For the cartesian tensor
+-- @(,)@ it reduces to @arr a (a, a)@ and the existing 'Copy' class is
+-- recovered.  Other tensors (e.g. 'Circuit.Chu.ChuOTensor') get their own
+-- instances, which is exactly what the Chu capability level needs.
+class (Tensor t arr) => CopyT t arr a where
+  copyT :: arr a (t a a)
+
+-- | Discard a value to the tensor unit.
+class (Tensor t arr) => DiscardT t arr a where
+  discardT :: arr a (Unit t)
 
 -- ---------------------------------------------------------------------------
 -- The substructural square
@@ -468,3 +490,19 @@ instance (Channel t arr) => Channel t (Dagger arr) where
     withObDict dA $
       withObDict dB $
         withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
+
+-- ---------------------------------------------------------------------------
+-- Default tensor-generic instances for the cartesian tensor
+-- ---------------------------------------------------------------------------
+
+-- | Every 'Copy' instance gives a 'CopyT' instance for the cartesian tensor.
+instance {-# OVERLAPPABLE #-} (Copy arr a, Tensor (,) arr) => CopyT (,) arr a where
+  copyT = copy
+  {-# INLINE copyT #-}
+
+-- | Every 'Discard' instance gives a 'DiscardT' instance for the cartesian tensor.
+instance {-# OVERLAPPABLE #-} (Discard arr a, Tensor (,) arr) => DiscardT (,) arr a where
+  discardT = discard
+  {-# INLINE discardT #-}
+
+
