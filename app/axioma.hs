@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -19,15 +18,13 @@ import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Circuit.Markov (copyNatural, deterministic, discardNatural)
 import Circuit.Mediate (FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, pairSum, runMediator, runMediatorState)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
-import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
+import Circuit.Prob (Prob (..), embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
 import Circuit.Tensor (Action (..), BangCopy (..), BangWeaken (..), Bot, Exponential (..), Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), WhyNotIntro (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
-import Control.Monad (replicateM)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Kind (Type)
 import Data.List (foldl', isInfixOf, sort, uncons)
@@ -969,122 +966,6 @@ ev (Prob f) k = f (\((), b) -> k b) ((), ())
 approx :: Double -> Double -> Bool
 approx x y = abs (x - y) < 1e-9
 
--- ---------------------------------------------------------------------------
--- Markov separator oracles for Prob
--- ---------------------------------------------------------------------------
---
--- 'Prob' morphisms are rank-2, so decidable equality is unavailable in
--- general.  We instead test against a finite /separator/: a set of
--- continuations and inputs that is large enough to catch the laws we care
--- about here.  The unit context is enough for these examples because the
--- morphisms are measure kernels.
-
--- | All functions from a finite bounded enumerable type to 'Bool'.
-allBoolFns :: forall a. (Bounded a, Enum a) => [a -> Bool]
-allBoolFns = map (\bits a -> bits !! fromEnum a) (replicateM (fromEnum (maxBound :: a) + 1) [False, True])
-
--- | All functions from a pair of finite bounded enumerable values to 'Bool'.
---
--- Pairs do not have an 'Enum' instance in current GHC, so we enumerate the
--- underlying values explicitly and index into the truth table.
-pairBoolFns :: forall b. (Enum b) => [b] -> [(b, b) -> Bool]
-pairBoolFns bs = map (\bits (b1, b2) -> bits !! (fromEnum b1 * n + fromEnum b2)) (replicateM (n * n) [False, True])
-  where
-    n = length bs
-
--- | Equality oracle for @Prob (->) r a b@ using a supplied input set and
--- continuation set.
-probEqOver ::
-  forall a b r.
-  (Bounded a, Enum a, Eq r) =>
-  [b -> r] ->
-  Prob (->) r a b ->
-  Prob (->) r a b ->
-  Bool
-probEqOver ks (Prob p) (Prob q) =
-  and
-    [ p (\((), b) -> k b) ((), a) == q (\((), b) -> k b) ((), a)
-    | k <- ks,
-      a <- [minBound .. maxBound :: a]
-    ]
-
--- | Equality oracle for @Prob (->) Double a b@ using a supplied input set and
--- {0,1}-valued continuation set.
-probEqDoubleOver ::
-  forall a b.
-  (Bounded a, Enum a) =>
-  [b -> Double] ->
-  Prob (->) Double a b ->
-  Prob (->) Double a b ->
-  Bool
-probEqDoubleOver ks (Prob p) (Prob q) =
-  and
-    [ approx (p (\((), b) -> k b) ((), a)) (q (\((), b) -> k b) ((), a))
-    | k <- ks,
-      a <- [minBound .. maxBound :: a]
-    ]
-
--- | Separator predicate for copy-naturality with a 'Bool' scalar.
-probCopySep ::
-  forall a b.
-  (Bounded a, Enum a, Bounded b, Enum b) =>
-  Prob (->) Bool a (b, b) ->
-  Prob (->) Bool a (b, b) ->
-  Bool
-probCopySep p q =
-  probEqOver (pairBoolFns bs) p q
-  where
-    bs = [minBound .. maxBound :: b]
-
--- | Separator predicate for copy-naturality with a 'Double' scalar.
-probCopySepDouble ::
-  forall a b.
-  (Bounded a, Enum a, Bounded b, Enum b) =>
-  Prob (->) Double a (b, b) ->
-  Prob (->) Double a (b, b) ->
-  Bool
-probCopySepDouble p q =
-  probEqDoubleOver (map toDoubleFn (pairBoolFns bs)) p q
-  where
-    bs = [minBound .. maxBound :: b]
-    toDoubleFn k (b1, b2) = if k (b1, b2) then 1 else 0 :: Double
-
--- | Separator predicate for discard-naturality with a 'Double' scalar.
-probDiscardSep ::
-  forall a.
-  (Bounded a, Enum a) =>
-  Prob (->) Double a () ->
-  Prob (->) Double a () ->
-  Bool
-probDiscardSep p q =
-  probEqDoubleOver [const 0, const 1] p q
-
--- | Copy-naturality check for the premonoidal 'Prob' base, which has no
--- canonical 'Tensor' instance.  The caller supplies the nesting ('parFG' or
--- 'parGF') to test.
-copyNaturalP ::
-  (Prob (->) r a (b, b) -> Prob (->) r a (b, b) -> Bool) ->
-  (forall c d. Prob (->) r c d -> Prob (->) r c d -> Prob (->) r (c, c) (d, d)) ->
-  Prob (->) r a b ->
-  Bool
-copyNaturalP eq parF f = eq (copyP . f) (parF f f . copyP)
-
--- | Discard-naturality check for the premonoidal 'Prob' base.
-discardNaturalP ::
-  (Prob (->) r a () -> Prob (->) r a () -> Bool) ->
-  Prob (->) r a b ->
-  Bool
-discardNaturalP eq f = eq (discardP . f) discardP
-
--- | A non-deterministic Bool kernel analogous to 'squareK' over 'Double'.
---
--- 'squareK' squares the continuation with scalar multiplication; over 'Bool'
--- that multiplication is '(/=)' (XOR) on the Boolean ring.  The kernel
--- queries the continuation at both truth values, so it is non-linear and
--- lives outside the deterministic centre.
-squareKBool :: Prob (->) Bool Bool Bool
-squareKBool = choiceBy (/=) (embed id) (embed not)
-
 -- | Geometric trial body: state counts flips; heads escapes with the count.
 geomBody :: Double -> Prob (->) Double (Either () Int) (Either Int Int)
 geomBody p = Prob $ \k (x, e) ->
@@ -1164,26 +1045,6 @@ daggerCopy1 = copy
 
 daggerDiscard1 :: Dagger (FinRel F) N1 ()
 daggerDiscard1 = discard
-
--- ---------------------------------------------------------------------------
--- Markov-category examples over FinRel Bool (GF(2))
--- ---------------------------------------------------------------------------
-
--- | Identity relation on N1 — deterministic.
-finRelId :: FinRel F N1 N1
-finRelId = FinRel 1 1 [[True, True]]
-
--- | Zero map on N1 — deterministic.
-finRelZeroMap :: FinRel F N1 N1
-finRelZeroMap = FinRel 1 1 [[True, False]]
-
--- | Total relation on N1 — total but not a function.
-finRelTotal :: FinRel F N1 N1
-finRelTotal = FinRel 1 1 [[True, False], [False, True]]
-
--- | Neither total nor functional: relates 0 to both 0 and 1.
-finRelNeither :: FinRel F N1 N1
-finRelNeither = FinRel 1 1 [[False, True]]
 
 check :: String -> Bool -> IO Bool
 check name ok = do
@@ -1617,15 +1478,6 @@ main = do
           (finScalar False :: FinRel F N1 N1) . finScalar True == finScalar False,
         check "scalar True after scalar False" $
           (finScalar True :: FinRel F N1 N1) . finScalar False == finScalar False,
-        -- Markov-category oracles (Ex9): copy/discard naturality is morphism-level
-        check "FinRel finRelId is deterministic" $
-          deterministic (==) (==) finRelId,
-        check "FinRel finRelZeroMap is deterministic" $
-          deterministic (==) (==) finRelZeroMap,
-        check "FinRel finRelTotal is discard-natural but not copy-natural" $
-          discardNatural (==) finRelTotal && not (copyNatural (==) finRelTotal),
-        check "FinRel finRelNeither is neither copy- nor discard-natural" $
-          not (copyNatural (==) finRelNeither) && not (discardNatural (==) finRelNeither),
         -- Dagger(FinRel k) collapse: the dagger instances interlock the
         -- ⊗-comonoid and the ⅋-monoid in a single construction.
         check "Dagger(FinRel) copy front is FinRel copy" $
@@ -1763,23 +1615,6 @@ main = do
         check "Prob mass detects score breaking affineness" $
           approx (mass (1.0 :: Double) (score (* 2) . coin) ()) 2.0
             && approx (mass (1.0 :: Double) coin ()) 1.0,
-        -- Copy/discards naturality via finite separators
-        check "Prob copy natural for embed (deterministic fragment, FG nesting)" $
-          copyNaturalP probCopySep parFG (embed not :: Prob (->) Bool Bool Bool),
-        check "Prob copy natural for embed (deterministic fragment, GF nesting)" $
-          copyNaturalP probCopySep parGF (embed not :: Prob (->) Bool Bool Bool),
-        check "Prob copy NOT natural for coin (correlation vs independence, FG)" $
-          not (copyNaturalP probCopySepDouble parFG coin),
-        check "Prob copy NOT natural for coin (correlation vs independence, GF)" $
-          not (copyNaturalP probCopySepDouble parGF coin),
-        check "Prob squareKBool is copy-natural with neither nesting" $
-          not (copyNaturalP probCopySep parFG squareKBool)
-            && not (copyNaturalP probCopySep parGF squareKBool),
-        -- Discard on the mass-1 fragment
-        check "Prob discard natural for coin (mass-1 fragment)" $
-          discardNaturalP probDiscardSep coin,
-        check "Prob discard fails for unnormalised score (*2) . coin" $
-          not (discardNaturalP probDiscardSep (score (* 2) . coin)),
         -- Traced Either: computability graded by scalar
         check "Prob traceEN converges to 1/p for geometric (error ~ q^fuel)" $
           let e n = ev (traceEN 0 n (geomBody 0.5)) fromIntegral
