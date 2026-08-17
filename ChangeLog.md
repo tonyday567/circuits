@@ -1,6 +1,6 @@
 # Revision history for circuits
 
-## 0.4.0.0 — unreleased
+## 0.3.0.0 — unreleased
 
 Linear-logic refactor: multiplicative/additive/exponential connectives, the
 knot-body category, polynomial interfaces, and close certification.
@@ -101,7 +101,7 @@ knot-body category, polynomial interfaces, and close certification.
 - `Circuit.Ends.State` is merged into `Circuit.Ends`; stale
   `Circuit.Ends.State.*` references are updated.
 
-## 0.3.0.0 — 2026-07-22
+### Kernel tidy
 
 Kernel tidy before release: split the bimonoid signature and make
 `Layer.run` default to `bind id`.
