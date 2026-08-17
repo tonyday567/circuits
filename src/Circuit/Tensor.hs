@@ -744,6 +744,9 @@ instance (Monad m) => Par Either (Kleisli m) where
 -- | Left linear distributor: @A ⊗ (B ⅋ C) -> (A ⊗ B) ⅋ C@.
 --
 -- For @(,)@ and @Either@ this is the one-way product-over-coproduct map.
+-- Note that @(_, Right c) = Right c@ discards the @a@; this is legal
+-- affinely but not in strict MLL. The distributors already live in the
+-- affine fragment.
 distL :: (a, Either b c) -> Either (a, b) c
 distL (a, Left b) = Left (a, b)
 distL (_, Right c) = Right c
@@ -751,7 +754,8 @@ distL (_, Right c) = Right c
 
 -- | Right linear distributor: @(B ⅋ C) ⊗ A -> B ⅋ (C ⊗ A)@.
 --
--- This is the mirror of 'distL'.
+-- Mirror of 'distL': the same affine discard is present when the left
+-- summand is taken.
 distR :: (Either b c, a) -> Either b (c, a)
 distR (Left b, _) = Left b
 distR (Right c, a) = Right (c, a)

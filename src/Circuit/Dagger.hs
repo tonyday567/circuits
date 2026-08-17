@@ -44,6 +44,13 @@ module Circuit.Dagger
     MergeZero,
     Bimonoid,
 
+    -- * The substructural square
+    Affine,
+    Relevant,
+    Cartesian,
+    CoAffine,
+    CoRelevant,
+
     -- * Dagger
     Dagger (..),
     transpose,
@@ -218,6 +225,35 @@ type CopyDiscard arr a = (Copy arr a, Discard arr a)
 -- 'Circuit.Net.transpose' to be total.
 type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
 
+-- ---------------------------------------------------------------------------
+-- The substructural square
+-- ---------------------------------------------------------------------------
+
+-- | Weakening without contraction: discard is available, copy is not.
+--
+-- One corner of the substructural square.  An 'Affine' base is one where a
+-- morphism may silently drop its input; 'Circuit.Markov.discardNatural' is
+-- the oracle for it.
+type Affine arr a = Discard arr a
+
+-- | Contraction without weakening: copy is available, discard is not.
+type Relevant arr a = Copy arr a
+
+-- | Both structural rules: the cartesian corner.
+--
+-- Same constraint set as the older 'CopyDiscard'; the name exists so the
+-- square reads as a square.
+type Cartesian arr a = (Copy arr a, Discard arr a)
+
+-- | The ⅋-dual of 'Affine': the monoid unit is available, merge is not.
+type CoAffine arr a = Zero arr a
+
+-- | The ⅋-dual of 'Relevant': merge is available, the monoid unit is not.
+--
+-- The fourth corner — both 'Merge' and 'Zero' — is already named
+-- 'MergeZero'.
+type CoRelevant arr a = Merge arr a
+
 -- | Copy/discard is no longer an ambient assumption on @(->)@.  The
 -- exponential slice makes copying an explicit capability: a value of type
 -- @!A@ carries a witness, and unmarked @A@ cannot be copied silently.
@@ -379,6 +415,11 @@ instance (Traced t arr) => Traced t (Dagger arr) where
   {-# INLINE trace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
+--
+-- The interlock is the point to notice: 'Copy' on the dagger requires
+-- 'Merge' on the base.  The comonoid and monoid cannot be granted
+-- separately in this construction; @Dagger (FinRel k)@ is where that
+-- collapse becomes observable (see the @circuits-axioma@ oracle).
 instance (Copy arr a, Merge arr a) => Copy (Dagger arr) a where
   copy = Dagger copy plus
   {-# INLINE copy #-}

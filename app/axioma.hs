@@ -870,6 +870,16 @@ discard0 = discard
 zero0 :: FinRel F () ()
 zero0 = zero
 
+-- | Dagger(FinRel) collapse witness: 'Copy' on the dagger requires
+-- 'Merge' on the base, so the back of @copy@ is @plus@.  The
+-- constructors are pinned by type signatures so the instance method
+-- resolves unambiguously.
+daggerCopy1 :: Dagger (FinRel F) N1 (N1, N1)
+daggerCopy1 = copy
+
+daggerDiscard1 :: Dagger (FinRel F) N1 ()
+daggerDiscard1 = discard
+
 -- ---------------------------------------------------------------------------
 -- Markov-category examples over FinRel Bool (GF(2))
 -- ---------------------------------------------------------------------------
@@ -1331,6 +1341,18 @@ main = do
           discardNatural finRelTotal && not (copyNatural finRelTotal),
         check "FinRel finRelNeither is neither copy- nor discard-natural" $
           not (copyNatural finRelNeither) && not (discardNatural finRelNeither),
+        -- Dagger(FinRel k) collapse: the dagger instances interlock the
+        -- ⊗-comonoid and the ⅋-monoid in a single construction.
+        check "Dagger(FinRel) copy front is FinRel copy" $
+          front daggerCopy1 == copy1,
+        check "Dagger(FinRel) copy back is FinRel plus" $
+          back daggerCopy1 == plus1,
+        check "Dagger(FinRel) discard front is FinRel discard" $
+          front daggerDiscard1 == discard1,
+        check "Dagger(FinRel) discard back is FinRel zero" $
+          back daggerDiscard1 == zero1,
+        check "Dagger(FinRel) transpose copy has plus in front" $
+          front (transpose daggerCopy1) == plus1,
         -- traced structure
         check "trace yanking (n=1)" $
           trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,
