@@ -112,7 +112,7 @@ where
 
 import Circuit.Category (Category (..), Ob, ObDict (..))
 import Circuit.Channel (Channel (..))
-import Circuit.Tensor (Action (..), Exponential (..), Lolli (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), BangCopy (..), BangWeaken (..), Exponential (..), Lolli (..), Tensor (..), Unit, WhyNotIntro (..))
 import Data.Kind (Type)
 import Data.Traversable (sequenceA)
 import Data.Void (Void, absurd)
@@ -1165,9 +1165,15 @@ instance (ChuExtensional r a) => ChuExtensional r (ChuOWhyNot r a)
 instance Exponential (ChuOTensor r) (OChu r) where
   type Bang (ChuOTensor r) (OChu r) a = ChuOBang r a
   type WhyNot (ChuOTensor r) (OChu r) a = ChuOWhyNot r a
+
+instance BangCopy (ChuOTensor r) (OChu r) where
   copyE = OChu (Chu copyBangChu)
+
+instance BangWeaken (ChuOTensor r) (OChu r) where
   discardE = OChu (Chu discardBangChu)
   derelict :: forall a. (Ob (OChu r) a) => OChu r (ChuOBang r a) a
   derelict = OChu (Chu (derelictChu (chuObject @r @a)))
+
+instance WhyNotIntro (ChuOTensor r) (OChu r) where
   introduce :: forall a. (Ob (OChu r) a) => OChu r a (ChuOWhyNot r a)
   introduce = OChu (Chu (introduceChu (chuObject @r @a)))

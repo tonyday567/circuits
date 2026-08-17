@@ -71,6 +71,11 @@ module Circuit.Tensor
 
     -- * Exponentials
     Exponential (..),
+    BangCopy (..),
+    BangWeaken (..),
+    WhyNotIntro (..),
+    LinearBang,
+    AffineBang,
   )
 where
 
@@ -843,17 +848,24 @@ instance Lolli (,) (->) where
 -- Exponentials (! and ?)
 -- ===========================================================================
 
--- | Cofree cocommutative comonoid @!A@ and free commutative monoid @?A@.
+-- | Exponential modality: object-level types for @!A@ and @?A@.
 --
--- @!A@ is a comonoid with dereliction @!A → A@.  On a cartesian base this
--- collapses to @!A ≅ A@.  @?A@ is the dual exponential @(!A⊥)⊥@, with
--- unit @A → ?A@.  The monoid on @?A@ is the dual of the comonoid on @!A@
--- and lives on ⅋, not on ⊗.
+-- The structural rules are split into independent subclasses so that
+-- affine and linear uses of the modality differ only in their constraint
+-- sets, mirroring the 'Copy'/'Discard' split at the base-arrow level.
+--
+-- * @!A@ has a contraction half ('BangCopy') and a weakening half
+--   ('BangWeaken').  Linear logic requires both; affine logic requires
+--   only weakening.
+-- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
+--   structure on @?A@ lives in 'Circuit.Chu' for now and will be wired here
+--   after the chu-depth class dig.
 class (Tensor t arr) => Exponential t arr where
   type Bang t arr a :: Type
   type WhyNot t arr a :: Type
 
-  -- | Copy on the cofree comonoid: @!A → !A ⊗ !A@.
+-- | Contraction half of @!A@: copy @!A → !A ⊗ !A@.
+class (Exponential t arr) => BangCopy t arr where
   copyE ::
     ( Ob arr a,
       Ob arr (Bang t arr a),
@@ -861,30 +873,43 @@ class (Tensor t arr) => Exponential t arr where
     ) =>
     arr (Bang t arr a) (t (Bang t arr a) (Bang t arr a))
 
-  -- | Discard on the cofree comonoid: @!A → I@.
+-- | Weakening half of @!A@: dereliction @!A → A@ and discard @!A → I@.
+class (Exponential t arr) => BangWeaken t arr where
   discardE ::
     (Ob arr a, Ob arr (Bang t arr a), Ob arr (Unit t)) =>
     arr (Bang t arr a) (Unit t)
 
-  -- | Dereliction / counit @!A → A@.
   derelict ::
     (Ob arr a, Ob arr (Bang t arr a)) =>
     arr (Bang t arr a) a
 
-  -- | Unit / introduction @A → ?A@.
+-- | Unit rule for @?A@: introduction @A → ?A@.
+class (Exponential t arr) => WhyNotIntro t arr where
   introduce ::
     (Ob arr a, Ob arr (WhyNot t arr a)) =>
     arr a (WhyNot t arr a)
+
+-- | Linear @!A@: both contraction and weakening.
+type LinearBang t arr = (Exponential t arr, BangCopy t arr, BangWeaken t arr)
+
+-- | Affine @!A@: weakening only.
+type AffineBang t arr = (Exponential t arr, BangWeaken t arr)
 
 -- | Cartesian collapse: @!A ≅ A@, and @?A@ is the free monoid of lists.
 instance Exponential (,) (->) where
   type Bang (,) (->) a = a
   type WhyNot (,) (->) a = [a]
+
+instance BangCopy (,) (->) where
   copyE x = (x, x)
   {-# INLINE copyE #-}
+
+instance BangWeaken (,) (->) where
   discardE _ = ()
   {-# INLINE discardE #-}
   derelict = id
   {-# INLINE derelict #-}
+
+instance WhyNotIntro (,) (->) where
   introduce x = [x]
   {-# INLINE introduce #-}

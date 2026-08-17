@@ -318,6 +318,11 @@ module Circuit
 
     -- * Exponentials
     Exponential (..),
+    BangCopy (..),
+    BangWeaken (..),
+    WhyNotIntro (..),
+    LinearBang,
+    AffineBang,
 
     -- * Channel product
     Tensor (..),
@@ -550,15 +555,20 @@ import Circuit.Process
   )
 import Circuit.Tensor
   ( Action (..),
+    AffineBang,
+    BangCopy (..),
+    BangWeaken (..),
     Bot,
     Braided (..),
     Exponential (..),
     Fire (..),
+    LinearBang,
     Lolli (..),
     Par (..),
     Schedule (..),
     Shared (..),
     Tensor (..),
+    WhyNotIntro (..),
     ambient,
     ambientBy,
     distL,
