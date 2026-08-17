@@ -82,5 +82,3 @@ executable circuits-axioma
     base >=4.18 && <5,
     circuits,
     these >=1.2.1 && <1.3,
-
-
