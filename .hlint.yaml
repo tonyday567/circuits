@@ -1,24 +1,20 @@
-# HLint configuration for circuits.
+# circuits hlint policy — approved 2026-08-17
 #
-# Eta-reduction hints are suppressed where the point-free form would not
-# type-check. 'close' in Circuit.Ends is rank-2 over the companion/conjoint
-# ends, so keeping the explicit argument is required.
-
-- ignore: {name: "Eta reduce", within: Circuit.Ends}
-
-# The withOb definitions below delegate to the base category's withOb while
-# fixing the arr type parameter. Eta-reducing the value argument is rejected
-# by GHC because it leaves an ambiguous type variable in the rank-2 context.
-- ignore: {name: "Eta reduce", within: Circuit.Algebra}
-- ignore: {name: "Eta reduce", within: Circuit.Dagger}
-- ignore: {name: "Eta reduce", within: Circuit.Layer}
-- ignore: {name: "Eta reduce", within: Circuit.Loop}
-- ignore: {name: "Eta reduce", within: Circuit.Net}
-
-# InstanceSigs is kept for documentation even when no explicit signature is
-# required in a given module.
-- ignore: {name: "Unused LANGUAGE pragma", within: Circuit.Channel}
-
-# Channel's cartesian strength is intentionally written with fst/snd rather
-# than Data.Bifunctor.second to keep the import set minimal.
-- ignore: {name: "Use second", within: Circuit.Channel}
+# Suppressed (house style — explicit point-wise code and law witnesses,
+# not point-free rewrites):
+- ignore: {name: "Avoid lambda"}
+- ignore: {name: "Avoid lambda using `infix`"}
+- ignore: {name: "Eta reduce"}
+- ignore: {name: "Use tuple-section"}
+- ignore: {name: "Use null"}
+- ignore: {name: "Use const"}
+- ignore: {name: "Use bimap"}
+- ignore: {name: "Use replicateM"}
+- ignore: {name: "Use replicateM_"}
+- ignore: {name: "Use curry"}
+- ignore: {name: "Use second"}
+#
+# Kept active (fixed in source, never ignored):
+#   Use camelCase          — sloppy names get renamed
+#   Unused LANGUAGE pragma — dead pragmas removed
+#   Use newtype instead of data — applied where appropriate

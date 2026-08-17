@@ -207,23 +207,23 @@ ochuToChuMorphism (Chu.OChu (Chu.Chu m)) = m
 chuTwoObjAA :: Chu.ChuObj (,) Bool (->) (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool)
 chuTwoObjAA = Chu.tensorChuObj chuTwo chuTwo
 
-chuTwoObjA_AA ::
+chuTwoObjRightAssoc ::
   Chu.ChuObj
     (,)
     Bool
     (->)
     (Bool, (Bool, Bool))
     (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
-chuTwoObjA_AA = Chu.tensorChuObj chuTwo chuTwoObjAA
+chuTwoObjRightAssoc = Chu.tensorChuObj chuTwo chuTwoObjAA
 
-chuTwoObjAA_A ::
+chuTwoObjLeftAssoc ::
   Chu.ChuObj
     (,)
     Bool
     (->)
     ((Bool, Bool), Bool)
     (Chu.ChuTensorNeg (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool) Bool Bool)
-chuTwoObjAA_A = Chu.tensorChuObj chuTwoObjAA chuTwo
+chuTwoObjLeftAssoc = Chu.tensorChuObj chuTwoObjAA chuTwo
 
 chuTwoPos2 :: [(Bool, Bool)]
 chuTwoPos2 = [(x, y) | x <- chuTwoPos, y <- chuTwoPos]
@@ -343,7 +343,7 @@ chuTwoNeg4R ::
       (Chu.ChuTensorNeg Bool Bool (Bool, Bool) (Chu.ChuTensorNeg Bool Bool Bool Bool))
   ]
 chuTwoNeg4R =
-  Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos3R chuTwoNeg3R chuTwo chuTwoObjA_AA
+  Chu.chuTensorNegs chuTwoPos chuTwoPos chuTwoPos3R chuTwoNeg3R chuTwo chuTwoObjRightAssoc
 
 eqTensorNeg4L ::
   Chu.ChuTensorNeg
@@ -1202,7 +1202,7 @@ reachable n = filter (\s -> expectSystem [S0, S1, S2] chain3Bool (replicate n ()
 
 -- | Tiny deterministic RNG so the Monte Carlo axioms are reproducible without
 -- adding a dependency.
-data RNG = RNG {rngState :: Int}
+newtype RNG = RNG {rngState :: Int}
 
 -- | Linear congruential generator step, returning a value in @[0,1)@.
 stepRNG :: RNG -> (Double, RNG)
@@ -1804,7 +1804,7 @@ main = do
                 && eqChuMorphismAA (ochuToChuMorphism (eta . eps)) Chu.idChu,
         check "SepChu associator satisfies adjoint law on ChuTwo" $
           all
-            (\p -> all (\n -> Chu.chuLaw chuTwoObjAA_A chuTwoObjA_AA Chu.assocChu p n) chuTwoNeg3R)
+            (\p -> all (\n -> Chu.chuLaw chuTwoObjLeftAssoc chuTwoObjRightAssoc Chu.assocChu p n) chuTwoNeg3R)
             chuTwoPos3L,
         check "SepChu associator is inverse on (ChuTwo ⊗ ChuTwo) ⊗ ChuTwo" $
           let iso = Chu.composeChu Chu.assocChuInv Chu.assocChu
