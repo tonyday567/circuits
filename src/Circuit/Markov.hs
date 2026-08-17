@@ -42,22 +42,32 @@ import Prelude hiding (id, (.))
 -- copy comonoid on @b@.
 --
 -- > copy . f == par f f . copy
+--
+-- The equality predicate is supplied by the caller because many bases
+-- (notably 'Prob') do not admit decidable equality of morphisms.  A finite
+-- /separator/ — a set of continuations and inputs — is the usual way to
+-- produce this predicate for such bases.
 copyNatural ::
-  (Ob arr a, Ob arr b, Ob arr (a, a), Ob arr (b, b), Tensor (,) arr, Copy arr a, Copy arr b, Eq (arr a (b, b))) =>
+  (Ob arr a, Ob arr b, Ob arr (a, a), Ob arr (b, b), Tensor (,) arr, Copy arr a, Copy arr b) =>
+  (arr a (b, b) -> arr a (b, b) -> Bool) ->
   arr a b ->
   Bool
-copyNatural f = copy . f == par f f . copy
+copyNatural eq f = eq (copy . f) (par f f . copy)
 {-# INLINE copyNatural #-}
 
 -- | Test whether @f@ is a homomorphism from the discard comonoid on @a@ to
 -- the discard comonoid on @b@.
 --
 -- > discard . f == discard
+--
+-- The equality predicate is supplied by the caller for the same reason as
+-- 'copyNatural'.
 discardNatural ::
-  (Category arr, Ob arr a, Ob arr b, Ob arr (), Discard arr a, Discard arr b, Eq (arr a ())) =>
+  (Category arr, Ob arr a, Ob arr b, Ob arr (), Discard arr a, Discard arr b) =>
+  (arr a () -> arr a () -> Bool) ->
   arr a b ->
   Bool
-discardNatural f = discard . f == discard
+discardNatural eq f = eq (discard . f) discard
 {-# INLINE discardNatural #-}
 
 -- | A map is deterministic precisely when it is both copy-natural and
@@ -72,11 +82,11 @@ deterministic ::
     Copy arr a,
     Copy arr b,
     Discard arr a,
-    Discard arr b,
-    Eq (arr a (b, b)),
-    Eq (arr a ())
+    Discard arr b
   ) =>
+  (arr a (b, b) -> arr a (b, b) -> Bool) ->
+  (arr a () -> arr a () -> Bool) ->
   arr a b ->
   Bool
-deterministic f = copyNatural f && discardNatural f
+deterministic eqCopy eqDiscard f = copyNatural eqCopy f && discardNatural eqDiscard f
 {-# INLINE deterministic #-}
