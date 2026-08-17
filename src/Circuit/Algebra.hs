@@ -208,7 +208,10 @@ instance Algebra SigCompose arr arr' where
 
 -- | Feedback loop / trace over tensor @t@.
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
-  SigKnot :: (Ob arr a) => rec (t a b) (t a c) -> SigKnot t arr rec b c
+  SigKnot ::
+    (Ob arr s, Ob arr (t s a), Ob arr (t s b)) =>
+    rec (t s a) (t s b) ->
+    SigKnot t arr rec a b
 
 instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
   type Ctx (SigKnot t) arr arr' = (Traced t arr', Discrete arr')
@@ -233,7 +236,11 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
 -- bifunctor in any 'Tensor' category; it does not represent shared-medium
 -- fusion.  For the shared-state connective ⅋ see 'SigShared'.
 data SigPar (w :: Type -> Type -> Type) arr rec a b where
-  SigPar :: rec a b -> rec c d -> SigPar w arr rec (w a c) (w b d)
+  SigPar ::
+    (Ob arr a, Ob arr b, Ob arr c, Ob arr d) =>
+    rec a b ->
+    rec c d ->
+    SigPar w arr rec (w a c) (w b d)
 
 instance (Tensor w arr', Discrete arr') => Algebra (SigPar w) arr arr' where
   type Ctx (SigPar w) arr arr' = (Tensor w arr', Discrete arr')
@@ -301,7 +308,9 @@ instance (Mediable arr') => Algebra SigMediate arr arr' where
 
 -- | Symmetric braiding.
 data SigSwap (w :: Type -> Type -> Type) arr rec a b where
-  SigSwap :: SigSwap w arr rec (w a b) (w b a)
+  SigSwap ::
+    (Ob arr a, Ob arr b) =>
+    SigSwap w arr rec (w a b) (w b a)
 
 instance (Action w arr') => Algebra (SigSwap w) arr arr' where
   type Ctx (SigSwap w) arr arr' = (Action w arr', Discrete arr')
@@ -323,8 +332,12 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
 -- on the wiring tensor @w@, resolved at pattern-match time rather than in
 -- the algebra context.
 data SigCopyDiscard (w :: Type -> Type -> Type) arr rec a b where
-  SigCopy :: (Dg.CopyT w arr a) => SigCopyDiscard w arr rec a (w a a)
-  SigDiscard :: (Dg.DiscardT w arr a) => SigCopyDiscard w arr rec a (Unit w)
+  SigCopy ::
+    (Dg.CopyT w arr a, Ob arr a) =>
+    SigCopyDiscard w arr rec a (w a a)
+  SigDiscard ::
+    (Dg.DiscardT w arr a, Ob arr a, Ob arr (Unit w)) =>
+    SigCopyDiscard w arr rec a (Unit w)
 
 -- | 'alg' for copy/discard generators sends each generator to the image
 -- under @emb@ of the source dictionary.
@@ -352,8 +365,12 @@ instance Algebra (SigCopyDiscard w) arr arr' where
 -- on the wiring tensor @w@, resolved at pattern-match time rather than in
 -- the algebra context.
 data SigMergeZero (w :: Type -> Type -> Type) arr rec a b where
-  SigPlus :: (Dg.MergeT w arr a) => SigMergeZero w arr rec (w a a) a
-  SigZero :: (Dg.ZeroT w arr a) => SigMergeZero w arr rec (Unit w) a
+  SigPlus ::
+    (Dg.MergeT w arr a, Ob arr a) =>
+    SigMergeZero w arr rec (w a a) a
+  SigZero ::
+    (Dg.ZeroT w arr a, Ob arr a, Ob arr (Unit w)) =>
+    SigMergeZero w arr rec (Unit w) a
 
 -- | 'alg' for plus/zero generators sends each generator to the image under
 -- @emb@ of the source dictionary.

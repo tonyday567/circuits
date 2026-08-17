@@ -486,21 +486,24 @@ instance (Monad m) => Action These (Kleisli m) where
 -- independently with 'run' and combines the results using the base arrow's
 -- tensor. It is correct and black-hole-free, but does not fuse feedback
 -- loops. For the fused superposition of two 'Knot's, use 'superpose'.
-instance (Tensor t arr, Traced t' arr, Discrete arr) => Tensor t (Loop t' arr) where
-  par :: forall a b c d. Loop t' arr a b -> Loop t' arr c d -> Loop t' arr (t a c) (t b d)
-  par f g =
-    Lift $
-      withOb @arr @a $
-        withOb @arr @b $
-          withOb @arr @c $
-            withOb @arr @d $
-              par (run f) (run g)
+instance (Tensor t arr, Traced t' arr) => Tensor t (Loop t' arr) where
+  par ::
+    forall a b c d.
+    ( Ob (Loop t' arr) a,
+      Ob (Loop t' arr) b,
+      Ob (Loop t' arr) c,
+      Ob (Loop t' arr) d
+    ) =>
+    Loop t' arr a b ->
+    Loop t' arr c d ->
+    Loop t' arr (t a c) (t b d)
+  par f g = Lift (par (run f) (run g))
   unitl = Lift unitl
   unitl' = Lift unitl'
   unitr = Lift unitr
   unitr' = Lift unitr'
 
-instance (Action t arr, Traced t' arr, Discrete arr) => Action t (Loop t' arr) where
+instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
   swap = Lift swap
 
 -- | Fused parallel composition for 'Loop' when the feedback tensor matches.

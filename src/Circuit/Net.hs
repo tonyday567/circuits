@@ -94,22 +94,58 @@ data Net (w :: Type -> Type -> Type) (t :: Type -> Type -> Type) arr a b where
   -- constructor so folding does not need a 'Discrete' base.
   Compose :: (Ob arr b) => Net w t arr b c -> Net w t arr a b -> Net w t arr a c
   -- | Parallel composition (monoidal product over @w@).
-  Par :: Net w t arr a b -> Net w t arr c d -> Net w t arr (w a c) (w b d)
+  Par ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr d
+    ) =>
+    Net w t arr a b ->
+    Net w t arr c d ->
+    Net w t arr (w a c) (w b d)
   -- | Symmetric braiding over @w@.
-  Swap :: Net w t arr (w a b) (w b a)
+  Swap ::
+    ( Ob arr a,
+      Ob arr b
+    ) =>
+    Net w t arr (w a b) (w b a)
   -- | Copy: fan-out.  Requires 'Dg.CopyT' on the wiring tensor @w@.
-  Copy :: (Dg.CopyT w arr a) => Net w t arr a (w a a)
+  Copy ::
+    ( Dg.CopyT w arr a,
+      Ob arr a
+    ) =>
+    Net w t arr a (w a a)
   -- | Discard: erase.  Requires 'Dg.DiscardT' on the wiring tensor @w@.
-  Discard :: (Dg.DiscardT w arr a) => Net w t arr a (Unit w)
+  Discard ::
+    ( Dg.DiscardT w arr a,
+      Ob arr a,
+      Ob arr (Unit w)
+    ) =>
+    Net w t arr a (Unit w)
   -- | Plus: fan-in.  Requires 'Dg.MergeT' on the wiring tensor @w@.
-  Plus :: (Dg.MergeT w arr a) => Net w t arr (w a a) a
+  Plus ::
+    ( Dg.MergeT w arr a,
+      Ob arr a
+    ) =>
+    Net w t arr (w a a) a
   -- | Zero: the neutral element.  Requires 'Dg.ZeroT' on the wiring tensor @w@.
-  Zero :: (Dg.ZeroT w arr a) => Net w t arr (Unit w) a
+  Zero ::
+    ( Dg.ZeroT w arr a,
+      Ob arr a,
+      Ob arr (Unit w)
+    ) =>
+    Net w t arr (Unit w) a
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow.
   --
   -- The constructor carries the 'Ob' evidence for the feedback channel in
   -- the /source/ category.
-  Knot :: (Ob arr s) => Net w t arr (t s a) (t s b) -> Net w t arr a b
+  Knot ::
+    ( Ob arr s,
+      Ob arr (t s a),
+      Ob arr (t s b)
+    ) =>
+    Net w t arr (t s a) (t s b) ->
+    Net w t arr a b
 
 -- | The 'Category' instance preserves inspectable wiring.
 --
@@ -197,35 +233,18 @@ widen SymSwap = Swap
 -- forgets knots and bimonoid structure.
 sift ::
   forall w t arr a b.
-  (Traced t arr, Action w arr, Discrete arr) =>
+  (Traced t arr, Action w arr, Ob arr a, Ob arr b) =>
   Net w t arr a b ->
   Sym w arr a b
 sift (Lift f) = SymLift f
 sift (Compose g f) = SymCompose (sift g) (sift f)
 sift (Par f g) = SymPar (sift f) (sift g)
 sift Swap = SymSwap
-sift Copy =
-  withOb @arr @a $
-    withOb @arr @(w a a) $
-      SymLift (Dg.copyT @w)
-sift Discard =
-  withOb @arr @a $
-    withOb @arr @(Unit w) $
-      SymLift (Dg.discardT @w)
-sift Plus =
-  withOb @arr @(w a a) $
-    withOb @arr @a $
-      SymLift (Dg.plusT @w)
-sift Zero =
-  withOb @arr @(Unit w) $
-    withOb @arr @b $
-      SymLift (Dg.zeroT @w)
-sift n@(Knot @_ @s @_ @_ @_ _) =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @(t s a) $
-        withOb @arr @(t s b) $
-          SymLift (Layer.run (melt n))
+sift Copy = SymLift (Dg.copyT @w)
+sift Discard = SymLift (Dg.discardT @w)
+sift Plus = SymLift (Dg.plusT @w)
+sift Zero = SymLift (Dg.zeroT @w)
+sift n@(Knot @_ @s @_ @_ @_ _) = SymLift (Layer.run (melt n))
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
 --
@@ -240,64 +259,23 @@ sift n@(Knot @_ @s @_ @_ @_ _) =
 -- 6
 melt ::
   forall w t arr a b.
-  (Traced t arr, Action w arr, Discrete arr) =>
+  (Traced t arr, Action w arr, Ob arr a, Ob arr b) =>
   Net w t arr a b ->
   C.Loop t arr a b
 melt (Lift f) = C.Lift f
-melt (Compose @_ @b1 @_ @_ @_ g f) =
-  withOb @arr @a $
-    withOb @arr @b1 $
-      withOb @arr @b $
-        (melt g . melt f)
-melt (Par f g) = go f g
-  where
-    go ::
-      forall a1 b1 c d.
-      Net w t arr a1 b1 ->
-      Net w t arr c d ->
-      C.Loop t arr (w a1 c) (w b1 d)
-    go f' g' =
-      withOb @arr @a1 $
-        withOb @arr @b1 $
-          withOb @arr @c $
-            withOb @arr @d $
-              par (melt f') (melt g')
-melt Swap =
-  case () of
-    () ->
-      let swap' :: forall a1 b1. (a ~ w a1 b1) => C.Loop t arr a b
-          swap' =
-            withOb @arr @a1 $
-              withOb @arr @b1 $
-                C.Lift swap
-       in swap'
-melt Copy =
-  withOb @arr @a $
-    withOb @arr @(w a a) $
-      C.Lift (Dg.copyT @w)
-melt Discard =
-  withOb @arr @a $
-    withOb @arr @(Unit w) $
-      C.Lift (Dg.discardT @w)
-melt Plus =
-  withOb @arr @(w a a) $
-    withOb @arr @a $
-      C.Lift (Dg.plusT @w)
-melt Zero =
-  withOb @arr @(Unit w) $
-    withOb @arr @b $
-      C.Lift (Dg.zeroT @w)
-melt (Knot @_ @s @_ @_ @_ f) =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @(t s a) $
-        withOb @arr @(t s b) $
-          trace (melt f)
+melt (Compose g f) = melt g . melt f
+melt (Par f g) = par (melt f) (melt g)
+melt Swap = C.Lift swap
+melt Copy = C.Lift (Dg.copyT @w)
+melt Discard = C.Lift (Dg.discardT @w)
+melt Plus = C.Lift (Dg.plusT @w)
+melt Zero = C.Lift (Dg.zeroT @w)
+melt (Knot f) = trace (melt f)
 
--- | 'Traced' + 'Action' + 'Discrete' — free 'Net' fold needs trivial 'Ob'.
-class (Traced t arr, Action w arr, Discrete arr) => FreeNet w t arr
+-- | 'Traced' + 'Action' — free 'Net' fold carries its own 'Ob' evidence.
+class (Traced t arr, Action w arr) => FreeNet w t arr
 
-instance (Traced t arr, Action w arr, Discrete arr) => FreeNet w t arr
+instance (Traced t arr, Action w arr) => FreeNet w t arr
 
 -- | Free traced PROP with a bimonoid.
 --
@@ -312,73 +290,50 @@ instance (Traced t arr, Action w arr, Discrete arr) => FreeNet w t arr
 -- embedding, but must be verified for custom @h@).
 instance Layer (Net w t) where
   type Law (Net w t) arr' = FreeNet w t arr'
-  type Run (Net w t) arr = (Traced t arr, Action w arr, Discrete arr)
-  type Bind (Net w t) arr = Discrete arr
+  type Run (Net w t) arr = (Traced t arr, Action w arr)
+  type Bind (Net w t) arr = ()
   unit = Lift
   bind ::
     forall arr' arr a b.
-    (Law (Net w t) arr', Bind (Net w t) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (Law (Net w t) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
     (forall s. ObDict arr s -> ObDict arr' s) ->
     (arr :~> arr') ->
     Net w t arr a b ->
     arr' a b
   bind _phi h (Lift f) = h f
-  bind phi h (Compose @_ @b1 @_ @_ @_ g f) =
-    withObDict (obDict :: ObDict arr b1) $
-      withObDict (phi (obDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
-  bind phi h (Par @_ @_ @_ @a1 @b1 @c @d f g) =
-    withObDict (obDict :: ObDict arr a1) $
-      withObDict (obDict :: ObDict arr b1) $
-        withObDict (obDict :: ObDict arr c) $
-          withObDict (obDict :: ObDict arr d) $
-            withObDict (phi (obDict :: ObDict arr a1)) $
-              withObDict (phi (obDict :: ObDict arr b1)) $
-                withObDict (phi (obDict :: ObDict arr c)) $
-                  withObDict (phi (obDict :: ObDict arr d)) $
-                    withOb @arr' @(w a1 c) $
-                      withOb @arr' @(w b1 d) $
-                        par (bind phi h f) (bind phi h g)
-  bind _phi _ Swap =
+  bind phi h (Compose (g :: Net w t arr b1 c) (f :: Net w t arr a b1)) =
+    withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
+  bind phi h (Par (f :: Net w t arr a1 b1) (g :: Net w t arr c d)) =
+    let dA1 = phi (ObDict :: ObDict arr a1)
+        dB1 = phi (ObDict :: ObDict arr b1)
+        dC = phi (ObDict :: ObDict arr c)
+        dD = phi (ObDict :: ObDict arr d)
+     in withObDict dA1 $
+          withObDict dB1 $
+            withObDict dC $
+              withObDict dD $
+                par (bind phi h f) (bind phi h g)
+  bind phi _ Swap =
     case () of
       () ->
         let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
             swap' =
-              withOb @arr' @a1 $
-                withOb @arr' @b1 $
+              withObDict (phi (ObDict :: ObDict arr a1)) $
+                withObDict (phi (ObDict :: ObDict arr b1)) $
                   swap
          in swap'
-  bind _phi h Copy =
-    withOb @arr @a $
-      withOb @arr @(w a a) $
-        withOb @arr' @a $
-          withOb @arr' @(w a a) $
-            h (Dg.copyT @w)
-  bind _phi h Discard =
-    withOb @arr @a $
-      withOb @arr @(Unit w) $
-        withOb @arr' @a $
-          withOb @arr' @(Unit w) $
-            h (Dg.discardT @w)
-  bind _phi h Plus =
-    withOb @arr @(w a a) $
-      withOb @arr @a $
-        withOb @arr' @(w a a) $
-          withOb @arr' @a $
-            h (Dg.plusT @w)
-  bind _phi h Zero =
-    withOb @arr @(Unit w) $
-      withOb @arr @b $
-        withOb @arr' @(Unit w) $
-          withOb @arr' @b $
-            h (Dg.zeroT @w)
-  bind phi h (Knot @_ @s @_ @_ @_ f) =
-    withOb @arr @s $
-      withOb @arr @(t s a) $
-        withOb @arr @(t s b) $
-          withObDict (phi (obDict :: ObDict arr s)) $
-            withOb @arr' @(t s a) $
-              withOb @arr' @(t s b) $
-                trace (bind phi h f)
+  bind _phi h Copy = h (Dg.copyT @w)
+  bind _phi h Discard = h (Dg.discardT @w)
+  bind _phi h Plus = h (Dg.plusT @w)
+  bind _phi h Zero = h (Dg.zeroT @w)
+  bind phi h (Knot (f :: Net w t arr (t s a) (t s b))) =
+    let dS = phi (ObDict :: ObDict arr s)
+        dSA = phi (ObDict :: ObDict arr (t s a))
+        dSB = phi (ObDict :: ObDict arr (t s b))
+     in withObDict dS $
+          withObDict dSA $
+            withObDict dSB $
+              trace (bind phi h f)
 
 -- ===========================================================================
 -- Sym
@@ -413,9 +368,21 @@ data Sym (w :: Type -> Type -> Type) arr a b where
   -- constructor so folding does not need a 'Discrete' base.
   SymCompose :: (Ob arr b) => Sym w arr b c -> Sym w arr a b -> Sym w arr a c
   -- | Tensor product of morphisms (parallel composition on disjoint wires).
-  SymPar :: Sym w arr a b -> Sym w arr c d -> Sym w arr (w a c) (w b d)
+  SymPar ::
+    ( Ob arr a,
+      Ob arr b,
+      Ob arr c,
+      Ob arr d
+    ) =>
+    Sym w arr a b ->
+    Sym w arr c d ->
+    Sym w arr (w a c) (w b d)
   -- | Symmetric braiding.
-  SymSwap :: Sym w arr (w a b) (w b a)
+  SymSwap ::
+    ( Ob arr a,
+      Ob arr b
+    ) =>
+    Sym w arr (w a b) (w b a)
 
 -- | 'Sym' is a category.
 instance (Category arr) => Category (Sym w arr) where
@@ -460,50 +427,50 @@ instance (Category arr, Channel t arr) => Channel t (Sym w arr) where
       withObDict dB $
         withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
--- | 'Action' plus 'Discrete' so free 'Sym' can fold intermediate objects.
+-- | 'Action' — free 'Sym' fold carries its own 'Ob' evidence.
 --
 -- Sequential structure is folded with the target's category composition.
-class (Action w arr, Discrete arr) => FreeSym w arr
+class (Action w arr) => FreeSym w arr
 
-instance (Action w arr, Discrete arr) => FreeSym w arr
+instance (Action w arr) => FreeSym w arr
 
 instance Layer (Sym w) where
   type Law (Sym w) arr' = FreeSym w arr'
-  type Run (Sym w) arr = (Action w arr, Discrete arr)
-  type Bind (Sym w) arr = Discrete arr
+  type Run (Sym w) arr = Action w arr
+  type Bind (Sym w) arr = ()
   unit = SymLift
   bind ::
     forall arr' arr a b.
-    (Law (Sym w) arr', Bind (Sym w) arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
+    (Law (Sym w) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
     (forall s. ObDict arr s -> ObDict arr' s) ->
     (arr :~> arr') ->
     Sym w arr a b ->
     arr' a b
   bind _phi h (SymLift f) = h f
-  bind phi h (SymCompose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
+  bind phi h (SymCompose (g :: Sym w arr b1 c) (f :: Sym w arr a b1)) =
+    withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
   bind phi h (SymPar (f :: Sym w arr a1 b1) (g :: Sym w arr c d)) =
-    let dA1 = obDict :: ObDict arr a1
-        dB1 = obDict :: ObDict arr b1
-        dC = obDict :: ObDict arr c
-        dD = obDict :: ObDict arr d
+    let dA1 = phi (ObDict :: ObDict arr a1)
+        dB1 = phi (ObDict :: ObDict arr b1)
+        dC = phi (ObDict :: ObDict arr c)
+        dD = phi (ObDict :: ObDict arr d)
      in withObDict dA1 $
           withObDict dB1 $
             withObDict dC $
               withObDict dD $
-                withObDict (phi dA1) $
-                  withObDict (phi dB1) $
-                    withObDict (phi dC) $
-                      withObDict (phi dD) $
-                        withOb @arr' @(w a1 c) $
-                          withOb @arr' @(w b1 d) $
-                            par (bind phi h f) (bind phi h g)
-  bind _phi _ (SymSwap @_ @_ @a1 @b1) =
-    withOb @arr' @a1 $
-      withOb @arr' @b1 $
-        swap
+                par (bind phi h f) (bind phi h g)
+  bind phi _ SymSwap =
+    case () of
+      () ->
+        let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
+            swap' =
+              withObDict (phi (ObDict :: ObDict arr a1)) $
+                withObDict (phi (ObDict :: ObDict arr b1)) $
+                  swap
+         in swap'
 
 -- | Lift the 'Strength' structure through 'Sym'.
-instance (Strength t arr, Action w arr, Discrete arr) => Strength t (Sym w arr) where
+instance (Strength t arr, Action w arr) => Strength t (Sym w arr) where
   strength = SymLift . strength . run
   withStrengthOb ::
     forall a b c r.
@@ -522,5 +489,5 @@ instance (Strength t arr, Action w arr, Discrete arr) => Strength t (Sym w arr) 
 --
 -- Loop bodies are 'run' into the base arrow before tracing, just as for
 -- 'Free'.
-instance (Traced t arr, Action w arr, Discrete arr) => Traced t (Sym w arr) where
+instance (Traced t arr, Action w arr) => Traced t (Sym w arr) where
   trace = SymLift . trace . run
