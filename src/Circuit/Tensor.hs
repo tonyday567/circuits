@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
@@ -74,8 +75,10 @@ module Circuit.Tensor
     BangCopy (..),
     BangWeaken (..),
     WhyNotIntro (..),
+    WhyNotMonoid (..),
     LinearBang,
     AffineBang,
+    RelevantBang,
   )
 where
 
@@ -858,11 +861,14 @@ instance Lolli (,) (->) where
 --   ('BangWeaken').  Linear logic requires both; affine logic requires
 --   only weakening.
 -- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
---   structure on @?A@ lives in 'Circuit.Chu' for now and will be wired here
---   after the chu-depth class dig.
+--   multiplication on @?A@ ('WhyNotMerge') is missing. In the vocabulary of
+--   'Circuit.Dagger', @?A@ is currently 'CoAffine'-only (the unit @Zero@)
+--   and the missing half is 'CoRelevant' (the merge @Merge@). That hole is
+--   the first observable thing the Exponential split made visible; wiring it
+--   is part of the chu-depth class dig.
 class (Tensor t arr) => Exponential t arr where
   type Bang t arr a :: Type
-  type WhyNot t arr a :: Type
+  type WhyNot t arr a = result | result -> a
 
 -- | Contraction half of @!A@: copy @!A → !A ⊗ !A@.
 class (Exponential t arr) => BangCopy t arr where
@@ -889,11 +895,31 @@ class (Exponential t arr) => WhyNotIntro t arr where
     (Ob arr a, Ob arr (WhyNot t arr a)) =>
     arr a (WhyNot t arr a)
 
+-- | The ⅋-monoid structure on @?A@.
+--
+-- Dual to the @!@-comonoid ('BangCopy' / 'BangWeaken'), but living on the
+-- par product rather than the tensor product. 'mergeE' is the
+-- multiplication @?A ⅋ ?A → ?A@ and 'zeroE' is the unit @⊥ → ?A@.
+class (Exponential t arr, Par p arr) => WhyNotMonoid t p arr where
+  mergeE ::
+    ( Ob arr a,
+      Ob arr (WhyNot t arr a),
+      Ob arr (p (WhyNot t arr a) (WhyNot t arr a))
+    ) =>
+    arr (p (WhyNot t arr a) (WhyNot t arr a)) (WhyNot t arr a)
+
+  zeroE ::
+    (Ob arr a, Ob arr (WhyNot t arr a), Ob arr (Bot p)) =>
+    arr (Bot p) (WhyNot t arr a)
+
 -- | Linear @!A@: both contraction and weakening.
 type LinearBang t arr = (Exponential t arr, BangCopy t arr, BangWeaken t arr)
 
 -- | Affine @!A@: weakening only.
 type AffineBang t arr = (Exponential t arr, BangWeaken t arr)
+
+-- | Relevant @!A@: contraction only.
+type RelevantBang t arr = (Exponential t arr, BangCopy t arr)
 
 -- | Cartesian collapse: @!A ≅ A@, and @?A@ is the free monoid of lists.
 instance Exponential (,) (->) where
@@ -913,3 +939,9 @@ instance BangWeaken (,) (->) where
 instance WhyNotIntro (,) (->) where
   introduce x = [x]
   {-# INLINE introduce #-}
+
+instance WhyNotMonoid (,) Either (->) where
+  mergeE = either id id
+  {-# INLINE mergeE #-}
+  zeroE = absurd
+  {-# INLINE zeroE #-}

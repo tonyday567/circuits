@@ -15,118 +15,55 @@ import Circuit.FinRel
 import Circuit.Markov (copyNatural, deterministic, discardNatural)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, parFG, parGF, score)
 import Circuit.Tensor (Tensor (..))
-import Control.Monad (replicateM)
-import Data.Kind (Type)
-import GHC.TypeNats (KnownNat, natVal)
+import Circuit.Test.Utils
+  ( allBoolFns,
+    approx,
+    check,
+    pairBoolFns,
+    pairDoubleFns,
+    probCopySep,
+    probCopySepDouble,
+    probDiscardSep,
+    probEqDoubleOver,
+    probEqOver,
+  )
 import Prelude hiding (curry, id, uncurry, (.))
-import Prelude qualified as Pre
 
 type F = Bool
 
 type N1 = FinObj 1
 
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
-
-check :: String -> Bool -> IO Bool
-check name ok = do
-  putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
-  pure ok
-
--- | Approximate equality for floating-point oracles.
-approx :: Double -> Double -> Bool
-approx x y = abs (x - y) < 1e-9
-
--- ---------------------------------------------------------------------------
--- Markov separator oracles for Prob
--- ---------------------------------------------------------------------------
---
--- 'Prob' morphisms are rank-2, so decidable equality is unavailable in
--- general.  We instead test against a finite /separator/: a set of
--- continuations and inputs that is large enough to catch the laws we care
--- about here.  The unit context is enough for these examples because the
--- morphisms are measure kernels.
-
--- | All functions from a finite bounded enumerable type to 'Bool'.
-allBoolFns :: forall a. (Bounded a, Enum a) => [a -> Bool]
-allBoolFns = map (\bits a -> bits !! fromEnum a) (replicateM (fromEnum (maxBound :: a) + 1) [False, True])
-
--- | All functions from a pair of finite bounded enumerable values to 'Bool'.
---
--- Pairs do not have an 'Enum' instance in current GHC, so we enumerate the
--- underlying values explicitly and index into the truth table.
-pairBoolFns :: forall b. (Enum b) => [b] -> [(b, b) -> Bool]
-pairBoolFns bs = map (\bits (b1, b2) -> bits !! (fromEnum b1 * n + fromEnum b2)) (replicateM (n * n) [False, True])
-  where
-    n = length bs
-
--- | Equality oracle for @Prob (->) r a b@ using a supplied input set and
--- continuation set.
-probEqOver ::
+-- | Equality oracle with an explicit input list instead of 'Bounded'/'Enum'
+-- constraints.  Useful when the input type is a pair whose 'Enum' instance is
+-- not available.
+probEqOver' ::
   forall a b r.
-  (Bounded a, Enum a, Eq r) =>
+  (Eq r) =>
+  [a] ->
   [b -> r] ->
   Prob (->) r a b ->
   Prob (->) r a b ->
   Bool
-probEqOver ks (Prob p) (Prob q) =
+probEqOver' as ks (Prob p) (Prob q) =
   and
     [ p (\((), b) -> k b) ((), a) == q (\((), b) -> k b) ((), a)
     | k <- ks,
-      a <- [minBound .. maxBound :: a]
+      a <- as
     ]
 
--- | Equality oracle for @Prob (->) Double a b@ using a supplied input set and
--- {0,1}-valued continuation set.
-probEqDoubleOver ::
-  forall a b.
-  (Bounded a, Enum a) =>
-  [b -> Double] ->
-  Prob (->) Double a b ->
-  Prob (->) Double a b ->
+-- | Centrality check for the premonoidal 'Prob' base: @f@ is central when
+-- the two parallel nestings agree on a supplied set of probe morphisms.
+centralP ::
+  (Eq r) =>
+  [(a, c)] ->
+  [((b, d) -> r)] ->
+  (Prob (->) r a b -> Prob (->) r c d -> Prob (->) r (a, c) (b, d)) ->
+  (Prob (->) r a b -> Prob (->) r c d -> Prob (->) r (a, c) (b, d)) ->
+  Prob (->) r a b ->
+  [Prob (->) r c d] ->
   Bool
-probEqDoubleOver ks (Prob p) (Prob q) =
-  and
-    [ approx (p (\((), b) -> k b) ((), a)) (q (\((), b) -> k b) ((), a))
-    | k <- ks,
-      a <- [minBound .. maxBound :: a]
-    ]
-
--- | Separator predicate for copy-naturality with a 'Bool' scalar.
-probCopySep ::
-  forall a b.
-  (Bounded a, Enum a, Bounded b, Enum b) =>
-  Prob (->) Bool a (b, b) ->
-  Prob (->) Bool a (b, b) ->
-  Bool
-probCopySep p q =
-  probEqOver (pairBoolFns bs) p q
-  where
-    bs = [minBound .. maxBound :: b]
-
--- | Separator predicate for copy-naturality with a 'Double' scalar.
-probCopySepDouble ::
-  forall a b.
-  (Bounded a, Enum a, Bounded b, Enum b) =>
-  Prob (->) Double a (b, b) ->
-  Prob (->) Double a (b, b) ->
-  Bool
-probCopySepDouble p q =
-  probEqDoubleOver (map toDoubleFn (pairBoolFns bs)) p q
-  where
-    bs = [minBound .. maxBound :: b]
-    toDoubleFn k (b1, b2) = if k (b1, b2) then 1 else 0 :: Double
-
--- | Separator predicate for discard-naturality with a 'Double' scalar.
-probDiscardSep ::
-  forall a.
-  (Bounded a, Enum a) =>
-  Prob (->) Double a () ->
-  Prob (->) Double a () ->
-  Bool
-probDiscardSep p q =
-  probEqDoubleOver [const 0, const 1] p q
+centralP inputs ks parN1 parN2 f gs =
+  all (\g -> probEqOver' inputs ks (parN1 f g) (parN2 f g)) gs
 
 -- | Copy-naturality check for the premonoidal 'Prob' base, which has no
 -- canonical 'Tensor' instance.  The caller supplies the nesting ('parFG' or
@@ -149,10 +86,44 @@ discardNaturalP eq f = eq (discardP . f) discardP
 --
 -- 'squareK' squares the continuation with scalar multiplication; over 'Bool'
 -- that multiplication is '(/=)' (XOR) on the Boolean ring.  The kernel
--- queries the continuation at both truth values, so it is non-linear and
--- lives outside the deterministic centre.
+-- queries the continuation at both truth values, so it is non-linear.
+--
+-- Centrality is one-directional here: continuation-linear maps are central,
+-- but the converse fails.  'squareKBool' is central against symmetric probes
+-- because XOR is associative and commutative; an asymmetric probe is needed
+-- to witness the failure.
 squareKBool :: Prob (->) Bool Bool Bool
 squareKBool = choiceBy (/=) (embed id) (embed not)
+
+-- | Another non-linear Bool kernel: ANDs the continuation at both truth values.
+--
+-- Used as an asymmetric probe to show that 'squareKBool' is not central.
+andKBool :: Prob (->) Bool Bool Bool
+andKBool = choiceBy (&&) (embed id) (embed not)
+
+-- | Boolean-valued probe morphisms for centrality tests.
+boolProbes :: [Prob (->) Bool Bool Bool]
+boolProbes = [embed id, embed not, squareKBool, andKBool]
+
+-- | Double-valued probe morphisms for centrality tests.
+doubleProbes :: [Prob (->) Double Bool Bool]
+doubleProbes = [embed id, embed not]
+
+-- | Inputs for centrality tests where both components are 'Bool'.
+boolInputs :: [(Bool, Bool)]
+boolInputs = [(a, c) | a <- [False, True], c <- [False, True]]
+
+-- | Inputs for centrality tests where the first component is unit.
+unitBoolInputs :: [((), Bool)]
+unitBoolInputs = [((), c) | c <- [False, True]]
+
+-- | Boolean-valued pair continuations.
+continuationsBool :: [((Bool, Bool) -> Bool)]
+continuationsBool = pairBoolFns [False, True]
+
+-- | {0,1}-valued Double pair continuations.
+continuationsDouble :: [((Bool, Bool) -> Double)]
+continuationsDouble = pairDoubleFns [False, True]
 
 -- ---------------------------------------------------------------------------
 -- Markov-category examples over FinRel Bool (GF(2))
@@ -174,6 +145,13 @@ finRelTotal = FinRel 1 1 [[True, False], [False, True]]
 finRelNeither :: FinRel F N1 N1
 finRelNeither = FinRel 1 1 [[False, True]]
 
+-- | The empty relation on N1 — copy-natural but not total.
+--
+-- This is the relevant corner of the FinRel square: it has a valid
+-- diagonal (copy) but no total weakening (discard).
+finRelEmpty :: FinRel F N1 N1
+finRelEmpty = FinRel 1 1 []
+
 -- ---------------------------------------------------------------------------
 -- Prob examples
 -- ---------------------------------------------------------------------------
@@ -181,6 +159,13 @@ finRelNeither = FinRel 1 1 [[False, True]]
 -- | Fair coin with total mass 1.
 coin :: Prob (->) Double () Bool
 coin = fromWeighted [(True, 0.25), (False, 0.75)]
+
+-- | Mass-zero kernel — copy-natural but not discard-natural.
+--
+-- This is the relevant corner of the Prob square: duplication of a zero
+-- measure is still zero, but discard expects mass 1.
+massZero :: Prob (->) Double () Bool
+massZero = fromWeighted []
 
 -- ---------------------------------------------------------------------------
 -- Pipeline
@@ -199,6 +184,8 @@ main = do
           discardNatural (==) finRelTotal && not (copyNatural (==) finRelTotal),
         check "FinRel finRelNeither is neither copy- nor discard-natural" $
           not (copyNatural (==) finRelNeither) && not (discardNatural (==) finRelNeither),
+        check "FinRel finRelEmpty is copy-natural but not discard-natural (relevant corner)" $
+          copyNatural (==) finRelEmpty && not (discardNatural (==) finRelEmpty),
         -- Copy/discards naturality via finite separators
         check "Prob copy natural for embed (deterministic fragment, FG nesting)" $
           copyNaturalP probCopySep parFG (embed not :: Prob (->) Bool Bool Bool),
@@ -211,11 +198,26 @@ main = do
         check "Prob squareKBool is copy-natural with neither nesting" $
           not (copyNaturalP probCopySep parFG squareKBool)
             && not (copyNaturalP probCopySep parGF squareKBool),
+        check "Prob massZero is copy-natural but not discard-natural (relevant corner)" $
+          copyNaturalP probCopySepDouble parFG massZero
+            && not (discardNaturalP probDiscardSep massZero),
         -- Discard on the mass-1 fragment
         check "Prob discard natural for coin (mass-1 fragment)" $
           discardNaturalP probDiscardSep coin,
         check "Prob discard fails for unnormalised score (*2) . coin" $
-          not (discardNaturalP probDiscardSep (score (* 2) . coin))
+          not (discardNaturalP probDiscardSep (score (* 2) . coin)),
+        -- Centrality in the premonoidal centre: deterministic ⊊ central ⊊ all
+        check "Prob embed not is central (linear in continuation)" $
+          centralP boolInputs continuationsBool parFG parGF (embed not :: Prob (->) Bool Bool Bool) boolProbes,
+        check "Prob coin is central (linear in continuation)" $
+          centralP unitBoolInputs continuationsDouble parFG parGF coin doubleProbes,
+        check "Prob score (*2) is central (linear in continuation)" $
+          centralP boolInputs continuationsDouble parFG parGF (score (* 2) :: Prob (->) Double Bool Bool) doubleProbes,
+        check "Prob squareKBool is NOT central (non-linear in continuation)" $
+          not (centralP boolInputs continuationsBool parFG parGF squareKBool boolProbes),
+        -- score (*2) fails copy-naturality: it multiplies once, duplication multiplies twice
+        check "Prob score (*2) is NOT copy-natural" $
+          not (copyNaturalP probCopySepDouble parFG (score (* 2) :: Prob (->) Double Bool Bool))
       ]
   if and results
     then putStrLn "\nAll pipeline tests passed."

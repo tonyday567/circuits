@@ -50,7 +50,6 @@ library
     Circuit.Category
     Circuit.Channel
     Circuit.ChannelPoly
-    Circuit.Chu
     Circuit.Dagger
     Circuit.Ends
     Circuit.FinRel
@@ -72,6 +71,18 @@ library
     profunctors >=5.0 && <6,
     these >=1.2.1 && <1.3,
 
+library circuits-test-utils
+  import: ghc-options-stanza
+  visibility: public
+  default-language: GHC2024
+  hs-source-dirs: test-utils
+  exposed-modules:
+    Circuit.Test.Utils
+  build-depends:
+    base >=4.18 && <5,
+    circuits,
+    these >=1.2.1 && <1.3,
+
 executable circuits-axioma
   import: ghc-options-stanza
   default-language: GHC2024
@@ -80,6 +91,7 @@ executable circuits-axioma
   build-depends:
     base >=4.18 && <5,
     circuits,
+    circuits-test-utils,
     these >=1.2.1 && <1.3,
 
 executable circuits-axioma-pipeline
@@ -90,4 +102,5 @@ executable circuits-axioma-pipeline
   build-depends:
     base >=4.18 && <5,
     circuits,
+    circuits-test-utils,
     these >=1.2.1 && <1.3,

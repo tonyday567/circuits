@@ -57,6 +57,11 @@ module Circuit.Mediate
     mediateSharedBody,
     mediateStoreBody,
     mediateEmitBody,
+
+    -- * Shared-medium audit
+    Debt (..),
+    mediateSharedBodyChecked,
+    runSharedBodyChecked,
   )
 where
 
@@ -68,19 +73,30 @@ import Data.List (mapAccumL, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))
 
--- | A mediator with residual state @s@, input @a@, output @b@.
+-- | A mediator with state @s@, input @a@, output @b@.
 --
--- The step function consumes one input and updates the residual state. It may
--- emit zero or one output. A 'Nothing' output means the mediator is still
--- accumulating residual state.
+-- The step function consumes one input and updates the state. It may emit zero
+-- or one output. A 'Nothing' output means the mediator is still accumulating
+-- state.
+--
+-- The 'medOwed' predicate selects which states carry /resource debt/: a
+-- certified close succeeds exactly when the final state is not owed. This
+-- separates the state from the reading of the state. 'LinearResidual' is now
+-- a convenience source of 'medOwed', not the definition of residual.
 --
 -- This record is a thin wrapper: the canonical stream view is obtained via
 -- 'mediateProcess'.
 data Mediator s a b = Mediator
-  { -- | Initial residual state.
+  { -- | Initial state.
     medInit :: s,
-    -- | Consume one input, update residual state, optionally emit output.
-    medStep :: s -> a -> (s, Maybe b)
+    -- | Consume one input, update state, optionally emit output.
+    medStep :: s -> a -> (s, Maybe b),
+    -- | Predicate selecting states that are owed / residual at close time.
+    medOwed :: s -> Bool,
+    -- | Overdraw check for shared-medium ticks.  Given the state before and
+    -- after a tick, return the overdraw amount if the step consumed more than
+    -- one unit of resource.  'Nothing' means no overdraw.
+    medDraw :: s -> s -> Maybe Int
   }
 
 -- | Run a mediator over a list of inputs, collecting both the emitted outputs
@@ -100,8 +116,12 @@ runMediatorState m s0 xs =
 runMediator :: Mediator s a b -> [a] -> [b]
 runMediator m = catMaybes . scan (mediateProcess m (medInit m))
 
--- | Types whose residual state has a canonical empty value. A 'closeCertified'
--- run asserts that the mediator's residual has returned to this value.
+-- | Types whose state has a canonical empty value.
+--
+-- This is a convenience source for the 'medOwed' predicate: when a mediator
+-- is built from a 'LinearResidual' state, 'isEmptyResidual' is the natural
+-- choice for 'medOwed'. It is no longer the definition of residualness;
+-- 'closeCertified' uses 'medOwed' directly.
 class LinearResidual s where
   -- | The canonical empty residual state.
   emptyResidual :: s
@@ -179,76 +199,107 @@ instance LinearResidual PS where
   isEmptyResidual Empty = True
   isEmptyResidual _ = False
 
+-- | Convenience source for the 'medDraw' predicate.
+--
+-- A state may carry a notion of /debt/: how much resource was consumed in a
+-- single tick beyond the one input the mediator is allowed to process.  This
+-- class supplies a default 'medDraw' for such states.  Like 'LinearResidual',
+-- it is a convenience, not the definition of overdraw — the per-mediator
+-- 'medDraw' field can disagree with the class default.
+class (LinearResidual s) => Debt s where
+  -- | Return the overdraw amount if the state transition consumed more than
+  -- one unit of resource.  'Nothing' means no overdraw.
+  debtDraw :: s -> s -> Maybe Int
+
+-- | @Int@ treated as a count residual: a single mediator step may increase it
+-- by one; a transition that increases it by more than one is an overdraw.
+--
+-- This is the semantics of 'count', not a property of 'Int' in general.  A
+-- budget mediator that decrements 'Int' should supply its own 'medDraw'.
+instance Debt Int where
+  debtDraw old new =
+    let d = new - old - 1
+     in if d > 0 then Just d else Nothing
+
 -- | A violation reported when a certified close finds the residual state is not
 -- empty.
 newtype LinearityViolation = LinearityViolation String
   deriving (Eq, Show)
 
--- | Run a mediator over a stream and certify that the residual is empty at
--- close.
+-- | Run a mediator over a stream and certify that the final state is not owed.
 --
--- If the final residual state is 'emptyResidual', return the emitted outputs.
--- Otherwise report a 'LinearityViolation' carrying the offending residual.
+-- If @'medOwed' m sFinal@ is 'False', return the emitted outputs.  Otherwise
+-- report a 'LinearityViolation' carrying the offending state.
 --
--- This is the /strict/ close semantics: a residual is a violation even if it
--- could be flushed into output.  For flushable residuals use
+-- This is the /strict/ close semantics: an owed state is a violation even if
+-- it could be flushed into output.  For flushable states use
 -- 'closeCertifiedWith'.
-closeCertified :: (LinearResidual s, Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
+--
+-- The seed @s0@ is a /resumption point/: it is the state at the start of the
+-- certified fragment.  The canonical run 'runMediator' starts from 'medInit',
+-- so certifying from any other state is valid only when that state is reachable
+-- from 'medInit'.
+closeCertified :: (Show s) => Mediator s a b -> s -> [a] -> Either LinearityViolation [b]
 closeCertified m s0 as =
   let (sFinal, bs) = runMediatorState m s0 as
-   in if isEmptyResidual sFinal
-        then Right bs
-        else Left (LinearityViolation ("close: residual not empty: " ++ show sFinal))
+   in if medOwed m sFinal
+        then Left (LinearityViolation ("close: state owed: " ++ show sFinal))
+        else Right bs
 
--- | Run a mediator over a stream and certify that any remaining residual can
+-- | Run a mediator over a stream and certify that any remaining owed state can
 -- be drained according to its 'FlushableResidual' instance.
 --
--- This is the flush semantics: a residual is a violation only when 'flushStep'
--- cannot drain it.  'count' flushes its accumulated value once; a list
--- residual flushes head-first; a 'Ready' sum flushes; a 'Held' half-pair
--- reports a violation.
+-- This is the flush semantics: state is a violation only when it is owed (per
+-- 'medOwed') and 'flushStep' cannot drain it.  The empty test is
+-- @not . medOwed m@, so only owed states are flushed.  'count' is state, not
+-- residual, and is not flushed; a list buffer flushes head-first; a 'Ready'
+-- sum flushes; a 'Held' half-pair reports a violation.
+--
+-- The seed @s0@ is a /resumption point/; see 'closeCertified'.
 closeCertifiedWith ::
   (FlushableResidual s b, Show s) =>
   Mediator s a b ->
   s ->
   [a] ->
   Either LinearityViolation [b]
-closeCertifiedWith = closeCertifiedWithBy isEmptyResidual flushStep
+closeCertifiedWith m = closeCertifiedWithBy (not . medOwed m) flushStep m
 
--- | Run a mediator over a stream and certify that any remaining residual can
--- be drained via explicit empty/drain functions.
+-- | Run a mediator over a stream and certify that any remaining state can be
+-- drained via explicit empty/drain functions.
 --
--- This is the escape hatch for custom residual policies that do not have a
+-- This is the escape hatch for custom state policies that do not have a
 -- 'FlushableResidual' instance.
+--
+-- The seed @s0@ is a /resumption point/; see 'closeCertified'.
 closeCertifiedWithBy ::
   (Show s) =>
-  -- | Test for the empty residual.
+  -- | Test for the empty / non-owed state.
   (s -> Bool) ->
-  -- | Drain one output from the residual, returning the remaining residual.
+  -- | Drain one output from the state, returning the remaining state.
   (s -> Maybe (b, s)) ->
   Mediator s a b ->
   s ->
   [a] ->
   Either LinearityViolation [b]
-closeCertifiedWithBy isEmpty drain m s0 as =
+closeCertifiedWithBy isOwed drain m s0 as =
   let (sFinal, bs) = runMediatorState m s0 as
    in case drainAll sFinal of
         Just bs' -> Right (bs ++ bs')
-        Nothing -> Left (LinearityViolation ("close: residual not drainable: " ++ show sFinal))
+        Nothing -> Left (LinearityViolation ("close: state not drainable: " ++ show sFinal))
   where
     drainAll s
-      | isEmpty s = Just []
+      | isOwed s = Just []
       | otherwise = case drain s of
           Nothing -> Nothing
           Just (b, s') -> (b :) <$> drainAll s'
 
 -- | Counit of the @?@-comonoid.
 --
--- Closing a mediator with no further inputs is allowed only when the residual
--- state is already empty.  This is the discard law for the exponential:
--- a buffered channel cannot be silently dropped.
+-- Closing a mediator with no further inputs is allowed only when the state is
+-- not owed.  This is the discard law for the exponential: a buffered channel
+-- cannot be silently dropped.
 medCounit ::
-  (LinearResidual s, Show s) =>
+  (Show s) =>
   Mediator s a b ->
   s ->
   Either LinearityViolation [b]
@@ -286,29 +337,34 @@ mediateProcess med s0 =
 mediateLoop :: Mediator s a b -> Loop Either (->) [a] [Maybe b]
 mediateLoop m = Process.encode (mediateProcess m (medInit m))
 
--- | Linear mediator: no residual, every input is forwarded immediately.
+-- | Linear mediator: no state is owed, every input is forwarded immediately.
 --
--- The residual state is @()@, so 'close' on a linear composition is yanking
--- with an empty residual.
+-- The state is @()@, so 'close' on a linear composition is yanking with no
+-- debt.
 linear :: Mediator () a a
-linear = Mediator () $ \() x -> ((), Just x)
+linear = Mediator () (\() x -> ((), Just x)) (const False) (\_ _ -> Nothing)
 
 -- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
 --
--- Residual state is 'PS' so that a held half-pair ('Held') is a genuine
--- linearity violation on close.  The sum is emitted in the same tick that
--- completes the pair.
+-- State is 'PS'; a held half-pair ('Held') is owed, 'Empty' is not.  The sum
+-- is emitted in the same tick that completes the pair.
 pairSum :: Mediator PS Int Int
 pairSum =
-  Mediator Empty $ \s x -> case s of
-    Empty -> (Held x, Nothing)
-    Held y -> (Empty, Just (x + y))
+  Mediator
+    Empty
+    ( \s x -> case s of
+        Empty -> (Held x, Nothing)
+        Held y -> (Empty, Just (x + y))
+    )
+    (\case Empty -> False; Held _ -> True)
+    (\_ _ -> Nothing)
 
 -- | Count mediator: emits the number of inputs seen so far.
 --
--- A simple non-linear mediator with accumulating residual state.
+-- The counter is state, not residual: nothing is owed at close.  (It can still
+-- be flushed with 'closeCertifiedWith' if the caller wants the final value.)
 count :: Mediator Int a Int
-count = Mediator 0 $ \n _ -> let n' = n + 1 in (n', Just n')
+count = Mediator 0 (\n _ -> let n' = n + 1 in (n', Just n')) (const False) debtDraw
 
 -- | Store an input into the mediator's residual, discarding any emitted
 -- output.  This is the left factor on the shared medium.
@@ -352,3 +408,38 @@ mediateSharedBody med sched (s, (x, y)) =
           let (s'', mb) = mediateEmitBody med (s', y)
               (s''', ()) = mediateStoreBody med (s'', x)
            in (s''', These () mb)
+
+-- | Certified variant of 'mediateSharedBody' that checks for overdraw.
+--
+-- Under the 'Both' schedule the store and emit poles both advance in the same
+-- tick.  The mediator's 'medDraw' predicate reports whether that transition
+-- consumed more than one unit of resource.
+mediateSharedBodyChecked ::
+  Mediator s a b ->
+  Schedule s ->
+  (s, (a, a)) ->
+  Either LinearityViolation (s, These () (Maybe b))
+mediateSharedBodyChecked med sched (s, xy) =
+  let (s', out) = mediateSharedBody med sched (s, xy)
+   in case medDraw med s s' of
+        Just d -> Left (LinearityViolation ("shared-body overdraw: state debt " ++ show d))
+        Nothing -> Right (s', out)
+
+-- | Run a shared-body mediator over a list of input pairs, checking for
+-- overdraw at each tick.
+runSharedBodyChecked ::
+  Mediator s a b ->
+  Schedule s ->
+  s ->
+  [(a, a)] ->
+  Either LinearityViolation (s, [Maybe b])
+runSharedBodyChecked _ _ s [] = Right (s, [])
+runSharedBodyChecked med sched s (xy : xys) =
+  case mediateSharedBodyChecked med sched (s, xy) of
+    Left e -> Left e
+    Right (s', out) -> fmap (\(s'', outs) -> (s'', extractOutput out : outs)) (runSharedBodyChecked med sched s' xys)
+  where
+    extractOutput :: These () (Maybe b) -> Maybe b
+    extractOutput (This ()) = Nothing
+    extractOutput (That mb) = mb
+    extractOutput (These () mb) = mb

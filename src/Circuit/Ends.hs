@@ -92,10 +92,6 @@ module Circuit.Ends
     raceEnds,
     raceMediator,
 
-    -- * Chu embedding
-    endsAsChu,
-    lawfulDimapEnds,
-
     -- * Stateful conversions over 'SArr'
     SArr (..),
     SomeSArr (..),
@@ -127,6 +123,7 @@ module Circuit.Ends
     -- * Mediate view
     mediatorToMed,
     medToMediator,
+    medToMediatorBuffered,
 
     -- * Reusable mediator configurations
     medLinear,
@@ -139,12 +136,6 @@ module Circuit.Ends
 where
 
 import Circuit.Category (Category (..), Discrete (..), (.>))
-import Circuit.Chu
-  ( ChuMorphism (..),
-    ChuObj (..),
-    deliversToSemiring,
-    deliveryMatrix,
-  )
 import Circuit.Dagger (Copy (copy), Discard (discard))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
@@ -164,7 +155,7 @@ import Circuit.Thread
     threadToSArr,
   )
 import Control.Arrow (Kleisli (..))
-import Data.Maybe (catMaybes, isNothing)
+import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Void (Void)
 import Prelude hiding (id, (.))
 
@@ -715,42 +706,19 @@ raceEnds bias e1 e2 =
 -- same picking logic as 'raceEnds', expressed in the @?@-policy vocabulary.
 raceMediator :: (IsSilent b) => Bias -> Mediate.Mediator (Maybe b) (b, b) b
 raceMediator bias =
-  Mediate.Mediator Nothing $ \s (x, y) ->
-    case s of
-      Just z -> (Just z, Just z)
-      Nothing ->
-        let z = pick bias (x, y)
-         in (Just z, Just z)
+  Mediate.Mediator
+    Nothing
+    ( \s (x, y) -> case s of
+        Just z -> (Just z, Just z)
+        Nothing ->
+          let z = pick bias (x, y)
+           in (Just z, Just z)
+    )
+    (const False)
+    (\_ _ -> Nothing)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
     pick RightFirst (x, y) = if isSilent y then x else y
-
--- ---------------------------------------------------------------------------
--- Ends embedding into Chu
--- ---------------------------------------------------------------------------
-
--- | Embed a symmetric end into a Chu object.
---
--- A self-dual channel @Ends arr a a@ has write end @In arr a@ and read end
--- @Out arr a@.  'close' is already the pairing @In ⊗ Out → arr a a@, so the
--- embedding is direct.
-endsAsChu ::
-  Ends arr a a ->
-  ChuObj (,) (arr a a) (->) (In arr a) (Out arr a)
-endsAsChu e = ChuObj (conjoint e) (companion e) (uncurry close)
-{-# INLINE endsAsChu #-}
-
--- | Apply a Chu endomorphism to a symmetric end.
---
--- This is the lawful counterpart to the free 'Circuit.Ends.dimapEnds': the
--- forward and backward maps are an adjoint pair by construction of
--- 'ChuMorphism'.  The Chu law is discharged by the type, not just tested.
-lawfulDimapEnds ::
-  ChuMorphism (,) (arr a a) (->) (In arr a) (Out arr a) (In arr a) (Out arr a) ->
-  Ends arr a a ->
-  Ends arr a a
-lawfulDimapEnds (ChuMorphism f g) e = Ends (f (conjoint e)) (g (companion e))
-{-# INLINE lawfulDimapEnds #-}
 
 -- ---------------------------------------------------------------------------
 -- Stateful conversions over 'SArr'
@@ -804,21 +772,27 @@ processToSomeSArr (Process inject step extract) =
       let s' = step s a
        in (Just s', extract s')
 
--- | A pole-unfused mediator with residual state @s@, input @a@, output @b@.
+-- | A pole-unfused mediator with state @s@, input @a@, output @b@.
 --
 -- * @medIn@ is the write pole: it consumes an input together with the current
---   residual and updates the residual.
--- * @medOut@ is the read pole: it observes the residual and may emit an output,
---   updating the residual again.
+--   state and updates the state.
+-- * @medOut@ is the read pole: it observes the state and may emit an output,
+--   updating the state again.
+-- * @medOwed@ selects which states carry resource debt for close certification.
+-- * @medDraw@ checks for overdraw on shared-medium transitions.
 -- * @medStep@ is the sequential composition of the two poles, recovered as
 --   'close' on the unit ends.
 data Med s a b = Med
-  { -- | Initial residual state.
+  { -- | Initial state.
     medSeed :: s,
-    -- | Write pole: consume input, update residual.
+    -- | Write pole: consume input, update state.
     medIn :: (s, a) -> s,
-    -- | Read pole: observe residual, optionally emit output.
-    medOut :: s -> (s, Maybe b)
+    -- | Read pole: observe state, optionally emit output.
+    medOut :: s -> (s, Maybe b),
+    -- | Predicate selecting states that are owed / residual at close time.
+    medOwed :: s -> Bool,
+    -- | Overdraw check for shared-medium transitions.
+    medDraw :: s -> s -> Maybe Int
   }
 
 -- | View a mediator as a matched pair of channel ends over @SArr s@.
@@ -833,14 +807,17 @@ medToEnds med =
 
 -- | Recover a mediator from a pair of unit-split ends.
 --
--- The seed is not present in the 'Ends' view; the caller must supply it.
-medFromEnds :: s -> Ends (SArr s) a (Maybe b) -> Med s a b
-medFromEnds s0 e =
+-- The seed, owed predicate, and draw predicate are not present in the 'Ends'
+-- view; the caller must supply them.
+medFromEnds :: s -> (s -> Bool) -> (s -> s -> Maybe Int) -> Ends (SArr s) a (Maybe b) -> Med s a b
+medFromEnds s0 owed draw e =
   let (write, receive) = splay0 e
    in Med
         { medSeed = s0,
           medIn = \(s, a) -> fst (runSArr write (s, a)),
-          medOut = \s -> runSArr receive (s, ())
+          medOut = \s -> runSArr receive (s, ()),
+          medOwed = owed,
+          medDraw = draw
         }
 
 -- | The mediator step, recovered by closing the unit poles of 'medToEnds'.
@@ -914,6 +891,10 @@ systemWithSeedToEnds s0 ex sys =
 -- This is an embedding, not an isomorphism: the buffer slot is extra structure
 -- that a natively-written 'Med' does not carry.  Behaviour is preserved:
 -- @runMediator med xs == runMed (mediatorToMed med) xs@.
+--
+-- For close certification use 'medToMediatorBuffered', which projects away the
+-- output-buffer slot so that 'closeCertified' inspects only the original
+-- residual @s@.
 mediatorToMed :: Mediate.Mediator s a b -> Med (s, Maybe (Maybe b)) a b
 mediatorToMed med =
   Med
@@ -923,7 +904,9 @@ mediatorToMed med =
          in (s', Just mb),
       medOut = \case
         (s, Just mb) -> ((s, Nothing), mb)
-        (s, Nothing) -> ((s, Nothing), Nothing)
+        (s, Nothing) -> ((s, Nothing), Nothing),
+      medOwed = \(s, _) -> Mediate.medOwed med s,
+      medDraw = \(s, _) (s', _) -> Mediate.medDraw med s s'
     }
 
 -- | View a pole-unfused 'Med' as a Mealy-style 'Mediator'.
@@ -933,9 +916,30 @@ mediatorToMed med =
 -- equals @runMediator m xs@.  It is not an isomorphism because the buffer slot
 -- introduced by 'mediatorToMed' is discarded.
 medToMediator :: Med s a b -> Mediate.Mediator s a b
-medToMediator med = Mediate.Mediator (medSeed med) (medStepDirect med)
+medToMediator med = Mediate.Mediator (medSeed med) (medStepDirect med) (medOwed med) (medDraw med)
 
--- | Linear mediator: no residual, every input is forwarded immediately.
+-- | View a buffered 'Med' (produced by 'mediatorToMed') as a 'Mediator' over
+-- the original residual @s@, discarding the output-buffer slot.
+--
+-- 'mediatorToMed' adds @(Maybe (Maybe b))@ to the residual so the two poles
+-- can be scheduled independently.  That slot is an output register, not part
+-- of the linear residual, so it must not be inspected by 'closeCertified'.
+-- This function projects it away: each step starts with an empty buffer, runs
+-- the full write-then-read step, and returns only the original residual.
+medToMediatorBuffered :: Med (s, Maybe (Maybe b)) a b -> Mediate.Mediator s a b
+medToMediatorBuffered med =
+  Mediate.Mediator
+    { Mediate.medInit = fst (medSeed med),
+      Mediate.medStep = \s a ->
+        let ((s', _), mb) = medStepDirect med (s, Nothing) a
+         in (s', mb),
+      Mediate.medOwed = \s -> medOwed med (s, Nothing),
+      Mediate.medDraw = \s s' -> medDraw med (s, Nothing) (s', Nothing)
+    }
+
+-- | Linear mediator: no state is owed, every input is forwarded immediately.
+--
+-- A held value is pending output, so it is owed until emitted.
 medLinear :: Med (Maybe a) a a
 medLinear =
   Med
@@ -943,18 +947,22 @@ medLinear =
       medIn = \(_, a) -> Just a,
       medOut = \case
         Just a -> (Nothing, Just a)
-        Nothing -> (Nothing, Nothing)
+        Nothing -> (Nothing, Nothing),
+      medOwed = isJust,
+      medDraw = \_ _ -> Nothing
     }
 
 -- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
 --
 -- State is 'Mediate.PS' extended with the output-buffer slot introduced by
--- 'mediatorToMed'.  'Held' carries a buffered value; 'Empty' cleanly represents
--- the absence of a residual, so zero is a valid input.
+-- 'mediatorToMed'.  Only the 'Mediate.PS' component is owed; the buffer slot
+-- is an output register.
 medPairSum :: Med (Mediate.PS, Maybe (Maybe Int)) Int Int
 medPairSum = mediatorToMed Mediate.pairSum
 
 -- | Count mediator: emits the number of inputs seen so far.
+--
+-- The counter is state, not residual: nothing is owed at close.
 medCount :: Med Int () Int
 medCount =
   Med
@@ -962,5 +970,7 @@ medCount =
       medIn = \case
         (n, ()) -> n + 1,
       medOut = \case
-        n -> (n, Just n)
+        n -> (n, Just n),
+      medOwed = const False,
+      medDraw = Mediate.debtDraw
     }

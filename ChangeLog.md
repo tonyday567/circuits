@@ -79,7 +79,12 @@ knot-body category, polynomial interfaces, and close certification.
 
 - `Circuit.Mediate` adds `LinearResidual`, `FlushableResidual`,
   `LinearityViolation`, `closeCertified`, and `closeCertifiedWith` for
-  drain-vs-violation close semantics.
+  drain-vs-violation close semantics. Later in the cycle this was refactored:
+  state `s` is primary, `medOwed :: s -> Bool` is the per-mediator debt
+  predicate, and `medDraw :: s -> s -> Maybe Int` is the per-mediator
+  overdraw check. `LinearResidual` and `Debt` became convenience sources for
+  `medOwed` and `medDraw` respectively; `closeCertifiedWith` uses
+  `not . medOwed m` as its empty test so strict and flush paths agree.
 - `Circuit.Boundary.Linear` / `IsLinear` / `NotLinear` are compile-time marks
   for lossless payloads.
 
