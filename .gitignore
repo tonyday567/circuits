@@ -11,3 +11,4 @@ dist-mcabal/
 .ghcid-output
 .ghcid-trigger
 
+/cabal.project.local*
