@@ -81,6 +81,9 @@ module Circuit.Chu
     ChuOTensor (..),
     ChuONeg (..),
     ChuTwo (..),
+    ChuThree (..),
+    ChuDouble01 (..),
+    ChuDelivery (..),
     swapChu,
     dnUnitChu,
     dnCounitChu,
@@ -727,6 +730,75 @@ instance ChuObject Bool ChuTwo where
 instance ChuSeparated Bool ChuTwo
 
 instance ChuExtensional Bool ChuTwo
+
+-- | A non-self-dual three-point Chu object over 'Bool'.
+--
+-- Both carriers are @Maybe Bool@, but the pairing is the non-symmetric
+-- partial-order relation (@Nothing <= Just False <= Just True@), not equality.
+-- This breaks the self-duality coincidence of 'ChuTwo' while keeping the
+-- object separated and extensional.
+data ChuThree = ChuThree
+
+instance ChuObjShape ChuThree where
+  type ChuPosType ChuThree = Maybe Bool
+  type ChuNegType ChuThree = Maybe Bool
+
+instance ChuObject Bool ChuThree where
+  chuObject = ChuObj (Just True) (Just True) (uncurry (<=))
+
+instance ChuSeparated Bool ChuThree
+
+instance ChuExtensional Bool ChuThree
+
+-- | A finite Double-semiring Chu object.
+--
+-- Carriers are the two-element type @Bool@, representing the subset
+-- @{0, 1}@ of 'Double'.  The full real line is replaced by this tiny
+-- subset so the finite oracles remain runnable.  The pairing lands in
+-- 'Double' via the existing 'ChuSemiring' instance.
+data ChuDouble01 = ChuDouble01
+
+instance ChuObjShape ChuDouble01 where
+  type ChuPosType ChuDouble01 = Bool
+  type ChuNegType ChuDouble01 = Bool
+
+instance ChuObject Double ChuDouble01 where
+  chuObject = ChuObj True True chuDouble01Pair
+    where
+      chuDouble01Pair :: (Bool, Bool) -> Double
+      chuDouble01Pair (False, False) = 0
+      chuDouble01Pair (False, True) = 0.5
+      chuDouble01Pair (True, False) = 0
+      chuDouble01Pair (True, True) = 1
+
+instance ChuSeparated Double ChuDouble01
+
+instance ChuExtensional Double ChuDouble01
+
+-- | A concrete delivery-matrix Chu object: two posts and two agents.
+--
+-- The pairing is the boolean delivery matrix computed by 'deliveryMatrix'
+-- and 'deliversToSemiring'.  Posts and agents are indexed by 'Bool' so the
+-- carriers stay finite and the oracles remain runnable.
+data ChuDelivery = ChuDelivery
+
+instance ChuObjShape ChuDelivery where
+  type ChuPosType ChuDelivery = Bool
+  type ChuNegType ChuDelivery = Bool
+
+instance ChuObject Bool ChuDelivery where
+  chuObject = ChuObj True True chuDeliveryPair
+    where
+      agents :: [Bool]
+      agents = [False, True]
+      recipients :: [[Bool]]
+      recipients = [[False], [False, True]]
+      chuDeliveryPair :: (Bool, Bool) -> Bool
+      chuDeliveryPair (p, a) = deliveryMatrix agents recipients !! fromEnum p !! fromEnum a
+
+instance ChuSeparated Bool ChuDelivery
+
+instance ChuExtensional Bool ChuDelivery
 
 -- | The object-indexed Chu construction as a base arrow.
 newtype OChu (r :: Type) (a :: Type) (b :: Type) = OChu {unOChu :: Chu (,) r (->) a b}

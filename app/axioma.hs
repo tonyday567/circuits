@@ -27,6 +27,7 @@ import Circuit.Process (Process (..), delay, encode, fold, markSystem, register,
 import Circuit.Tensor (Action (..), Bot, Exponential (..), Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), distL, distR, mix, sharedKnotBy, superpose)
 import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.Kind (Type)
 import Data.List (foldl', isInfixOf, sort, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Proxy (Proxy (..))
@@ -704,6 +705,172 @@ eqParMorphism m1 m2 =
           && all (\d -> Chu.cppBackward p1 d == Chu.cppBackward p2 d) chuTwoPos
    in all (\p -> eqParPos (Chu.chuForward m1 p) (Chu.chuForward m2 p)) chuTwoParPoss
         && all (\n -> Chu.chuBackward m1 n == Chu.chuBackward m2 n) neg2
+
+-- | Generic forward-only equality of Chu morphisms.
+--
+-- In the separated-extensional subcategory the backward component is uniquely
+-- determined by the forward component, so comparing forward values over the
+-- positive carrier is enough.
+eqChuMorphismForward ::
+  (Eq p') =>
+  [p] ->
+  Chu.ChuMorphism (,) r (->) p n p' n' ->
+  Chu.ChuMorphism (,) r (->) p n p' n' ->
+  Bool
+eqChuMorphismForward ps m1 m2 =
+  all (\p -> Chu.chuForward m1 p == Chu.chuForward m2 p) ps
+
+-- | ChuThree: canonical object and finite carriers.
+chuThreeObj :: Chu.ChuObj (,) Bool (->) (Maybe Bool) (Maybe Bool)
+chuThreeObj = Chu.chuObject @Bool @Chu.ChuThree
+
+chuThreePos :: [Maybe Bool]
+chuThreePos = [Nothing, Just False, Just True]
+
+chuThreeNeg :: [Maybe Bool]
+chuThreeNeg = chuThreePos
+
+chuThreePos2 :: [(Maybe Bool, Maybe Bool)]
+chuThreePos2 = [(x, y) | x <- chuThreePos, y <- chuThreePos]
+
+chuThreePos3L :: [((Maybe Bool, Maybe Bool), Maybe Bool)]
+chuThreePos3L = [(p, z) | p <- chuThreePos2, z <- chuThreePos]
+
+chuThreePos3R :: [(Maybe Bool, (Maybe Bool, Maybe Bool))]
+chuThreePos3R = [(x, p) | x <- chuThreePos, p <- chuThreePos2]
+
+chuThreePos4L :: [(((Maybe Bool, Maybe Bool), Maybe Bool), Maybe Bool)]
+chuThreePos4L = [(p, w) | p <- chuThreePos3L, w <- chuThreePos]
+
+-- | ChuDouble01: canonical object and finite carriers.
+chuDouble01Obj :: Chu.ChuObj (,) Double (->) Bool Bool
+chuDouble01Obj = Chu.chuObject @Double @Chu.ChuDouble01
+
+-- | ChuDelivery: canonical object and finite carriers.
+chuDeliveryObj :: Chu.ChuObj (,) Bool (->) Bool Bool
+chuDeliveryObj = Chu.chuObject @Bool @Chu.ChuDelivery
+
+-- | Forward-only unit-law oracle for an 'OChu' object.
+checkChuUnitlForward ::
+  forall r (a :: Type).
+  (Eq r, Eq (Chu.ChuPosType a), Chu.ChuSeparated r a, Chu.ChuExtensional r a) =>
+  Proxy r ->
+  Proxy a ->
+  String ->
+  [Chu.ChuPosType a] ->
+  IO Bool
+checkChuUnitlForward _ _ name pos =
+  let psI = [((), x) | x <- pos]
+      u :: Chu.OChu r (Chu.ChuOTensor r (Chu.ChuOUnit r) a) a
+      u = unitl
+      u' :: Chu.OChu r a (Chu.ChuOTensor r (Chu.ChuOUnit r) a)
+      u' = unitl'
+      idA = id :: Chu.OChu r a a
+      idIA = id :: Chu.OChu r (Chu.ChuOTensor r (Chu.ChuOUnit r) a) (Chu.ChuOTensor r (Chu.ChuOUnit r) a)
+   in check name $
+        eqChuMorphismForward pos (ochuToChuMorphism (u . u')) (ochuToChuMorphism idA)
+          && eqChuMorphismForward psI (ochuToChuMorphism (u' . u)) (ochuToChuMorphism idIA)
+
+-- | Forward-only right unit-law oracle for an 'OChu' object.
+checkChuUnitrForward ::
+  forall r (a :: Type).
+  (Eq r, Eq (Chu.ChuPosType a), Chu.ChuSeparated r a, Chu.ChuExtensional r a) =>
+  Proxy r ->
+  Proxy a ->
+  String ->
+  [Chu.ChuPosType a] ->
+  IO Bool
+checkChuUnitrForward _ _ name pos =
+  let psI = [(x, ()) | x <- pos]
+      u :: Chu.OChu r (Chu.ChuOTensor r a (Chu.ChuOUnit r)) a
+      u = unitr
+      u' :: Chu.OChu r a (Chu.ChuOTensor r a (Chu.ChuOUnit r))
+      u' = unitr'
+      idA = id :: Chu.OChu r a a
+      idAI = id :: Chu.OChu r (Chu.ChuOTensor r a (Chu.ChuOUnit r)) (Chu.ChuOTensor r a (Chu.ChuOUnit r))
+   in check name $
+        eqChuMorphismForward pos (ochuToChuMorphism (u . u')) (ochuToChuMorphism idA)
+          && eqChuMorphismForward psI (ochuToChuMorphism (u' . u)) (ochuToChuMorphism idAI)
+
+-- | Forward-only associator inverse oracle for an 'OChu' object.
+checkChuAssocInversesForward ::
+  forall r (a :: Type).
+  (Eq r, Eq (Chu.ChuPosType a), Chu.ChuSeparated r a, Chu.ChuExtensional r a) =>
+  Proxy r ->
+  Proxy a ->
+  String ->
+  [Chu.ChuPosType (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a)] ->
+  [Chu.ChuPosType (Chu.ChuOTensor r a (Chu.ChuOTensor r a a))] ->
+  IO Bool
+checkChuAssocInversesForward _ _ name pos3L pos3R =
+  let isoL =
+        assoc' . assoc ::
+          Chu.OChu
+            r
+            (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a)
+            (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a)
+      isoR =
+        assoc . assoc' ::
+          Chu.OChu
+            r
+            (Chu.ChuOTensor r a (Chu.ChuOTensor r a a))
+            (Chu.ChuOTensor r a (Chu.ChuOTensor r a a))
+      idL = id :: Chu.OChu r (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a) (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a)
+      idR = id :: Chu.OChu r (Chu.ChuOTensor r a (Chu.ChuOTensor r a a)) (Chu.ChuOTensor r a (Chu.ChuOTensor r a a))
+   in check name $
+        eqChuMorphismForward pos3L (ochuToChuMorphism isoL) (ochuToChuMorphism idL)
+          && eqChuMorphismForward pos3R (ochuToChuMorphism isoR) (ochuToChuMorphism idR)
+
+-- | Forward-only pentagon oracle for an 'OChu' object.
+checkChuPentagonForward ::
+  forall r (a :: Type).
+  (Eq r, Eq (Chu.ChuPosType a), Chu.ChuSeparated r a, Chu.ChuExtensional r a) =>
+  Proxy r ->
+  Proxy a ->
+  String ->
+  [Chu.ChuPosType a] ->
+  IO Bool
+checkChuPentagonForward _ _ name pos =
+  let pos4 = [(p, w) | p <- [(q, z) | q <- [(x, y) | x <- pos, y <- pos], z <- pos], w <- pos]
+      assoc1 ::
+        Chu.OChu
+          r
+          (Chu.ChuOTensor r (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a) a)
+          (Chu.ChuOTensor r (Chu.ChuOTensor r a a) (Chu.ChuOTensor r a a))
+      assoc1 = assoc
+      assoc2 ::
+        Chu.OChu
+          r
+          (Chu.ChuOTensor r (Chu.ChuOTensor r a a) (Chu.ChuOTensor r a a))
+          (Chu.ChuOTensor r a (Chu.ChuOTensor r a (Chu.ChuOTensor r a a)))
+      assoc2 = assoc
+      assocInner ::
+        Chu.OChu
+          r
+          (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a)
+          (Chu.ChuOTensor r a (Chu.ChuOTensor r a a))
+      assocInner = assoc
+      lhs = assoc2 . assoc1
+      bot1 =
+        par assocInner id ::
+          Chu.OChu
+            r
+            (Chu.ChuOTensor r (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a) a)
+            (Chu.ChuOTensor r (Chu.ChuOTensor r a (Chu.ChuOTensor r a a)) a)
+      bot2 =
+        assoc ::
+          Chu.OChu
+            r
+            (Chu.ChuOTensor r (Chu.ChuOTensor r a (Chu.ChuOTensor r a a)) a)
+            (Chu.ChuOTensor r a (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a))
+      bot3 =
+        par id assocInner ::
+          Chu.OChu
+            r
+            (Chu.ChuOTensor r a (Chu.ChuOTensor r (Chu.ChuOTensor r a a) a))
+            (Chu.ChuOTensor r a (Chu.ChuOTensor r a (Chu.ChuOTensor r a a)))
+      rhs = bot3 . bot2 . bot1
+   in check name $ eqChuMorphismForward pos4 (ochuToChuMorphism lhs) (ochuToChuMorphism rhs)
 
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
@@ -1930,6 +2097,45 @@ main = do
                   )
               bot3 = par id assoc
            in eqPentagonMorphism (ochuToChuMorphism (top2 . top1)) (ochuToChuMorphism (bot3 . bot2 . bot1)),
+        -- ChuThree: non-self-dual zoo member
+        check "SepChu ChuThree is separated and extensional" $
+          Chu.chuSeparated chuThreePos chuThreeNeg chuThreeObj
+            && Chu.chuExtensional chuThreePos chuThreeNeg chuThreeObj,
+        check "SepChu ChuThree is non-self-dual" $
+          any
+            (\(p, n) -> Chu.chuPair chuThreeObj (p, n) /= Chu.chuPair chuThreeObj (n, p))
+            [(p, n) | p <- chuThreePos, n <- chuThreePos],
+        checkChuUnitlForward (Proxy @Bool) (Proxy @Chu.ChuThree) "OChu left unitor round-trips on ChuThree" chuThreePos,
+        checkChuUnitrForward (Proxy @Bool) (Proxy @Chu.ChuThree) "OChu right unitor round-trips on ChuThree" chuThreePos,
+        checkChuAssocInversesForward
+          (Proxy @Bool)
+          (Proxy @Chu.ChuThree)
+          "SepChu associator is inverse on ChuThree"
+          chuThreePos3L
+          chuThreePos3R,
+        checkChuPentagonForward (Proxy @Bool) (Proxy @Chu.ChuThree) "SepChu associator pentagon commutes on ChuThree" chuThreePos,
+        -- ChuDouble01: finite Double-semiring zoo member
+        check "SepChu ChuDouble01 is separated and extensional" $
+          Chu.chuSeparated chuTwoPos chuTwoPos chuDouble01Obj
+            && Chu.chuExtensional chuTwoPos chuTwoPos chuDouble01Obj,
+        checkChuAssocInversesForward
+          (Proxy @Double)
+          (Proxy @Chu.ChuDouble01)
+          "SepChu associator is inverse on ChuDouble01"
+          chuTwoPos3L
+          chuTwoPos3R,
+        checkChuPentagonForward (Proxy @Double) (Proxy @Chu.ChuDouble01) "SepChu associator pentagon commutes on ChuDouble01" chuTwoPos,
+        -- ChuDelivery: delivery-matrix zoo member
+        check "SepChu ChuDelivery is separated and extensional" $
+          Chu.chuSeparated chuTwoPos chuTwoPos chuDeliveryObj
+            && Chu.chuExtensional chuTwoPos chuTwoPos chuDeliveryObj,
+        checkChuAssocInversesForward
+          (Proxy @Bool)
+          (Proxy @Chu.ChuDelivery)
+          "SepChu associator is inverse on ChuDelivery"
+          chuTwoPos3L
+          chuTwoPos3R,
+        checkChuPentagonForward (Proxy @Bool) (Proxy @Chu.ChuDelivery) "SepChu associator pentagon commutes on ChuDelivery" chuTwoPos,
         -- Lolli: internal hom
         check "Lolli (->) curry/uncurry are inverse" $
           let f (x, y) = x + y :: Int
