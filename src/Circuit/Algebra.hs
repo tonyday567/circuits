@@ -104,16 +104,10 @@ import Circuit.Layer (Layer, run)
 import Circuit.Loop qualified as C
 import Circuit.Mediate (Mediator (..), runMediator)
 import Circuit.Net qualified as N
-import Circuit.Tensor (Action (..), Bias (..), Fire, Schedule (..), Shared (..), Tensor (..), sharedBy)
+import Circuit.Tensor (Action (..), Bias (..), Fire, Schedule (..), Shared (..), Tensor (..), Unit, sharedBy)
 import Data.Kind (Constraint, Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
-
-type family Fst (p :: Type) :: Type where
-  Fst (a, b) = a
-
-type family Snd (p :: Type) :: Type where
-  Snd (a, b) = b
 
 -- ---------------------------------------------------------------------------
 -- Signature functors
@@ -238,18 +232,18 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
 -- This is the monoidal product over independent state.  It is sound as a
 -- bifunctor in any 'Tensor' category; it does not represent shared-medium
 -- fusion.  For the shared-state connective ⅋ see 'SigShared'.
-data SigPar arr rec a b where
-  SigPar :: rec a b -> rec c d -> SigPar arr rec (a, c) (b, d)
+data SigPar (w :: Type -> Type -> Type) arr rec a b where
+  SigPar :: rec a b -> rec c d -> SigPar w arr rec (w a c) (w b d)
 
-instance (Tensor (,) arr', Discrete arr') => Algebra SigPar arr arr' where
-  type Ctx SigPar arr arr' = (Tensor (,) arr', Discrete arr')
+instance (Tensor w arr', Discrete arr') => Algebra (SigPar w) arr arr' where
+  type Ctx (SigPar w) arr arr' = (Tensor w arr', Discrete arr')
   alg _ rec (SigPar f g) = go (rec f) (rec g)
     where
       go ::
         forall a1 b1 c d.
         arr' a1 b1 ->
         arr' c d ->
-        arr' (a1, c) (b1, d)
+        arr' (w a1 c) (w b1 d)
       go f' g' =
         withOb @arr' @a1 $
           withOb @arr' @b1 $
@@ -306,62 +300,80 @@ instance (Mediable arr') => Algebra SigMediate arr arr' where
   alg _ _ (SigMediate med) = mediate med
 
 -- | Symmetric braiding.
-data SigSwap arr rec a b where
-  SigSwap :: SigSwap arr rec (a, b) (b, a)
+data SigSwap (w :: Type -> Type -> Type) arr rec a b where
+  SigSwap :: SigSwap w arr rec (w a b) (w b a)
 
-instance (Action (,) arr') => Algebra SigSwap arr arr' where
-  type Ctx SigSwap arr arr' = (Action (,) arr', Discrete arr')
+instance (Action w arr') => Algebra (SigSwap w) arr arr' where
+  type Ctx (SigSwap w) arr arr' = (Action w arr', Discrete arr')
   alg ::
     forall rec a b.
-    (Ctx SigSwap arr arr') =>
+    (Ctx (SigSwap w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
-    SigSwap arr rec a b ->
+    SigSwap w arr rec a b ->
     arr' a b
   alg _ _ SigSwap = aux
     where
-      aux :: forall a1 b1. (a ~ (a1, b1), b ~ (b1, a1)) => arr' a b
+      aux :: forall a1 b1. (a ~ w a1 b1) => arr' a b
       aux = withOb @arr' @a1 $ withOb @arr' @b1 $ swap
 
 -- | Comonoid operations: copy, discard.
 --
--- Each constructor carries its own 'Dg.Copy' or 'Dg.Discard' constraint,
--- resolved at pattern-match time rather than in the algebra context.
-data SigCopyDiscard arr rec a b where
-  SigCopy :: (Dg.Copy arr a) => SigCopyDiscard arr rec a (a, a)
-  SigDiscard :: (Dg.Discard arr a) => SigCopyDiscard arr rec a ()
+-- Each constructor carries its own 'Dg.CopyT' or 'Dg.DiscardT' constraint
+-- on the wiring tensor @w@, resolved at pattern-match time rather than in
+-- the algebra context.
+data SigCopyDiscard (w :: Type -> Type -> Type) arr rec a b where
+  SigCopy :: (Dg.CopyT w arr a) => SigCopyDiscard w arr rec a (w a a)
+  SigDiscard :: (Dg.DiscardT w arr a) => SigCopyDiscard w arr rec a (Unit w)
 
 -- | 'alg' for copy/discard generators sends each generator to the image
 -- under @emb@ of the source dictionary.
-instance Algebra SigCopyDiscard arr arr' where
+instance Algebra (SigCopyDiscard w) arr arr' where
+  type Ctx (SigCopyDiscard w) arr arr' = Discrete arr
   alg ::
     forall rec i o.
+    (Ctx (SigCopyDiscard w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
-    SigCopyDiscard arr rec i o ->
+    SigCopyDiscard w arr rec i o ->
     arr' i o
-  alg emb _ SigCopy = emb (Dg.copy :: arr i (i, i))
-  alg emb _ SigDiscard = emb (Dg.discard :: arr i ())
+  alg emb _ SigCopy =
+    withOb @arr @i $
+      withOb @arr @(w i i) $
+        emb (Dg.copyT @w)
+  alg emb _ SigDiscard =
+    withOb @arr @i $
+      withOb @arr @(Unit w) $
+        emb (Dg.discardT @w)
 
 -- | Monoid operations: plus, zero.
 --
--- Each constructor carries its own 'Dg.Merge' or 'Dg.Zero' constraint,
--- resolved at pattern-match time rather than in the algebra context.
-data SigMergeZero arr rec a b where
-  SigPlus :: (Dg.Merge arr a) => SigMergeZero arr rec (a, a) a
-  SigZero :: (Dg.Zero arr a) => SigMergeZero arr rec () a
+-- Each constructor carries its own 'Dg.MergeT' or 'Dg.ZeroT' constraint
+-- on the wiring tensor @w@, resolved at pattern-match time rather than in
+-- the algebra context.
+data SigMergeZero (w :: Type -> Type -> Type) arr rec a b where
+  SigPlus :: (Dg.MergeT w arr a) => SigMergeZero w arr rec (w a a) a
+  SigZero :: (Dg.ZeroT w arr a) => SigMergeZero w arr rec (Unit w) a
 
 -- | 'alg' for plus/zero generators sends each generator to the image under
 -- @emb@ of the source dictionary.
-instance Algebra SigMergeZero arr arr' where
+instance Algebra (SigMergeZero w) arr arr' where
+  type Ctx (SigMergeZero w) arr arr' = Discrete arr
   alg ::
     forall rec i o.
+    (Ctx (SigMergeZero w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
-    SigMergeZero arr rec i o ->
+    SigMergeZero w arr rec i o ->
     arr' i o
-  alg emb _ SigPlus = emb (Dg.plus :: arr (o, o) o)
-  alg emb _ SigZero = emb (Dg.zero :: arr () o)
+  alg emb _ SigPlus =
+    withOb @arr @(w o o) $
+      withOb @arr @o $
+        emb (Dg.plusT @w)
+  alg emb _ SigZero =
+    withOb @arr @(Unit w) $
+      withOb @arr @o $
+        emb (Dg.zeroT @w)
 
 -- ---------------------------------------------------------------------------
 -- Common syntax combinations
@@ -372,8 +384,8 @@ type AlgCat arr = Syntax SigCompose arr
 -- | Free traced monoidal category over tensor @t@.
 type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
 
--- | Free monoidal category.
-type AlgSym arr = Syntax (SigCompose :+: SigPar :+: SigSwap) arr
+-- | Free monoidal category over wiring tensor @w@.
+type AlgSym w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
 type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
@@ -381,11 +393,12 @@ type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
 -- | Free traced category with mediator policies (the @?@ connective).
 type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigKnot t) arr
 
--- | Free bimonoidal category.
-type AlgBimonoidal arr = Syntax (SigCompose :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
+-- | Free bimonoidal category over wiring tensor @w@.
+type AlgBimonoidal w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr
 
--- | Free traced PROP with bimonoid.
-type AlgNet t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr
+-- | Free traced PROP with bimonoid over wiring tensor @w@ and feedback
+-- tensor @t@.
+type AlgNet w t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr
 
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
@@ -518,7 +531,7 @@ runAlgLoop (Op op) = go op
     go (R (SigKnot @_ f)) = C.Knot (run (runAlgLoop f))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
-algNet :: forall t arr a b. N.Net t arr a b -> AlgNet t arr a b
+algNet :: forall w t arr a b. N.Net w t arr a b -> AlgNet w t arr a b
 algNet (N.Lift f) = Lift f
 algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
 algNet (N.Par f g) = Op (R (R (L (SigPar (algNet f) (algNet g)))))
@@ -530,46 +543,46 @@ algNet N.Zero = Op (R (R (R (R (R SigZero)))))
 algNet (N.Knot f) = Op (R (L (SigKnot (algNet f))))
 
 -- | Project the signature-based Net back to the direct GADT.
-runAlgNet :: forall t arr a b. AlgNet t arr a b -> N.Net t arr a b
+runAlgNet :: forall w t arr a b. AlgNet w t arr a b -> N.Net w t arr a b
 runAlgNet = goTop
   where
-    goTop :: forall x y. AlgNet t arr x y -> N.Net t arr x y
+    goTop :: forall x y. AlgNet w t arr x y -> N.Net w t arr x y
     goTop (Lift f) = N.Lift f
     goTop (Op op) = goOp op
 
-    goOp :: forall x y. (SigCompose :+: SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goOp :: forall x y. (SigCompose :+: SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goOp (L sc) = goCompose sc
     goOp (R rest) = goKnotOrMore rest
 
-    goCompose :: forall x y. SigCompose arr (AlgNet t arr) x y -> N.Net t arr x y
+    goCompose :: forall x y. SigCompose arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goCompose (SigCompose g f) = N.Compose (goTop g) (goTop f)
 
-    goKnotOrMore :: forall x y. (SigKnot t :+: SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goKnotOrMore :: forall x y. (SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goKnotOrMore (L sk) = goKnot sk
     goKnotOrMore (R rest) = goParOrMore rest
 
-    goKnot :: forall x y. SigKnot t arr (AlgNet t arr) x y -> N.Net t arr x y
+    goKnot :: forall x y. SigKnot t arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goKnot (SigKnot f) = N.Knot (goTop f)
 
-    goParOrMore :: forall x y. (SigPar :+: SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goParOrMore :: forall x y. (SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goParOrMore (L sp) = goPar sp
     goParOrMore (R rest) = goSwapOrMonoid rest
 
-    goPar :: forall x y. SigPar arr (AlgNet t arr) x y -> N.Net t arr x y
+    goPar :: forall x y. SigPar w arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goPar (SigPar f g) = N.Par (goTop f) (goTop g)
 
-    goSwapOrMonoid :: forall x y. (SigSwap :+: SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goSwapOrMonoid :: forall x y. (SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goSwapOrMonoid (L SigSwap) = N.Swap
     goSwapOrMonoid (R rest) = goCopyDiscardOrMergeZero rest
 
-    goCopyDiscardOrMergeZero :: forall x y. (SigCopyDiscard :+: SigMergeZero) arr (AlgNet t arr) x y -> N.Net t arr x y
+    goCopyDiscardOrMergeZero :: forall x y. (SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goCopyDiscardOrMergeZero (L scd) = goCopyDiscard scd
     goCopyDiscardOrMergeZero (R smz) = goMergeZero smz
 
-    goCopyDiscard :: forall x y. SigCopyDiscard arr (AlgNet t arr) x y -> N.Net t arr x y
+    goCopyDiscard :: forall x y. SigCopyDiscard w arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goCopyDiscard SigCopy = N.Copy
     goCopyDiscard SigDiscard = N.Discard
 
-    goMergeZero :: forall x y. SigMergeZero arr (AlgNet t arr) x y -> N.Net t arr x y
+    goMergeZero :: forall x y. SigMergeZero w arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goMergeZero SigPlus = N.Plus
     goMergeZero SigZero = N.Zero

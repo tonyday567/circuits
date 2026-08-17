@@ -712,10 +712,10 @@ main = do
           scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]
             == scan sumP [1, 2, 3],
         check "Net (,) Process copy uses Process.copy" $
-          let p = run (Net.Copy :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
+          let p = run (Net.Copy :: Net.Net (,) (,) Process Int (Int, Int)) :: Process Int (Int, Int)
            in scan p [5] == [(5, 5)],
         check "Net (,) Process plus uses Process.plus" $
-          let p = run (Net.Plus :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
+          let p = run (Net.Plus :: Net.Net (,) (,) Process (Int, Int) Int) :: Process (Int, Int) Int
            in scan p [(2, 3)] == [5],
         check "Shared (,) Process LR order differs from RL" $
           let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP

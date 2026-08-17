@@ -55,6 +55,8 @@ module Circuit.Dagger
     -- * Tensor-generic capabilities
     CopyT (..),
     DiscardT (..),
+    MergeT (..),
+    ZeroT (..),
 
     -- * Dagger
     Dagger (..),
@@ -246,6 +248,19 @@ class (Tensor t arr) => CopyT t arr a where
 -- | Discard a value to the tensor unit.
 class (Tensor t arr) => DiscardT t arr a where
   discardT :: arr a (Unit t)
+
+-- | Combine two values under the tensor product.
+--
+-- This is the tensor-generic form of 'Merge'. For the cartesian tensor
+-- @(,)@ it reduces to @arr (a, a) a@ and the existing 'Merge' class is
+-- recovered. Other tensors (e.g. 'Circuit.Chu.ChuOTensor') get their own
+-- instances.
+class (Tensor t arr) => MergeT t arr a where
+  plusT :: arr (t a a) a
+
+-- | The neutral element under the tensor product.
+class (Tensor t arr) => ZeroT t arr a where
+  zeroT :: arr (Unit t) a
 
 -- ---------------------------------------------------------------------------
 -- The substructural square
@@ -504,5 +519,15 @@ instance {-# OVERLAPPABLE #-} (Copy arr a, Tensor (,) arr) => CopyT (,) arr a wh
 instance {-# OVERLAPPABLE #-} (Discard arr a, Tensor (,) arr) => DiscardT (,) arr a where
   discardT = discard
   {-# INLINE discardT #-}
+
+-- | Every 'Merge' instance gives a 'MergeT' instance for the cartesian tensor.
+instance {-# OVERLAPPABLE #-} (Merge arr a, Tensor (,) arr) => MergeT (,) arr a where
+  plusT = plus
+  {-# INLINE plusT #-}
+
+-- | Every 'Zero' instance gives a 'ZeroT' instance for the cartesian tensor.
+instance {-# OVERLAPPABLE #-} (Zero arr a, Tensor (,) arr) => ZeroT (,) arr a where
+  zeroT = zero
+  {-# INLINE zeroT #-}
 
 
