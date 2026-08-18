@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -32,19 +31,11 @@
 module Circuit.Channel
   ( Channel (..),
     Strength (..),
-    strengthD,
     Traced (..),
-
-    -- * Discrete discharge kit
-    compD,
-    assocD,
-    assocD',
-    braidD,
-    traceD,
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), ObC)
+import Circuit.Category (Category (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
@@ -72,35 +63,25 @@ import Prelude hiding (id, (.))
 -- nested tensor values inside an arrow. This is the structure that traced
 -- categories inherit as a superclass.
 --
--- The superclass @forall a b. (ObC arr a, ObC arr b) => ObC arr (t a b)@
--- states that the object constraint is closed under the tensor. 'ObC' is
--- a class wrapper around the 'Ob' constraint family so the closure can be
--- stated as a quantified superclass. The superclass expands to @Ob arr
--- (t a b)@, keeping the closure evidence on the constraint side and
--- removing the need for explicit 'ObDict' plumbing.
---
--- Method signatures only mention the atomic objects @a@, @b@, @c@;
--- composite-object constraints follow from the superclass.
+-- The previous quantified superclass that stated closure of an object
+-- constraint under the tensor has been removed along with the @Ob@
+-- apparatus; composite-object legitimacy is an audit concern.
 class
-  ( Category arr,
-    forall a b. (ObC arr a, ObC arr b) => ObC arr (t a b)
+  ( Category arr
   ) =>
   Channel t arr
   where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc ::
-    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t (t a b) c) (t a (t b c))
 
   -- | Inverse reassociation: @t a (t b c) -> t (t a b) c@.
   assoc' ::
-    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a (t b c)) (t (t a b) c)
 
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
   slide ::
-    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a (t b c)) (t b (t a c))
 
 -- | Cartesian monoidal structure for @(,)@.
@@ -180,21 +161,8 @@ instance Channel These (->) where
 -- strength ("tensorial strength") of the tensor @t@ acting on morphisms.
 class (Channel t arr) => Strength t arr where
   strength ::
-    (Ob arr a, Ob arr b, Ob arr c) =>
     arr b c ->
     arr (t a b) (t a c)
-
--- | Discrete 'strength': discharge 'Ob' constraints with 'withOb'.
-strengthD ::
-  forall t arr a b c.
-  (Strength t arr, Discrete arr) =>
-  arr b c ->
-  arr (t a b) (t a c)
-strengthD f =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        strength f
 
 -- | Cartesian tensorial strength for @(,)@.
 --
@@ -232,9 +200,10 @@ instance Strength These (->) where
 -- @trace@ closes the feedback loop, eliminating the tensor channel.
 -- It extends the 'Strength' structure with the feedback-fixing operation.
 --
--- Object constraints on the feedback channel (@a@) let constrained
--- categories (e.g. matrices needing @Finite@ / @KnownNat@) instance
--- this class lawfully.
+-- Object constraints on the feedback channel (@a@) used to let constrained
+-- categories instance this class lawfully; those constraints are now
+-- explicit at the instance site rather than inherited from a constraint
+-- family.
 --
 -- Law note: the traced-category Sliding axiom is restricted in the
 -- premonoidal setting. Benton & Hyland, "Traced Premonoidal Categories"
@@ -248,7 +217,6 @@ instance Strength These (->) where
 -- side-condition is not vacuous.
 class (Strength t arr) => Traced t arr where
   trace ::
-    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a b) (t a c) ->
     arr b c
 
@@ -572,70 +540,3 @@ instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
                         )
           go (Right initial)
       )
-
--- ===========================================================================
--- Discrete discharge kit
--- ===========================================================================
-
--- | Discrete composition: compose two arrows while discharging 'Ob'
--- constraints with 'withOb'.
-compD ::
-  forall arr a b c.
-  (Discrete arr) =>
-  arr b c ->
-  arr a b ->
-  arr a c
-compD f g =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        f . g
-
--- | Discrete associator: reassociate leftward while discharging 'Ob'
--- constraints.
-assocD ::
-  forall t arr a b c.
-  (Channel t arr, Discrete arr) =>
-  arr (t (t a b) c) (t a (t b c))
-assocD =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        assoc
-
--- | Discrete associator inverse: reassociate rightward while discharging
--- 'Ob' constraints.
-assocD' ::
-  forall t arr a b c.
-  (Channel t arr, Discrete arr) =>
-  arr (t a (t b c)) (t (t a b) c)
-assocD' =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        assoc'
-
--- | Discrete braiding: slide a wire past a nested pair while discharging
--- 'Ob' constraints.
-braidD ::
-  forall t arr a b c.
-  (Channel t arr, Discrete arr) =>
-  arr (t a (t b c)) (t b (t a c))
-braidD =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        slide
-
--- | Discrete trace: eliminate a feedback loop while discharging 'Ob'
--- constraints.
-traceD ::
-  forall t arr a b c.
-  (Traced t arr, Discrete arr) =>
-  arr (t a b) (t a c) ->
-  arr b c
-traceD f =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        trace f

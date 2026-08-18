@@ -169,10 +169,10 @@ reach target = runProb (traceE walkBody) (\((), s) -> s == target) ((), 0)
 
 -- | Annotated helpers to avoid ambiguous overloads.
 id1 :: FinRel F N1 N1
-id1 = id
+id1 = finId
 
 id2 :: FinRel F N2 N2
-id2 = id
+id2 = finId
 
 copy1 :: FinRel F N1 (N1, N1)
 copy1 = copy
@@ -199,19 +199,19 @@ zero2 :: FinRel F () N2
 zero2 = zero
 
 unitl1' :: FinRel F N1 ((), N1)
-unitl1' = unitl'
+unitl1' = unitl'FinRel
 
 unitr1' :: FinRel F N1 (N1, ())
-unitr1' = unitr'
+unitr1' = unitr'FinRel
 
 unitl2' :: FinRel F N2 ((), N2)
-unitl2' = unitl'
+unitl2' = unitl'FinRel
 
 unitr2' :: FinRel F N2 (N2, ())
-unitr2' = unitr'
+unitr2' = unitr'FinRel
 
 unitr0 :: FinRel F ((), ()) ()
-unitr0 = unitr
+unitr0 = unitrFinRel
 
 discard0 :: FinRel F () ()
 discard0 = discard
@@ -600,62 +600,62 @@ main = do
     sequence
       [ -- copy/discard comonoid laws
         check "copy coassociative (n=1)" $
-          par copy1 id1 . copy1 == assoc' . par id1 copy1 . copy1,
+          parFinRel copy1 id1 `compFinRel` copy1 == assoc'FinRel `compFinRel` parFinRel id1 copy1 `compFinRel` copy1,
         check "copy coassociative (n=2)" $
-          par copy2 id2 . copy2 == assoc' . par id2 copy2 . copy2,
+          parFinRel copy2 id2 `compFinRel` copy2 == assoc'FinRel `compFinRel` parFinRel id2 copy2 `compFinRel` copy2,
         check "copy left counit (n=1)" $
-          par discard1 id1 . copy1 == unitl1',
+          parFinRel discard1 id1 `compFinRel` copy1 == unitl1',
         check "copy left counit (n=2)" $
-          par discard2 id2 . copy2 == unitl2',
+          parFinRel discard2 id2 `compFinRel` copy2 == unitl2',
         check "copy right counit (n=1)" $
-          par id1 discard1 . copy1 == unitr1',
+          parFinRel id1 discard1 `compFinRel` copy1 == unitr1',
         check "copy right counit (n=2)" $
-          par id2 discard2 . copy2 == unitr2',
+          parFinRel id2 discard2 `compFinRel` copy2 == unitr2',
         check "copy cocommutative (n=1)" $
-          swap . copy1 == copy1,
+          swapFinRel `compFinRel` copy1 == copy1,
         check "copy cocommutative (n=2)" $
-          swap . copy2 == copy2,
+          swapFinRel `compFinRel` copy2 == copy2,
         -- plus/zero monoid laws
         check "plus associative (n=1)" $
-          plus1 . par plus1 id1 == plus1 . par id1 plus1 . assoc,
+          plus1 `compFinRel` parFinRel plus1 id1 == plus1 `compFinRel` parFinRel id1 plus1 `compFinRel` assocFinRel,
         check "plus associative (n=2)" $
-          plus2 . par plus2 id2 == plus2 . par id2 plus2 . assoc,
+          plus2 `compFinRel` parFinRel plus2 id2 == plus2 `compFinRel` parFinRel id2 plus2 `compFinRel` assocFinRel,
         check "plus left unit (n=1)" $
-          plus1 . par zero1 id1 . unitl1' == id1,
+          plus1 `compFinRel` parFinRel zero1 id1 `compFinRel` unitl1' == id1,
         check "plus left unit (n=2)" $
-          plus2 . par zero2 id2 . unitl2' == id2,
+          plus2 `compFinRel` parFinRel zero2 id2 `compFinRel` unitl2' == id2,
         check "plus right unit (n=1)" $
-          plus1 . par id1 zero1 . unitr1' == id1,
+          plus1 `compFinRel` parFinRel id1 zero1 `compFinRel` unitr1' == id1,
         check "plus right unit (n=2)" $
-          plus2 . par id2 zero2 . unitr2' == id2,
+          plus2 `compFinRel` parFinRel id2 zero2 `compFinRel` unitr2' == id2,
         check "plus commutative (n=1)" $
-          plus1 . swap == plus1,
+          plus1 `compFinRel` swapFinRel == plus1,
         check "plus commutative (n=2)" $
-          plus2 . swap == plus2,
+          plus2 `compFinRel` swapFinRel == plus2,
         -- bialgebra laws
         check "bialgebra copy-plus (n=1)" $
-          copy1 . plus1 == par plus1 plus1 . swapMiddle . par copy1 copy1,
+          copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` swapMiddle `compFinRel` parFinRel copy1 copy1,
         check "bialgebra copy-plus (n=2)" $
-          copy2 . plus2 == par plus2 plus2 . swapMiddle2 . par copy2 copy2,
+          copy2 `compFinRel` plus2 == parFinRel plus2 plus2 `compFinRel` swapMiddle2 `compFinRel` parFinRel copy2 copy2,
         check "bialgebra discard-plus (n=1)" $
-          discard1 . plus1 == unitr0 . par discard1 discard1,
+          discard1 `compFinRel` plus1 == unitr0 `compFinRel` parFinRel discard1 discard1,
         check "bialgebra discard-plus (n=2)" $
-          discard2 . plus2 == unitr0 . par discard2 discard2,
+          discard2 `compFinRel` plus2 == unitr0 `compFinRel` parFinRel discard2 discard2,
         check "bialgebra zero-copy (n=1)" $
-          copy1 . zero1 == par zero1 zero1 . unitr',
+          copy1 `compFinRel` zero1 == parFinRel zero1 zero1 `compFinRel` unitr'FinRel,
         check "bialgebra zero-copy (n=2)" $
-          copy2 . zero2 == par zero2 zero2 . unitr',
+          copy2 `compFinRel` zero2 == parFinRel zero2 zero2 `compFinRel` unitr'FinRel,
         check "bialgebra discard-zero" $
-          discard0 . zero0 == (id :: FinRel F () ()),
+          compFinRel discard0 zero0 == (finId :: FinRel F () ()),
         -- scalar arithmetic over GF(2)
         check "scalar True is identity" $
           finScalar True == id1,
         check "scalar False is idempotent" $
-          (finScalar False :: FinRel F N1 N1) . finScalar False == finScalar False,
+          compFinRel (finScalar False :: FinRel F N1 N1) (finScalar False) == finScalar False,
         check "scalar False absorbs scalar True" $
-          (finScalar False :: FinRel F N1 N1) . finScalar True == finScalar False,
+          compFinRel (finScalar False :: FinRel F N1 N1) (finScalar True) == finScalar False,
         check "scalar True after scalar False" $
-          (finScalar True :: FinRel F N1 N1) . finScalar False == finScalar False,
+          compFinRel (finScalar True :: FinRel F N1 N1) (finScalar False) == finScalar False,
         -- Dagger(FinRel k) collapse: the dagger instances interlock the
         -- ⊗-comonoid and the ⅋-monoid in a single construction.
         check "Dagger(FinRel) copy front is FinRel copy" $
@@ -670,9 +670,9 @@ main = do
           front (transpose daggerCopy1) == plus1,
         -- traced structure
         check "trace yanking (n=1)" $
-          trace (swap :: FinRel F (N1, N1) (N1, N1)) == id1,
+          traceFinRel (swapFinRel :: FinRel F (N1, N1) (N1, N1)) == id1,
         check "trace of identity pair" $
-          trace (par id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
+          traceFinRel (parFinRel id1 id1 :: FinRel F (N1, N1) (N1, N1)) == id1,
         -- Para laws promoted to circuits-learn-axioma (11 Aug 2026).
         -- The L1/L2 constant-state trace checks now live there alongside
         -- the full Category associativity and identity oracles for Para.

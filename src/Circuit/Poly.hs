@@ -109,7 +109,7 @@ module Circuit.Poly
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob)
+import Circuit.Category (Category (..))
 import Circuit.Thread (Thread (..))
 import Data.Bifunctor
 import Data.Kind (Type)
@@ -563,7 +563,6 @@ data Morphism (p :: Poly) (q :: Poly) where
     Morphism (Mono s s) ('Sum (Mono a a) (Mono s s))
 
 instance Category Morphism where
-  type Ob Morphism a = ()
   id = Id
   (.) = Compose
 

@@ -47,7 +47,7 @@ module Circuit.Net
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, ObDict (..), withObDict, (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
@@ -90,61 +90,32 @@ data Net (w :: Type -> Type -> Type) (t :: Type -> Type -> Type) arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Net w t arr a b
   -- | Sequential composition.
-  --
-  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
-  -- constructor so folding does not need a 'Discrete' base.
-  Compose :: (Ob arr b) => Net w t arr b c -> Net w t arr a b -> Net w t arr a c
+  Compose :: Net w t arr b c -> Net w t arr a b -> Net w t arr a c
   -- | Parallel composition (monoidal product over @w@).
   Par ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr d
-    ) =>
     Net w t arr a b ->
     Net w t arr c d ->
     Net w t arr (w a c) (w b d)
   -- | Symmetric braiding over @w@.
-  Swap ::
-    ( Ob arr a,
-      Ob arr b
-    ) =>
-    Net w t arr (w a b) (w b a)
+  Swap :: Net w t arr (w a b) (w b a)
   -- | Copy: fan-out.  Requires 'Dg.CopyT' on the wiring tensor @w@.
   Copy ::
-    ( Dg.CopyT w arr a,
-      Ob arr a
-    ) =>
+    (Dg.CopyT w arr a) =>
     Net w t arr a (w a a)
   -- | Discard: erase.  Requires 'Dg.DiscardT' on the wiring tensor @w@.
   Discard ::
-    ( Dg.DiscardT w arr a,
-      Ob arr a,
-      Ob arr (Unit w)
-    ) =>
+    (Dg.DiscardT w arr a) =>
     Net w t arr a (Unit w)
   -- | Plus: fan-in.  Requires 'Dg.MergeT' on the wiring tensor @w@.
   Plus ::
-    ( Dg.MergeT w arr a,
-      Ob arr a
-    ) =>
+    (Dg.MergeT w arr a) =>
     Net w t arr (w a a) a
   -- | Zero: the neutral element.  Requires 'Dg.ZeroT' on the wiring tensor @w@.
   Zero ::
-    ( Dg.ZeroT w arr a,
-      Ob arr a,
-      Ob arr (Unit w)
-    ) =>
+    (Dg.ZeroT w arr a) =>
     Net w t arr (Unit w) a
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow.
-  --
-  -- The constructor carries the 'Ob' evidence for the feedback channel in
-  -- the /source/ category.
   Knot ::
-    ( Ob arr s,
-      Ob arr (t s a),
-      Ob arr (t s b)
-    ) =>
     Net w t arr (t s a) (t s b) ->
     Net w t arr a b
 
@@ -158,13 +129,8 @@ data Net (w :: Type -> Type -> Type) (t :: Type -> Type -> Type) arr a b where
 -- rows remain inspectable.  'melt' collapses them to the normal form of
 -- 'C.Loop' when needed.
 instance (Category arr) => Category (Net w t arr) where
-  type Ob (Net w t arr) a = Ob arr a
   id = Lift id
   g . f = Compose g f
-
--- | A discrete base yields a discrete free traced PROP.
-instance (Category arr, Discrete arr) => Discrete (Net w t arr) where
-  withOb @a x = withOb @arr @a x
 
 -- | Upgrade a 'C.Loop' to a 'Net' — constructor-to-constructor.
 --
@@ -234,7 +200,7 @@ widen SymSwap = Swap
 -- forgets knots and bimonoid structure.
 sift ::
   forall w t arr a b.
-  (Traced t arr, Action w arr, Ob arr a, Ob arr b) =>
+  (Traced t arr, Action w arr) =>
   Net w t arr a b ->
   Sym w arr a b
 sift (Lift f) = SymLift f
@@ -260,7 +226,7 @@ sift n@(Knot @_ @s @_ @_ @_ _) = SymLift (Layer.run (melt n))
 -- 6
 melt ::
   forall w t arr a b.
-  (Traced t arr, Action w arr, Ob arr a, Ob arr b) =>
+  (Traced t arr, Action w arr) =>
   Net w t arr a b ->
   C.Loop t arr a b
 melt (Lift f) = C.Lift f
@@ -273,7 +239,7 @@ melt Plus = C.Lift (Dg.plusT @w)
 melt Zero = C.Lift (Dg.zeroT @w)
 melt (Knot f) = trace (melt f)
 
--- | 'Traced' + 'Action' — free 'Net' fold carries its own 'Ob' evidence.
+-- | 'Traced' + 'Action' — free 'Net' fold carries its own structure.
 class (Traced t arr, Action w arr) => FreeNet w t arr
 
 instance (Traced t arr, Action w arr) => FreeNet w t arr
@@ -296,39 +262,22 @@ instance Layer (Net w t) where
   unit = Lift
   bind ::
     forall arr' arr a b.
-    (Law (Net w t) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
-    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (Law (Net w t) arr') =>
     (arr :~> arr') ->
     Net w t arr a b ->
     arr' a b
-  bind _phi h (Lift f) = h f
-  bind phi h (Compose (g :: Net w t arr b1 c) (f :: Net w t arr a b1)) =
-    withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
-  bind phi h (Par (f :: Net w t arr a1 b1) (g :: Net w t arr c d)) =
-    let dA1 = phi (ObDict :: ObDict arr a1)
-        dB1 = phi (ObDict :: ObDict arr b1)
-        dC = phi (ObDict :: ObDict arr c)
-        dD = phi (ObDict :: ObDict arr d)
-     in withObDict dA1 $
-          withObDict dB1 $
-            withObDict dC $
-              withObDict dD $
-                par (bind phi h f) (bind phi h g)
-  bind phi _ Swap =
-    case () of
-      () ->
-        let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
-            swap' =
-              withObDict (phi (ObDict :: ObDict arr a1)) $
-                withObDict (phi (ObDict :: ObDict arr b1)) swap
-         in swap'
-  bind _phi h Copy = h (Dg.copyT @w)
-  bind _phi h Discard = h (Dg.discardT @w)
-  bind _phi h Plus = h (Dg.plusT @w)
-  bind _phi h Zero = h (Dg.zeroT @w)
-  bind phi h (Knot (f :: Net w t arr (t s a) (t s b))) =
-    withObDict (phi (ObDict :: ObDict arr s)) $
-      trace (bind phi h f)
+  bind h (Lift f) = h f
+  bind h (Compose (g :: Net w t arr b1 c) (f :: Net w t arr a b1)) =
+    bind h g . bind h f
+  bind h (Par (f :: Net w t arr a1 b1) (g :: Net w t arr c d)) =
+    par (bind h f) (bind h g)
+  bind _h Swap = swap
+  bind h Copy = h (Dg.copyT @w)
+  bind h Discard = h (Dg.discardT @w)
+  bind h Plus = h (Dg.plusT @w)
+  bind h Zero = h (Dg.zeroT @w)
+  bind h (Knot (f :: Net w t arr (t s a) (t s b))) =
+    trace (bind h f)
 
 -- ===========================================================================
 -- Sym
@@ -358,36 +307,19 @@ data Sym (w :: Type -> Type -> Type) arr a b where
   -- | Embed a base arrow.
   SymLift :: arr a b -> Sym w arr a b
   -- | Sequential composition.
-  --
-  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
-  -- constructor so folding does not need a 'Discrete' base.
-  SymCompose :: (Ob arr b) => Sym w arr b c -> Sym w arr a b -> Sym w arr a c
+  SymCompose :: Sym w arr b c -> Sym w arr a b -> Sym w arr a c
   -- | Tensor product of morphisms (parallel composition on disjoint wires).
   SymPar ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr d
-    ) =>
     Sym w arr a b ->
     Sym w arr c d ->
     Sym w arr (w a c) (w b d)
   -- | Symmetric braiding.
-  SymSwap ::
-    ( Ob arr a,
-      Ob arr b
-    ) =>
-    Sym w arr (w a b) (w b a)
+  SymSwap :: Sym w arr (w a b) (w b a)
 
 -- | 'Sym' is a category.
 instance (Category arr) => Category (Sym w arr) where
-  type Ob (Sym w arr) a = Ob arr a
   id = SymLift id
   (.) = SymCompose
-
--- | A discrete base yields a discrete free monoidal category.
-instance (Category arr, Discrete arr) => Discrete (Sym w arr) where
-  withOb @a x = withOb @arr @a x
 
 -- | 'Sym' has a tensor structure over @w@.
 --
@@ -412,7 +344,7 @@ instance (Category arr, Channel t arr) => Channel t (Sym w arr) where
   assoc' = SymLift assoc'
   slide = SymLift slide
 
--- | 'Action' — free 'Sym' fold carries its own 'Ob' evidence.
+-- | 'Action' — free 'Sym' fold carries its own structure.
 --
 -- Sequential structure is folded with the target's category composition.
 class (Action w arr) => FreeSym w arr
@@ -426,32 +358,16 @@ instance Layer (Sym w) where
   unit = SymLift
   bind ::
     forall arr' arr a b.
-    (Law (Sym w) arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
-    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (Law (Sym w) arr') =>
     (arr :~> arr') ->
     Sym w arr a b ->
     arr' a b
-  bind _phi h (SymLift f) = h f
-  bind phi h (SymCompose (g :: Sym w arr b1 c) (f :: Sym w arr a b1)) =
-    withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
-  bind phi h (SymPar (f :: Sym w arr a1 b1) (g :: Sym w arr c d)) =
-    let dA1 = phi (ObDict :: ObDict arr a1)
-        dB1 = phi (ObDict :: ObDict arr b1)
-        dC = phi (ObDict :: ObDict arr c)
-        dD = phi (ObDict :: ObDict arr d)
-     in withObDict dA1 $
-          withObDict dB1 $
-            withObDict dC $
-              withObDict dD $
-                par (bind phi h f) (bind phi h g)
-  bind phi _ SymSwap =
-    case () of
-      () ->
-        let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
-            swap' =
-              withObDict (phi (ObDict :: ObDict arr a1)) $
-                withObDict (phi (ObDict :: ObDict arr b1)) swap
-         in swap'
+  bind h (SymLift f) = h f
+  bind h (SymCompose (g :: Sym w arr b1 c) (f :: Sym w arr a b1)) =
+    bind h g . bind h f
+  bind h (SymPar (f :: Sym w arr a1 b1) (g :: Sym w arr c d)) =
+    par (bind h f) (bind h g)
+  bind _h SymSwap = swap
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action w arr) => Strength t (Sym w arr) where

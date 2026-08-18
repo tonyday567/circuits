@@ -23,7 +23,7 @@
 -- 'Law' says what the /target/ category must satisfy to receive a 'bind'
 -- fold; 'Run' says what the /base/ category must satisfy for a same-category
 -- 'run'; and 'Bind' captures any extra source constraints needed when the
--- free syntax has structural rows that do not carry all 'Ob' evidence.
+-- free syntax has structural rows.
 --
 -- The hom-set isomorphism is stated once, generically:
 --
@@ -50,7 +50,7 @@ module Circuit.Layer
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, ObDict (..), withObDict)
+import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
@@ -73,7 +73,7 @@ type arr :~> arr' = forall x y. arr x y -> arr' x y
 -- * 'bind' folds the free syntax into any 'Law'-abiding target.
 class Layer (f :: Cat2 -> Cat2) where
   -- | What the target category must satisfy to receive a 'bind' fold.
-  -- 'run' only needs the base category's own object constraints.
+  -- 'run' only needs the base category's own structure.
   type Law f (arr' :: Cat2) :: Constraint
 
   -- | What the base category must satisfy to receive a 'run' fold back into
@@ -83,13 +83,7 @@ class Layer (f :: Cat2 -> Cat2) where
   type Run f arr = ()
 
   -- | Extra constraints the /source/ category must satisfy for a 'bind'
-  -- fold.  Defaults to no extra constraints; instances with structural
-  -- rows that do not carry all needed 'Ob' evidence may require @Discrete@.
-  --
-  -- For example, 'Sym.Par' reuses the base 'Tensor.par' method, which is
-  -- deliberately 'Ob'-free; because 'par = Par' has no object dictionaries
-  -- to stash in the constructor, the source category must be @Discrete@ so
-  -- the missing evidence can be manufactured on demand.
+  -- fold.  Defaults to no extra constraints.
   type Bind f (arr :: Cat2) :: Constraint
 
   type Bind f arr = ()
@@ -104,16 +98,15 @@ class Layer (f :: Cat2 -> Cat2) where
   -- with a direct implementation if the weaker constraints of 'Run' do
   -- not already imply 'Law' and 'Bind'.
   run ::
-    (Run f arr, Law f arr, Bind f arr, Ob arr a, Ob arr b) =>
+    (Run f arr, Law f arr, Bind f arr) =>
     f arr a b ->
     arr a b
-  run = bind id id
+  run = bind id
 
   -- | The universal fold out of the free construction into any
   -- 'Law'-abiding target category.
   bind ::
-    (Law f arr', Bind f arr, Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) =>
-    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (Law f arr', Bind f arr) =>
     (arr :~> arr') ->
     f arr a b ->
     arr' a b
@@ -141,34 +134,24 @@ data Free arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Free arr a b
   -- | Sequential composition.
-  --
-  -- The 'Ob' constraint on the intermediate object @b@ is carried in the
-  -- constructor so folding does not need a 'Discrete' base.
-  Compose :: (Ob arr b) => Free arr b c -> Free arr a b -> Free arr a c
+  Compose :: Free arr b c -> Free arr a b -> Free arr a c
 
 instance (Category arr) => Category (Free arr) where
-  type Ob (Free arr) a = Ob arr a
   id = Lift id
   (.) = Compose
 
--- | A discrete base yields a discrete free category.
-instance (Discrete arr) => Discrete (Free arr) where
-  withOb @a x = withOb @arr @a x
-
 -- | Layer instance for the free category.
 --
--- 'Compose' carries the intermediate 'Ob' evidence of the /source/
--- category, but folding into a target category @arr'@ still needs to
--- manufacture the corresponding 'Ob arr' b' evidence.  That is exactly
--- what 'Discrete arr'' provides, so 'Law' is 'Discrete'.
+-- Without object constraints, folding is just recursive application of
+-- the target category's composition.
 instance Layer Free where
-  type Law Free arr' = Discrete arr'
-  type Run Free arr = (Category arr, Discrete arr)
+  type Law Free arr' = Category arr'
+  type Run Free arr = Category arr
   type Bind Free arr = ()
   unit = Lift
-  bind :: forall arr' arr a b. (Law Free arr', Ob arr a, Ob arr b, Ob arr' a, Ob arr' b) => (forall s. ObDict arr s -> ObDict arr' s) -> (arr :~> arr') -> Free arr a b -> arr' a b
-  bind _phi h (Lift f) = h f
-  bind phi h (Compose @_ @b1 g f) = withObDict (phi (ObDict :: ObDict arr b1)) (bind phi h g . bind phi h f)
+  bind :: forall arr' arr a b. (Law Free arr') => (arr :~> arr') -> Free arr a b -> arr' a b
+  bind h (Lift f) = h f
+  bind h (Compose @_ @b1 g f) = bind h g . bind h f
 
 -- | Freeze a 'Free' category into its base arrow.
 --
@@ -176,7 +159,7 @@ instance Layer Free where
 --
 -- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
 -- 6
-freeze :: (Category arr, Ob arr a, Ob arr b) => Free arr a b -> arr a b
+freeze :: (Category arr) => Free arr a b -> arr a b
 freeze (Lift f) = f
 freeze (Compose g f) = freeze g . freeze f
 

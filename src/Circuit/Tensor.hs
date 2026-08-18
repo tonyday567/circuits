@@ -81,8 +81,9 @@ module Circuit.Tensor
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, (.>))
-import Circuit.Channel (Strength (..), Traced (..), assocD, assocD', braidD, strengthD)
+import Circuit.Category (Category (..), (.>))
+import Circuit.Channel (Channel, Strength (..), Traced (..))
+import Circuit.Channel qualified as Ch
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Control.Arrow (Kleisli (..))
@@ -287,19 +288,19 @@ class (Category arr) => Tensor t arr where
   --
   -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
-  par :: (Ob arr a, Ob arr b, Ob arr c, Ob arr d) => arr a b -> arr c d -> arr (t a c) (t b d)
+  par :: arr a b -> arr c d -> arr (t a c) (t b d)
 
   -- | Left unitor: @I ⊗ a -> a@.
-  unitl :: (Ob arr a) => arr (t (Unit t) a) a
+  unitl :: arr (t (Unit t) a) a
 
   -- | Inverse left unitor: @a -> I ⊗ a@.
-  unitl' :: (Ob arr a) => arr a (t (Unit t) a)
+  unitl' :: arr a (t (Unit t) a)
 
   -- | Right unitor: @a ⊗ I -> a@.
-  unitr :: (Ob arr a) => arr (t a (Unit t)) a
+  unitr :: arr (t a (Unit t)) a
 
   -- | Inverse right unitor: @a -> a ⊗ I@.
-  unitr' :: (Ob arr a) => arr a (t a (Unit t))
+  unitr' :: arr a (t a (Unit t))
 
 -- | The action of a tensor @t@ on a category @arr@, extended with a
 -- symmetric braiding.
@@ -312,7 +313,7 @@ class (Tensor t arr) => Action t arr where
   --
   -- >>> swap (3, 4) :: (Int, Int)
   -- (4,3)
-  swap :: (Ob arr a, Ob arr b) => arr (t a b) (t b a)
+  swap :: arr (t a b) (t b a)
 
 type instance Unit (,) = ()
 
@@ -486,16 +487,6 @@ instance (Monad m) => Action These (Kleisli m) where
 -- tensor. It is correct and black-hole-free, but does not fuse feedback
 -- loops. For the fused superposition of two 'Knot's, use 'superpose'.
 instance (Tensor t arr, Traced t' arr) => Tensor t (Loop t' arr) where
-  par ::
-    forall a b c d.
-    ( Ob (Loop t' arr) a,
-      Ob (Loop t' arr) b,
-      Ob (Loop t' arr) c,
-      Ob (Loop t' arr) d
-    ) =>
-    Loop t' arr a b ->
-    Loop t' arr c d ->
-    Loop t' arr (t a c) (t b d)
   par f g = Lift (par (run f) (run g))
   unitl = Lift unitl
   unitl' = Lift unitl'
@@ -530,49 +521,38 @@ instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.
-  (Tensor t arr, Strength t arr, Discrete arr) =>
+  (Tensor t arr, Strength t arr, Channel t arr) =>
   Loop t arr a b ->
   Loop t arr c d ->
   Loop t arr (t a c) (t b d)
 superpose x y =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @d $
-          case (x, y) of
-            (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
-              withOb @arr @(t s s1) $
-                withOb @arr @(t (t s s1) (t a c)) $
-                  withOb @arr @(t (t s s1) (t b d)) $
-                    Knot $
-                      pre .>> par f g .>> post
-            (Knot @_ @s @_ @_ @_ f, Lift g) ->
-              withOb @arr @(t s (t a c)) $
-                withOb @arr @(t s (t b d)) $
-                  Knot $
-                    assoc'_ .>> par f g .>> assoc_
-            (Lift f, Knot @_ @s @_ @_ @_ g) ->
-              withOb @arr @(t s (t a c)) $
-                withOb @arr @(t s (t b d)) $
-                  Knot $
-                    braid_ .>> par f g .>> braid_
-            (Lift f, Lift g) -> Lift (par f g)
+  case (x, y) of
+    (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
+      Knot $
+        pre .>> par f g .>> post
+    (Knot @_ @s @_ @_ @_ f, Lift g) ->
+      Knot $
+        assoc' .>> par f g .>> assoc
+    (Lift f, Knot @_ @s @_ @_ @_ g) ->
+      Knot $
+        braid .>> par f g .>> braid
+    (Lift f, Lift g) -> Lift (par f g)
   where
     (.>>) :: forall x y z. arr x y -> arr y z -> arr x z
-    (.>>) f' g' = withOb @arr @x $ withOb @arr @y $ withOb @arr @z $ g' . f'
+    (.>>) = (.>)
 
-    assoc_ :: forall x y z. arr (t (t x y) z) (t x (t y z))
-    assoc_ = assocD
+    assoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
+    assoc = Ch.assoc
 
-    assoc'_ :: forall x y z. arr (t x (t y z)) (t (t x y) z)
-    assoc'_ = assocD'
+    assoc' :: forall x y z. arr (t x (t y z)) (t (t x y) z)
+    assoc' = Ch.assoc'
 
-    braid_ :: forall x y z. arr (t x (t y z)) (t y (t x z))
-    braid_ = braidD
+    braid :: forall x y z. arr (t x (t y z)) (t y (t x z))
+    braid = Ch.slide
 
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
-    pre = assoc_ .>> strengthD braid_ .>> assoc'_
-    post = assoc_ .>> strengthD braid_ .>> assoc'_
+    pre = assoc .>> strength braid .>> assoc'
+    post = assoc .>> strength braid .>> assoc'
 
 -- ===========================================================================
 -- Shared-medium fusion (the ⅋ connective)
@@ -633,7 +613,7 @@ class (Tensor t arr) => Shared t arr where
 -- this helper makes the shared state explicit at the call site.
 sharedKnotBy ::
   forall t arr a b c d s.
-  (Shared t arr, Ob arr s, Ob arr (t s (t a c)), Ob arr (t s (These b d))) =>
+  (Shared t arr) =>
   Schedule s ->
   arr (t s a) (t s b) ->
   arr (t s c) (t s d) ->
@@ -702,16 +682,16 @@ class (Category arr) => Par p arr where
   parP :: arr a b -> arr c d -> arr (p a c) (p b d)
 
   -- | Left unitor: @⊥ ⅋ a -> a@.
-  unitlP :: (Ob arr a) => arr (p (Bot p) a) a
+  unitlP :: arr (p (Bot p) a) a
 
   -- | Inverse left unitor: @a -> ⊥ ⅋ a@.
-  unitlP' :: (Ob arr a) => arr a (p (Bot p) a)
+  unitlP' :: arr a (p (Bot p) a)
 
   -- | Right unitor: @a ⅋ ⊥ -> a@.
-  unitrP :: (Ob arr a) => arr (p a (Bot p)) a
+  unitrP :: arr (p a (Bot p)) a
 
   -- | Inverse right unitor: @a -> a ⅋ ⊥@.
-  unitrP' :: (Ob arr a) => arr a (p a (Bot p))
+  unitrP' :: arr a (p a (Bot p))
 
 type instance Bot Either = Void
 
@@ -801,38 +781,20 @@ class (Category arr) => Lolli (t :: Type -> Type -> Type) (arr :: Type -> Type -
 
   -- | Identity at the implication object.  The argument is a type proxy.
   lolli ::
-    (Ob arr a, Ob arr b, Ob arr (LolliT t arr a b)) =>
     arr a b ->
     arr (LolliT t arr a b) (LolliT t arr a b)
 
   -- | Evaluation counit @A ⊗ (A ⊸ B) -> B@.
   eval ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr (LolliT t arr a b),
-      Ob arr (t a (LolliT t arr a b))
-    ) =>
     arr (t a (LolliT t arr a b)) b
 
   -- | Curry the left factor: @(A ⊗ B -> C) -> (A -> B ⊸ C)@.
   curry ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (LolliT t arr b c)
-    ) =>
     arr (t a b) c ->
     arr a (LolliT t arr b c)
 
   -- | Uncurry the left factor: @(A -> B ⊸ C) -> (A ⊗ B -> C)@.
   uncurry ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (LolliT t arr b c)
-    ) =>
     arr a (LolliT t arr b c) ->
     arr (t a b) c
 
@@ -875,26 +837,19 @@ class (Tensor t arr) => Exponential t arr where
 -- | Contraction half of @!A@: copy @!A → !A ⊗ !A@.
 class (Exponential t arr) => BangCopy t arr where
   copyE ::
-    ( Ob arr a,
-      Ob arr (Bang t arr a),
-      Ob arr (t (Bang t arr a) (Bang t arr a))
-    ) =>
     arr (Bang t arr a) (t (Bang t arr a) (Bang t arr a))
 
 -- | Weakening half of @!A@: dereliction @!A → A@ and discard @!A → I@.
 class (Exponential t arr) => BangWeaken t arr where
   discardE ::
-    (Ob arr a, Ob arr (Bang t arr a), Ob arr (Unit t)) =>
     arr (Bang t arr a) (Unit t)
 
   derelict ::
-    (Ob arr a, Ob arr (Bang t arr a)) =>
     arr (Bang t arr a) a
 
 -- | Unit rule for @?A@: introduction @A → ?A@.
 class (Exponential t arr) => WhyNotIntro t arr where
   introduce ::
-    (Ob arr a, Ob arr (WhyNot t arr a)) =>
     arr a (WhyNot t arr a)
 
 -- | The ⅋-monoid structure on @?A@.
@@ -904,14 +859,9 @@ class (Exponential t arr) => WhyNotIntro t arr where
 -- multiplication @?A ⅋ ?A → ?A@ and 'zeroE' is the unit @⊥ → ?A@.
 class (Exponential t arr, Par p arr) => WhyNotMonoid t p arr where
   mergeE ::
-    ( Ob arr a,
-      Ob arr (WhyNot t arr a),
-      Ob arr (p (WhyNot t arr a) (WhyNot t arr a))
-    ) =>
     arr (p (WhyNot t arr a) (WhyNot t arr a)) (WhyNot t arr a)
 
   zeroE ::
-    (Ob arr a, Ob arr (WhyNot t arr a), Ob arr (Bot p)) =>
     arr (Bot p) (WhyNot t arr a)
 
 -- | Linear @!A@: both contraction and weakening.

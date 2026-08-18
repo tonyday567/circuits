@@ -52,13 +52,13 @@
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a `Loop` (currently @(,@), `Either`, or `These` for scheduling).
+--   inside a `Loop` (currently @(,), `Either`, or `These` for scheduling).
 --
--- * __Feedback value__: The component that travels around the loop (first
---   parameter of the tensor in a `Loop`).
+-- * __Feedback value__: The component that travels around the loop (the first
+--   parameter of the tensor inside a `Loop`).
 --
--- * __Payload__: The value being transformed and emitted (second parameter
---   of the tensor).
+-- * __Payload__: The value being transformed and emitted (the second
+--   parameter of the tensor inside a `Loop`).
 --
 -- * __Feedback channel__: The path the feedback value takes when routed back
 --   into the next step.
@@ -142,6 +142,9 @@ module Circuit
     dimapEnds,
     lmapEnds,
     rmapEnds,
+    pairEnds,
+    raceEnds,
+    raceMediator,
     HasDual (..),
 
     -- * Copycat / multiplicative excluded middle
@@ -160,14 +163,6 @@ module Circuit
     Cat2,
     (:~>),
     lower,
-
-    -- * Discrete discharge kit
-    compD,
-    assocD,
-    assocD',
-    braidD,
-    strengthD,
-    traceD,
 
     -- * Operators
     (.>),
@@ -276,16 +271,12 @@ module Circuit
 where
 
 import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
-import Circuit.Category (Ob, (.>), (<|), (|>))
+import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
   ( Strength,
     Traced,
-    assocD,
-    assocD',
-    braidD,
-    compD,
-    strengthD,
-    traceD,
+    trace,
+    strength,
   )
 import Circuit.Channel qualified as Channel
 import Circuit.ChannelPoly
@@ -440,17 +431,3 @@ import Circuit.Thread
     threadToLoop,
   )
 import Prelude hiding (curry, uncurry)
-
--- | Close a feedback loop. See "Circuit.Channel".
-trace ::
-  (Traced t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
-  arr (t a b) (t a c) ->
-  arr b c
-trace = Channel.trace
-
--- | Open a feedback loop. See "Circuit.Channel".
-strength ::
-  (Strength t arr, Ob arr a, Ob arr b, Ob arr c, Ob arr (t a b), Ob arr (t a c)) =>
-  arr b c ->
-  arr (t a b) (t a c)
-strength = Channel.strength

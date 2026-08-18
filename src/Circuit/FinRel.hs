@@ -32,6 +32,18 @@ module Circuit.FinRel
 
     -- * Smart constructors
     finId,
+    compFinRel,
+    parFinRel,
+    unitlFinRel,
+    unitl'FinRel,
+    unitrFinRel,
+    unitr'FinRel,
+    swapFinRel,
+    assocFinRel,
+    assoc'FinRel,
+    slideFinRel,
+    strengthFinRel,
+    traceFinRel,
     finCopy,
     finDiscard,
     finPlus,
@@ -41,10 +53,8 @@ module Circuit.FinRel
   )
 where
 
-import Circuit.Category (Category (..), Ob, ObDict (..), (.>))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Dagger (Copy (..), Discard (..), Merge (..), Zero (..))
-import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
 import Data.List (findIndex, foldl', transpose)
 import Data.Maybe (listToMaybe, mapMaybe)
@@ -306,16 +316,12 @@ finScalar c =
    in FinRel n n (rref rows)
 
 -- ===========================================================================
--- Category structure
+-- Category structure (named constrained combinators)
+--
+-- The unconstrained class tower no longer carries object evidence, so 'FinRel'
+-- provides its structure as named combinators with explicit 'KnownDim'
+-- constraints rather than as 'Category'/'Tensor'/'Traced' instances.
 -- ===========================================================================
-
-instance (Field k) => Category (FinRel k) where
-  type Ob (FinRel k) a = KnownDim a
-
-  id :: forall a. (KnownDim a) => FinRel k a a
-  id = finId
-
-  (.) = compFinRel
 
 compFinRel ::
   forall k a b c.
@@ -373,19 +379,19 @@ unitr'FinRel ::
   FinRel k a (a, ())
 unitr'FinRel = mkWiring (dimVal (Proxy @a)) (dimVal (Proxy @a)) id
 
-instance (Field k) => Tensor (,) (FinRel k) where
-  par (FinRel n p rowsA) (FinRel m q rowsB) =
-    let rowA (aIn, aOut) = aIn ++ zeros m ++ aOut ++ zeros q
-        rowB (bIn, bOut) = zeros n ++ bIn ++ zeros p ++ bOut
-        rows =
-          map (rowA . splitAt n) rowsA
-            ++ map (rowB . splitAt m) rowsB
-     in FinRel (n + m) (p + q) (rref rows)
-
-  unitl = unitlFinRel
-  unitl' = unitl'FinRel
-  unitr = unitrFinRel
-  unitr' = unitr'FinRel
+parFinRel ::
+  forall k a b c d.
+  (Field k) =>
+  FinRel k a b ->
+  FinRel k c d ->
+  FinRel k (a, c) (b, d)
+parFinRel (FinRel n p rowsA) (FinRel m q rowsB) =
+  let rowA (aIn, aOut) = aIn ++ zeros m ++ aOut ++ zeros q
+      rowB (bIn, bOut) = zeros n ++ bIn ++ zeros p ++ bOut
+      rows =
+        map (rowA . splitAt n) rowsA
+          ++ map (rowB . splitAt m) rowsB
+   in FinRel (n + m) (p + q) (rref rows)
 
 swapFinRel ::
   forall k a b.
@@ -433,16 +439,12 @@ slideFinRel =
               then i - n
               else i
 
-instance (Field k) => Action (,) (FinRel k) where
-  swap = swapFinRel
-
-instance (Field k) => Channel (,) (FinRel k) where
-  assoc = assocFinRel
-  assoc' = assoc'FinRel
-  slide = slideFinRel
-
-instance (Field k) => Strength (,) (FinRel k) where
-  strength = par id
+strengthFinRel ::
+  forall k a b c.
+  (Field k, KnownDim a, KnownDim b, KnownDim c) =>
+  FinRel k b c ->
+  FinRel k (a, b) (a, c)
+strengthFinRel = parFinRel finId
 
 traceFinRel ::
   forall k a b c.
@@ -473,9 +475,6 @@ traceFinRel (FinRel inDim _ rows) =
         | v <- basis
         ]
    in FinRel bDim cDim (rref bcRows)
-
-instance (Field k) => Traced (,) (FinRel k) where
-  trace = traceFinRel
 
 -- ===========================================================================
 -- Bimonoid generators

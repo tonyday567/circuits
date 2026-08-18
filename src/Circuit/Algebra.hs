@@ -97,7 +97,7 @@ module Circuit.Algebra
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob)
+import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
@@ -189,10 +189,10 @@ eval = evalInto id
 
 -- | Sequential composition.
 data SigCompose arr rec a b where
-  SigCompose :: (Ob arr b) => rec b c -> rec a b -> SigCompose arr rec a c
+  SigCompose :: rec b c -> rec a b -> SigCompose arr rec a c
 
 instance Algebra SigCompose arr arr' where
-  type Ctx SigCompose arr arr' = Discrete arr'
+  type Ctx SigCompose arr arr' = Category arr'
   alg ::
     forall (rec :: Type -> Type -> Type) (a :: Type) (c :: Type).
     (Ctx SigCompose arr arr') =>
@@ -200,21 +200,16 @@ instance Algebra SigCompose arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigCompose arr rec a c ->
     arr' a c
-  alg _ rec (SigCompose @_ @b1 @_ @_ @_ g f) =
-    withOb @arr' @a $
-      withOb @arr' @b1 $
-        withOb @arr' @c $
-          (rec g . rec f)
+  alg _ rec (SigCompose @_ @b1 @_ @_ @_ g f) = rec g . rec f
 
 -- | Feedback loop / trace over tensor @t@.
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
   SigKnot ::
-    (Ob arr s, Ob arr (t s a), Ob arr (t s b)) =>
     rec (t s a) (t s b) ->
     SigKnot t arr rec a b
 
 instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
-  type Ctx (SigKnot t) arr arr' = (Traced t arr', Discrete arr')
+  type Ctx (SigKnot t) arr arr' = Traced t arr'
   alg ::
     forall (rec :: Type -> Type -> Type) (b :: Type) (c :: Type).
     (Ctx (SigKnot t) arr arr') =>
@@ -222,13 +217,7 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigKnot t arr rec b c ->
     arr' b c
-  alg _ rec (SigKnot @_ @a1 @_ @_ @_ @_ f) =
-    withOb @arr' @a1 $
-      withOb @arr' @b $
-        withOb @arr' @c $
-          withOb @arr' @(t a1 b) $
-            withOb @arr' @(t a1 c) $
-              trace (rec f)
+  alg _ rec (SigKnot @_ @a1 @_ @_ @_ @_ f) = trace (rec f)
 
 -- | Parallel composition (the tensor product ⊗).
 --
@@ -237,26 +226,13 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
 -- fusion.  For the shared-state connective ⅋ see 'SigShared'.
 data SigPar (w :: Type -> Type -> Type) arr rec a b where
   SigPar ::
-    (Ob arr a, Ob arr b, Ob arr c, Ob arr d) =>
     rec a b ->
     rec c d ->
     SigPar w arr rec (w a c) (w b d)
 
-instance (Tensor w arr', Discrete arr') => Algebra (SigPar w) arr arr' where
-  type Ctx (SigPar w) arr arr' = (Tensor w arr', Discrete arr')
-  alg _ rec (SigPar f g) = go (rec f) (rec g)
-    where
-      go ::
-        forall a1 b1 c d.
-        arr' a1 b1 ->
-        arr' c d ->
-        arr' (w a1 c) (w b1 d)
-      go f' g' =
-        withOb @arr' @a1 $
-          withOb @arr' @b1 $
-            withOb @arr' @c $
-              withOb @arr' @d $
-                par f' g'
+instance (Tensor w arr') => Algebra (SigPar w) arr arr' where
+  type Ctx (SigPar w) arr arr' = Tensor w arr'
+  alg _ rec (SigPar f g) = par (rec f) (rec g)
 
 -- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
 --
@@ -265,7 +241,6 @@ instance (Tensor w arr', Discrete arr') => Algebra (SigPar w) arr arr' where
 -- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
 data SigShared (t :: Type -> Type -> Type) arr rec i o where
   SigShared ::
-    (Ob arr s, Ob arr (t s a), Ob arr (t s b), Ob arr (t s c), Ob arr (t s d)) =>
     Schedule s ->
     rec (t s a) (t s b) ->
     rec (t s c) (t s d) ->
@@ -308,12 +283,10 @@ instance (Mediable arr') => Algebra SigMediate arr arr' where
 
 -- | Symmetric braiding.
 data SigSwap (w :: Type -> Type -> Type) arr rec a b where
-  SigSwap ::
-    (Ob arr a, Ob arr b) =>
-    SigSwap w arr rec (w a b) (w b a)
+  SigSwap :: SigSwap w arr rec (w a b) (w b a)
 
 instance (Action w arr') => Algebra (SigSwap w) arr arr' where
-  type Ctx (SigSwap w) arr arr' = (Action w arr', Discrete arr')
+  type Ctx (SigSwap w) arr arr' = Action w arr'
   alg ::
     forall rec a b.
     (Ctx (SigSwap w) arr arr') =>
@@ -321,10 +294,7 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigSwap w arr rec a b ->
     arr' a b
-  alg _ _ SigSwap = aux
-    where
-      aux :: forall a1 b1. (a ~ w a1 b1) => arr' a b
-      aux = withOb @arr' @a1 $ withOb @arr' @b1 $ swap
+  alg _ _ SigSwap = swap
 
 -- | Comonoid operations: copy, discard.
 --
@@ -333,16 +303,16 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
 -- the algebra context.
 data SigCopyDiscard (w :: Type -> Type -> Type) arr rec a b where
   SigCopy ::
-    (Dg.CopyT w arr a, Ob arr a) =>
+    (Dg.CopyT w arr a) =>
     SigCopyDiscard w arr rec a (w a a)
   SigDiscard ::
-    (Dg.DiscardT w arr a, Ob arr a, Ob arr (Unit w)) =>
+    (Dg.DiscardT w arr a) =>
     SigCopyDiscard w arr rec a (Unit w)
 
 -- | 'alg' for copy/discard generators sends each generator to the image
 -- under @emb@ of the source dictionary.
 instance Algebra (SigCopyDiscard w) arr arr' where
-  type Ctx (SigCopyDiscard w) arr arr' = Discrete arr
+  type Ctx (SigCopyDiscard w) arr arr' = ()
   alg ::
     forall rec i o.
     (Ctx (SigCopyDiscard w) arr arr') =>
@@ -350,14 +320,8 @@ instance Algebra (SigCopyDiscard w) arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigCopyDiscard w arr rec i o ->
     arr' i o
-  alg emb _ SigCopy =
-    withOb @arr @i $
-      withOb @arr @(w i i) $
-        emb (Dg.copyT @w)
-  alg emb _ SigDiscard =
-    withOb @arr @i $
-      withOb @arr @(Unit w) $
-        emb (Dg.discardT @w)
+  alg emb _ SigCopy = emb (Dg.copyT @w)
+  alg emb _ SigDiscard = emb (Dg.discardT @w)
 
 -- | Monoid operations: plus, zero.
 --
@@ -366,16 +330,16 @@ instance Algebra (SigCopyDiscard w) arr arr' where
 -- the algebra context.
 data SigMergeZero (w :: Type -> Type -> Type) arr rec a b where
   SigPlus ::
-    (Dg.MergeT w arr a, Ob arr a) =>
+    (Dg.MergeT w arr a) =>
     SigMergeZero w arr rec (w a a) a
   SigZero ::
-    (Dg.ZeroT w arr a, Ob arr a, Ob arr (Unit w)) =>
+    (Dg.ZeroT w arr a) =>
     SigMergeZero w arr rec (Unit w) a
 
 -- | 'alg' for plus/zero generators sends each generator to the image under
 -- @emb@ of the source dictionary.
 instance Algebra (SigMergeZero w) arr arr' where
-  type Ctx (SigMergeZero w) arr arr' = Discrete arr
+  type Ctx (SigMergeZero w) arr arr' = ()
   alg ::
     forall rec i o.
     (Ctx (SigMergeZero w) arr arr') =>
@@ -383,14 +347,8 @@ instance Algebra (SigMergeZero w) arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigMergeZero w arr rec i o ->
     arr' i o
-  alg emb _ SigPlus =
-    withOb @arr @(w o o) $
-      withOb @arr @o $
-        emb (Dg.plusT @w)
-  alg emb _ SigZero =
-    withOb @arr @(Unit w) $
-      withOb @arr @o $
-        emb (Dg.zeroT @w)
+  alg emb _ SigPlus = emb (Dg.plusT @w)
+  alg emb _ SigZero = emb (Dg.zeroT @w)
 
 -- ---------------------------------------------------------------------------
 -- Common syntax combinations
@@ -421,12 +379,10 @@ type AlgNet w t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar w :+: SigSwap 
 -- Instances for signature-based categories
 
 instance (Category arr) => Category (AlgCat arr) where
-  type Ob (AlgCat arr) a = Ob arr a
   id = Lift id
   f . g = Op (SigCompose f g)
 
 instance (Category arr) => Category (AlgLoop t arr) where
-  type Ob (AlgLoop t arr) a = Ob arr a
   id = Lift id
   f . g = Op (L (SigCompose f g))
 
@@ -435,20 +391,20 @@ instance (Category arr, Channel t arr) => Channel t (AlgLoop t arr) where
   assoc' = Lift assoc'
   slide = Lift slide
 
-instance (Category arr, Traced t arr, Discrete arr) => Strength t (AlgLoop t arr) where
+instance (Category arr, Traced t arr) => Strength t (AlgLoop t arr) where
   strength f = Lift (strength (eval f))
 
-instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgLoop t arr) where
+instance (Category arr, Traced t arr) => Traced t (AlgLoop t arr) where
   trace body = Op (R (SigKnot body))
 
-instance (Category arr, Traced t arr, Tensor (,) arr, Discrete arr) => Tensor (,) (AlgLoop t arr) where
+instance (Category arr, Traced t arr, Tensor (,) arr) => Tensor (,) (AlgLoop t arr) where
   par f g = Lift (par (eval f) (eval g))
   unitl = Lift unitl
   unitl' = Lift unitl'
   unitr = Lift unitr
   unitr' = Lift unitr'
 
-instance (Category arr, Traced t arr, Action (,) arr, Discrete arr) => Action (,) (AlgLoop t arr) where
+instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgLoop t arr) where
   swap = Lift swap
 
 instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
@@ -456,21 +412,11 @@ instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
   assoc' = Lift assoc'
   slide = Lift slide
 
-instance (Category arr, Strength t arr, Discrete arr) => Strength t (AlgCat arr) where
+instance (Category arr, Strength t arr) => Strength t (AlgCat arr) where
   strength f = Lift (strength (eval f))
 
-instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) where
+instance (Category arr, Traced t arr) => Traced t (AlgCat arr) where
   trace body = Lift (trace (eval body))
-
--- | A discrete base yields discrete syntax.
---
--- These instances are needed so that 'evalInto Lift' can fold richer syntax
--- into poorer syntax (e.g. 'AlgLoop' into 'AlgCat', 'AlgNet' into 'AlgLoop').
-instance (Category arr, Discrete arr) => Discrete (AlgCat arr) where
-  withOb @a x = withOb @arr @a x
-
-instance (Category arr, Discrete arr) => Discrete (AlgLoop t arr) where
-  withOb @a x = withOb @arr @a x
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> algebra isomorphisms

@@ -70,7 +70,7 @@ module Circuit.Loop
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, ObDict (..), withObDict, (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
 import Control.Arrow (Kleisli (..))
@@ -95,15 +95,7 @@ data Loop (t :: Type -> Type -> Type) arr a b where
   -- | Tie a feedback loop. The tensor @t@ carries the hidden channel type @s@.
   --
   -- The argument is the base arrow itself, /not/ a 'Lift'-wrapped stage.
-  -- The constructor carries the 'Ob' evidence for the feedback channel in
-  -- the /source/ category.  'Layer.bind' transports this evidence to the
-  -- target using a dictionary transformer and the target's 'Channel'
-  -- closure, so the target need not be 'Discrete'.
   Knot ::
-    ( Ob arr s,
-      Ob arr (t s a),
-      Ob arr (t s b)
-    ) =>
     arr (t s a) (t s b) ->
     Loop t arr a b
 
@@ -123,37 +115,24 @@ data Loop (t :: Type -> Type -> Type) arr a b where
 -- [0,0,0]
 
 instance (Strength t arr) => Category (Loop t arr) where
-  type Ob (Loop t arr) a = Ob arr a
-
-  id :: forall a. (Ob arr a) => Loop t arr a a
+  id :: forall a. Loop t arr a a
   id = Lift id
-  (.) :: forall a b c. (Ob arr a, Ob arr b, Ob arr c) => Loop t arr b c -> Loop t arr a b -> Loop t arr a c
+  (.) :: forall a b c. Loop t arr b c -> Loop t arr a b -> Loop t arr a c
   Lift f . Lift g = Lift (f . g)
   Knot f . Lift g = Knot (f . strength g)
   Lift f . Knot g = Knot (strength f . g)
   Knot f . Knot g = Knot (assoc .> strength g .> slide .> strength f .> slide .> assoc')
 
--- | A discrete base yields a discrete free traced category.
-instance (Strength t arr, Discrete arr) => Discrete (Loop t arr) where
-  withOb @a x = withOb @arr @a x
-
-instance (Profunctor arr, Bifunctor t, Discrete arr, Channel t arr) => Profunctor (Loop t arr) where
+instance (Profunctor arr, Bifunctor t, Channel t arr) => Profunctor (Loop t arr) where
   dimap :: forall a b c d. (a -> b) -> (c -> d) -> Loop t arr b c -> Loop t arr a d
   dimap f g (Lift h) = Lift (dimap f g h)
-  dimap f g (Knot @_ @s @_ @_ @_ h) =
-    withObDict (obDict :: ObDict arr a) $
-      withObDict (obDict :: ObDict arr d) $
-        Knot (dimap (second f) (second g) h)
+  dimap f g (Knot @_ @s @_ @_ @_ h) = Knot (dimap (second f) (second g) h)
   lmap :: forall a b c. (a -> b) -> Loop t arr b c -> Loop t arr a c
   lmap f (Lift h) = Lift (lmap f h)
-  lmap f (Knot @_ @s @_ @_ @_ h) =
-    withObDict (obDict :: ObDict arr a) $
-      Knot (lmap (second f) h)
+  lmap f (Knot @_ @s @_ @_ @_ h) = Knot (lmap (second f) h)
   rmap :: forall a b c. (b -> c) -> Loop t arr a b -> Loop t arr a c
   rmap g (Lift h) = Lift (rmap g h)
-  rmap g (Knot @_ @s @_ @_ @_ h) =
-    withObDict (obDict :: ObDict arr c) $
-      Knot (rmap (second g) h)
+  rmap g (Knot @_ @s @_ @_ @_ h) = Knot (rmap (second g) h)
 
 instance (Bifunctor t) => Functor (Loop t (->) a) where
   fmap f (Lift g) = Lift (f . g)
@@ -178,7 +157,7 @@ instance (Traced t arr) => Traced t (Loop t arr) where
   trace (Knot f) = Knot (assoc .> f .> assoc')
 
 -- | 'Traced' plus 'Channel' — required to fold free 'Loop' over a base
--- category whose object constraint is closed under the tensor.
+-- category.
 class (Traced t arr, Channel t arr) => FreeLoop t arr
 
 instance (Traced t arr, Channel t arr) => FreeLoop t arr
@@ -191,12 +170,9 @@ instance Layer (Loop t) where
   unit = Lift
   bind ::
     forall arr arr' a b.
-    (Law (Loop t) arr', Ob arr' a, Ob arr' b) =>
-    (forall s. ObDict arr s -> ObDict arr' s) ->
+    (Law (Loop t) arr') =>
     (arr :~> arr') ->
     Loop t arr a b ->
     arr' a b
-  bind _phi h (Lift f) = h f
-  bind phi h (Knot @_ @s @_ @_ @_ f) =
-    withObDict (phi (ObDict :: ObDict arr s)) $
-      trace (h f)
+  bind h (Lift f) = h f
+  bind h (Knot @_ @s @_ @_ @_ f) = trace (h f)

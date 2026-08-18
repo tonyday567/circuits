@@ -152,6 +152,21 @@ finRelNeither = FinRel 1 1 [[False, True]]
 finRelEmpty :: FinRel F N1 N1
 finRelEmpty = FinRel 1 1 []
 
+-- FinRel-specific Markov oracles: 'FinRel' no longer has unconstrained
+-- 'Category'/'Tensor' instances, so we use the named constrained combinators.
+finRelCopyNatural :: FinRel F N1 N1 -> Bool
+finRelCopyNatural f = copy1 `compFinRel` f == parFinRel f f `compFinRel` copy1
+  where
+    copy1 = copy :: FinRel F N1 (N1, N1)
+
+finRelDiscardNatural :: FinRel F N1 N1 -> Bool
+finRelDiscardNatural f = discard1 `compFinRel` f == discard1
+  where
+    discard1 = discard :: FinRel F N1 ()
+
+finRelDeterministic :: FinRel F N1 N1 -> Bool
+finRelDeterministic f = finRelCopyNatural f && finRelDiscardNatural f
+
 -- ---------------------------------------------------------------------------
 -- Prob examples
 -- ---------------------------------------------------------------------------
@@ -177,15 +192,15 @@ main = do
     sequence
       [ -- Markov-category oracles (Ex9): copy/discard naturality is morphism-level
         check "FinRel finRelId is deterministic" $
-          deterministic (==) (==) finRelId,
+          finRelDeterministic finRelId,
         check "FinRel finRelZeroMap is deterministic" $
-          deterministic (==) (==) finRelZeroMap,
+          finRelDeterministic finRelZeroMap,
         check "FinRel finRelTotal is discard-natural but not copy-natural" $
-          discardNatural (==) finRelTotal && not (copyNatural (==) finRelTotal),
+          finRelDiscardNatural finRelTotal && not (finRelCopyNatural finRelTotal),
         check "FinRel finRelNeither is neither copy- nor discard-natural" $
-          not (copyNatural (==) finRelNeither) && not (discardNatural (==) finRelNeither),
+          not (finRelCopyNatural finRelNeither) && not (finRelDiscardNatural finRelNeither),
         check "FinRel finRelEmpty is copy-natural but not discard-natural (relevant corner)" $
-          copyNatural (==) finRelEmpty && not (discardNatural (==) finRelEmpty),
+          finRelCopyNatural finRelEmpty && not (finRelDiscardNatural finRelEmpty),
         -- Copy/discards naturality via finite separators
         check "Prob copy natural for embed (deterministic fragment, FG nesting)" $
           copyNaturalP probCopySep parFG (embed not :: Prob (->) Bool Bool Bool),

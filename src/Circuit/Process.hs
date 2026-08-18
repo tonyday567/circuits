@@ -58,7 +58,7 @@ module Circuit.Process
 where
 
 import Circuit.Boundary (Boundary (..))
-import Circuit.Category (Category (..), Discrete (..), Ob)
+import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Dagger qualified as Dagger
@@ -175,8 +175,6 @@ instance Applicative (Process a) where
 -- ---------------------------------------------------------------------------
 
 instance Category Process where
-  type Ob Process a = ()
-
   id :: Process a a
   id = P id const id
   {-# INLINE id #-}
@@ -201,10 +199,6 @@ instance Category Process where
 instance Cat.Category Process where
   id = id
   (.) = (.)
-
--- | @Process@ has trivial object constraints, so it is discrete.
-instance Discrete Process where
-  withOb x = x
 
 -- ---------------------------------------------------------------------------
 -- Profunctor

@@ -35,9 +35,9 @@
 --
 -- A stateful function @(s, a) -> (s, b)@ is isomorphic to a Kleisli arrow
 -- @a -> State s b@. 'stateKleisli' records that isomorphism; it is the bridge
--- between 'Circuit.Thread.SArr' (the cartesian stateful arrow) and the
--- state monad. The same isomorphism justifies 'Circuit.Thread.Thread' for
--- general tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
+-- between 'Circuit.Thread.SArr' (the cartesian stateful arrow) and the state
+-- monad. The same isomorphism justifies 'Circuit.Thread.Thread' for general
+-- tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
 -- tensor-paired carrier @t s -@.
 --
 -- === doctests
@@ -101,7 +101,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), Ob, (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Loop qualified as Loop
@@ -269,7 +269,6 @@ runHyperH h = fixRun @arr $ \a -> runArr (invoke h) (baseH a)
 -- ---------------------------------------------------------------------------
 
 instance (HyperBase arr) => Category (HyperF arr) where
-  type Ob (HyperF arr) a = Ob arr a
   id = liftH id
   f . g = HyperF $ mkArr $ \k -> runArr (invoke f) (g . k)
 
@@ -384,7 +383,7 @@ encodeEither f = h
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
---       Left n  | n < 3 -> Left (n + 1)
+--       Left n  | n < 3 -> Left (n - 1)
 --       Left n          -> Right n
 -- :}
 --
@@ -498,7 +497,7 @@ runHyperArr = runHyperH
 -- >>> observe (encodeFree (Lift (+1))) 5
 -- 6
 encodeFree ::
-  (HyperBase arr, Ob arr a, Ob arr b) =>
+  (HyperBase arr) =>
   Free arr a b ->
   HyperF arr a b
 encodeFree (Lift f) = liftH f
@@ -519,9 +518,7 @@ encodeFree (Compose f g) = encodeFree f . encodeFree g
 -- 6
 encode ::
   ( HyperBase arr,
-    Strength (,) arr,
-    Ob arr a,
-    Ob arr b
+    Strength (,) arr
   ) =>
   Loop.Loop (,) arr a b ->
   HyperF arr a b
@@ -590,12 +587,7 @@ sharedHyperBy ::
   forall arr s a b c d.
   ( HyperBase arr,
     Strength (,) arr,
-    Shared (,) arr,
-    Ob arr s,
-    Ob arr (a, c),
-    Ob arr (These b d),
-    Ob arr (s, (a, c)),
-    Ob arr (s, These b d)
+    Shared (,) arr
   ) =>
   Schedule s ->
   HyperF arr (s, a) (s, b) ->

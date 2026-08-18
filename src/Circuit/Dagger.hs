@@ -64,7 +64,7 @@ module Circuit.Dagger
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Prelude hiding (id, (.))
@@ -73,7 +73,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Tensor (Action (..), Tensor (..))
 -- >>> import Circuit.Channel (Traced (..))
--- >>> import Circuit.Category (Category (..), Discrete (..), (.>))
+-- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
@@ -421,15 +421,10 @@ transpose :: Dagger arr a b -> Dagger arr b a
 transpose (Dagger f g) = Dagger g f
 
 instance (Category arr) => Category (Dagger arr) where
-  type Ob (Dagger arr) a = Ob arr a
   id = Dagger id id
   {-# INLINE id #-}
   Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
   {-# INLINE (.) #-}
-
--- | Dagger of a discrete base is discrete.
-instance (Discrete arr) => Discrete (Dagger arr) where
-  withOb @a x = withOb @arr @a x
 
 instance (Strength t arr) => Strength t (Dagger arr) where
   strength (Dagger f g) = Dagger (strength f) (strength g)

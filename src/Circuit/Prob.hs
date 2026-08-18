@@ -55,7 +55,7 @@ module Circuit.Prob
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob)
+import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..))
 import Data.Bifunctor (second)
 import Prelude hiding (id, (.))
@@ -82,22 +82,16 @@ newtype Prob arr r a b = Prob
 -- continuation function, never the base arrow.  This is why 'Category' costs
 -- nothing from @arr@.
 instance (Category arr) => Category (Prob arr r) where
-  type Ob (Prob arr r) a = Ob arr a
-
-  id :: (Ob (Prob arr r) a) => Prob arr r a a
+  id :: Prob arr r a a
   id = Prob Prelude.id
   {-# INLINE id #-}
 
   (.) ::
-    (Ob (Prob arr r) a, Ob (Prob arr r) b, Ob (Prob arr r) c) =>
     Prob arr r b c ->
     Prob arr r a b ->
     Prob arr r a c
   Prob f . Prob g = Prob $ \k -> g (f k)
   {-# INLINE (.) #-}
-
-instance Discrete (Prob (->) r) where
-  withOb x = x
 
 -- ---------------------------------------------------------------------------
 -- Primitives (function arrow)

@@ -37,9 +37,6 @@ import Circuit.Dagger (Copy (..), Discard (..))
 import Circuit.Tensor (Tensor (..))
 import Prelude hiding (id, (.))
 
--- The object constraints are required by the local 'Category' class: every
--- object that appears in a composition must satisfy @Ob arr@.
-
 -- | Test whether @f@ is a homomorphism from the copy comonoid on @a@ to the
 -- copy comonoid on @b@.
 --
@@ -50,7 +47,7 @@ import Prelude hiding (id, (.))
 -- /separator/ — a set of continuations and inputs — is the usual way to
 -- produce this predicate for such bases.
 copyNatural ::
-  (Ob arr a, Ob arr b, Ob arr (a, a), Ob arr (b, b), Tensor (,) arr, Copy arr a, Copy arr b) =>
+  (Tensor (,) arr, Copy arr a, Copy arr b) =>
   (arr a (b, b) -> arr a (b, b) -> Bool) ->
   arr a b ->
   Bool
@@ -65,7 +62,7 @@ copyNatural eq f = eq (copy . f) (par f f . copy)
 -- The equality predicate is supplied by the caller for the same reason as
 -- 'copyNatural'.
 discardNatural ::
-  (Category arr, Ob arr a, Ob arr b, Ob arr (), Discard arr a, Discard arr b) =>
+  (Category arr, Discard arr a, Discard arr b) =>
   (arr a () -> arr a () -> Bool) ->
   arr a b ->
   Bool
@@ -75,12 +72,7 @@ discardNatural eq f = eq (discard . f) discard
 -- | A map is deterministic precisely when it is both copy-natural and
 -- discard-natural: it preserves the full cartesian comonoid.
 deterministic ::
-  ( Ob arr a,
-    Ob arr b,
-    Ob arr (a, a),
-    Ob arr (b, b),
-    Ob arr (),
-    Tensor (,) arr,
+  ( Tensor (,) arr,
     Copy arr a,
     Copy arr b,
     Discard arr a,

@@ -137,7 +137,7 @@ module Circuit.Ends
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Dagger (Copy (copy), Discard (discard))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
@@ -227,8 +227,8 @@ close contra = commit contra
 -- >>> let inA = prefixIn (const ()) (conjoint endsU) :: In (->) Int
 -- >>> commit inA (companion endsU) 42
 -- ()
-prefixIn :: forall arr a b. (Discrete arr) => arr a b -> In arr b -> In arr a
-prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withOb @arr @x $ f .> commit i o
+prefixIn :: forall arr a b. (Category arr) => arr a b -> In arr b -> In arr a
+prefixIn f i = In $ \(o :: Out arr x) -> f .> commit i o
 
 -- | Postcompose an @arr@-morphism with an @Out@ end.
 --
@@ -244,8 +244,8 @@ prefixIn f i = In $ \(o :: Out arr x) -> withOb @arr @a $ withOb @arr @b $ withO
 -- >>> let outA = suffixOut (companion endsU) (const 42) :: Out (->) Int
 -- >>> emit outA (conjoint endsU) ()
 -- 42
-suffixOut :: forall arr a b. (Discrete arr) => Out arr a -> arr a b -> Out arr b
-suffixOut o g = Out $ \(i :: In arr x) -> withOb @arr @x $ withOb @arr @a $ withOb @arr @b $ emit o i .> g
+suffixOut :: forall arr a b. (Category arr) => Out arr a -> arr a b -> Out arr b
+suffixOut o g = Out $ \(i :: In arr x) -> emit o i .> g
 
 -- ---------------------------------------------------------------------------
 -- Dualising object / unit ends
@@ -315,7 +315,7 @@ copycat = open
 -- @
 ends ::
   forall arr a b bot.
-  (Discrete arr, HasDual bot arr) =>
+  (HasDual bot arr) =>
   arr a bot ->
   arr bot b ->
   Ends arr a b
@@ -326,7 +326,7 @@ ends write receive =
 
 -- | Convenience version of 'ends' when the dualising object is @()@.
 ends0 ::
-  (Discrete arr, HasDual () arr) =>
+  (HasDual () arr) =>
   arr a () ->
   arr () b ->
   Ends arr a b
@@ -396,22 +396,18 @@ splay0 = splay @_ @_ @_ @()
 -- 2
 composeEnds ::
   forall arr a b c bot.
-  (Discrete arr, HasDual bot arr) =>
+  (HasDual bot arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
 composeEnds e1 e2 =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @bot $
-          let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
-              (write2, read2) = splay e2 :: (arr b bot, arr bot c)
-           in ends write1 (read1 .> write2 .> read2)
+  let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
+      (write2, read2) = splay e2 :: (arr b bot, arr bot c)
+   in ends write1 (read1 .> write2 .> read2)
 
 -- | Convenience version of 'composeEnds' when the dualising object is @()@.
 composeEnds0 ::
-  (Discrete arr, HasDual () arr) =>
+  (HasDual () arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
@@ -421,7 +417,7 @@ composeEnds0 = composeEnds @_ @_ @_ @_ @()
 -- | Forward-composition operator for @Ends@.  @e1 >:> e2 = composeEnds e1 e2@.
 (>:>) ::
   forall arr a b c bot.
-  (Discrete arr, HasDual bot arr) =>
+  (HasDual bot arr) =>
   Ends arr a b ->
   Ends arr b c ->
   Ends arr a c
@@ -443,24 +439,16 @@ infixr 1 >:>
 -- (1,2)
 parEnds ::
   forall t arr a b c d bot.
-  (Tensor t arr, Discrete arr, HasDual bot arr, Unit t ~ bot) =>
+  (Tensor t arr, HasDual bot arr, Unit t ~ bot) =>
   Ends arr a b ->
   Ends arr c d ->
   Ends arr (t a c) (t b d)
 parEnds e1 e2 =
-  withOb @arr @a $
-    withOb @arr @b $
-      withOb @arr @c $
-        withOb @arr @d $
-          withOb @arr @(t a c) $
-            withOb @arr @(t b d) $
-              withOb @arr @(t bot bot) $
-                withOb @arr @bot $
-                  let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
-                      (write2, read2) = splay e2 :: (arr c bot, arr bot d)
-                      write = par write1 write2 .> (unitr :: arr (t bot bot) bot)
-                      readEnds = (unitl' :: arr bot (t bot bot)) .> par read1 read2
-                   in ends write readEnds
+  let (write1, read1) = splay e1 :: (arr a bot, arr bot b)
+      (write2, read2) = splay e2 :: (arr c bot, arr bot d)
+      write = par write1 write2 .> (unitr :: arr (t bot bot) bot)
+      readEnds = (unitl' :: arr bot (t bot bot)) .> par read1 read2
+   in ends write readEnds
 
 -- | Precompose the input and postcompose the output of an @Ends@.
 --
@@ -474,7 +462,7 @@ parEnds e1 e2 =
 -- 43
 dimapEnds ::
   forall arr a a' b b'.
-  (Discrete arr) =>
+  (Category arr) =>
   arr a' a ->
   arr b b' ->
   Ends arr a b ->
@@ -484,7 +472,7 @@ dimapEnds f g (Ends i o) = Ends (prefixIn f i) (suffixOut o g)
 -- | Precompose the input of an @Ends@.
 lmapEnds ::
   forall arr a a' b.
-  (Discrete arr) =>
+  (Category arr) =>
   arr a' a ->
   Ends arr a b ->
   Ends arr a' b
@@ -493,7 +481,7 @@ lmapEnds f (Ends i o) = Ends (prefixIn f i) o
 -- | Postcompose the output of an @Ends@.
 rmapEnds ::
   forall arr a b b'.
-  (Discrete arr) =>
+  (Category arr) =>
   arr b b' ->
   Ends arr a b ->
   Ends arr a b'
@@ -576,7 +564,7 @@ instance (Monad m) => HasDual Bool (Kleisli m) where
 -- 42
 box ::
   forall t arr a b.
-  (HasDual (Unit t) arr, Ob arr a, Ob arr b, Ob arr (Unit t)) =>
+  (HasDual (Unit t) arr) =>
   Ends arr a b ->
   Loop t arr a b
 box ends' =
@@ -596,17 +584,14 @@ box ends' =
 -- ((),42)
 boxAsymmetric ::
   forall t arr a b.
-  (HasDual (Unit t) arr, Tensor t arr, Discrete arr) =>
+  (HasDual (Unit t) arr, Tensor t arr) =>
   Ends arr a b ->
   Loop t arr (t a (Unit t)) (t (Unit t) b)
 boxAsymmetric ends' =
-  withOb @arr @a $
-    withOb @arr @(Unit t) $
-      withOb @arr @b $
-        Lift $
-          par
-            (commit (conjoint ends') (companion open))
-            (emit (companion ends') (conjoint open))
+  Lift $
+    par
+      (commit (conjoint ends') (companion open))
+      (emit (companion ends') (conjoint open))
 
 -- $setup
 -- >>> import Circuit.Ends

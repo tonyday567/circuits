@@ -35,7 +35,7 @@ module Circuit.Thread
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), Ob, (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Data.Bifunctor (second)
@@ -48,8 +48,6 @@ import Prelude hiding (id, (.))
 newtype SArr s a b = SArr {runSArr :: (s, a) -> (s, b)}
 
 instance Category (SArr s) where
-  type Ob (SArr s) a = ()
-
   id :: SArr s a a
   id = SArr id
   {-# INLINE id #-}
@@ -59,10 +57,6 @@ instance Category (SArr s) where
     let (s', b) = f (s, a)
      in g (s', b)
   {-# INLINE (.) #-}
-
--- | @SArr s@ has trivial object constraints, so it is discrete.
-instance Discrete (SArr s) where
-  withOb x = x
 
 -- | The knot-body category: morphisms @arr (t s a) (t s b)@ for a fixed
 -- feedback/state type @s@, base arrow @arr@, and tensor @t@.
@@ -75,19 +69,13 @@ instance Discrete (SArr s) where
 newtype Thread t arr s a b = Thread {runThread :: arr (t s a) (t s b)}
 
 instance (Category arr) => Category (Thread t arr s) where
-  type Ob (Thread t arr s) a = Ob arr (t s a)
-
-  id :: forall a. (Ob arr (t s a)) => Thread t arr s a a
+  id :: forall a. Thread t arr s a a
   id = Thread id
   {-# INLINE id #-}
 
-  (.) :: forall a b c. (Ob arr (t s a), Ob arr (t s b), Ob arr (t s c)) => Thread t arr s b c -> Thread t arr s a b -> Thread t arr s a c
+  (.) :: forall a b c. Thread t arr s b c -> Thread t arr s a b -> Thread t arr s a c
   Thread g . Thread f = Thread (g . f)
   {-# INLINE (.) #-}
-
--- | @Thread t arr s@ has the same discreteness as its base arrow.
-instance (Discrete arr) => Discrete (Thread t arr s) where
-  withOb @a = withOb @arr @(t s a)
 
 -- | Cartesian instance: @SArr s@ is exactly @Thread (,) (->) s@.
 sArrToThread :: SArr s a b -> Thread (,) (->) s a b
@@ -103,7 +91,6 @@ data SomeThread t arr a b where
 
 -- | Lift a knot body into a 'Loop' by hiding the state wire.
 threadToLoop ::
-  (Ob arr s, Ob arr (t s a), Ob arr (t s b)) =>
   Thread t arr s a b ->
   Loop t arr a b
 threadToLoop (Thread f) = Knot f
