@@ -47,7 +47,7 @@ module Circuit.Net
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict, (.>))
+import Circuit.Category (Category (..), Discrete (..), Ob, ObDict (..), withObDict, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))

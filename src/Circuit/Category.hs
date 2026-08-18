@@ -5,6 +5,8 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -22,10 +24,9 @@
 -- 'Loop.Knot') carry no 'Ob' evidence and must be manufactured on demand.
 --
 -- 'ObC' is a thin class wrapper around the 'Ob' constraint family. It
--- exists only so that 'Circuit.Channel.Channel' can state tensor closure
--- as a quantified superclass: GHC requires the head of a quantified
--- constraint to be a class or type variable, not a type-family
--- application.
+-- exists so that 'Circuit.Channel.Channel' can state tensor closure as a
+-- quantified superclass: GHC requires the head of a quantified constraint
+-- to be a class or type variable, not a type-family application.
 --
 -- == Operator convention
 --

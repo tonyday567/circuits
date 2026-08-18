@@ -35,7 +35,7 @@ module Circuit.Thread
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), Ob, (.>))
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Data.Bifunctor (second)

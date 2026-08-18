@@ -41,7 +41,7 @@ module Circuit.FinRel
   )
 where
 
-import Circuit.Category (Category (..), ObDict (..), (.>))
+import Circuit.Category (Category (..), Ob, ObDict (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Tensor (Action (..), Tensor (..))

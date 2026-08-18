@@ -78,6 +78,9 @@ import Prelude hiding (id, (.))
 -- stated as a quantified superclass. The superclass expands to @Ob arr
 -- (t a b)@, keeping the closure evidence on the constraint side and
 -- removing the need for explicit 'ObDict' plumbing.
+--
+-- Method signatures only mention the atomic objects @a@, @b@, @c@;
+-- composite-object constraints follow from the superclass.
 class
   ( Category arr,
     forall a b. (ObC arr a, ObC arr b) => ObC arr (t a b)
@@ -86,39 +89,18 @@ class
   where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (t b c),
-      Ob arr (t (t a b) c),
-      Ob arr (t a (t b c))
-    ) =>
+    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t (t a b) c) (t a (t b c))
 
   -- | Inverse reassociation: @t a (t b c) -> t (t a b) c@.
   assoc' ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (t b c),
-      Ob arr (t (t a b) c),
-      Ob arr (t a (t b c))
-    ) =>
+    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a (t b c)) (t (t a b) c)
 
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
   slide ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t b c),
-      Ob arr (t a c),
-      Ob arr (t a (t b c)),
-      Ob arr (t b (t a c))
-    ) =>
+    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a (t b c)) (t b (t a c))
 
 -- | Cartesian monoidal structure for @(,)@.
@@ -198,12 +180,7 @@ instance Channel These (->) where
 -- strength ("tensorial strength") of the tensor @t@ acting on morphisms.
 class (Channel t arr) => Strength t arr where
   strength ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (t a c)
-    ) =>
+    (Ob arr a, Ob arr b, Ob arr c) =>
     arr b c ->
     arr (t a b) (t a c)
 
@@ -271,12 +248,7 @@ instance Strength These (->) where
 -- side-condition is not vacuous.
 class (Strength t arr) => Traced t arr where
   trace ::
-    ( Ob arr a,
-      Ob arr b,
-      Ob arr c,
-      Ob arr (t a b),
-      Ob arr (t a c)
-    ) =>
+    (Ob arr a, Ob arr b, Ob arr c) =>
     arr (t a b) (t a c) ->
     arr b c
 

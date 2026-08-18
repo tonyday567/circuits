@@ -55,7 +55,7 @@ module Circuit.Prob
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..), Ob)
 import Circuit.Channel (Channel (..), Strength (..))
 import Data.Bifunctor (second)
 import Prelude hiding (id, (.))

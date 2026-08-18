@@ -101,7 +101,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), Ob, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Loop qualified as Loop

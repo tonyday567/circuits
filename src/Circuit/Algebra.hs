@@ -97,7 +97,7 @@ module Circuit.Algebra
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..), Ob)
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)

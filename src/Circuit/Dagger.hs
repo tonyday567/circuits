@@ -64,7 +64,7 @@ module Circuit.Dagger
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), (.>))
+import Circuit.Category (Category (..), Discrete (..), Ob, (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Prelude hiding (id, (.))

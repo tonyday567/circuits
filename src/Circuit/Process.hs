@@ -58,7 +58,7 @@ module Circuit.Process
 where
 
 import Circuit.Boundary (Boundary (..))
-import Circuit.Category (Category (..), Discrete (..))
+import Circuit.Category (Category (..), Discrete (..), Ob)
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Dagger qualified as Dagger
