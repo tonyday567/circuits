@@ -70,7 +70,7 @@ pairBoolFns bs = map (\bits (b1, b2) -> bits !! (fromEnum b1 * n + fromEnum b2))
     n = length bs
 
 -- | Boolean-valued pair functions rendered as {0,1}-valued 'Double' functions.
-pairDoubleFns :: (Enum b) => [b] -> [((b, b) -> Double)]
+pairDoubleFns :: (Enum b) => [b] -> [(b, b) -> Double]
 pairDoubleFns bs = map (\k p -> if k p then 1 else 0) (pairBoolFns bs)
 
 -- | Equality oracle for @Prob (->) r a b@ using a supplied input set and

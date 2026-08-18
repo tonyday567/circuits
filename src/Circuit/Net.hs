@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
@@ -181,7 +182,7 @@ enrich (C.Knot f) = Knot (Lift f)
 -- 'SymSwap') so that structural wiring stays inspectable.  This is the
 -- injection of the 'Sym' layer into the 'Net' layer.
 --
--- >>> let m = SymLift (+1) `SymCompose` SymLift (*2) :: Sym (->) Int Int
+-- >>> let m = SymLift (+1) `SymCompose` SymLift (*2) :: Sym (,) (->) Int Int
 -- >>> run (widen m :: Net (,) (,) (->) Int Int) 5
 -- 11
 --
@@ -212,7 +213,7 @@ enrich (C.Knot f) = Knot (Lift f)
 --
 -- Coherence: transposition commutes with 'widen'.
 --
--- >>> let dm = SymLift (Dg.Dagger (+1) (subtract 1)) `SymCompose` SymLift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Sym (Dg.Dagger (->)) Int Int
+-- >>> let dm = SymLift (Dg.Dagger (+1) (subtract 1)) `SymCompose` SymLift (Dg.Dagger (*2) (\x -> x `div` 2)) :: Sym (,) (Dg.Dagger (->)) Int Int
 -- >>> Dg.front (Dg.transpose (run dm)) 10
 -- 4
 -- >>> Dg.front (Dg.transpose (run (widen dm :: Net (,) (,) (Dg.Dagger (->)) Int Int))) 10
@@ -319,21 +320,15 @@ instance Layer (Net w t) where
         let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
             swap' =
               withObDict (phi (ObDict :: ObDict arr a1)) $
-                withObDict (phi (ObDict :: ObDict arr b1)) $
-                  swap
+                withObDict (phi (ObDict :: ObDict arr b1)) swap
          in swap'
   bind _phi h Copy = h (Dg.copyT @w)
   bind _phi h Discard = h (Dg.discardT @w)
   bind _phi h Plus = h (Dg.plusT @w)
   bind _phi h Zero = h (Dg.zeroT @w)
   bind phi h (Knot (f :: Net w t arr (t s a) (t s b))) =
-    let dS = phi (ObDict :: ObDict arr s)
-        dSA = phi (ObDict :: ObDict arr (t s a))
-        dSB = phi (ObDict :: ObDict arr (t s b))
-     in withObDict dS $
-          withObDict dSA $
-            withObDict dSB $
-              trace (bind phi h f)
+    withObDict (phi (ObDict :: ObDict arr s)) $
+      trace (bind phi h f)
 
 -- ===========================================================================
 -- Sym
@@ -416,16 +411,6 @@ instance (Category arr, Channel t arr) => Channel t (Sym w arr) where
   assoc = SymLift assoc
   assoc' = SymLift assoc'
   slide = SymLift slide
-  withTensorOb ::
-    forall a b r.
-    ObDict (Sym w arr) a ->
-    ObDict (Sym w arr) b ->
-    ((Ob (Sym w arr) (t a b)) => r) ->
-    r
-  withTensorOb (dA :: ObDict (Sym w arr) a) (dB :: ObDict (Sym w arr) b) k =
-    withObDict dA $
-      withObDict dB $
-        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
 -- | 'Action' — free 'Sym' fold carries its own 'Ob' evidence.
 --
@@ -465,25 +450,12 @@ instance Layer (Sym w) where
         let swap' :: forall a1 b1. (a ~ w a1 b1) => arr' a b
             swap' =
               withObDict (phi (ObDict :: ObDict arr a1)) $
-                withObDict (phi (ObDict :: ObDict arr b1)) $
-                  swap
+                withObDict (phi (ObDict :: ObDict arr b1)) swap
          in swap'
 
 -- | Lift the 'Strength' structure through 'Sym'.
 instance (Strength t arr, Action w arr) => Strength t (Sym w arr) where
   strength = SymLift . strength . run
-  withStrengthOb ::
-    forall a b c r.
-    ObDict (Sym w arr) a ->
-    ObDict (Sym w arr) b ->
-    ObDict (Sym w arr) c ->
-    ((Ob (Sym w arr) (t a b), Ob (Sym w arr) (t a c)) => r) ->
-    r
-  withStrengthOb (dA :: ObDict (Sym w arr) a) (dB :: ObDict (Sym w arr) b) (dC :: ObDict (Sym w arr) c) k =
-    withObDict dA $
-      withObDict dB $
-        withObDict dC $
-          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 -- | Lift the 'Traced' structure through 'Sym'.
 --

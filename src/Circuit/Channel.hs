@@ -4,12 +4,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 
 -- | Structural semantics for traced monoidal categories.
 --
@@ -42,7 +44,7 @@ module Circuit.Channel
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict)
+import Circuit.Category (Category (..), Discrete (..), ObC)
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor
@@ -70,9 +72,18 @@ import Prelude hiding (id, (.))
 -- nested tensor values inside an arrow. This is the structure that traced
 -- categories inherit as a superclass.
 --
--- Object constraints live on 'Category' / 'Traced', not on these structure
--- maps — free constructions over unconstrained bases stay lightweight.
-class (Category arr) => Channel t arr where
+-- The superclass @forall a b. (ObC arr a, ObC arr b) => ObC arr (t a b)@
+-- states that the object constraint is closed under the tensor. 'ObC' is
+-- a class wrapper around the 'Ob' constraint family so the closure can be
+-- stated as a quantified superclass. The superclass expands to @Ob arr
+-- (t a b)@, keeping the closure evidence on the constraint side and
+-- removing the need for explicit 'ObDict' plumbing.
+class
+  ( Category arr,
+    forall a b. (ObC arr a, ObC arr b) => ObC arr (t a b)
+  ) =>
+  Channel t arr
+  where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc ::
     ( Ob arr a,
@@ -110,14 +121,6 @@ class (Category arr) => Channel t arr where
     ) =>
     arr (t a (t b c)) (t b (t a c))
 
-  -- | Derive the tensor object constraint from its components.
-  withTensorOb ::
-    forall a b r.
-    ObDict arr a ->
-    ObDict arr b ->
-    ((Ob arr (t a b)) => r) ->
-    r
-
 -- | Cartesian monoidal structure for @(,)@.
 --
 -- >>> assoc ((1, 2), 3) :: (Int, (Int, Int))
@@ -135,7 +138,6 @@ instance Channel (,) (->) where
   assoc ~(~(a, b), c) = (a, (b, c))
   assoc' ~(a, ~(b, c)) = ((a, b), c)
   slide ~(a, ~(b, c)) = (b, (a, c))
-  withTensorOb ObDict ObDict x = x
 
 -- | Cocartesian monoidal structure for @Either@.
 --
@@ -157,7 +159,6 @@ instance Channel Either (->) where
   slide (Left a) = Right (Left a)
   slide (Right (Left b)) = Left b
   slide (Right (Right c)) = Right (Right c)
-  withTensorOb ObDict ObDict x = x
 
 -- | Inclusive monoidal structure for @These@.
 --
@@ -185,7 +186,6 @@ instance Channel These (->) where
   slide (These a (This b)) = These b (This a)
   slide (These a (That c)) = That (These a c)
   slide (These a (These b c)) = These b (These a c)
-  withTensorOb ObDict ObDict x = x
 
 -- ===========================================================================
 -- Strength
@@ -207,15 +207,6 @@ class (Channel t arr) => Strength t arr where
     arr b c ->
     arr (t a b) (t a c)
 
-  -- | Derive the strength object constraints from their components.
-  withStrengthOb ::
-    forall a b c r.
-    ObDict arr a ->
-    ObDict arr b ->
-    ObDict arr c ->
-    ((Ob arr (t a b), Ob arr (t a c)) => r) ->
-    r
-
 -- | Discrete 'strength': discharge 'Ob' constraints with 'withOb'.
 strengthD ::
   forall t arr a b c.
@@ -226,9 +217,7 @@ strengthD f =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t a c) $
-            strength f
+        strength f
 
 -- | Cartesian tensorial strength for @(,)@.
 --
@@ -241,14 +230,12 @@ strengthD f =
 -- ()
 instance Strength (,) (->) where
   strength f p = (fst p, f (snd p))
-  withStrengthOb ObDict ObDict ObDict x = x
 
 -- | Either tensorial strength for @Either@.
 --
 -- 'strength' is the functorial action under 'Either'.
 instance Strength Either (->) where
   strength = fmap
-  withStrengthOb ObDict ObDict ObDict x = x
 
 -- | Inclusive tensorial strength for @These@.
 --
@@ -258,7 +245,6 @@ instance Strength These (->) where
   strength _ (This a) = This a
   strength f (That b) = That (f b)
   strength f (These a b) = These a (f b)
-  withStrengthOb ObDict ObDict ObDict x = x
 
 -- ===========================================================================
 -- Traced
@@ -438,7 +424,6 @@ instance (Monad m) => Channel (,) (Kleisli m) where
   assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
   slide = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
-  withTensorOb ObDict ObDict x = x
 
 -- | Cocartesian monoidal structure for @Kleisli m@ with 'Either'.
 instance (Monad m) => Channel Either (Kleisli m) where
@@ -454,7 +439,6 @@ instance (Monad m) => Channel Either (Kleisli m) where
     Left a -> pure (Right (Left a))
     Right (Left b) -> pure (Left b)
     Right (Right c) -> pure (Right (Right c))
-  withTensorOb ObDict ObDict x = x
 
 -- | Inclusive monoidal structure for @Kleisli m@ with 'These'.
 instance (Monad m) => Channel These (Kleisli m) where
@@ -488,7 +472,6 @@ instance (Monad m) => Channel These (Kleisli m) where
         These a (This b) -> These b (This a)
         These a (That c) -> That (These a c)
         These a (These b c) -> These b (These a c)
-  withTensorOb ObDict ObDict x = x
 
 -- * Kleisli m (,) — lazy knot via MonadFix
 
@@ -513,7 +496,6 @@ instance (Monad m) => Strength (,) (Kleisli m) where
           c <- f (snd p)
           pure (fst p, c)
       )
-  withStrengthOb ObDict ObDict ObDict x = x
 
 instance (MonadFix m) => Traced (,) (Kleisli m) where
   trace (Kleisli f) =
@@ -549,7 +531,6 @@ instance (Monad m) => Strength Either (Kleisli m) where
     Kleisli $ \case
       Left a -> pure (Left a)
       Right b -> Right <$> f b
-  withStrengthOb ObDict ObDict ObDict x = x
 
 -- | Inclusive tensorial strength for @Kleisli m@ with 'These'.
 instance (Monad m) => Strength These (Kleisli m) where
@@ -558,7 +539,6 @@ instance (Monad m) => Strength These (Kleisli m) where
       This a -> pure (This a)
       That b -> That <$> f b
       These a b -> These a <$> f b
-  withStrengthOb ObDict ObDict ObDict x = x
 
 instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
   trace (Kleisli f) =
@@ -649,11 +629,7 @@ assocD =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t b c) $
-            withOb @arr @(t (t a b) c) $
-              withOb @arr @(t a (t b c)) $
-                assoc
+        assoc
 
 -- | Discrete associator inverse: reassociate rightward while discharging
 -- 'Ob' constraints.
@@ -665,11 +641,7 @@ assocD' =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t b c) $
-            withOb @arr @(t a (t b c)) $
-              withOb @arr @(t (t a b) c) $
-                assoc'
+        assoc'
 
 -- | Discrete braiding: slide a wire past a nested pair while discharging
 -- 'Ob' constraints.
@@ -681,11 +653,7 @@ braidD =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @(t b c) $
-          withOb @arr @(t a c) $
-            withOb @arr @(t a (t b c)) $
-              withOb @arr @(t b (t a c)) $
-                slide
+        slide
 
 -- | Discrete trace: eliminate a feedback loop while discharging 'Ob'
 -- constraints.
@@ -698,6 +666,4 @@ traceD f =
   withOb @arr @a $
     withOb @arr @b $
       withOb @arr @c $
-        withOb @arr @(t a b) $
-          withOb @arr @(t a c) $
-            trace f
+        trace f

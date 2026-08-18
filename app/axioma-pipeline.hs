@@ -56,7 +56,7 @@ probEqOver' as ks (Prob p) (Prob q) =
 centralP ::
   (Eq r) =>
   [(a, c)] ->
-  [((b, d) -> r)] ->
+  [(b, d) -> r] ->
   (Prob (->) r a b -> Prob (->) r c d -> Prob (->) r (a, c) (b, d)) ->
   (Prob (->) r a b -> Prob (->) r c d -> Prob (->) r (a, c) (b, d)) ->
   Prob (->) r a b ->
@@ -118,11 +118,11 @@ unitBoolInputs :: [((), Bool)]
 unitBoolInputs = [((), c) | c <- [False, True]]
 
 -- | Boolean-valued pair continuations.
-continuationsBool :: [((Bool, Bool) -> Bool)]
+continuationsBool :: [(Bool, Bool) -> Bool]
 continuationsBool = pairBoolFns [False, True]
 
 -- | {0,1}-valued Double pair continuations.
-continuationsDouble :: [((Bool, Bool) -> Double)]
+continuationsDouble :: [(Bool, Bool) -> Double]
 continuationsDouble = pairDoubleFns [False, True]
 
 -- ---------------------------------------------------------------------------

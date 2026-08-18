@@ -16,11 +16,14 @@ Recommended reading order for the source (core concepts first):
 
 ```
 Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
+                      'ObC' (class wrapper for quantified closure),
                       'Discrete', and composition helpers (.>), (|>), (<|).
 Circuit.Channel     — Structural semantics chain: Channel, Strength,
                       Traced, plus all base instances for (->) and
                       Kleisli m (lazy knot, Either iteration, Kleisli IO
-                      via delimited continuations).
+                      via delimited continuations). Channel carries tensor
+                      closure as a quantified superclass, so nested tensor
+                      objects no longer need explicit ObDict plumbing.
 Circuit.Loop        — Loop GADT (Lift, Knot) in normal form, its
                       Category/Channel/Strength/Traced instances, and the
                       Layer witness.

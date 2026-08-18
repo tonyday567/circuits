@@ -3,9 +3,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 
 -- | Local category hierarchy with object constraints.
 --
@@ -19,6 +21,12 @@
 -- 'Discrete', because compound tensor objects (e.g. @t s a@ inside a
 -- 'Loop.Knot') carry no 'Ob' evidence and must be manufactured on demand.
 --
+-- 'ObC' is a thin class wrapper around the 'Ob' constraint family. It
+-- exists only so that 'Circuit.Channel.Channel' can state tensor closure
+-- as a quantified superclass: GHC requires the head of a quantified
+-- constraint to be a class or type variable, not a type-family
+-- application.
+--
 -- == Operator convention
 --
 -- The tip of the operator points in the direction of data flow.
@@ -31,6 +39,8 @@
 module Circuit.Category
   ( Category (..),
     Discrete (..),
+    Ob,
+    ObC,
     ObDict (..),
     withObDict,
     (.>),
@@ -55,11 +65,16 @@ data ObDict arr a where
 withObDict :: forall arr a r. ObDict arr a -> ((Ob arr a) => r) -> r
 withObDict ObDict x = x
 
+-- | A class wrapper around 'Ob' so it can appear as the head of a
+-- quantified constraint. The default instance makes 'ObC' available
+-- whenever 'Ob' is.
+class (Ob arr a) => ObC arr a
+
+instance (Ob arr a) => ObC arr a
+
 -- | A category whose objects may carry a constraint.
 --
 -- @Ob arr a@ is the evidence required to mention object @a@ in @arr@.
--- Unconstrained categories use the default @()@. Constrained categories
--- specialise the associated type to whatever their objects require.
 class Category (arr :: k -> k -> Type) where
   -- | Object constraint for this category.
   type Ob arr (a :: k) :: Constraint

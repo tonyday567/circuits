@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
@@ -57,7 +58,7 @@ module Circuit.Process
 where
 
 import Circuit.Boundary (Boundary (..))
-import Circuit.Category (Category (..), Discrete (..), ObDict (..))
+import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Dagger qualified as Dagger
@@ -261,7 +262,6 @@ instance Channel (,) Process where
   assoc = P id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
   assoc' = P id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
   slide = P id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
-  withTensorOb ObDict ObDict x = x
 
 instance Strength (,) Process where
   strength (P i st ex) =
@@ -269,7 +269,6 @@ instance Strength (,) Process where
       (\(~(a, b)) -> (a, i b))
       (\(~(_, s)) (~(a', b)) -> (a', st s b))
       (\(~(a, s)) -> (a, ex s))
-  withStrengthOb ObDict ObDict ObDict x = x
 
 instance Traced (,) Process where
   trace (P i st ex) =
@@ -406,7 +405,6 @@ instance Channel Either Process where
       slideEither (Left a) = Right (Left a)
       slideEither (Right (Left b)) = Left b
       slideEither (Right (Right c)) = Right (Right c)
-  withTensorOb ObDict ObDict x = x
 
 instance Strength Either Process where
   strength (P i st ex) =
@@ -419,7 +417,6 @@ instance Strength Either Process where
             Just s -> let s' = st s b in (Just s', Right (ex s'))
       )
       snd
-  withStrengthOb ObDict ObDict ObDict x = x
 
 instance Traced Either Process where
   trace (P i st ex) = P i' st' ex'

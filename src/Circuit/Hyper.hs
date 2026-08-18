@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
@@ -100,7 +101,7 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), Ob, ObDict (..), (.>))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Loop qualified as Loop
@@ -276,31 +277,9 @@ instance (HyperBase arr, Channel (,) arr) => Channel (,) (HyperF arr) where
   assoc = liftH assoc
   assoc' = liftH assoc'
   slide = liftH slide
-  withTensorOb ::
-    forall a b r.
-    ObDict (HyperF arr) a ->
-    ObDict (HyperF arr) b ->
-    ((Ob (HyperF arr) (a, b)) => r) ->
-    r
-  withTensorOb ObDict ObDict =
-    withTensorOb @(,) @arr @a @b @r
-      (ObDict :: ObDict arr a)
-      (ObDict :: ObDict arr b)
 
 instance (HyperBase arr, Strength (,) arr) => Strength (,) (HyperF arr) where
   strength h = liftH $ mkArr $ \(a, b) -> (a,) <$> observeH h b
-  withStrengthOb ::
-    forall a b c r.
-    ObDict (HyperF arr) a ->
-    ObDict (HyperF arr) b ->
-    ObDict (HyperF arr) c ->
-    ((Ob (HyperF arr) (a, b), Ob (HyperF arr) (a, c)) => r) ->
-    r
-  withStrengthOb ObDict ObDict ObDict =
-    withStrengthOb @(,) @arr @a @b @c @r
-      (ObDict :: ObDict arr a)
-      (ObDict :: ObDict arr b)
-      (ObDict :: ObDict arr c)
 
 instance
   ( HyperBase arr,

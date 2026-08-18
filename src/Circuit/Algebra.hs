@@ -97,7 +97,7 @@ module Circuit.Algebra
   )
 where
 
-import Circuit.Category (Category (..), Discrete (..), ObDict (..), withObDict)
+import Circuit.Category (Category (..), Discrete (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer, run)
@@ -434,31 +434,9 @@ instance (Category arr, Channel t arr) => Channel t (AlgLoop t arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
-  withTensorOb ::
-    forall a b r.
-    ObDict (AlgLoop t arr) a ->
-    ObDict (AlgLoop t arr) b ->
-    ((Ob (AlgLoop t arr) (t a b)) => r) ->
-    r
-  withTensorOb (dA :: ObDict (AlgLoop t arr) a) (dB :: ObDict (AlgLoop t arr) b) k =
-    withObDict dA $
-      withObDict dB $
-        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
 instance (Category arr, Traced t arr, Discrete arr) => Strength t (AlgLoop t arr) where
   strength f = Lift (strength (eval f))
-  withStrengthOb ::
-    forall a b c r.
-    ObDict (AlgLoop t arr) a ->
-    ObDict (AlgLoop t arr) b ->
-    ObDict (AlgLoop t arr) c ->
-    ((Ob (AlgLoop t arr) (t a b), Ob (AlgLoop t arr) (t a c)) => r) ->
-    r
-  withStrengthOb (dA :: ObDict (AlgLoop t arr) a) (dB :: ObDict (AlgLoop t arr) b) (dC :: ObDict (AlgLoop t arr) c) k =
-    withObDict dA $
-      withObDict dB $
-        withObDict dC $
-          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgLoop t arr) where
   trace body = Op (R (SigKnot body))
@@ -477,31 +455,9 @@ instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
   slide = Lift slide
-  withTensorOb ::
-    forall a b r.
-    ObDict (AlgCat arr) a ->
-    ObDict (AlgCat arr) b ->
-    ((Ob (AlgCat arr) (t a b)) => r) ->
-    r
-  withTensorOb (dA :: ObDict (AlgCat arr) a) (dB :: ObDict (AlgCat arr) b) k =
-    withObDict dA $
-      withObDict dB $
-        withTensorOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) k
 
 instance (Category arr, Strength t arr, Discrete arr) => Strength t (AlgCat arr) where
   strength f = Lift (strength (eval f))
-  withStrengthOb ::
-    forall a b c r.
-    ObDict (AlgCat arr) a ->
-    ObDict (AlgCat arr) b ->
-    ObDict (AlgCat arr) c ->
-    ((Ob (AlgCat arr) (t a b), Ob (AlgCat arr) (t a c)) => r) ->
-    r
-  withStrengthOb (dA :: ObDict (AlgCat arr) a) (dB :: ObDict (AlgCat arr) b) (dC :: ObDict (AlgCat arr) c) k =
-    withObDict dA $
-      withObDict dB $
-        withObDict dC $
-          withStrengthOb @t @arr (ObDict :: ObDict arr a) (ObDict :: ObDict arr b) (ObDict :: ObDict arr c) k
 
 instance (Category arr, Traced t arr, Discrete arr) => Traced t (AlgCat arr) where
   trace body = Lift (trace (eval body))

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -185,13 +186,9 @@ instance Channel (,) (Prob (->) r) where
   slide = embed slide
   {-# INLINE slide #-}
 
-  withTensorOb _ _ x = x
-
 instance Strength (,) (Prob (->) r) where
   strength (Prob f) = Prob $ \k -> f (k . assoc) . assoc'
   {-# INLINE strength #-}
-
-  withStrengthOb _ _ _ x = x
 
 -- ---------------------------------------------------------------------------
 -- Parallel nestings (Fubini on the linear fragment)

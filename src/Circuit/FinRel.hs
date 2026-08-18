@@ -440,11 +440,9 @@ instance (Field k) => Channel (,) (FinRel k) where
   assoc = assocFinRel
   assoc' = assoc'FinRel
   slide = slideFinRel
-  withTensorOb ObDict ObDict x = x
 
 instance (Field k) => Strength (,) (FinRel k) where
   strength = par id
-  withStrengthOb ObDict ObDict ObDict x = x
 
 traceFinRel ::
   forall k a b c.
