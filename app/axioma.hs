@@ -48,8 +48,15 @@ type N2 = FinObj 2
 -- 'mergeE' is callable here because the source type @?A ⅋ ?A@ puts @a@ inside
 -- the injective 'ChuOPar' constructor, letting GHC determine it. 'zeroE' is
 -- not directly callable at a specific @a@ because 'WhyNot' is a non-injective
--- type family and @a@ only appears inside the result; its value-level oracle
--- 'zeroWhyNotParChu' is exercised below instead.
+-- type family and @a@ only appears inside the result. Its value-level oracle
+-- 'zeroWhyNotParChu' now lives in the circuits-chu package and is exercised
+-- there.
+--
+-- This is one instance of a general pattern: type-family non-injectivity
+-- blocks polymorphic instance methods whenever an object appears only inside
+-- the result of a non-injective family. The same obstruction appears in the
+-- ForwardChu target for Net.bind over OChu r (see circuits-chu/axioma.hs and
+-- loom/traced-ochu.md).
 -- ---------------------------------------------------------------------------
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
