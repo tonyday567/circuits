@@ -6,7 +6,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -151,7 +150,7 @@ instance Layer Free where
   unit = Lift
   bind :: forall arr' arr a b. (Law Free arr') => (arr :~> arr') -> Free arr a b -> arr' a b
   bind h (Lift f) = h f
-  bind h (Compose @_ @b1 g f) = bind h g . bind h f
+  bind h (Compose @_ @_ g f) = bind h g . bind h f
 
 -- | Freeze a 'Free' category into its base arrow.
 --

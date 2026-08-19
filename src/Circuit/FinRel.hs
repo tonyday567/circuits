@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -441,7 +440,7 @@ slideFinRel =
 
 strengthFinRel ::
   forall k a b c.
-  (Field k, KnownDim a, KnownDim b, KnownDim c) =>
+  (Field k, KnownDim a) =>
   FinRel k b c ->
   FinRel k (a, b) (a, c)
 strengthFinRel = parFinRel finId
@@ -489,7 +488,7 @@ instance (Field k, KnownNat n) => Discard (FinRel k) (FinObj n) where
 instance (Field k, KnownNat n) => Merge (FinRel k) (FinObj n) where
   plus = finPlus
 
-instance (Field k, KnownNat n) => Zero (FinRel k) (FinObj n) where
+instance (KnownNat n) => Zero (FinRel k) (FinObj n) where
   zero = finZero
 
 finCopyUnit :: FinRel k () ((), ())

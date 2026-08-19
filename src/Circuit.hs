@@ -142,9 +142,6 @@ module Circuit
     dimapEnds,
     lmapEnds,
     rmapEnds,
-    pairEnds,
-    raceEnds,
-    raceMediator,
     HasDual (..),
 
     -- * Copycat / multiplicative excluded middle
@@ -275,8 +272,8 @@ import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
   ( Strength,
     Traced,
-    trace,
     strength,
+    trace,
   )
 import Circuit.Channel qualified as Channel
 import Circuit.ChannelPoly

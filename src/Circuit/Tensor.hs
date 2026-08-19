@@ -137,9 +137,9 @@ instance Braided Either where
 --
 -- This is 'ambientBy' with the slide supplied by the 'Braided' instance.
 ambient ::
-  (Braided t, Strength t (->)) =>
-  Loop t (->) a b ->
-  Loop t (->) (t s a) (t s b)
+  (Braided t, Strength t arr, Profunctor arr) =>
+  Loop t arr a b ->
+  Loop t arr (t s a) (t s b)
 ambient = ambientBy slide
 
 -- ===========================================================================
@@ -258,10 +258,10 @@ coreleaseR _ (Left a) = Left a
 -- >>> run (ambientBy slide (Knot step)) ("st", ())
 -- ("st",[0,0,0])
 ambientBy ::
-  (Strength t (->)) =>
+  (Strength t arr, Profunctor arr) =>
   (forall x y z. t x (t y z) -> t y (t x z)) ->
-  Loop t (->) a b ->
-  Loop t (->) (t s a) (t s b)
+  Loop t arr a b ->
+  Loop t arr (t s a) (t s b)
 ambientBy _br (Lift f) = Lift (strength f)
 ambientBy br (Knot k) = Knot (dimap br br (strength k))
 
@@ -521,19 +521,19 @@ instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.
-  (Tensor t arr, Strength t arr, Channel t arr) =>
+  (Tensor t arr, Strength t arr) =>
   Loop t arr a b ->
   Loop t arr c d ->
   Loop t arr (t a c) (t b d)
 superpose x y =
   case (x, y) of
-    (Knot @_ @s @_ @_ @_ f, Knot @_ @s1 @_ @_ @_ g) ->
+    (Knot @_ @_ @_ @_ @_ f, Knot @_ @_ @_ @_ @_ g) ->
       Knot $
         pre .>> par f g .>> post
-    (Knot @_ @s @_ @_ @_ f, Lift g) ->
+    (Knot @_ @_ @_ @_ @_ f, Lift g) ->
       Knot $
         assoc' .>> par f g .>> assoc
-    (Lift f, Knot @_ @s @_ @_ @_ g) ->
+    (Lift f, Knot @_ @_ @_ @_ @_ g) ->
       Knot $
         braid .>> par f g .>> braid
     (Lift f, Lift g) -> Lift (par f g)

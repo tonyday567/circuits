@@ -164,17 +164,15 @@ enrich (C.Knot f) = Knot (Lift f)
 -- >>> run (melt (widen m :: Net (,) (,) (->) Int Int)) 5
 -- 11
 -- >>> let h f = f
--- >>> let phi d = d
--- >>> (bind phi h m :: Int -> Int) 5
+-- >>> (bind h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: 'Net' folds through 'widen' match 'Sym' folds.
 --
 -- >>> let h f = f
--- >>> let phi d = d
--- >>> (bind phi h (widen m :: Net (,) (,) (->) Int Int) :: Int -> Int) 5
+-- >>> (bind h (widen m :: Net (,) (,) (->) Int Int) :: Int -> Int) 5
 -- 11
--- >>> (bind phi h m :: Int -> Int) 5
+-- >>> (bind h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: transposition commutes with 'widen'.
@@ -211,7 +209,7 @@ sift Copy = SymLift (Dg.copyT @w)
 sift Discard = SymLift (Dg.discardT @w)
 sift Plus = SymLift (Dg.plusT @w)
 sift Zero = SymLift (Dg.zeroT @w)
-sift n@(Knot @_ @s @_ @_ @_ _) = SymLift (Layer.run (melt n))
+sift n@(Knot @_ @_ @_ @_ @_ _) = SymLift (Layer.run (melt n))
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
 --

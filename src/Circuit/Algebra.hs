@@ -200,7 +200,7 @@ instance Algebra SigCompose arr arr' where
     (forall x y. rec x y -> arr' x y) ->
     SigCompose arr rec a c ->
     arr' a c
-  alg _ rec (SigCompose @_ @b1 @_ @_ @_ g f) = rec g . rec f
+  alg _ rec (SigCompose @_ @_ @_ @_ @_ g f) = rec g . rec f
 
 -- | Feedback loop / trace over tensor @t@.
 data SigKnot (t :: Type -> Type -> Type) arr rec a b where
@@ -212,12 +212,11 @@ instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
   type Ctx (SigKnot t) arr arr' = Traced t arr'
   alg ::
     forall (rec :: Type -> Type -> Type) (b :: Type) (c :: Type).
-    (Ctx (SigKnot t) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
     SigKnot t arr rec b c ->
     arr' b c
-  alg _ rec (SigKnot @_ @a1 @_ @_ @_ @_ f) = trace (rec f)
+  alg _ rec (SigKnot @_ @_ @_ @_ @_ @_ f) = trace (rec f)
 
 -- | Parallel composition (the tensor product ⊗).
 --
@@ -289,7 +288,6 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
   type Ctx (SigSwap w) arr arr' = Action w arr'
   alg ::
     forall rec a b.
-    (Ctx (SigSwap w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
     SigSwap w arr rec a b ->
@@ -315,7 +313,6 @@ instance Algebra (SigCopyDiscard w) arr arr' where
   type Ctx (SigCopyDiscard w) arr arr' = ()
   alg ::
     forall rec i o.
-    (Ctx (SigCopyDiscard w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
     SigCopyDiscard w arr rec i o ->
@@ -342,7 +339,6 @@ instance Algebra (SigMergeZero w) arr arr' where
   type Ctx (SigMergeZero w) arr arr' = ()
   alg ::
     forall rec i o.
-    (Ctx (SigMergeZero w) arr arr') =>
     (forall x y. arr x y -> arr' x y) ->
     (forall x y. rec x y -> arr' x y) ->
     SigMergeZero w arr rec i o ->

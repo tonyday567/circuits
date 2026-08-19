@@ -5,7 +5,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -123,16 +122,16 @@ instance (Strength t arr) => Category (Loop t arr) where
   Lift f . Knot g = Knot (strength f . g)
   Knot f . Knot g = Knot (assoc .> strength g .> slide .> strength f .> slide .> assoc')
 
-instance (Profunctor arr, Bifunctor t, Channel t arr) => Profunctor (Loop t arr) where
+instance (Profunctor arr, Bifunctor t) => Profunctor (Loop t arr) where
   dimap :: forall a b c d. (a -> b) -> (c -> d) -> Loop t arr b c -> Loop t arr a d
   dimap f g (Lift h) = Lift (dimap f g h)
-  dimap f g (Knot @_ @s @_ @_ @_ h) = Knot (dimap (second f) (second g) h)
+  dimap f g (Knot @_ @_ @_ @_ @_ h) = Knot (dimap (second f) (second g) h)
   lmap :: forall a b c. (a -> b) -> Loop t arr b c -> Loop t arr a c
   lmap f (Lift h) = Lift (lmap f h)
-  lmap f (Knot @_ @s @_ @_ @_ h) = Knot (lmap (second f) h)
+  lmap f (Knot @_ @_ @_ @_ @_ h) = Knot (lmap (second f) h)
   rmap :: forall a b c. (b -> c) -> Loop t arr a b -> Loop t arr a c
   rmap g (Lift h) = Lift (rmap g h)
-  rmap g (Knot @_ @s @_ @_ @_ h) = Knot (rmap (second g) h)
+  rmap g (Knot @_ @_ @_ @_ @_ h) = Knot (rmap (second g) h)
 
 instance (Bifunctor t) => Functor (Loop t (->) a) where
   fmap f (Lift g) = Lift (f . g)
@@ -175,4 +174,4 @@ instance Layer (Loop t) where
     Loop t arr a b ->
     arr' a b
   bind h (Lift f) = h f
-  bind h (Knot @_ @s @_ @_ @_ f) = trace (h f)
+  bind h (Knot @_ @_ @_ @_ @_ f) = trace (h f)

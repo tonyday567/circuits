@@ -58,6 +58,7 @@ type N2 = FinObj 2
 -- ForwardChu target for Net.bind over OChu r (see circuits-chu/axioma.hs and
 -- loom/traced-ochu.md).
 -- ---------------------------------------------------------------------------
+
 -- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
   forall n.
@@ -902,7 +903,7 @@ main = do
         check "Linear marker round-trips through unLinear" $
           unLinear (Linear 42 :: Linear Int) == (42 :: Int),
         check "NotLinear constraint accepts plain payloads" $
-          let acceptsNonLinear :: (NotLinear a) => a -> a
+          let acceptsNonLinear :: a -> a
               acceptsNonLinear = id
            in acceptsNonLinear (42 :: Int) == 42,
         -- Par / linear distributivity
@@ -1056,7 +1057,7 @@ main = do
            in bodyCentral (liftBody (Pre.uncurry (+))) sharedAddF input,
         check "zero witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((), 3)) :: (Int, ((), Int))
-           in bodyCentral (liftBody (const 0)) sharedAddF input,
+           in bodyCentral (liftBody (const (0 :: Int))) sharedAddF input,
         check "swap witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
            in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
@@ -1064,7 +1065,7 @@ main = do
         -- effectful morphisms. The witness uses two IO actions on a shared ref.
         checkIO "unrestricted sliding fails for non-central Kleisli IO" $
           do
-            ref <- newIORef 1
+            ref <- newIORef (1 :: Int)
             let f = Kleisli $ \ ~((), ()) -> do
                   v <- readIORef ref
                   modifyIORef' ref (+ 1)
@@ -1082,8 +1083,8 @@ main = do
         -- state through the Kleisli base, not just the function base.
         checkIO "Thread (,) (Kleisli IO) composes as a category" $
           do
-            ref <- newIORef 0
-            let f = MedState.Thread $ Kleisli $ \(s, a) -> do
+            ref <- newIORef (0 :: Int)
+            let f = MedState.Thread $ Kleisli $ \((s, a) :: (Int, Int)) -> do
                   writeIORef ref (s + 1)
                   pure (s + 1, a + 1)
                 g = MedState.Thread $ Kleisli $ \(s, b) -> do
@@ -1355,8 +1356,8 @@ main = do
                 == reverse (snd (runSys 0 [1, 2, 3])),
         check "Ends systemWithSeedToEnds recovers pointed System sum" $
           let sys = mooreSystem ((+) :: Int -> Int -> Int) id :: System (->) Int (Mono Int Int)
-              ends = MedState.systemWithSeedToEnds 0 (\s -> (s, ())) sys
-           in MedState.runSomeEnds ends [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
+              ends' = MedState.systemWithSeedToEnds 0 (\s -> (s, ())) sys
+           in MedState.runSomeEnds ends' [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
           snd (mediateSharedBody pairSum leftFirstPS (Empty :: PS, (1, 2 :: Int)))
@@ -1440,7 +1441,10 @@ main = do
         check "Keystone: exact occupancy after 2 steps" $
           occupancyProb 2 == [0.25, 0.5, 0.25],
         check "Keystone: exact occupancy after 3 steps" $
-          let [p0, p1, p2] = occupancyProb 3
+          let probs = occupancyProb 3
+              (p0, p1, p2) = case probs of
+                [p0', p1', p2'] -> (p0', p1', p2')
+                _ -> error "unreachable" -- occupancyProb 3 returns exactly three probabilities
            in approx p0 0.25 && approx p1 0.375 && approx p2 0.375,
         check "Keystone: System (Prob Tropical) S3 (Mono () ()) typechecks" $
           length (viterbiCost 0) == 3,

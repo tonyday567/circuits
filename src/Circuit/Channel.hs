@@ -6,7 +6,6 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -38,8 +37,6 @@ where
 import Circuit.Category (Category (..))
 import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
-import Data.Bifunctor
-import Data.Kind (Type)
 import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
@@ -67,8 +64,7 @@ import Prelude hiding (id, (.))
 -- constraint under the tensor has been removed along with the @Ob@
 -- apparatus; composite-object legitimacy is an audit concern.
 class
-  ( Category arr
-  ) =>
+  (Category arr) =>
   Channel t arr
   where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.

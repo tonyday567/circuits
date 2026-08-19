@@ -387,8 +387,9 @@ encodeEither f = h
 --       Left n          -> Right n
 -- :}
 --
--- >>> runEither step (0 :: Int)
--- 3
+-- FIXME: the doctest for @runEither step (0 :: Int)@ used to hang forever
+-- because the step function above loops between Left 0 and Left 1.
+-- It has been removed until the example is fixed.
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
 

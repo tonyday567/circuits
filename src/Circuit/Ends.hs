@@ -646,7 +646,7 @@ instance HasSilent (Maybe a) where
 -- >>> run (box @(,) (pairEnds e1 e2)) ()
 -- (1,2)
 pairEnds ::
-  (Copy (->) a, Discard (->) a) =>
+  (Copy (->) a) =>
   Ends (->) a b ->
   Ends (->) a c ->
   Ends (->) a (b, c)
@@ -671,7 +671,7 @@ pairEnds e1 e2 =
 -- >>> run (box @(,) (raceEnds RightFirst eL eR)) ()
 -- Just 2
 raceEnds ::
-  (Copy (->) a, Discard (->) a, IsSilent b) =>
+  (Copy (->) a, IsSilent b) =>
   Bias ->
   Ends (->) a b ->
   Ends (->) a b ->

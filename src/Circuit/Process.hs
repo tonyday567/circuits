@@ -432,7 +432,7 @@ instance Traced Either Process where
 instance (Copy (->) a) => Copy Process a where
   copy = P id (\_ x -> x) Dagger.copy
 
-instance (Discard (->) a) => Discard Process a where
+instance Discard Process a where
   discard = P id (\_ x -> x) (const ())
 
 instance (Merge (->) a) => Merge Process a where
