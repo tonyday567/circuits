@@ -103,3 +103,12 @@ executable circuits-axioma-pipeline
     base >=4.20 && <5,
     circuits,
     circuits-test-utils,
+
+executable evidence-knot
+  import: ghc-options-stanza
+  default-language: GHC2024
+  main-is: evidence-knot.hs
+  hs-source-dirs: app
+  build-depends:
+    base >=4.20 && <5,
+    circuits,
