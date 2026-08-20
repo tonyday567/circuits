@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-partial-fields #-}
 
 -- | The free traced PROP with a bimonoid over a primitive set.
 --
@@ -29,6 +29,7 @@
 module Circuit.Net
   ( -- * Net
     Net (..),
+    ChannelEvidence (..),
 
     -- * Sym
     Sym (..),
@@ -86,6 +87,47 @@ import Prelude hiding (id, (.))
 --
 -- 'Net' extends 'C.Loop' inspectably. 'enrich' embeds a 'Loop' into
 -- 'Net', and 'melt' collapses it back; 'melt' . 'enrich' = 'id'.
+
+-- | Value-level evidence for the hidden feedback channel @s@ of a 'Knot'.
+--
+-- 'NoEvidence' is the default introduced by 'enrich'; it makes the evidence
+-- ignorable — 'run', 'melt', and 'bind' drop it without inspection.
+-- 'StarEvidence' carries the channel algebra that structure-transforming
+-- passes need (dimension, zero, basis, addition, negation, and the matrix
+-- operations used for closed-form feedback elimination).
+--
+-- The matrix carrier @m@ is existential: @circuits@ does not depend on
+-- @circuits-mat@ (that would create a package cycle), so the evidence record
+-- keeps its matrix representation abstract.  Consumers that /do/ link
+-- @circuits-mat@ supply @m = 'Circuit.Mat.Dense.Matrix' (Scalar s)@ and the
+-- corresponding eliminators.
+data ChannelEvidence s where
+  -- | No channel structure is known.  This is the conservative default.
+  NoEvidence :: ChannelEvidence s
+  -- | Channel-algebra eliminators for star-style elimination.
+  StarEvidence ::
+    forall s m.
+    { -- | Dimension of the channel cotangent space.
+      channelDimE :: Int,
+      -- | Zero channel cotangent of the given dimension.
+      zeroChannelE :: Int -> s,
+      -- | Basis vector @e_i@: @basisChannelE dim i@.
+      basisChannelE :: Int -> Int -> s,
+      -- | Componentwise sum of two channel cotangents.
+      addChannelE :: s -> s -> s,
+      -- | Additive inverse of a channel cotangent.
+      negateChannelE :: s -> s,
+      -- | Build the self-coupling matrix of a linear map @s -> s@ by
+      -- probing each basis vector of the given dimension.
+      selfMatrixE :: Int -> (s -> s) -> m,
+      -- | Apply a matrix to a channel cotangent.
+      applyMatrixE :: m -> s -> s,
+      -- | Kleene star of a square self-coupling matrix.
+      starMatrixE :: m -> m
+    } ->
+    ChannelEvidence s
+
+-- | The free traced PROP with a bimonoid.
 data Net (w :: Type -> Type -> Type) (t :: Type -> Type -> Type) arr a b where
   -- | Embed a base arrow.
   Lift :: arr a b -> Net w t arr a b
@@ -115,7 +157,10 @@ data Net (w :: Type -> Type -> Type) (t :: Type -> Type -> Type) arr a b where
     (Dg.ZeroT w arr a) =>
     Net w t arr (Unit w) a
   -- | Feedback loop.  The body is a 'Net', not an opaque base arrow.
+  -- The 'ChannelEvidence' is ignorable for execution; it is carried so that
+  -- structure-transforming passes can inspect the hidden channel @s@.
   Knot ::
+    ChannelEvidence s ->
     Net w t arr (t s a) (t s b) ->
     Net w t arr a b
 
@@ -140,7 +185,7 @@ instance (Category arr) => Category (Net w t arr) where
 -- @Lift@ body.
 enrich :: C.Loop t arr a b -> Net w t arr a b
 enrich (C.Lift f) = Lift f
-enrich (C.Knot f) = Knot (Lift f)
+enrich (C.Knot f) = Knot NoEvidence (Lift f)
 
 -- | Include a 'Sym' circuit into 'Net' — constructor-to-constructor.
 --
@@ -209,7 +254,7 @@ sift Copy = SymLift (Dg.copyT @w)
 sift Discard = SymLift (Dg.discardT @w)
 sift Plus = SymLift (Dg.plusT @w)
 sift Zero = SymLift (Dg.zeroT @w)
-sift n@(Knot @_ @_ @_ @_ @_ _) = SymLift (Layer.run (melt n))
+sift n@(Knot _ev _f) = SymLift (Layer.run (melt n))
 
 -- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
 --
@@ -235,7 +280,7 @@ melt Copy = C.Lift (Dg.copyT @w)
 melt Discard = C.Lift (Dg.discardT @w)
 melt Plus = C.Lift (Dg.plusT @w)
 melt Zero = C.Lift (Dg.zeroT @w)
-melt (Knot f) = trace (melt f)
+melt (Knot _ev f) = trace (melt f)
 
 -- | 'Traced' + 'Action' — free 'Net' fold carries its own structure.
 class (Traced t arr, Action w arr) => FreeNet w t arr
@@ -274,7 +319,7 @@ instance Layer (Net w t) where
   bind h Discard = h (Dg.discardT @w)
   bind h Plus = h (Dg.plusT @w)
   bind h Zero = h (Dg.zeroT @w)
-  bind h (Knot (f :: Net w t arr (t s a) (t s b))) =
+  bind h (Knot _ev (f :: Net w t arr (t s a) (t s b))) =
     trace (bind h f)
 
 -- ===========================================================================

@@ -455,7 +455,7 @@ algNet N.Copy = Op (R (R (R (R (L SigCopy)))))
 algNet N.Discard = Op (R (R (R (R (L SigDiscard)))))
 algNet N.Plus = Op (R (R (R (R (R SigPlus)))))
 algNet N.Zero = Op (R (R (R (R (R SigZero)))))
-algNet (N.Knot f) = Op (R (L (SigKnot (algNet f))))
+algNet (N.Knot _ev f) = Op (R (L (SigKnot (algNet f))))
 
 -- | Project the signature-based Net back to the direct GADT.
 runAlgNet :: forall w t arr a b. AlgNet w t arr a b -> N.Net w t arr a b
@@ -477,7 +477,7 @@ runAlgNet = goTop
     goKnotOrMore (R rest) = goParOrMore rest
 
     goKnot :: forall x y. SigKnot t arr (AlgNet w t arr) x y -> N.Net w t arr x y
-    goKnot (SigKnot f) = N.Knot (goTop f)
+    goKnot (SigKnot f) = N.Knot N.NoEvidence (goTop f)
 
     goParOrMore :: forall x y. (SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
     goParOrMore (L sp) = goPar sp
