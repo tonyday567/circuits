@@ -18,21 +18,20 @@ graph LR
   Action["Action"]
 
   Free["Free"]
-  Sym["Sym"]
+  SMC["SMC"]
   Net["Net"]
   Loop["Loop"]
 
   Category -.-> Free
   Strength -.-> Loop
   Traced -.-> Loop
-  Action -.-> Sym
+  Action -.-> SMC
   Action -.-> Net
-  Traced -.-> Net
 
   Category --> Channel --> Strength --> Traced
   Category --> Tensor --> Action
-  Free --> Sym --> Net
-  Loop --> Net
+  Free --> SMC --> Net
+  Net --> Loop
 
   linkStyle 0,1,2,3,4,5 stroke:#C44E8A,stroke-width:2px
   linkStyle 6,7,8,9,10 stroke:#4B7FBD,stroke-width:2px
@@ -45,7 +44,7 @@ graph LR
   style Tensor fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
-  style Sym fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
 ```
@@ -73,19 +72,19 @@ graph LR
   Hyper["Circuit.Hyper"]
   Dagger["Circuit.Dagger"]
   Ends["Circuit.Ends"]
-  Thread["Circuit.Thread"]
+  Body["Circuit.Body"]
   Poly["Circuit.Poly"]
   Algebra["Circuit.Algebra"]
   Mediate["Circuit.Mediate"]
 
   Category --> ChannelClass --> Strength --> Traced
   Category --> TensorClass --> Action
-  Loop --> Net
+  Net --> Loop
   Loop --> Hyper
   Dagger --> Net
   Ends --> Loop
-  Poly --> Thread
-  Thread --> Loop
+  Poly --> Body
+  Body --> Loop
   Algebra --> Net
   Algebra --> Loop
   Mediate --> Ends
@@ -105,13 +104,13 @@ graph LR
   style TensorClass fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
-  style Sym fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Ends fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style Thread fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Body fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Algebra fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Mediate fill:#4B9680,stroke:#4B9680,color:#1b1e23
@@ -133,17 +132,17 @@ nothing about syntax; they are the contracts that folds have to meet.
 each rung one enrichment of the last:
 
     Free = Lift + Compose
-    Sym  = Free + Par + Swap
-    Net  = Sym + Knot + Copy + Discard + Plus + Zero
+    SMC  = Free + Par + Swap
+    Net  = SMC + Copy + Discard + Plus + Zero
 
-`Free` is the free category; `Sym` the free symmetric monoidal category; `Net`
-the free traced PROP with a bimonoid, where every wire is a constructor you can
-inspect. `Loop` sits to the side of this chain rather than on it: it is the free
-traced monoidal category *in normal form*. Its laws are performed by its
-instances, so every value collapses to at most one `Knot` over a base arrow.
-`Net` and `Loop` are the two poles of the library — wiring you can read
-backwards, and wiring that has been melted into a single loop. `melt` goes from
-one to the other.
+`Free` is the free category; `SMC` the free symmetric monoidal category; `Net`
+the free symmetric monoidal category with a bimonoid, where every wire is a
+constructor you can inspect. `Loop` sits to the side of this chain rather than
+on it: it is the free traced monoidal category *in normal form*. Its laws are
+performed by its instances, so every value collapses to at most one `Knot` over
+a base arrow. `Net` and `Loop` are the two poles of the library — wiring you can
+read backwards, and wiring that has been melted into a single loop. `melt` goes
+from `Net` to `Loop`; feedback lives in `Loop`, not in `Net`.
 
 **Between the ladders** there is a family of folds. Each free construction can
 be evaluated into any target category that satisfies the right laws; the GADT's
@@ -157,14 +156,14 @@ functors.
   `These` for scheduling / shared-medium fusion (the ⅋ connective).
 - `arr` — the base arrow: `(->)`, `Kleisli m` for effects, `Prob` for exact
   probabilistic dynamics, `FinRel` for nondeterminism, matrices over a semiring.
-- `s` — the residual state carried by a `Thread` / `Mediator`; close
+- `s` — the residual state carried by a `Body` / `Mediator`; close
   certification (`closeCertified`, `closeCertifiedWith`) makes linearity
   violations observable.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms,
   giving `Circuit.ChannelPoly` its interactive channel model.
 
-The recent refactor crystallised this around `Thread t arr s a b`, the
+The recent refactor crystallised this around `Body t arr s a b`, the
 knot-body category `arr (t s a) (t s b)` that `Loop` wraps before tracing.
 Everything stateful — `SArr`, `SystemT`, `Process.Machine`, `Ends.Med` — is a
 specialisation or projection of it.

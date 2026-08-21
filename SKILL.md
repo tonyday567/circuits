@@ -35,7 +35,7 @@ Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift,
                       flatten, plus bridges from Loop and Free.
 Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
                       Plus, Zero, Knot. enrich, melt, transpose. Also hosts
-                      the free symmetric monoidal category Sym.
+                      the free symmetric monoidal category SMC.
 Circuit.Layer       — Layer tower. unit, run, bind, lower; (:~>). Also hosts
                       the free category Free and freeze.
 Circuit.Algebra     — Change-of-base algebras for modular circuit syntax.
