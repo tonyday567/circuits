@@ -98,12 +98,12 @@ module Circuit.Ends
     SArr (..),
     SomeSArr (..),
     runSomeSArr,
-    Thread (..),
-    SomeThread (..),
-    threadToLoop,
-    threadToSArr,
-    sArrToThread,
-    processToThread,
+    Body (..),
+    SomeBody (..),
+    bodyToLoop,
+    bodyToSArr,
+    sArrToBody,
+    processToBody,
     processToSomeSArr,
     loopToSomeSArr,
     loopEitherToSomeSArr,
@@ -137,6 +137,18 @@ module Circuit.Ends
   )
 where
 
+import Circuit.Body
+  ( Body (..),
+    SArr (..),
+    SomeBody (..),
+    SomeSArr (..),
+    bodyToLoop,
+    bodyToSArr,
+    loopEitherToSomeSArr,
+    loopToSomeSArr,
+    runSomeSArr,
+    sArrToBody,
+  )
 import Circuit.Category (Category (..), (.>))
 import Circuit.Dagger (Copy (copy), Discard (discard))
 import Circuit.Loop (Loop (..))
@@ -144,18 +156,6 @@ import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
 import Circuit.Process (Process (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
-import Circuit.Thread
-  ( SArr (..),
-    SomeSArr (..),
-    SomeThread (..),
-    Thread (..),
-    loopEitherToSomeSArr,
-    loopToSomeSArr,
-    runSomeSArr,
-    sArrToThread,
-    threadToLoop,
-    threadToSArr,
-  )
 import Control.Arrow (Kleisli (..))
 import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Void (Void)
@@ -717,7 +717,7 @@ raceMediator bias =
 -- to the companion. Yanking recovers the identity on @()@.
 --
 -- This instance is technically orphan because 'SArr' now lives in
--- 'Circuit.Thread', but keeping it here keeps the 'Ends' plumbing local to the
+-- 'Circuit.Body', but keeping it here keeps the 'Ends' plumbing local to the
 -- conversions section.
 instance HasDual () (SArr s) where
   open =
@@ -725,24 +725,24 @@ instance HasDual () (SArr s) where
         inU = In $ \o -> emit o inU
      in Ends inU outU
 
--- | Dualising object @()@ for @Thread (,) (Kleisli m) s@.
+-- | Dualising object @()@ for @Body (,) (Kleisli m) s@.
 --
 -- Same shape as the 'SArr' instance, but the companion returns @()@ in the
 -- monad and threads the ambient state through unchanged.
-instance (Monad m) => HasDual () (Thread (,) (Kleisli m) s) where
+instance (Monad m) => HasDual () (Body (,) (Kleisli m) s) where
   open =
-    let outU = Out $ \_ -> Thread $ Kleisli $ \(s, _) -> pure (s, ())
+    let outU = Out $ \_ -> Body $ Kleisli $ \(s, _) -> pure (s, ())
         inU = In $ \o -> emit o inU
      in Ends inU outU
 
 -- | View a 'Process' as a knot body over the 'Either' tensor.
 --
 -- This is the same body used by 'Circuit.Process.encode', now exposed as a value
--- of @Thread Either (->) s@. It confirms the Process / Loop Either round-trip
+-- of @Body Either (->) s@. It confirms the Process / Loop Either round-trip
 -- factors through the knot-body category.
-processToThread :: Process a b -> SomeThread Either (->) [a] [b]
-processToThread (Process inject step extract) =
-  SomeThread (Nothing, [], []) $ Thread $ \case
+processToBody :: Process a b -> SomeBody Either (->) [a] [b]
+processToBody (Process inject step extract) =
+  SomeBody (Nothing, [], []) $ Body $ \case
     Right [] -> Right []
     Right (a : as) ->
       let s0 = inject a
@@ -751,7 +751,7 @@ processToThread (Process inject step extract) =
     Left (Just s, a : as, bs) ->
       let s' = step s a
        in Left (Just s', as, extract s' : bs)
-    Left (Nothing, _, _) -> error "processToThread: feedback reached before first input"
+    Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
 
 -- | View a 'Process' as an existentially-quantified 'SArr'.
 --

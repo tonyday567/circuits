@@ -54,7 +54,7 @@
 -- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t) arr@          — free traced category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@) arr@ — free monoidal category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigShared@ t ':+:' @SigKnot@ t) arr@ — free traced category with shared-medium fusion
--- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigCopyDiscard' ':+:' 'SigMergeZero') arr@ — Net
+-- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigCopyDiscard' ':+:' 'SigMergeZero') arr@ — Net
 module Circuit.Algebra
   ( -- * Signatures
     Sig,
@@ -84,7 +84,7 @@ module Circuit.Algebra
     AlgLoop,
     AlgMediate,
     AlgShared,
-    AlgSym,
+    AlgSMC,
     AlgBimonoidal,
     AlgNet,
 
@@ -356,7 +356,7 @@ type AlgCat arr = Syntax SigCompose arr
 type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
 
 -- | Free monoidal category over wiring tensor @w@.
-type AlgSym w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
+type AlgSMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
 type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
@@ -367,9 +367,8 @@ type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigKnot t) arr
 -- | Free bimonoidal category over wiring tensor @w@.
 type AlgBimonoidal w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr
 
--- | Free traced PROP with bimonoid over wiring tensor @w@ and feedback
--- tensor @t@.
-type AlgNet w t arr = Syntax (SigCompose :+: SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr
+-- | Free symmetric monoidal category with bimonoid over wiring tensor @w@.
+type AlgNet w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr
 
 -- ---------------------------------------------------------------------------
 -- Instances for signature-based categories
@@ -446,58 +445,50 @@ runAlgLoop (Op op) = go op
     go (R (SigKnot @_ f)) = C.Knot (run (runAlgLoop f))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
-algNet :: forall w t arr a b. N.Net w t arr a b -> AlgNet w t arr a b
+algNet :: forall w arr a b. N.Net w arr a b -> AlgNet w arr a b
 algNet (N.Lift f) = Lift f
 algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
-algNet (N.Par f g) = Op (R (R (L (SigPar (algNet f) (algNet g)))))
-algNet N.Swap = Op (R (R (R (L SigSwap))))
-algNet N.Copy = Op (R (R (R (R (L SigCopy)))))
-algNet N.Discard = Op (R (R (R (R (L SigDiscard)))))
-algNet N.Plus = Op (R (R (R (R (R SigPlus)))))
-algNet N.Zero = Op (R (R (R (R (R SigZero)))))
-algNet (N.Knot f) = Op (R (L (SigKnot (algNet f))))
+algNet (N.Par f g) = Op (R (L (SigPar (algNet f) (algNet g))))
+algNet N.Swap = Op (R (R (L SigSwap)))
+algNet N.Copy = Op (R (R (R (L SigCopy))))
+algNet N.Discard = Op (R (R (R (L SigDiscard))))
+algNet N.Plus = Op (R (R (R (R SigPlus))))
+algNet N.Zero = Op (R (R (R (R SigZero))))
 
 -- | Project the signature-based Net back to the direct GADT.
-runAlgNet :: forall w t arr a b. AlgNet w t arr a b -> N.Net w t arr a b
+runAlgNet :: forall w arr a b. AlgNet w arr a b -> N.Net w arr a b
 runAlgNet = goTop
   where
-    goTop :: forall x y. AlgNet w t arr x y -> N.Net w t arr x y
+    goTop :: forall x y. AlgNet w arr x y -> N.Net w arr x y
     goTop (Lift f) = N.Lift f
     goTop (Op op) = goOp op
 
-    goOp :: forall x y. (SigCompose :+: SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goOp :: forall x y. (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w arr) x y -> N.Net w arr x y
     goOp (L sc) = goCompose sc
-    goOp (R rest) = goKnotOrMore rest
+    goOp (R rest) = goParOrMore rest
 
-    goCompose :: forall x y. SigCompose arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goCompose :: forall x y. SigCompose arr (AlgNet w arr) x y -> N.Net w arr x y
     goCompose (SigCompose g f) = N.Compose (goTop g) (goTop f)
 
-    goKnotOrMore :: forall x y. (SigKnot t :+: SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
-    goKnotOrMore (L sk) = goKnot sk
-    goKnotOrMore (R rest) = goParOrMore rest
-
-    goKnot :: forall x y. SigKnot t arr (AlgNet w t arr) x y -> N.Net w t arr x y
-    goKnot (SigKnot f) = N.Knot (goTop f)
-
-    goParOrMore :: forall x y. (SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goParOrMore :: forall x y. (SigPar w :+: SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w arr) x y -> N.Net w arr x y
     goParOrMore (L sp) = goPar sp
     goParOrMore (R rest) = goSwapOrMonoid rest
 
-    goPar :: forall x y. SigPar w arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goPar :: forall x y. SigPar w arr (AlgNet w arr) x y -> N.Net w arr x y
     goPar (SigPar f g) = N.Par (goTop f) (goTop g)
 
-    goSwapOrMonoid :: forall x y. (SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goSwapOrMonoid :: forall x y. (SigSwap w :+: SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w arr) x y -> N.Net w arr x y
     goSwapOrMonoid (L SigSwap) = N.Swap
     goSwapOrMonoid (R rest) = goCopyDiscardOrMergeZero rest
 
-    goCopyDiscardOrMergeZero :: forall x y. (SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goCopyDiscardOrMergeZero :: forall x y. (SigCopyDiscard w :+: SigMergeZero w) arr (AlgNet w arr) x y -> N.Net w arr x y
     goCopyDiscardOrMergeZero (L scd) = goCopyDiscard scd
     goCopyDiscardOrMergeZero (R smz) = goMergeZero smz
 
-    goCopyDiscard :: forall x y. SigCopyDiscard w arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goCopyDiscard :: forall x y. SigCopyDiscard w arr (AlgNet w arr) x y -> N.Net w arr x y
     goCopyDiscard SigCopy = N.Copy
     goCopyDiscard SigDiscard = N.Discard
 
-    goMergeZero :: forall x y. SigMergeZero w arr (AlgNet w t arr) x y -> N.Net w t arr x y
+    goMergeZero :: forall x y. SigMergeZero w arr (AlgNet w arr) x y -> N.Net w arr x y
     goMergeZero SigPlus = N.Plus
     goMergeZero SigZero = N.Zero

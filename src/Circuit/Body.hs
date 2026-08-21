@@ -9,25 +9,25 @@
 -- This is the crystal from which the unification thesis is built:
 --
 -- @
---   Thread t arr s a b  =  arr (t s a) (t s b)
---   SArr s a b          =  Thread (,) (->) s a b
+--   Body t arr s a b  =  arr (t s a) (t s b)
+--   SArr s a b        =  Body (,) (->) s a b
 -- @
 --
--- 'Thread' is the category that 'Circuit.Loop.Knot' wraps before tracing.
+-- 'Body' is the category that 'Circuit.Loop.Knot' wraps before tracing.
 -- Every other stateful view — 'Circuit.Poly.System', 'Circuit.Process.Process',
 -- 'Circuit.Ends.Med' — is a specialisation or projection of it.
-module Circuit.Thread
+module Circuit.Body
   ( -- * Cartesian ambient-state arrow
     SArr (..),
     SomeSArr (..),
     runSomeSArr,
 
     -- * Knot-body category
-    Thread (..),
-    SomeThread (..),
-    threadToLoop,
-    threadToSArr,
-    sArrToThread,
+    Body (..),
+    SomeBody (..),
+    bodyToLoop,
+    bodyToSArr,
+    sArrToBody,
 
     -- * Loop as ambient-state arrow
     loopToSomeSArr,
@@ -65,35 +65,35 @@ instance Category (SArr s) where
 -- structure is required. This is the category 'Circuit.Loop.Knot' hides before
 -- tracing.
 --
--- @SArr s = Thread (,) (->) s@ is the cartesian instance.
-newtype Thread t arr s a b = Thread {runThread :: arr (t s a) (t s b)}
+-- @SArr s = Body (,) (->) s@ is the cartesian instance.
+newtype Body t arr s a b = Body {runBody :: arr (t s a) (t s b)}
 
-instance (Category arr) => Category (Thread t arr s) where
-  id :: forall a. Thread t arr s a a
-  id = Thread id
+instance (Category arr) => Category (Body t arr s) where
+  id :: forall a. Body t arr s a a
+  id = Body id
   {-# INLINE id #-}
 
-  (.) :: forall a b c. Thread t arr s b c -> Thread t arr s a b -> Thread t arr s a c
-  Thread g . Thread f = Thread (g . f)
+  (.) :: forall a b c. Body t arr s b c -> Body t arr s a b -> Body t arr s a c
+  Body g . Body f = Body (g . f)
   {-# INLINE (.) #-}
 
--- | Cartesian instance: @SArr s@ is exactly @Thread (,) (->) s@.
-sArrToThread :: SArr s a b -> Thread (,) (->) s a b
-sArrToThread (SArr f) = Thread f
+-- | Cartesian instance: @SArr s@ is exactly @Body (,) (->) s@.
+sArrToBody :: SArr s a b -> Body (,) (->) s a b
+sArrToBody (SArr f) = Body f
 
-threadToSArr :: Thread (,) (->) s a b -> SArr s a b
-threadToSArr (Thread f) = SArr f
+bodyToSArr :: Body (,) (->) s a b -> SArr s a b
+bodyToSArr (Body f) = SArr f
 
--- | A 'Thread' with its state type hidden, for the same reason 'SomeSArr'
+-- | A 'Body' with its state type hidden, for the same reason 'SomeSArr'
 -- exists.
-data SomeThread t arr a b where
-  SomeThread :: s -> Thread t arr s a b -> SomeThread t arr a b
+data SomeBody t arr a b where
+  SomeBody :: s -> Body t arr s a b -> SomeBody t arr a b
 
 -- | Lift a knot body into a 'Loop' by hiding the state wire.
-threadToLoop ::
-  Thread t arr s a b ->
+bodyToLoop ::
+  Body t arr s a b ->
   Loop t arr a b
-threadToLoop (Thread f) = Knot f
+bodyToLoop (Body f) = Knot f
 
 -- | An existentially-quantified ambient-state arrow.
 --

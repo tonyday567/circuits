@@ -38,7 +38,7 @@
 --
 -- * `Loop` (in "Circuit.Loop") — the initial, inspectable GADT encoding.
 -- * @Hyper@ (in "Circuit.Hyper") — the final, coinductive encoding.
--- * `Thread` (in "Circuit.Thread") — the knot-body category
+-- * `Body` (in "Circuit.Body") — the knot-body category
 --   @arr (t s a) (t s b)@, the stateful substrate that `Loop` hides before
 --   tracing. `SArr` is its cartesian instance.
 --
@@ -67,12 +67,12 @@
 --
 -- * __Folds__ eliminate a free construction:
 --   `run` (any `Layer`), `freeze` (`Free` to its base arrow),
---   `melt` (`Net` to `Loop`), @sift@ (`Net` to `Sym`),
+--   `melt` (`Net` to `Loop`), @sift@ (`Net` to `SMC`),
 --   @eval@ / @evalInto@ (@Syntax@ via an algebra).
 --
 -- * __Injections__ embed one construction into another without eliminating:
---   `unit` (base arrow into a `Layer`), `enrich` (`Loop` into `Net`),
---   @widen@ (`Sym` into `Net`), @algLoop@ / @algNet@ (direct GADT into @Syntax@).
+--   `unit` (base arrow into a `Layer`), @widen@ (`SMC` into `Net`),
+--   @algLoop@ / @algNet@ (direct GADT into @Syntax@).
 --
 -- * __Representation changes__: `encode` (`Loop` to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
@@ -94,12 +94,12 @@ module Circuit
     constChannel,
     mapChannel,
 
-    -- * Thread (knot-body category)
-    Thread (..),
-    SomeThread (..),
+    -- * Body (knot-body category)
+    Body (..),
+    SomeBody (..),
     SArr (..),
     SomeSArr (..),
-    threadToLoop,
+    bodyToLoop,
     runSomeSArr,
 
     -- * Polynomial interfaces
@@ -177,12 +177,11 @@ module Circuit
     Bimonoid,
     transpose,
 
-    -- * Sym
-    Sym,
+    -- * SMC
+    SMC,
 
     -- * Net
     Net,
-    enrich,
     melt,
 
     -- * Hyper
@@ -267,6 +266,14 @@ module Circuit
   )
 where
 
+import Circuit.Body
+  ( Body (..),
+    SArr (..),
+    SomeBody (..),
+    SomeSArr (..),
+    bodyToLoop,
+    runSomeSArr,
+  )
 import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
 import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
@@ -368,8 +375,6 @@ import Circuit.Mediate
   )
 import Circuit.Net
   ( Net,
-    Sym,
-    enrich,
     melt,
   )
 import Circuit.Poly
@@ -393,6 +398,9 @@ import Circuit.Process
     register,
     scan,
     systemToProcess,
+  )
+import Circuit.SMC
+  ( SMC,
   )
 import Circuit.Tensor
   ( Action (..),
@@ -418,13 +426,5 @@ import Circuit.Tensor
     mix,
     sharedKnotBy,
     superpose,
-  )
-import Circuit.Thread
-  ( SArr (..),
-    SomeSArr (..),
-    SomeThread (..),
-    Thread (..),
-    runSomeSArr,
-    threadToLoop,
   )
 import Prelude hiding (curry, uncurry)

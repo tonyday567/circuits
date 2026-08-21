@@ -241,7 +241,7 @@ checkIO name act = do
 -- ⅋ probe helpers
 -- ---------------------------------------------------------------------------
 
--- | Thread that prepends a marker to the shared feedback list and emits the
+-- | Body that prepends a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
 markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
 markerBody n (ns, ()) = (n : ns, take 3 ns)
@@ -284,7 +284,7 @@ rightOnlyPS = Schedule (,R)
 -- | Premonoidal left-first product of two knot bodies.
 --
 -- This is the composite @(f ⊗ id) ; (id ⊗ g)@ in the category of knot bodies
--- @Thread (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
+-- @Body (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
 bodyParL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, These b d))
 bodyParL f g (s, (a, c)) =
   let (s', b) = f (s, a)
@@ -304,7 +304,7 @@ bodyParR f g (s, (a, c)) =
 -- | Centrality of two knot bodies at a chosen input.
 --
 -- Two bodies are central when the premonoidal left-first and right-first
--- products agree.  For the cartesian instance @Thread (,) (->) s@ this is the
+-- products agree.  For the cartesian instance @Body (,) (->) s@ this is the
 -- statement that order of state threading is invisible.
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
@@ -709,21 +709,21 @@ main = do
           MedState.runSomeSArr (MedState.processToSomeSArr swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
         check "processToSomeSArr ewma agrees with scan" $
           MedState.runSomeSArr (MedState.processToSomeSArr (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
-        -- Process / Loop Either round-trip factors through Thread Either (->)
-        check "Process encode factors through Thread Either (->)" $
-          let viaThread p = case MedState.processToThread p of MedState.SomeThread _ b -> MedState.threadToLoop b
-           in scan sumP [1, 2, 3] == run (viaThread sumP) [1, 2, 3]
-                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaThread swapPairP) [(1, 2), (3, 4), (5, 6)]
-                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaThread (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
+        -- Process / Loop Either round-trip factors through Body Either (->)
+        check "Process encode factors through Body Either (->)" $
+          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ b -> MedState.bodyToLoop b
+           in scan sumP [1, 2, 3] == run (viaBody sumP) [1, 2, 3]
+                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
+                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
         -- Process as a base arrow for Loop / Net / Shared
         check "Process lifts into Loop (,) Process" $
           scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]
             == scan sumP [1, 2, 3],
         check "Net (,) Process copy uses Process.copy" $
-          let p = run (Net.Copy :: Net.Net (,) (,) Process Int (Int, Int)) :: Process Int (Int, Int)
+          let p = run (Net.Copy :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
            in scan p [5] == [(5, 5)],
         check "Net (,) Process plus uses Process.plus" $
-          let p = run (Net.Plus :: Net.Net (,) (,) Process (Int, Int) Int) :: Process (Int, Int) Int
+          let p = run (Net.Plus :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
            in scan p [(2, 3)] == [5],
         check "Shared (,) Process LR order differs from RL" $
           let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP
@@ -1077,21 +1077,21 @@ main = do
                 pre = trace (f . par @(,) @(Kleisli IO) g id)
             (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
             pure (l /= r),
-        -- Thread (,) (Kleisli IO) must compose as a category. This is the untested
+        -- Body (,) (Kleisli IO) must compose as a category. This is the untested
         -- edge of parameterising Body over arr; Z2's Loop-level witness stands
         -- on it. The bodies touch a shared IORef to confirm composition threads
         -- state through the Kleisli base, not just the function base.
-        checkIO "Thread (,) (Kleisli IO) composes as a category" $
+        checkIO "Body (,) (Kleisli IO) composes as a category" $
           do
             ref <- newIORef (0 :: Int)
-            let f = MedState.Thread $ Kleisli $ \((s, a) :: (Int, Int)) -> do
+            let f = MedState.Body $ Kleisli $ \((s, a) :: (Int, Int)) -> do
                   writeIORef ref (s + 1)
                   pure (s + 1, a + 1)
-                g = MedState.Thread $ Kleisli $ \(s, b) -> do
+                g = MedState.Body $ Kleisli $ \(s, b) -> do
                   v <- readIORef ref
                   pure (s + v, b * 2)
                 gf = g . f
-            (sOut, c) <- runKleisli (MedState.runThread gf) (0, 5)
+            (sOut, c) <- runKleisli (MedState.runBody gf) (0, 5)
             pure (sOut == 2 && c == 12),
         -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful

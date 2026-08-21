@@ -62,9 +62,10 @@ library
     Circuit.Poly
     Circuit.Prob
     Circuit.Process
+    Circuit.SMC
     Circuit.Stream
     Circuit.Tensor
-    Circuit.Thread
+    Circuit.Body
 
   build-depends:
     base >=4.20 && <5,
