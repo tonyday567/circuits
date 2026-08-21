@@ -4,7 +4,6 @@
 
 module Main where
 
-import Circuit.Fragment qualified as Frag
 import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
 import Circuit.Category (id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
@@ -13,6 +12,7 @@ import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge 
 import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
 import Circuit.Ends qualified as MedState
 import Circuit.FinRel
+import Circuit.Fragment qualified as Frag
 import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)

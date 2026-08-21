@@ -45,7 +45,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Fragment
+    Circuit.Body
     Circuit.Boundary
     Circuit.Category
     Circuit.Channel
@@ -53,6 +53,7 @@ library
     Circuit.Dagger
     Circuit.Ends
     Circuit.FinRel
+    Circuit.Fragment
     Circuit.Hyper
     Circuit.Layer
     Circuit.Loop
@@ -65,7 +66,6 @@ library
     Circuit.SMC
     Circuit.Stream
     Circuit.Tensor
-    Circuit.Body
 
   build-depends:
     base >=4.20 && <5,
@@ -104,4 +104,3 @@ executable circuits-axioma-pipeline
     base >=4.20 && <5,
     circuits,
     circuits-test-utils,
-
