@@ -15,13 +15,15 @@ import Circuit.FinRel
 import Circuit.Markov (copyNatural, deterministic, discardNatural)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, parFG, parGF, score)
 import Circuit.Tensor (Tensor (..))
-import Circuit.Test.Utils
+import Circuit.Tools.Test
   ( allBoolFns,
     approx,
     check,
     pairBoolFns,
     pairDoubleFns,
-    probCopySep,
+  )
+import ProbOracles
+  ( probCopySep,
     probCopySepDouble,
     probDiscardSep,
     probEqDoubleOver,

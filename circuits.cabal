@@ -72,18 +72,6 @@ library
     profunctors >=5.0 && <6,
     these >=1.1 && <1.3,
 
-library circuits-test-utils
-  import: ghc-options-stanza
-  visibility: public
-  default-language: GHC2024
-  hs-source-dirs: test-utils
-  exposed-modules:
-    Circuit.Test.Utils
-
-  build-depends:
-    base >=4.20 && <5,
-    circuits,
-
 executable circuits-axioma
   import: ghc-options-stanza
   default-language: GHC2024
@@ -92,7 +80,7 @@ executable circuits-axioma
   build-depends:
     base >=4.20 && <5,
     circuits,
-    circuits-test-utils,
+    circuits-tools,
     these >=1.1 && <1.3,
 
 executable circuits-axioma-pipeline
@@ -100,7 +88,10 @@ executable circuits-axioma-pipeline
   default-language: GHC2024
   main-is: axioma-pipeline.hs
   hs-source-dirs: app
+  other-modules:
+    ProbOracles
+
   build-depends:
     base >=4.20 && <5,
     circuits,
-    circuits-test-utils,
+    circuits-tools,
