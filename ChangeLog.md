@@ -70,9 +70,9 @@ knot-body category, polynomial interfaces, and close certification.
 
 *Free syntax*
 
-- `Circuit.Algebra.SigShared` gives the ⅋ connective in the à-la-carte
+- `Circuit.Fragment.SigShared` gives the ⅋ connective in the à-la-carte
   signature.
-- `Circuit.Algebra.SigMediate` gives the ? connective, with `Mediable` for
+- `Circuit.Fragment.SigMediate` gives the ? connective, with `Mediable` for
   direct evaluation.
 
 *Exponential slice and linearity*
@@ -113,7 +113,7 @@ Kernel tidy before release: split the bimonoid signature and make
 
 *Signature split*
 
-- `Circuit.Algebra.SigBimonoid` is replaced by `SigCopyDiscard` and
+- `Circuit.Fragment.SigBimonoid` is replaced by `SigCopyDiscard` and
   `SigMergeZero`. The old bundled signature forced users to supply a full
   `Bimonoid` instance even when they only needed copy/discard wiring.
 - `Circuit.Net.Net` constructors now carry the precise constraint:
@@ -184,7 +184,7 @@ separation between syntax and semantics.
 
 *À-la-carte syntax*
 
-- `Circuit.Algebra` provides compositional signatures (`SigCompose`,
+- `Circuit.Fragment` provides compositional signatures (`SigCompose`,
   `SigKnot`, `SigPar`, `SigSwap`, `SigBimonoid`) and direct GADT ↔ syntax
   isomorphisms (`algLoop`, `runAlgLoop`, `algNet`, `runAlgNet`).
 

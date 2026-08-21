@@ -74,7 +74,7 @@ graph LR
   Ends["Circuit.Ends"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
-  Algebra["Circuit.Algebra"]
+  Fragment["Circuit.Fragment"]
   Mediate["Circuit.Mediate"]
 
   Category --> ChannelClass --> Strength --> Traced
@@ -85,8 +85,8 @@ graph LR
   Ends --> Loop
   Poly --> Body
   Body --> Loop
-  Algebra --> Net
-  Algebra --> Loop
+  Fragment --> Net
+  Fragment --> Loop
   Mediate --> Ends
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px

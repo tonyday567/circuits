@@ -68,7 +68,7 @@
 -- * __Folds__ eliminate a free construction:
 --   `run` (any `Layer`), `freeze` (`Free` to its base arrow),
 --   `melt` (`Net` to `Loop`), @sift@ (`Net` to `SMC`),
---   @eval@ / @evalInto@ (@Syntax@ via an algebra).
+--   @eval@ / @evalInto@ (@Syntax@ via a fragment algebra).
 --
 -- * __Injections__ embed one construction into another without eliminating:
 --   `unit` (base arrow into a `Layer`), @widen@ (`SMC` into `Net`),

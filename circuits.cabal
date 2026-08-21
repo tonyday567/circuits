@@ -45,7 +45,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
-    Circuit.Algebra
+    Circuit.Fragment
     Circuit.Boundary
     Circuit.Category
     Circuit.Channel

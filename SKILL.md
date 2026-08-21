@@ -38,7 +38,7 @@ Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
                       the free symmetric monoidal category SMC.
 Circuit.Layer       — Layer tower. unit, run, bind, lower; (:~>). Also hosts
                       the free category Free and freeze.
-Circuit.Algebra     — Change-of-base algebras for modular circuit syntax.
+Circuit.Fragment    — Compositional syntax fragments and change-of-base algebras.
 Circuit.Dagger      — CopyDiscard, MergeZero, Bimonoid, Dagger, transpose.
 Circuit.Ends        — Channel ends (Out, In, Ends), boxes, queues, and the
                       Chu construction.

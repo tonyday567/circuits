@@ -12,7 +12,7 @@ Decisions:
   knot inside Net; it only rewrites bimonoid rows into `Loop.Lift`. It still
   needs `Traced t arr` because `Loop`'s `Tensor`/`Category` instances need
   strength/trace to host the parallel composition that `Par` melts to.
-- `Circuit.Algebra.AlgNet` drops `SigKnot`. `SigKnot` remains in `AlgLoop`
+- `Circuit.Fragment.AlgNet` drops `SigKnot`. `SigKnot` remains in `AlgLoop`
   where it belongs. `AlgNet` is now the free SMC-with-bimonoid signature.
 - `Sym` is renamed to `SMC`, moved to its own module `Circuit.SMC`.
 - `Thread` is renamed to `Body`, module `Circuit.Thread` -> `Circuit.Body`.
