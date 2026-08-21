@@ -22,11 +22,15 @@ module Circuit.SMC
   ( -- * SMC
     SMC (..),
     FreeSMC,
+
+    -- * Dagger mirror
+    mirror,
   )
 where
 
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Kind (Type)
@@ -74,6 +78,20 @@ instance (Tensor w arr) => Tensor w (SMC w arr) where
 -- This is the syntactic instance: 'SMCSwap' is its own interpretation.
 instance (Action w arr) => Action w (SMC w arr) where
   swap = SMCSwap
+
+-- | Mirror an 'SMC' built over 'Dg.Dagger'.
+--
+-- Reverses composition, transposes each lifted arrow, and leaves 'SMCPar'
+-- and 'SMCSwap' self-dual.  This is the structural transpose of the SMC
+-- layer that 'Circuit.Net.mirror' delegates to.
+mirror ::
+  forall w arr a b.
+  SMC w (Dg.Dagger arr) a b ->
+  SMC w (Dg.Dagger arr) b a
+mirror (SMCLift d) = SMCLift (Dg.transpose d)
+mirror (SMCCompose g f) = SMCCompose (mirror f) (mirror g)
+mirror (SMCPar f g) = SMCPar (mirror f) (mirror g)
+mirror SMCSwap = SMCSwap
 
 -- | Lift the 'Channel' structure through 'SMC'.
 instance (Category arr, Channel t arr) => Channel t (SMC w arr) where

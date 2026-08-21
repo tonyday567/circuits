@@ -12,7 +12,7 @@
 --
 -- * 'Copy' / 'Discard' — the comonoid on channel objects (fan-out of values).
 -- * 'Merge' / 'Zero' — the monoid on channel objects (fan-in of contributions).
--- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.transpose'.
+-- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.mirror'.
 -- * @Dagger@ — the free dagger category over a base arrow, pairing a forward
 --   arrow with a backward arrow.  'transpose' is the dagger operation.
 --
@@ -57,6 +57,7 @@ module Circuit.Dagger
     DiscardT (..),
     MergeT (..),
     ZeroT (..),
+    BimonoidT,
 
     -- * Dagger
     Dagger (..),
@@ -229,8 +230,16 @@ type CopyDiscard arr a = (Copy arr a, Discard arr a)
 --
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
--- 'Circuit.Net.transpose' to be total.
+-- 'Circuit.Net.mirror' to be total.
 type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
+
+-- | Tensor-generic bimonoid: all four structural capabilities on the tensor.
+--
+-- This is the tensor-generic form of 'Bimonoid'.  It is the precondition for
+-- 'Circuit.Net.mirror' over a generic wiring tensor.
+class (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
+
+instance (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
 
 -- ---------------------------------------------------------------------------
 -- Tensor-generic capabilities
@@ -456,6 +465,34 @@ instance (Merge arr a, Copy arr a) => Merge (Dagger arr) a where
 instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
   zero = Dagger zero discard
   {-# INLINE zero #-}
+
+-- | Tensor-generic bimonoid interlock through @Dagger@.
+--
+-- These instances mirror the cartesian ones above, but work for any wiring
+-- tensor @t@.  They are the missing lemma that makes 'Circuit.Net.mirror'
+-- total: a 'Net' over 'Dagger arr' can transpose its bimonoid rows because
+-- the dagger swaps the tensor-comonoid and tensor-monoid dictionaries.
+--
+-- >>> let d = copyT @(,) @(Dagger (->)) @Int :: Dagger (->) Int (Int, Int)
+-- >>> front d 5
+-- (5,5)
+-- >>> back d (2, 3)
+-- 5
+instance {-# INCOHERENT #-} (CopyT t arr a, MergeT t arr a) => CopyT t (Dagger arr) a where
+  copyT = Dagger (copyT @t) (plusT @t)
+  {-# INLINE copyT #-}
+
+instance {-# INCOHERENT #-} (DiscardT t arr a, ZeroT t arr a) => DiscardT t (Dagger arr) a where
+  discardT = Dagger (discardT @t) (zeroT @t)
+  {-# INLINE discardT #-}
+
+instance {-# INCOHERENT #-} (MergeT t arr a, CopyT t arr a) => MergeT t (Dagger arr) a where
+  plusT = Dagger (plusT @t) (copyT @t)
+  {-# INLINE plusT #-}
+
+instance {-# INCOHERENT #-} (ZeroT t arr a, DiscardT t arr a) => ZeroT t (Dagger arr) a where
+  zeroT = Dagger (zeroT @t) (discardT @t)
+  {-# INLINE zeroT #-}
 
 instance (Tensor t arr) => Tensor t (Dagger arr) where
   par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
