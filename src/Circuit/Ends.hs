@@ -725,6 +725,16 @@ instance HasDual () (SArr s) where
         inU = In $ \o -> emit o inU
      in Ends inU outU
 
+-- | Dualising object @()@ for @Thread (,) (Kleisli m) s@.
+--
+-- Same shape as the 'SArr' instance, but the companion returns @()@ in the
+-- monad and threads the ambient state through unchanged.
+instance (Monad m) => HasDual () (Thread (,) (Kleisli m) s) where
+  open =
+    let outU = Out $ \_ -> Thread $ Kleisli $ \(s, _) -> pure (s, ())
+        inU = In $ \o -> emit o inU
+     in Ends inU outU
+
 -- | View a 'Process' as a knot body over the 'Either' tensor.
 --
 -- This is the same body used by 'Circuit.Process.encode', now exposed as a value
