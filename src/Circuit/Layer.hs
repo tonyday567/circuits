@@ -15,9 +15,9 @@
 -- Each layer @f@ is a free construction over a base arrow:
 --
 -- * @run@ @Free@       — free category
--- * @run@ @Sym@        — free symmetric monoidal category
--- * @run@ @(Loop t)@  — free traced monoidal category
--- * @run@ @(Net t)@    — free traced PROP with bimonoid
+-- * @run@ @SMC@        — free symmetric monoidal category
+-- * @run@ @(Loop t)@   — free traced monoidal category
+-- * @run@ @Net@        — free symmetric monoidal category with bimonoid
 --
 -- 'Law' says what the /target/ category must satisfy to receive a 'bind'
 -- fold; 'Run' says what the /base/ category must satisfy for a same-category
