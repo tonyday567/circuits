@@ -26,10 +26,10 @@ module Circuit.Category
     (.>),
     (|>),
     (<|),
+    K (..),
   )
 where
 
-import Control.Arrow (Kleisli (..))
 import Control.Monad ((<=<))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
@@ -69,7 +69,9 @@ instance Category (->) where
   id x = x
   (f . g) x = f (g x)
 
--- | Kleisli arrows of a monad (unconstrained objects).
-instance (Monad m) => Category (Kleisli m) where
-  id = Kleisli pure
-  Kleisli f . Kleisli g = Kleisli (f <=< g)
+-- | Kleisli arrows of a monad, named locally.
+newtype K m a b = K { runK :: a -> m b }
+
+instance (Monad m) => Category (K m) where
+  id = K pure
+  K f . K g = K (f <=< g)

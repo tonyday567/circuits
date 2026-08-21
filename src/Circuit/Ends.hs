@@ -26,13 +26,13 @@
 -- == Relationship to 'Circuit.ChannelPoly'
 --
 -- @Ends@ is the bi-polar / effectful API: it is the right tool for
--- @Kleisli IO/STM@ process plumbing where the channel is a write end paired
+-- @K IO/STM@ process plumbing where the channel is a write end paired
 -- with a read end.  For pure @(->)@ Moore-style channels indexed by a
 -- polynomial, prefer 'Circuit.ChannelPoly.Channel'.
 --
 -- There is no deprecation shim yet: the relationship between the bi-polar
 -- and polynomial views is still being settled.  This module stays unchanged
--- until 'Channel' gains 'Kleisli' evaluation or an equivalent effectful
+-- until 'Channel' gains 'K' evaluation or an equivalent effectful
 -- story.
 --
 -- Effectful queue-based constructors ('openSTM', 'openIO') live in
@@ -149,14 +149,13 @@ import Circuit.Body
     runSomeSArr,
     sArrToBody,
   )
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Dagger (Copy (copy), Discard (discard))
 import Circuit.Loop (Loop (..))
 import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
 import Circuit.Process (Process (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
-import Control.Arrow (Kleisli (..))
 import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Void (Void)
 import Prelude hiding (id, (.))
@@ -166,7 +165,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category ((.>))
 -- >>> import Circuit.Ends
 -- >>> import Circuit.Layer (run)
--- >>> import Control.Arrow (Kleisli(..), runKleisli)
+-- >>> import Circuit.Category (K(..), runK)
 
 -- ---------------------------------------------------------------------------
 -- Channel ends — the companion and conjoint of the identity functor.
@@ -333,18 +332,18 @@ ends0 ::
 ends0 = ends @_ @_ @_ @()
 {-# INLINE ends0 #-}
 
--- | Specialization of 'ends' for @Kleisli@ actions.
+-- | Specialization of 'ends' for @K@ actions.
 --
 -- @write :: a -> m ()@ consumes the input payload; @receive :: m b@
 -- produces the output payload. The dualising-object handling is hidden
--- inside the @Kleisli@ wrappers.
+-- inside the @K@ wrappers.
 endsK ::
   forall m a b.
   (Monad m) =>
   (a -> m ()) ->
   m b ->
-  Ends (Kleisli m) a b
-endsK write receive = ends (Kleisli write) (Kleisli $ const receive)
+  Ends (K m) a b
+endsK write receive = ends (K write) (K $ const receive)
 
 -- | Extract the primitive write and read actions from an @Ends@ by
 -- plugging each end with the dualising-object ends.
@@ -497,14 +496,14 @@ instance HasDual () (->) where
       outU = Out $ \_ -> const ()
       inU = In $ \o -> emit o inU
 
--- | Dualising object @()@ for @Kleisli@ @m@.
+-- | Dualising object @()@ for @K@ @m@.
 --
 -- Same shape as the @(->)@ instance, but the constant companion returns
 -- @()@ in the monad.
-instance (Monad m) => HasDual () (Kleisli m) where
+instance (Monad m) => HasDual () (K m) where
   open = Ends inU outU
     where
-      outU = Out $ \_ -> Kleisli $ \_ -> pure ()
+      outU = Out $ \_ -> K $ \_ -> pure ()
       inU = In $ \o -> emit o inU
 
 -- === Notes on the dualising object
@@ -533,14 +532,14 @@ instance HasDual Bool (->) where
       outU = Out $ \_ -> const False
       inU = In $ \o -> emit o inU
 
--- | Dualising object 'Bool' for @Kleisli@ @m@.
+-- | Dualising object 'Bool' for @K@ @m@.
 --
 -- Same shape as the @(->)@ instance, but the constant companion returns
 -- 'False' in the monad.
-instance (Monad m) => HasDual Bool (Kleisli m) where
+instance (Monad m) => HasDual Bool (K m) where
   open = Ends inU outU
     where
-      outU = Out $ \_ -> Kleisli $ \_ -> pure False
+      outU = Out $ \_ -> K $ \_ -> pure False
       inU = In $ \o -> emit o inU
 
 -- ---------------------------------------------------------------------------
@@ -607,8 +606,8 @@ class CartesianPar arr where
 instance CartesianPar (->) where
   parP f g (x, y) = (f x, g y)
 
-instance (Monad m) => CartesianPar (Kleisli m) where
-  parP (Kleisli f) (Kleisli g) = Kleisli $ \(x, y) -> (,) <$> f x <*> g y
+instance (Monad m) => CartesianPar (K m) where
+  parP (K f) (K g) = K $ \(x, y) -> (,) <$> f x <*> g y
 
 -- | Values that can be tested for silence.
 class IsSilent b where
@@ -725,13 +724,13 @@ instance HasDual () (SArr s) where
         inU = In $ \o -> emit o inU
      in Ends inU outU
 
--- | Dualising object @()@ for @Body (,) (Kleisli m) s@.
+-- | Dualising object @()@ for @Body (,) (K m) s@.
 --
 -- Same shape as the 'SArr' instance, but the companion returns @()@ in the
 -- monad and threads the ambient state through unchanged.
-instance (Monad m) => HasDual () (Body (,) (Kleisli m) s) where
+instance (Monad m) => HasDual () (Body (,) (K m) s) where
   open =
-    let outU = Out $ \_ -> Body $ Kleisli $ \(s, _) -> pure (s, ())
+    let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
         inU = In $ \o -> emit o inU
      in Ends inU outU
 

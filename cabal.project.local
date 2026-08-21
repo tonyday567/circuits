@@ -1,0 +1,5 @@
+packages:
+  ./circuits.cabal
+  ../circuits-tools/circuits-tools.cabal
+
+write-ghc-environment-files: always

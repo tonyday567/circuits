@@ -5,7 +5,7 @@
 module Main where
 
 import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
-import Circuit.Category (id, (.), (.>))
+import Circuit.Category (K (..), id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
@@ -24,7 +24,6 @@ import Circuit.Prob (Prob (..), embed, fromWeighted, mass, orP, parFG, parGF, sc
 import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
 import Circuit.Tensor (Action (..), BangCopy (..), BangWeaken (..), Bot, Exponential (..), Fire (..), Lolli (..), Par (..), Schedule (..), Shared (..), Tensor (..), WhyNotIntro (..), WhyNotMonoid (..), distL, distR, mix, sharedKnotBy, superpose)
 import Circuit.Tools.Test (approx, check)
-import Control.Arrow (Kleisli (..), runKleisli)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Kind (Type)
 import Data.List (foldl', isInfixOf, permutations, sort, uncons)
@@ -349,11 +348,11 @@ sharedAddFPair (s, (a, b)) = let s' = s + a + b in (s', (s', s'))
 -- Residual-oracle helpers
 -- ---------------------------------------------------------------------------
 
--- | A synchronous identity-like 'Kleisli IO' end: writes are stored in an
+-- | A synchronous identity-like 'K IO' end: writes are stored in an
 -- 'IORef' and reads retrieve the most recently stored value.  This is the
 -- effectful counterpart of the unit/copycat end: closing the two poles
 -- yanks to the identity morphism.
-mkIdentityEnd :: IO (Ends (Kleisli IO) Int Int)
+mkIdentityEnd :: IO (Ends (K IO) Int Int)
 mkIdentityEnd = do
   ref <- newIORef (0 :: Int)
   pure $ endsK (writeIORef ref) (readIORef ref)
@@ -528,7 +527,7 @@ reachable :: Int -> [S3]
 reachable n = filter (\s -> expectSystem [S0, S1, S2] chain3Bool (replicate n ()) (== s) S0) [S0, S1, S2]
 
 -- ---------------------------------------------------------------------------
--- Keystone row: Kleisli IO (Monte Carlo rollout)
+-- Keystone row: K IO (Monte Carlo rollout)
 --
 -- The scalar axis lists @Log Double@ for this row; the executable uses plain
 -- @Double@ for normalized sampling.  The @Log Double@ variant is the same
@@ -555,31 +554,31 @@ sampleDouble ref = do
 
 -- | Monte Carlo version of the three-state chain: sample a successor rather
 -- than enumerating the expectation.
-chain3IO :: IORef RNG -> System (Prob (Kleisli IO) Double) S3 (Mono () ())
-chain3IO ref = system $ Prob $ \k -> Kleisli $ \(x, (s, _)) -> do
+chain3IO :: IORef RNG -> System (Prob (K IO) Double) S3 (Mono () ())
+chain3IO ref = system $ Prob $ \k -> K $ \(x, (s, _)) -> do
   u <- sampleDouble ref
   let s' = if u < 0.5 then s else nextS s
-  runKleisli k (x, (s', ((), ())))
+  runK k (x, (s', ((), ())))
 
--- | Run one @Kleisli IO@ trajectory for @n@ steps, returning the final state.
+-- | Run one @K IO@ trajectory for @n@ steps, returning the final state.
 --
 -- The continuation passed to 'runProb' returns a dummy scalar and writes the
 -- sampled next state into a fresh 'IORef'; this is how we extract the state
 -- from an expectation transformer.
-runTrajectoryIO :: System (Prob (Kleisli IO) Double) S3 (Mono () ()) -> Int -> S3 -> IO S3
+runTrajectoryIO :: System (Prob (K IO) Double) S3 (Mono () ()) -> Int -> S3 -> IO S3
 runTrajectoryIO sys n s0 = go n s0
   where
     go 0 s = pure s
     go m s = step s >>= go (m - 1)
     step s = do
       nextRef <- newIORef s
-      let cont = Kleisli $ \(_, (s', ((), ()))) -> writeIORef nextRef s' >> pure 0
-      _ <- runKleisli (runProb (runSystem sys) cont) ((), (s, monoIn ()))
+      let cont = K $ \(_, (s', ((), ()))) -> writeIORef nextRef s' >> pure 0
+      _ <- runK (runProb (runSystem sys) cont) ((), (s, monoIn ()))
       readIORef nextRef
 
 -- | Empirical occupancy probabilities after @nSteps@, estimated from
 -- @nTrials@ trajectories starting at @s0@.
-mcOccupancy :: System (Prob (Kleisli IO) Double) S3 (Mono () ()) -> Int -> Int -> S3 -> IO [Double]
+mcOccupancy :: System (Prob (K IO) Double) S3 (Mono () ()) -> Int -> Int -> S3 -> IO [Double]
 mcOccupancy sys nTrials nSteps s0 = do
   counts <- newIORef (0 :: Int, 0, 0)
   let trial = do
@@ -814,14 +813,14 @@ main = do
                 && close (conjoint e) (companion e) 7 == 42,
         checkIO "residual observed: sequential boxes agree but residual is exposed" $ do
           ref <- newIORef (0 :: Int)
-          let e1 :: Ends (Kleisli IO) Int Int
+          let e1 :: Ends (K IO) Int Int
               e1 = endsK (\x -> modifyIORef' ref (+ x)) (pure 0)
-              e2 :: Ends (Kleisli IO) Int Int
+              e2 :: Ends (K IO) Int Int
               e2 = endsK (\_ -> pure ()) (pure 1)
-          r1 <- runKleisli (run (box @(,) (composeEnds0 e1 e2))) 5
+          r1 <- runK (run (box @(,) (composeEnds0 e1 e2))) 5
           residual1 <- readIORef ref
           writeIORef ref 0
-          r2 <- runKleisli (run (box @(,) e2 . box @(,) e1)) 5
+          r2 <- runK (run (box @(,) e2 . box @(,) e1)) 5
           residual2 <- readIORef ref
           pure (r1 == r2 && r1 == 1 && residual1 == 5 && residual2 == 5),
         check "Bool as a non-terminal 'Ends' pole composes write then read" $
@@ -1063,56 +1062,56 @@ main = do
            in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
         -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
         -- effectful morphisms. The witness uses two IO actions on a shared ref.
-        checkIO "unrestricted sliding fails for non-central Kleisli IO" $
+        checkIO "unrestricted sliding fails for non-central K IO" $
           do
             ref <- newIORef (1 :: Int)
-            let f = Kleisli $ \ ~((), ()) -> do
+            let f = K $ \ ~((), ()) -> do
                   v <- readIORef ref
                   modifyIORef' ref (+ 1)
                   pure ((), v)
-                g = Kleisli $ \ ~() -> do
+                g = K $ \ ~() -> do
                   modifyIORef' ref (* 2)
                   pure ()
-                post = trace (par @(,) @(Kleisli IO) g id . f)
-                pre = trace (f . par @(,) @(Kleisli IO) g id)
-            (l, r) <- (,) <$> runKleisli post () <*> runKleisli pre ()
+                post = trace (par @(,) @(K IO) g id . f)
+                pre = trace (f . par @(,) @(K IO) g id)
+            (l, r) <- (,) <$> runK post () <*> runK pre ()
             pure (l /= r),
-        -- Body (,) (Kleisli IO) must compose as a category. This is the untested
+        -- Body (,) (K IO) must compose as a category. This is the untested
         -- edge of parameterising Body over arr; Z2's Loop-level witness stands
         -- on it. The bodies touch a shared IORef to confirm composition threads
-        -- state through the Kleisli base, not just the function base.
-        checkIO "Body (,) (Kleisli IO) composes as a category" $
+        -- state through the K base, not just the function base.
+        checkIO "Body (,) (K IO) composes as a category" $
           do
             ref <- newIORef (0 :: Int)
-            let f = MedState.Body $ Kleisli $ \((s, a) :: (Int, Int)) -> do
+            let f = MedState.Body $ K $ \((s, a) :: (Int, Int)) -> do
                   writeIORef ref (s + 1)
                   pure (s + 1, a + 1)
-                g = MedState.Body $ Kleisli $ \(s, b) -> do
+                g = MedState.Body $ K $ \(s, b) -> do
                   v <- readIORef ref
                   pure (s + v, b * 2)
                 gf = g . f
-            (sOut, c) <- runKleisli (MedState.runBody gf) (0, 5)
+            (sOut, c) <- runK (MedState.runBody gf) (0, 5)
             pure (sOut == 2 && c == 12),
         -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful
         -- morphism g slid past f gives a different result depending on order.
         -- Loop's 'trace' discharges into the base 'trace', so the same witness
-        -- that fails for Kleisli IO directly also fails for Loop (,) (Kleisli IO).
-        checkIO "Loop trace requires centrality over Kleisli IO (Central Sliding)" $
+        -- that fails for K IO directly also fails for Loop (,) (K IO).
+        checkIO "Loop trace requires centrality over K IO (Central Sliding)" $
           do
             ref <- newIORef 1
-            let f = Kleisli $ \ ~((), ()) -> do
+            let f = K $ \ ~((), ()) -> do
                   v <- readIORef ref
                   modifyIORef' ref (+ 1)
                   pure ((), v) :: IO ((), Int)
-                g = Kleisli $ \ ~() -> do
+                g = K $ \ ~() -> do
                   modifyIORef' ref (* 2)
                   pure ()
-                post = trace (Lift f . Lift (par @(,) @(Kleisli IO) g id)) :: Loop (,) (Kleisli IO) () Int
-                pre = trace (Lift (par @(,) @(Kleisli IO) g id) . Lift f) :: Loop (,) (Kleisli IO) () Int
-            l <- runKleisli (run post) ()
+                post = trace (Lift f . Lift (par @(,) @(K IO) g id)) :: Loop (,) (K IO) () Int
+                pre = trace (Lift (par @(,) @(K IO) g id) . Lift f) :: Loop (,) (K IO) () Int
+            l <- runK (run post) ()
             writeIORef ref 1
-            r <- runKleisli (run pre) ()
+            r <- runK (run pre) ()
             pure (l /= r),
         -- Loop (.) preserves the semantic order of composed Knot bodies over
         -- an effectful base. This is not a centrality claim; it just checks
@@ -1121,26 +1120,26 @@ main = do
         checkIO "Loop (.) preserves semantic order of composed Knot bodies" $
           do
             ref <- newIORef 1
-            let g = Kleisli $ \ ~(s, a) -> do
+            let g = K $ \ ~(s, a) -> do
                   v <- readIORef ref
                   writeIORef ref (v + 1)
                   pure (s, v + a)
-                f = Kleisli $ \ ~(s, b) -> do
+                f = K $ \ ~(s, b) -> do
                   v <- readIORef ref
                   writeIORef ref (v * 2)
                   pure (s, v * b)
-                loopFG = Knot f . Knot g :: Loop (,) (Kleisli IO) Int Int
+                loopFG = Knot f . Knot g :: Loop (,) (K IO) Int Int
                 -- Same threading as Loop's (.) normal form: g's state wire first.
                 handBuiltFG =
                   Knot $
-                    Kleisli $
+                    K $
                       \ ~((s1, s2), a) -> do
-                        (s1', b) <- runKleisli g (s1, a)
-                        (s2', c) <- runKleisli f (s2, b)
+                        (s1', b) <- runK g (s1, a)
+                        (s2', c) <- runK f (s2, b)
                         pure ((s1', s2'), c)
-            r1 <- runKleisli (run loopFG) 5
+            r1 <- runK (run loopFG) 5
             writeIORef ref 1
-            r2 <- runKleisli (run handBuiltFG) 5
+            r2 <- runK (run handBuiltFG) 5
             pure (r1 == r2),
         check "sharedKnotBy L gates right body (output is This only)" $
           let k1 = markerBody 1
@@ -1459,8 +1458,8 @@ main = do
           reachable 1 == [S0, S1],
         check "Keystone: reachability after 2 steps" $
           reachable 2 == [S0, S1, S2],
-        -- Kleisli IO Monte Carlo row
-        checkIO "Keystone: System (Prob (Kleisli IO) Double) S3 (Mono () ()) typechecks" $ do
+        -- K IO Monte Carlo row
+        checkIO "Keystone: System (Prob (K IO) Double) S3 (Mono () ()) typechecks" $ do
           ref <- newIORef (RNG 0)
           occ <- mcOccupancy (chain3IO ref) 10000 2 S0
           pure $ length occ == 3,

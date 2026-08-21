@@ -15,7 +15,7 @@
 --
 -- This module collects the structural superclass chain
 -- @Channel → Strength → Traced@ and all base instances for the standard
--- base arrows @(->)@ and @Control.Arrow.Kleisli m@.  These classes
+-- base arrows @(->)@ and @K m@.  These classes
 -- describe the monoidal structure, tensorial strength, and feedback-fixing
 -- trace that underlie the syntax in "Circuit.Loop".
 --
@@ -34,8 +34,7 @@ module Circuit.Channel
   )
 where
 
-import Circuit.Category (Category (..))
-import Control.Arrow (Kleisli (..))
+import Circuit.Category (Category (..), K (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
@@ -47,7 +46,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category ((.>))
 -- >>> import Circuit.Channel (Traced (..))
 -- >>> import Circuit.Tensor (unitl, unitl')
--- >>> import Control.Arrow (Kleisli (..), runKleisli)
+-- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Void (Void)
 
 -- ===========================================================================
@@ -208,8 +207,8 @@ instance Strength These (->) where
 -- Dually, /Centre Preservation/ says @trace f@ is central whenever @f@ is.
 -- This class does not enforce the side-conditions at the type level; lawful
 -- instances must guarantee them by construction. See the @circuits-axioma@
--- oracles "unrestricted sliding fails for non-central Kleisli IO" and
--- "Loop trace requires centrality over Kleisli IO" for witnesses that the
+-- oracles "unrestricted sliding fails for non-central K IO" and
+-- "Loop trace requires centrality over K IO" for witnesses that the
 -- side-condition is not vacuous.
 class (Strength t arr) => Traced t arr where
   trace ::
@@ -352,34 +351,34 @@ instance Traced Either (->) where
         Left a -> go (Left a)
 
 -- ===========================================================================
--- Kleisli m — monoidal structure
+-- K m — monoidal structure
 -- ===========================================================================
 
--- | Cartesian monoidal structure for @Kleisli m@ with @(,)@.
-instance (Monad m) => Channel (,) (Kleisli m) where
-  assoc = Kleisli $ \ ~(~(a, b), c) -> pure (a, (b, c))
-  assoc' = Kleisli $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
-  slide = Kleisli $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
+-- | Cartesian monoidal structure for @K m@ with @(,)@.
+instance (Monad m) => Channel (,) (K m) where
+  assoc = K $ \ ~(~(a, b), c) -> pure (a, (b, c))
+  assoc' = K $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
+  slide = K $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
--- | Cocartesian monoidal structure for @Kleisli m@ with 'Either'.
-instance (Monad m) => Channel Either (Kleisli m) where
-  assoc = Kleisli $ \case
+-- | Cocartesian monoidal structure for @K m@ with 'Either'.
+instance (Monad m) => Channel Either (K m) where
+  assoc = K $ \case
     Left (Left a) -> pure (Left a)
     Left (Right b) -> pure (Right (Left b))
     Right c -> pure (Right (Right c))
-  assoc' = Kleisli $ \case
+  assoc' = K $ \case
     Left a -> pure (Left (Left a))
     Right (Left b) -> pure (Left (Right b))
     Right (Right c) -> pure (Right c)
-  slide = Kleisli $ \case
+  slide = K $ \case
     Left a -> pure (Right (Left a))
     Right (Left b) -> pure (Left b)
     Right (Right c) -> pure (Right (Right c))
 
--- | Inclusive monoidal structure for @Kleisli m@ with 'These'.
-instance (Monad m) => Channel These (Kleisli m) where
+-- | Inclusive monoidal structure for @K m@ with 'These'.
+instance (Monad m) => Channel These (K m) where
   assoc =
-    Kleisli $
+    K $
       pure . \case
         This (This a) -> This a
         This (That b) -> That (This b)
@@ -389,7 +388,7 @@ instance (Monad m) => Channel These (Kleisli m) where
         These (That b) c -> That (These b c)
         These (These a b) c -> These a (These b c)
   assoc' =
-    Kleisli $
+    K $
       pure . \case
         This a -> This (This a)
         That (This b) -> This (That b)
@@ -399,7 +398,7 @@ instance (Monad m) => Channel These (Kleisli m) where
         These a (That c) -> These (This a) c
         These a (These b c) -> These (These a b) c
   slide =
-    Kleisli $
+    K $
       pure . \case
         This a -> That (This a)
         That (This b) -> This b
@@ -409,9 +408,9 @@ instance (Monad m) => Channel These (Kleisli m) where
         These a (That c) -> That (These a c)
         These a (These b c) -> These b (These a c)
 
--- * Kleisli m (,) — lazy knot via MonadFix
+-- * K m (,) — lazy knot via MonadFix
 
--- | Traced for @Kleisli m@ with the cartesian tensor, requiring @MonadFix m@.
+-- | Traced for @K m@ with the cartesian tensor, requiring @MonadFix m@.
 --
 -- The lazy knot is tied via 'mfix'. The feedback channel is lazy in the
 -- recursive binding — the body must not force the feedback value before
@@ -419,73 +418,73 @@ instance (Monad m) => Channel These (Kleisli m) where
 -- black-holes on strict fields).
 --
 -- >>> :{
--- let fibs = Kleisli $ \(fibs, ()) ->
+-- let fibs = K $ \(fibs, ()) ->
 --       pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs)
 -- :}
 --
--- >>> runKleisli (trace fibs) ()
+-- >>> runK (trace fibs) ()
 -- [0,1,1]
-instance (Monad m) => Strength (,) (Kleisli m) where
-  strength (Kleisli f) =
-    Kleisli
+instance (Monad m) => Strength (,) (K m) where
+  strength (K f) =
+    K
       ( \p -> do
           c <- f (snd p)
           pure (fst p, c)
       )
 
-instance (MonadFix m) => Traced (,) (Kleisli m) where
-  trace (Kleisli f) =
-    Kleisli
+instance (MonadFix m) => Traced (,) (K m) where
+  trace (K f) =
+    K
       ( \b -> do
           (_, c) <- mfix $ \ ~(s, _) -> f (s, b)
           pure c
       )
 
--- * Kleisli m Either — iteration for any Monad
+-- * K m Either — iteration for any Monad
 
--- | Traced for @Kleisli m@ with the 'Either' tensor, for any @Monad m@.
+-- | Traced for @K m@ with the 'Either' tensor, for any @Monad m@.
 --
 -- Iterates by feeding 'Left' back into the step function until a 'Right'
 -- is produced. Uses plain recursion — builds stack proportional to
 -- iteration count.
 --
 -- >>> :{
--- let countTo target = Kleisli $ \case
+-- let countTo target = K $ \case
 --       Left n | n < target -> pure (Left (n + 1))
 --              | otherwise  -> pure (Right n)
 --       Right ()            -> pure (Left 0)
 -- :}
 --
--- >>> runKleisli (trace (countTo (3 :: Int))) ()
+-- >>> runK (trace (countTo (3 :: Int))) ()
 -- 3
 --
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
 -- priority for @IO@, providing constant-stack iteration via delimited
 -- continuations.
-instance (Monad m) => Strength Either (Kleisli m) where
-  strength (Kleisli f) =
-    Kleisli $ \case
+instance (Monad m) => Strength Either (K m) where
+  strength (K f) =
+    K $ \case
       Left a -> pure (Left a)
       Right b -> Right <$> f b
 
--- | Inclusive tensorial strength for @Kleisli m@ with 'These'.
-instance (Monad m) => Strength These (Kleisli m) where
-  strength (Kleisli f) =
-    Kleisli $ \case
+-- | Inclusive tensorial strength for @K m@ with 'These'.
+instance (Monad m) => Strength These (K m) where
+  strength (K f) =
+    K $ \case
       This a -> pure (This a)
       That b -> That <$> f b
       These a b -> These a <$> f b
 
-instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (Kleisli m) where
-  trace (Kleisli f) =
-    Kleisli $ \b -> go (Right b)
+instance {-# OVERLAPPABLE #-} (Monad m) => Traced Either (K m) where
+  trace (K f) =
+    K $ \b -> go (Right b)
     where
       go x =
         f x >>= \case
           Right c -> pure c
           Left a -> go (Left a)
 
--- * Kleisli IO Either — delimited continuations (constant stack)
+-- * K IO Either — delimited continuations (constant stack)
 
 -- | GHC delimited-continuation primops.
 data PromptTag a = PromptTag (PromptTag# a)
@@ -509,22 +508,22 @@ control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- | Traced for @Kleisli IO@ with 'Either' tensor.
+-- | Traced for @K IO@ with 'Either' tensor.
 --
 -- Each iteration re-establishes the prompt boundary. When @control0@
 -- fires on @Left a@, it captures the continuation, wraps it around
 -- the next loop step, and jumps back to the prompt — constant stack.
 --
 -- >>> :{
--- let exit42 = Kleisli $ \case
+-- let exit42 = K $ \case
 --       Right () -> pure (Right (42 :: Int))
 -- :}
 --
--- >>> runKleisli (trace exit42) ()
+-- >>> runK (trace exit42) ()
 -- 42
-instance {-# OVERLAPPING #-} Traced Either (Kleisli IO) where
-  trace (Kleisli body) =
-    Kleisli
+instance {-# OVERLAPPING #-} Traced Either (K IO) where
+  trace (K body) =
+    K
       ( \initial -> do
           tag <- newPromptTag
           let go x =

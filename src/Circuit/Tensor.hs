@@ -81,12 +81,11 @@ module Circuit.Tensor
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel, Strength (..), Traced (..))
 import Circuit.Channel qualified as Ch
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
-import Control.Arrow (Kleisli (..))
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -99,7 +98,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 -- >>> :set -XLambdaCase
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Loop (Loop (..))
--- >>> import Control.Arrow (Kleisli (..), runKleisli)
+-- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
 
@@ -337,25 +336,25 @@ instance Action (,) (->) where
   swap (a, b) = (b, a)
   {-# INLINE swap #-}
 
--- | Cartesian tensor on @Kleisli@ (effectful sequential product).
-instance (Monad m) => Tensor (,) (Kleisli m) where
-  par (Kleisli f) (Kleisli g) =
-    Kleisli $ \(a, c) -> do
+-- | Cartesian tensor on @K@ (effectful sequential product).
+instance (Monad m) => Tensor (,) (K m) where
+  par (K f) (K g) =
+    K $ \(a, c) -> do
       b <- f a
       d <- g c
       pure (b, d)
   {-# INLINE par #-}
-  unitl = Kleisli $ \((), a) -> pure a
+  unitl = K $ \((), a) -> pure a
   {-# INLINE unitl #-}
-  unitl' = Kleisli $ \a -> pure ((), a)
+  unitl' = K $ \a -> pure ((), a)
   {-# INLINE unitl' #-}
-  unitr = Kleisli $ \(a, ()) -> pure a
+  unitr = K $ \(a, ()) -> pure a
   {-# INLINE unitr #-}
-  unitr' = Kleisli $ \a -> pure (a, ())
+  unitr' = K $ \a -> pure (a, ())
   {-# INLINE unitr' #-}
 
-instance (Monad m) => Action (,) (Kleisli m) where
-  swap = Kleisli $ \(a, b) -> pure (b, a)
+instance (Monad m) => Action (,) (K m) where
+  swap = K $ \(a, b) -> pure (b, a)
   {-# INLINE swap #-}
 
 type instance Unit Either = Void
@@ -389,33 +388,33 @@ instance Action Either (->) where
     Right b -> Left b
   {-# INLINE swap #-}
 
--- | Coproduct tensor action on @Kleisli@ @m@.
+-- | Coproduct tensor action on @K@ @m@.
 --
--- >>> import Control.Arrow (Kleisli(..), runKleisli)
--- >>> let f = Kleisli (\n -> pure (n + 1)) :: Kleisli IO Int Int
--- >>> let g = Kleisli (\n -> pure (n * 2)) :: Kleisli IO Int Int
--- >>> runKleisli (par f g) (Left 3 :: Either Int Int)
+-- >>> import Circuit.Category (K(..), runK)
+-- >>> let f = K (\n -> pure (n + 1)) :: K IO Int Int
+-- >>> let g = K (\n -> pure (n * 2)) :: K IO Int Int
+-- >>> runK (par f g) (Left 3 :: Either Int Int)
 -- Left 4
--- >>> runKleisli (par f g) (Right 3 :: Either Int Int)
+-- >>> runK (par f g) (Right 3 :: Either Int Int)
 -- Right 6
-instance (Monad m) => Tensor Either (Kleisli m) where
-  par (Kleisli f) (Kleisli g) =
-    Kleisli $ \case
+instance (Monad m) => Tensor Either (K m) where
+  par (K f) (K g) =
+    K $ \case
       Left a -> Left <$> f a
       Right c -> Right <$> g c
   {-# INLINE par #-}
-  unitl = Kleisli $ either absurd pure
+  unitl = K $ either absurd pure
   {-# INLINE unitl #-}
-  unitl' = Kleisli $ pure . Right
+  unitl' = K $ pure . Right
   {-# INLINE unitl' #-}
-  unitr = Kleisli $ either pure absurd
+  unitr = K $ either pure absurd
   {-# INLINE unitr #-}
-  unitr' = Kleisli $ pure . Left
+  unitr' = K $ pure . Left
   {-# INLINE unitr' #-}
 
--- | Coproduct symmetry on @Kleisli@ @m@.
-instance (Monad m) => Action Either (Kleisli m) where
-  swap = Kleisli $ pure . swap
+-- | Coproduct symmetry on @K@ @m@.
+instance (Monad m) => Action Either (K m) where
+  swap = K $ pure . swap
   {-# INLINE swap #-}
 
 type instance Unit These = Void
@@ -447,33 +446,33 @@ instance Action These (->) where
   swap (These a b) = These b a
   {-# INLINE swap #-}
 
--- | Inclusive tensor action on @Kleisli@ @m@.
-instance (Monad m) => Tensor These (Kleisli m) where
-  par (Kleisli f) (Kleisli g) =
-    Kleisli $ \case
+-- | Inclusive tensor action on @K@ @m@.
+instance (Monad m) => Tensor These (K m) where
+  par (K f) (K g) =
+    K $ \case
       This a -> This <$> f a
       That c -> That <$> g c
       These a c -> These <$> f a <*> g c
   {-# INLINE par #-}
-  unitl = Kleisli $ \case
+  unitl = K $ \case
     That a -> pure a
     This v -> absurd v
     These v _ -> absurd v
   {-# INLINE unitl #-}
-  unitl' = Kleisli $ pure . That
+  unitl' = K $ pure . That
   {-# INLINE unitl' #-}
-  unitr = Kleisli $ \case
+  unitr = K $ \case
     This a -> pure a
     That v -> absurd v
     These _ v -> absurd v
   {-# INLINE unitr #-}
-  unitr' = Kleisli $ pure . This
+  unitr' = K $ pure . This
   {-# INLINE unitr' #-}
 
--- | Inclusive symmetry on @Kleisli@ @m@.
-instance (Monad m) => Action These (Kleisli m) where
+-- | Inclusive symmetry on @K@ @m@.
+instance (Monad m) => Action These (K m) where
   swap =
-    Kleisli $
+    K $
       pure . \case
         This a -> That a
         That b -> This b
@@ -512,12 +511,12 @@ instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
 -- >>> Circuit.Layer.run (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
--- The same fusion works for @Kleisli@, preserving sharing across the
+-- The same fusion works for @K@, preserving sharing across the
 -- recursive channels under @MonadFix@.
 --
--- >>> let k1 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (Kleisli Identity) [Int] [Int]
--- >>> let k2 = Circuit.Loop.Knot (Kleisli $ \(ns, _) -> pure (2 : ns, take 3 ns))
--- >>> runKleisli (Circuit.Layer.run (superpose k1 k2)) ([], [])
+-- >>> let k1 = Circuit.Loop.Knot (K $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (K Identity) [Int] [Int]
+-- >>> let k2 = Circuit.Loop.Knot (K $ \(ns, _) -> pure (2 : ns, take 3 ns))
+-- >>> runK (Circuit.Layer.run (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.
@@ -648,10 +647,10 @@ instance Shared (,) (->) where
              in (s''', These b d)
   {-# INLINE sharedBy #-}
 
--- | Cartesian shared fusion on @Kleisli@ arrows.
-instance (Monad m) => Shared (,) (Kleisli m) where
-  sharedBy sched (Kleisli f) (Kleisli g) =
-    Kleisli $ \(s, (a, c)) -> do
+-- | Cartesian shared fusion on @K@ arrows.
+instance (Monad m) => Shared (,) (K m) where
+  sharedBy sched (K f) (K g) =
+    K $ \(s, (a, c)) -> do
       let (s', fire) = chooseS sched s
       case fire of
         L -> do
@@ -711,20 +710,20 @@ instance Par Either (->) where
   unitrP' = Left
   {-# INLINE unitrP' #-}
 
--- | Coproduct as multiplicative disjunction on @Kleisli@ arrows.
-instance (Monad m) => Par Either (Kleisli m) where
-  parP (Kleisli f) (Kleisli g) =
-    Kleisli $ \case
+-- | Coproduct as multiplicative disjunction on @K@ arrows.
+instance (Monad m) => Par Either (K m) where
+  parP (K f) (K g) =
+    K $ \case
       Left a -> Left <$> f a
       Right c -> Right <$> g c
   {-# INLINE parP #-}
-  unitlP = Kleisli $ either absurd pure
+  unitlP = K $ either absurd pure
   {-# INLINE unitlP #-}
-  unitlP' = Kleisli $ pure . Right
+  unitlP' = K $ pure . Right
   {-# INLINE unitlP' #-}
-  unitrP = Kleisli $ either pure absurd
+  unitrP = K $ either pure absurd
   {-# INLINE unitrP #-}
-  unitrP' = Kleisli $ pure . Left
+  unitrP' = K $ pure . Left
   {-# INLINE unitrP' #-}
 
 -- ---------------------------------------------------------------------------

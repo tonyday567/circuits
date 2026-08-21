@@ -25,7 +25,7 @@
 -- structural maps ('assoc', 'slide', etc.) are central. This is the
 -- Benton–Hyland Central Sliding side-condition; see 'Circuit.Channel.Traced'
 -- and the @circuits-axioma@ oracle "Loop trace requires centrality over
--- Kleisli IO".
+-- K IO".
 --
 -- For example, a @Loop (,) (->)@ is the initial traced monoidal cartesian
 -- category over Haskell functions.
@@ -69,10 +69,9 @@ module Circuit.Loop
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Layer (..), run, (:~>))
-import Control.Arrow (Kleisli (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.Profunctor

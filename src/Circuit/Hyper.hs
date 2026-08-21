@@ -25,7 +25,7 @@
 --
 -- * @Hyper@ — arrows run in 'Data.Functor.Identity.Identity' and knots tie
 --   by Haskell laziness.
--- * @'HyperF' ('Control.Arrow.Kleisli' m)@ — arrows run in @m@ and knots tie
+-- * @'HyperF' ('K' m)@ — arrows run in @m@ and knots tie
 --   with 'mfix'.
 --
 -- @HyperF@ lives in the same module so the function API is literally a
@@ -33,8 +33,8 @@
 --
 -- === stateful arrows
 --
--- A stateful function @(s, a) -> (s, b)@ is isomorphic to a Kleisli arrow
--- @a -> State s b@. 'stateKleisli' records that isomorphism; it is the bridge
+-- A stateful function @(s, a) -> (s, b)@ is isomorphic to a K arrow
+-- @a -> State s b@. 'stateK' records that isomorphism; it is the bridge
 -- between 'Circuit.Body.SArr' (the cartesian stateful arrow) and the state
 -- monad. The same isomorphism justifies 'Circuit.Body.Body' for general
 -- tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
@@ -47,11 +47,11 @@
 -- >>> import Circuit.Layer (Free (..), run)
 -- >>> import Circuit.Loop (Loop (..))
 -- >>> import qualified Circuit.Loop as Loop
--- >>> import Control.Arrow (Kleisli (..))
+-- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 -- >>> import Data.Profunctor (dimap)
 --
--- >>> let body = liftH (Kleisli (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: Kleisli Identity ([Int], ()) ([Int], [Int]))
+-- >>> let body = liftH (K (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: K Identity ([Int], ()) ([Int], [Int]))
 -- >>> runIdentity (observeH (trace body) ())
 -- [0,0,0]
 module Circuit.Hyper
@@ -81,7 +81,7 @@ module Circuit.Hyper
     encodeEither,
     runEither,
 
-    -- * Kleisli aliases
+    -- * K aliases
     liftArr,
     observeArr,
     baseArr,
@@ -95,18 +95,17 @@ module Circuit.Hyper
 
     -- * Shared-medium composition via base change
     StateT (..),
-    stateKleisli,
+    stateK,
     runSharedHyperH,
     sharedHyperBy,
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Loop qualified as Loop
 import Circuit.Tensor (Schedule (..), Shared (..), sharedBy)
-import Control.Arrow (Kleisli (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
@@ -133,7 +132,7 @@ import Prelude hiding (id, (.))
 -- We keep this local to avoid a dependency on the @transformers@ package.
 -- The implementation matches the standard lazy state transformer; the lazy
 -- 'MonadFix' instance is the part we need, because 'trace' on
--- @HyperF (Kleisli (StateT s m))@ ties its knot with 'mfix'.
+-- @HyperF (K (StateT s m))@ ties its knot with 'mfix'.
 -- ---------------------------------------------------------------------------
 
 -- | A lazy state monad transformer.
@@ -209,22 +208,22 @@ instance HyperBase (->) where
   mkArr f = runIdentity . f
   fixRun f = let x = f (runIdentity x) in x
 
--- | Kleisli arrows: arrows run in the monad and knots tie with 'mfix'.
-instance {-# INCOHERENT #-} (MonadFix m) => HyperBase (Kleisli m) where
-  type Run (Kleisli m) = m
-  runArr = runKleisli
-  mkArr = Kleisli
+-- | K arrows: arrows run in the monad and knots tie with 'mfix'.
+instance {-# INCOHERENT #-} (MonadFix m) => HyperBase (K m) where
+  type Run (K m) = m
+  runArr = runK
+  mkArr = K
   fixRun = mfix
 
--- | State-enriched Kleisli arrows: the medium enters as a base change.
+-- | State-enriched K arrows: the medium enters as a base change.
 --
 -- Lazy 'StateT' is required so that 'mfix' can tie the recursive knot used by
 -- 'trace'.  Strict 'StateT' lacks a general 'MonadFix' instance and would
 -- force an explicit seed, repeating the B0 register-pattern lesson.
-instance {-# OVERLAPPING #-} (MonadFix m) => HyperBase (Kleisli (StateT s m)) where
-  type Run (Kleisli (StateT s m)) = StateT s m
-  runArr = runKleisli
-  mkArr = Kleisli
+instance {-# OVERLAPPING #-} (MonadFix m) => HyperBase (K (StateT s m)) where
+  type Run (K (StateT s m)) = StateT s m
+  runArr = runK
+  mkArr = K
   fixRun = mfix
 
 -- ---------------------------------------------------------------------------
@@ -450,37 +449,37 @@ instance Functor (Hyper a) where
   fmap = rmap
 
 -- ---------------------------------------------------------------------------
--- Kleisli aliases
+-- K aliases
 -- ---------------------------------------------------------------------------
 
--- | Alias for 'pushH' on @Kleisli m@.
+-- | Alias for 'pushH' on @K m@.
 pushArr ::
   (MonadFix m) =>
-  Kleisli m a b ->
-  HyperF (Kleisli m) a b ->
-  HyperF (Kleisli m) a b
+  K m a b ->
+  HyperF (K m) a b ->
+  HyperF (K m) a b
 pushArr = pushH
 
--- | Alias for 'liftH' on @Kleisli m@.
-liftArr :: (MonadFix m) => Kleisli m a b -> HyperF (Kleisli m) a b
+-- | Alias for 'liftH' on @K m@.
+liftArr :: (MonadFix m) => K m a b -> HyperF (K m) a b
 liftArr = liftH
 
--- | Alias for 'baseH' on @Kleisli m@.
-baseArr :: (MonadFix m) => b -> HyperF (Kleisli m) a b
+-- | Alias for 'baseH' on @K m@.
+baseArr :: (MonadFix m) => b -> HyperF (K m) a b
 baseArr = baseH
 
--- | Alias for 'observeH' on @Kleisli m@.
+-- | Alias for 'observeH' on @K m@.
 observeArr ::
   (MonadFix m) =>
-  HyperF (Kleisli m) a b ->
+  HyperF (K m) a b ->
   a ->
   m b
 observeArr = observeH
 
--- | Alias for 'runHyperH' on @Kleisli m@.
+-- | Alias for 'runHyperH' on @K m@.
 runHyperArr ::
   (MonadFix m) =>
-  HyperF (Kleisli m) a a ->
+  HyperF (K m) a a ->
   m a
 runHyperArr = runHyperH
 
@@ -550,21 +549,21 @@ flatten h = Loop.Lift (mkArr (observeH h))
 -- Shared-medium composition (the bridge square)
 -- ---------------------------------------------------------------------------
 
--- | Lift a stateful function into the state-enriched Kleisli base.
+-- | Lift a stateful function into the state-enriched K base.
 --
 -- This is the base change that makes the medium explicit: a body
--- @arr (s, a) (s, b)@ becomes a Kleisli arrow @a -> StateT s m b@.
-stateKleisli ::
+-- @arr (s, a) (s, b)@ becomes a K arrow @a -> StateT s m b@.
+stateK ::
   (Monad m) =>
   ((s, a) -> (s, b)) ->
-  Kleisli (StateT s m) a b
-stateKleisli f = Kleisli $ \a -> StateT $ \s -> let (s', b) = f (s, a) in pure (b, s')
+  K (StateT s m) a b
+stateK f = K $ \a -> StateT $ \s -> let (s', b) = f (s, a) in pure (b, s')
 
 -- | Run a shared-state hyperfunction from an initial medium state.
 runSharedHyperH ::
   (MonadFix m) =>
   s ->
-  HyperF (Kleisli (StateT s m)) a b ->
+  HyperF (K (StateT s m)) a b ->
   a ->
   m (b, s)
 runSharedHyperH s0 h a = runStateT (observeH h a) s0
@@ -581,7 +580,7 @@ runSharedHyperH s0 h a = runStateT (observeH h a) s0
 --
 -- The implementation extracts the underlying arrows via 'observeH'/'mkArr',
 -- composes them with the schedule-driven 'sharedBy', and re-encodes via
--- 'trace'/'liftH'.  The state-enriched base (@Kleisli (StateT s m)@) provides
+-- 'trace'/'liftH'.  The state-enriched base (@K (StateT s m)@) provides
 -- the conceptual home for the medium; this combinator is its value-level
 -- presentation.
 sharedHyperBy ::
