@@ -26,14 +26,10 @@ module Circuit.Shared
 
     -- * Shared fusion class
     Shared (..),
-
-    -- * Shared fusion as a Knot
-    sharedKnotBy,
   )
 where
 
-import Circuit.Category (Category (..), K (..), (.>))
-import Circuit.Loop (Loop (..))
+import Circuit.Category (Category (..), K (..))
 import Circuit.Tensor (Bias (..), Tensor (..))
 import Control.Monad (Monad)
 import Data.These (These (..))
@@ -79,21 +75,6 @@ class (Tensor t arr) => Shared t arr where
     arr (t s a) (t s b) ->
     arr (t s c) (t s d) ->
     arr (t s (t a c)) (t s (These b d))
-
--- | Shared fusion wrapped as a 'Knot'.
---
--- This takes explicit knot bodies that already share the feedback type @s@.
--- 'Loop' hides its feedback type existentially, so a generic 'Loop'-level
--- combinator cannot constrain two arbitrary knots to share the same channel;
--- this helper makes the shared state explicit at the call site.
-sharedKnotBy ::
-  forall t arr a b c d s.
-  (Shared t arr) =>
-  Schedule s ->
-  arr (t s a) (t s b) ->
-  arr (t s c) (t s d) ->
-  Loop t arr (t a c) (These b d)
-sharedKnotBy sched f g = Knot (sharedBy sched f g)
 
 -- | Cartesian shared fusion on functions.
 --

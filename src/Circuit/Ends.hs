@@ -142,6 +142,7 @@ import Circuit.Mediate qualified as Mediate
 import Circuit.Poly (Dir, Pos, System, SystemEval (..), runSystem, system)
 import Circuit.Process (Process (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unit)
+import Data.Bifunctor (bimap)
 import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Void (Void)
 import Prelude hiding (id, (.))
@@ -582,19 +583,6 @@ boxAsymmetric ends' =
 -- >>> import Circuit.Ends
 -- >>> import Circuit.Layer (run)
 
--- | Parallel product of two morphisms on a pair.
---
--- This is the cartesian product, renamed from 'Par' to avoid collision with
--- the multiplicative disjunction 'Circuit.Tensor.Par'.
-class CartesianPar arr where
-  parP :: arr a b -> arr c d -> arr (a, c) (b, d)
-
-instance CartesianPar (->) where
-  parP f g (x, y) = (f x, g y)
-
-instance (Monad m) => CartesianPar (K m) where
-  parP (K f) (K g) = K $ \(x, y) -> (,) <$> f x <*> g y
-
 -- | Values that can be tested for silence.
 class IsSilent b where
   -- | True iff the value is silent.
@@ -638,8 +626,8 @@ pairEnds ::
 pairEnds e1 e2 =
   let (w1, r1) = splay0 e1
       (w2, r2) = splay0 e2
-      w = discard . parP w1 w2 . copy
-      r = parP r1 r2 . copy
+      w = discard . bimap w1 w2 . copy
+      r = bimap r1 r2 . copy
    in ends0 w r
 
 -- | Additive disjunction / race: both sub-ends receive the same input, but
@@ -664,8 +652,8 @@ raceEnds ::
 raceEnds bias e1 e2 =
   let (w1, r1) = splay0 e1
       (w2, r2) = splay0 e2
-      w = discard . parP w1 w2 . copy
-      r = pick bias . parP r1 r2 . copy
+      w = discard . bimap w1 w2 . copy
+      r = pick bias . bimap r1 r2 . copy
    in ends0 w r
   where
     pick LeftFirst (x, y) = if isSilent x then y else x

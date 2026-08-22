@@ -14,27 +14,19 @@
 
 -- | Tensor action and braiding for traced categories.
 --
--- This module collects the braided, cartesian, and cocartesian structure
--- over the standard tensors @(,)@ and 'Either', along with the general
--- 'ambientBy' combinator for threading additional state wires.
+-- This module collects the cartesian and cocartesian structure over the
+-- standard tensors @(,)@ and 'Either', plus the tensor action on morphisms.
 --
 -- The goal is to keep the core 'Loop' GADT and 'run' mechanism
 -- independent of these structural details.
 --
 -- Note: the monomorphic 'assocL' and 'assocR' helpers below reassociate
 -- /leftward/ and /rightward/ respectively — the opposite direction to
--- 'Circuit.Channel.assoc' and 'Circuit.Channel.assoc''. The 'slide'
--- from 'Braided' is the slide @t a (t b c) -> t b (t a c)@; 'swap' here
--- is the symmetric braiding @t a b -> t b a@. They cohere as
--- @slide = assocR '.>' par swap id '.>' assocL@ wherever the 'Tensor'
--- and 'Action' structure is available.
+-- 'Circuit.Channel.assoc' and 'Circuit.Channel.assoc''.
 --
 -- 'Tensor' / 'Action' are kind-polymorphic.
 module Circuit.Tensor
-  ( -- * Braiding
-    Braided (..),
-    ambient,
-    ambientBy,
+  ( -- * Fused parallel composition
     superpose,
 
     -- * Schedule bias (also used by additive disjunction)
@@ -59,17 +51,16 @@ module Circuit.Tensor
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
-import Circuit.Channel (Channel, Strength (..), Traced (..))
+import Circuit.Channel (Strength (..), Traced (..))
 import Circuit.Channel qualified as Ch
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
-import Data.Profunctor (Profunctor, dimap)
 import Data.These (These (..))
 import Data.Void (Void, absurd)
-import Prelude hiding (curry, id, uncurry, (.))
+import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
@@ -78,43 +69,6 @@ import Prelude hiding (curry, id, uncurry, (.))
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
-
--- ===========================================================================
--- BRAIDING
--- ===========================================================================
-
--- | A braiding for a bifunctor tensor.
---
--- The slide swaps a wire past a nested pair:
---
--- @
---   t x (t y z)  ->  t y (t x z)
--- @
---
--- For @(,)@ this is the cartesian slide.  For @Either@ it is the
--- coproduct slide.  Both are derived from the associator and swap.
-class (Bifunctor t) => Braided t where
-  slide :: t x (t y z) -> t y (t x z)
-
--- | Cartesian slide: @(x, (y, z)) -> (y, (x, z))@.
-instance Braided (,) where
-  slide ~(x, ~(y, z)) = (y, (x, z))
-
--- | Coproduct slide.
---
--- >>> slide (Left "hi" :: Either String (Either Int Bool))
--- Right (Left "hi")
-instance Braided Either where
-  slide (Left x) = Right (Left x)
-  slide (Right (Left y)) = Left y
-  slide (Right (Right z)) = Right (Right z)
-
--- | Thread a state wire through a circuit using the canonical slide.
-ambient ::
-  (Braided t, Strength t arr, Profunctor arr) =>
-  Loop t arr a b ->
-  Loop t arr (t s a) (t s b)
-ambient = ambientBy slide
 
 -- ===========================================================================
 -- SCHEDULE BIAS
@@ -140,9 +94,6 @@ assocR :: ((a, b), c) -> (a, (b, c))
 assocR ~(~(a, b), c) = (a, (b, c))
 
 -- | Introduce a state wire alongside a payload.
---
--- Given an initial state and a payload value, produce a paired value
--- suitable for feeding into a circuit threaded with 'ambientBy'.
 seed :: s -> a -> (s, a)
 seed s a = (s, a)
 
@@ -218,37 +169,6 @@ coreleaseL _ (Right b) = Right b
 coreleaseR :: (s -> (s', t)) -> Either a (s, b) -> Either a (s', (t, b))
 coreleaseR f (Right (s, b)) = let (s', t) = f s in Right (s', (t, b))
 coreleaseR _ (Left a) = Left a
-
--- ===========================================================================
--- GENERAL AMBIENT STATE THREADING
--- ===========================================================================
-
--- | Thread a state wire through a Circuit.
---
--- 'ambientBy' threads an additional state component alongside a circuit
--- without the circuit having to mention it. The state wire is slid
--- past the feedback channel so it travels "ambiently".
---
--- The @slide@ function swaps the state wire past the feedback channel:
--- @t x (t s a) -> t s (t x a)@. For @(,)@, this is
--- @\(x, (s, a)) -> (s, (x, a))@.
---
--- >>> import Circuit.Layer (run)
--- >>> import Circuit.Loop (Loop(..))
--- >>> let slide (x, (s, a)) = (s, (x, a))
--- >>> run (ambientBy slide (Lift (+1) :: Loop (,) (->) Int Int)) ("st", 5)
--- ("st",6)
---
--- >>> let step (xs, ()) = (0 : xs, take 3 xs)
--- >>> run (ambientBy slide (Knot step)) ("st", ())
--- ("st",[0,0,0])
-ambientBy ::
-  (Strength t arr, Profunctor arr) =>
-  (forall x y z. t x (t y z) -> t y (t x z)) ->
-  Loop t arr a b ->
-  Loop t arr (t s a) (t s b)
-ambientBy _br (Lift f) = Lift (strength f)
-ambientBy br (Knot k) = Knot (dimap br br (strength k))
 
 -- ===========================================================================
 -- Tensor / Action — tensor action on morphisms

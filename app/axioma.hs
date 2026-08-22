@@ -23,7 +23,7 @@ import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir
 import Circuit.Prob (Prob (..), embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
 import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
 import Circuit.Linear (BangCopy (..), BangWeaken (..), Bot, Exponential (..), Lolli (..), Par (..), WhyNotIntro (..), WhyNotMonoid (..), distL, distR, mix)
-import Circuit.Shared (Fire (..), Schedule (..), Shared (..), sharedKnotBy)
+import Circuit.Shared (Fire (..), Schedule (..), Shared (..))
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
 import Circuit.Tools.Test (approx, check)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
@@ -976,21 +976,21 @@ main = do
         check "pure order swap is invisible at the shared channel (sliding axiom)" $
           let k1 = markerBody 1
               k2 = markerBody 2
-           in run (sharedKnotBy pureLeft k1 k2) ((), ())
-                == run (sharedKnotBy pureRight k1 k2) ((), ()),
-        check "sharedKnotBy differs from superpose (shared vs independent feedback)" $
+           in run (Knot (sharedBy pureLeft k1 k2)) ((), ())
+                == run (Knot (sharedBy pureRight k1 k2)) ((), ()),
+        check "sharedBy differs from superpose (shared vs independent feedback)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               theseToPair (This a) = (a, [])
               theseToPair (That b) = ([], b)
               theseToPair (These a b) = (a, b)
            in run (superpose (Knot k1) (Knot k2)) ((), ())
-                /= theseToPair (run (sharedKnotBy leftFirst k1 k2) ((), ())),
-        check "sharedKnotBy schedule changes observable interleaving" $
+                /= theseToPair (run (Knot (sharedBy leftFirst k1 k2)) ((), ())),
+        check "sharedBy schedule changes observable interleaving" $
           let k1 = markerBody 1
               k2 = markerBody 2
-           in run (sharedKnotBy rightFirst k1 k2) ((), ())
-                /= run (sharedKnotBy leftFirst k1 k2) ((), ()),
+           in run (Knot (sharedBy rightFirst k1 k2)) ((), ())
+                /= run (Knot (sharedBy leftFirst k1 k2)) ((), ()),
         check "sharedBy Both LeftFirst equals premonoidal left-first product" $
           let k1 = markerBody 1
               k2 = markerBody 2
@@ -1143,26 +1143,26 @@ main = do
             writeIORef ref 1
             r2 <- runK (run handBuiltFG) 5
             pure (r1 == r2),
-        check "sharedKnotBy L gates right body (output is This only)" $
+        check "sharedBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               leftOnly = Schedule (,L) :: Schedule [Int]
-           in run (sharedKnotBy leftOnly k1 k2) ((), ()) == This [1, 1, 1],
-        check "sharedKnotBy R gates left body (output is That only)" $
+           in run (Knot (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
+        check "sharedBy R gates left body (output is That only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               rightOnly = Schedule (,R) :: Schedule [Int]
-           in run (sharedKnotBy rightOnly k1 k2) ((), ()) == That [2, 2, 2],
-        check "sharedKnotBy left-first and right-first both agree on body sets" $
+           in run (Knot (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
+        check "sharedBy left-first and right-first both agree on body sets" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftResult = run (sharedKnotBy leftFirst k1 k2) ((), ())
-              rightResult = run (sharedKnotBy rightFirst k1 k2) ((), ())
+              leftResult = run (Knot (sharedBy leftFirst k1 k2)) ((), ())
+              rightResult = run (Knot (sharedBy rightFirst k1 k2)) ((), ())
               bodySet = sort . these id id (++)
            in bodySet leftResult == [0, 0, 1, 1, 2, 2]
                 && bodySet rightResult == [0, 0, 1, 1, 2, 2],
         -- Free-syntax bridge: SigShared is the algebraic ⅋ connective
-        check "AlgShared eval agrees with sharedKnotBy" $
+        check "AlgShared eval agrees with sharedBy" $
           let k1 = markerBody 1
               k2 = markerBody 2
               term :: Frag.AlgShared (,) (->) ((), ()) (These [Int] [Int])
@@ -1179,7 +1179,7 @@ main = do
                           )
                       )
                   )
-           in Frag.eval term ((), ()) == run (sharedKnotBy pureLeft k1 k2) ((), ()),
+           in Frag.eval term ((), ()) == run (Knot (sharedBy pureLeft k1 k2)) ((), ()),
         check "AlgShared L schedule gates right body" $
           let k1 = markerBody 1
               k2 = markerBody 2
@@ -1243,7 +1243,7 @@ main = do
         check "mediator-hyper stamp: schedule stamp distinguishes shared composition in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              shared stamp = HyperLoop.encode (sharedKnotBy stamp k1 k2) :: Hyper ((), ()) (These [Int] [Int])
+              shared stamp = HyperLoop.encode (Knot (sharedBy stamp k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
               superposed = HyperLoop.encode (superpose (Knot k1) (Knot k2)) :: Hyper ((), ()) ([Int], [Int])
               stamped = shared leftFirst
               unstamped = shared pureLeft
@@ -1255,7 +1255,7 @@ main = do
         check "stamped ⅋ probe: schedule stamp toggles entanglement in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              sharedHyper sched = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) (These [Int] [Int])
+              sharedHyper sched = HyperLoop.encode (Knot (sharedBy sched k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
               leftH = sharedHyper leftFirst
               rightH = sharedHyper rightFirst
               pureLeftH = sharedHyper pureLeft
@@ -1263,17 +1263,17 @@ main = do
            in observe leftH ((), ()) /= observe rightH ((), ())
                 && observe pureLeftH ((), ()) == observe pureRightH ((), ()),
         -- Bridge square: medium commutes through encode
-        check "bridge square: sharedKnotBy encodes to sharedHyperBy" $
+        check "bridge square: sharedBy encodes to sharedHyperBy" $
           let k1 = markerBody 1
               k2 = markerBody 2
               sched = leftFirst
-              leftSide = HyperLoop.encode (sharedKnotBy sched k1 k2) :: Hyper ((), ()) (These [Int] [Int])
+              leftSide = HyperLoop.encode (Knot (sharedBy sched k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
               rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         check "bridge square: pure schedule collapse agrees" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftSide = HyperLoop.encode (sharedKnotBy pureLeft k1 k2) :: Hyper ((), ()) (These [Int] [Int])
+              leftSide = HyperLoop.encode (Knot (sharedBy pureLeft k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
               rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         -- Mediate oracles (B1)

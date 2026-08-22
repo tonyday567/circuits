@@ -195,10 +195,7 @@ module Circuit
     runEither,
     flatten,
 
-    -- * Channel
-    Braided (..),
-    ambient,
-    ambientBy,
+    -- * Tensor
     superpose,
 
     -- * Boundary (K + payload)
@@ -246,7 +243,6 @@ module Circuit
     Fire (..),
     Schedule (..),
     Shared (..),
-    sharedKnotBy,
 
     -- * Mediator (Track B residual)
     Mediator (..),
@@ -416,14 +412,10 @@ import Circuit.Shared
   ( Fire (..),
     Schedule (..),
     Shared (..),
-    sharedKnotBy,
   )
 import Circuit.Tensor
   ( Action (..),
-    Braided (..),
     Tensor (..),
-    ambient,
-    ambientBy,
     superpose,
   )
 import Prelude hiding (curry, uncurry)

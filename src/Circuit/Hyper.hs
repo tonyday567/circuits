@@ -575,7 +575,7 @@ runSharedHyperH s0 h a = runStateT (observeH h a) s0
 -- the bridge square:
 --
 -- @
---   encode (sharedKnotBy sched k1 k2)  ≅  sharedHyperBy sched (encode (Lift k1)) (encode (Lift k2))
+--   encode (Knot (sharedBy sched k1 k2))  ≅  sharedHyperBy sched (encode (Lift k1)) (encode (Lift k2))
 -- @
 --
 -- The implementation extracts the underlying arrows via 'observeH'/'mkArr',
