@@ -31,15 +31,6 @@
 -- @HyperF@ lives in the same module so the function API is literally a
 -- specialisation of the generic one.
 --
--- === stateful arrows
---
--- A stateful function @(s, a) -> (s, b)@ is isomorphic to a K arrow
--- @a -> State s b@. 'stateK' records that isomorphism; it is the bridge
--- between 'Circuit.Body.Body' (the cartesian knot body) and the state
--- monad. The same isomorphism justifies 'Circuit.Body.Body' for general
--- tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
--- tensor-paired carrier @t s -@.
---
 -- === doctests
 --
 -- >>> import Circuit.Hyper
@@ -93,18 +84,12 @@ module Circuit.Hyper
     encodeFree,
     flatten,
 
-    -- * Shared-medium composition via base change
-    StateT (..),
-    stateK,
-    runSharedHyperH,
-    sharedHyperBy,
   )
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
-import Circuit.Shared (Schedule (..), Shared (..))
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)
@@ -113,7 +98,6 @@ import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Data.Profunctor
-import Data.These (These)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -128,37 +112,6 @@ import Prelude hiding (id, (.))
 -- >>> let g1 = (+10) :: Int -> Int
 -- >>> let f2 = (+3) :: Int -> Int
 -- >>> let g2 = (*100) :: Int -> Int
-
--- ---------------------------------------------------------------------------
--- Local lazy state transformer
---
--- We keep this local to avoid a dependency on the @transformers@ package.
--- The implementation matches the standard lazy state transformer; the lazy
--- 'MonadFix' instance is the part we need, because 'trace' on
--- @HyperF (K (StateT s m))@ ties its knot with 'mfix'.
--- ---------------------------------------------------------------------------
-
--- | A lazy state monad transformer.
-newtype StateT s m a = StateT {runStateT :: s -> m (a, s)}
-
-instance (Functor m) => Functor (StateT s m) where
-  fmap f m = StateT $ \s ->
-    fmap (\ ~(a, s') -> (f a, s')) (runStateT m s)
-
-instance (Functor m, Monad m) => Applicative (StateT s m) where
-  pure a = StateT $ \s -> return (a, s)
-  StateT mf <*> StateT mx = StateT $ \s -> do
-    ~(f, s') <- mf s
-    ~(x, s'') <- mx s'
-    return (f x, s'')
-
-instance (Monad m) => Monad (StateT s m) where
-  m >>= k = StateT $ \s -> do
-    ~(a, s') <- runStateT m s
-    runStateT (k a) s'
-
-instance (MonadFix m) => MonadFix (StateT s m) where
-  mfix f = StateT $ \s -> mfix $ \ ~(a, _) -> runStateT (f a) s
 
 -- ---------------------------------------------------------------------------
 -- Hyperfunctions
@@ -214,17 +167,6 @@ instance HyperBase (->) where
 -- | K arrows: arrows run in the monad and knots tie with 'mfix'.
 instance {-# INCOHERENT #-} (MonadFix m) => HyperBase (K m) where
   type Run (K m) = m
-  runArr = runK
-  mkArr = K
-  fixRun = mfix
-
--- | State-enriched K arrows: the medium enters as a base change.
---
--- Lazy 'StateT' is required so that 'mfix' can tie the recursive knot used by
--- 'trace'.  Strict 'StateT' lacks a general 'MonadFix' instance and would
--- force an explicit seed, repeating the B0 register-pattern lesson.
-instance {-# OVERLAPPING #-} (MonadFix m) => HyperBase (K (StateT s m)) where
-  type Run (K (StateT s m)) = StateT s m
   runArr = runK
   mkArr = K
   fixRun = mfix
@@ -552,55 +494,3 @@ flatten ::
   Trace (,) arr a b
 flatten h = Trace.base (mkArr (observeH h))
 
--- ---------------------------------------------------------------------------
--- Shared-medium composition (the bridge square)
--- ---------------------------------------------------------------------------
-
--- | Lift a stateful function into the state-enriched K base.
---
--- This is the base change that makes the medium explicit: a body
--- @arr (s, a) (s, b)@ becomes a K arrow @a -> StateT s m b@.
-stateK ::
-  (Monad m) =>
-  ((s, a) -> (s, b)) ->
-  K (StateT s m) a b
-stateK f = K $ \a -> StateT $ \s -> let (s', b) = f (s, a) in pure (b, s')
-
--- | Run a shared-state hyperfunction from an initial medium state.
-runSharedHyperH ::
-  (MonadFix m) =>
-  s ->
-  HyperF (K (StateT s m)) a b ->
-  a ->
-  m (b, s)
-runSharedHyperH s0 h a = runStateT (observeH h a) s0
-
--- | Shared-medium fusion in the final encoding.
---
--- Two hyperfunctions whose inputs/outputs carry the medium state are fused
--- along that medium using the schedule.  This is the right-hand side of
--- the bridge square:
---
--- @
---   encode (yank (base (sharedBy sched k1 k2)))  ≅  sharedHyperBy sched (encode (base k1)) (encode (base k2))
--- @
---
--- The implementation extracts the underlying arrows via 'observeH'/'mkArr',
--- composes them with the schedule-driven 'sharedBy', and re-encodes via
--- 'trace'/'liftH'.  The state-enriched base (@K (StateT s m)@) provides
--- the conceptual home for the medium; this combinator is its value-level
--- presentation.
-sharedHyperBy ::
-  forall arr s a b c d.
-  ( HyperBase arr,
-    Strength (,) arr,
-    Shared (,) arr
-  ) =>
-  Schedule s ->
-  HyperF arr (s, a) (s, b) ->
-  HyperF arr (s, c) (s, d) ->
-  HyperF arr (a, c) (These b d)
-sharedHyperBy sched f g = trace (liftH (sharedBy sched f' g'))
-  where
-    f' = mkArr (observeH f)
-    g' = mkArr (observeH g)
