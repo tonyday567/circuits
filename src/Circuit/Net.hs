@@ -55,11 +55,11 @@ import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
-import Circuit.Layer qualified as Layer
-import Circuit.SMC (FreeSMC, SMC (..))
-import Circuit.Trace (Trace, base, yank)
+import Circuit.SMC (FreeSMC, SMC)
 import Circuit.SMC qualified as SMC
+import Circuit.Syntax (evalInto)
 import Circuit.Tensor (Action, Tensor (..), Unit)
+import Circuit.Trace (Trace, base, yank)
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
@@ -68,16 +68,18 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Layer (bind, run, unit)
 -- >>> import Circuit.Net
 -- >>> import Circuit.Trace (Trace, base, yank)
--- >>> import Circuit.Syntax (eval)
--- >>> import Circuit.SMC
+-- >>> import Circuit.Syntax (eval, evalInto)
+-- >>> import Circuit.SMC hiding (lift)
+-- >>> import Circuit.SMC qualified as SMC
+-- >>> import Circuit.Category ((.))
 -- >>> import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category with a bimonoid.
 --
 -- Three families of constructor:
 --
---   * __SMC__ — 'FromSMC' embeds the whole 'SMC' layer; 'lift' and 'swap'
---     are smart constructors for the common cases.
+--   * __SMC__ — 'FromSMC' embeds the whole 'SMC' syntax layer; 'lift' and
+--     'swap' are smart constructors for the common cases.
 --   * __Sequential / monoidal__ — 'Compose' and 'Par' extend the SMC
 --     embedding to arbitrary 'Net' values; they are needed because the
 --     bimonoid generators are not SMC morphisms.
@@ -141,11 +143,11 @@ instance (Category arr) => Category (Net w arr) where
 
 -- | Lift a base arrow into 'Net' via 'SMC'.
 lift :: arr a b -> Net w arr a b
-lift = FromSMC . SMCLift
+lift = FromSMC . SMC.lift
 
 -- | Symmetric braiding in 'Net' via 'SMC'.
 swap :: Net w arr (w a b) (w b a)
-swap = FromSMC SMCSwap
+swap = FromSMC SMC.swap
 
 -- | Include an 'SMC' circuit into 'Net'.
 --
@@ -153,23 +155,22 @@ swap = FromSMC SMCSwap
 -- 'FromSMC' wrapper.  This gives the adjunction between 'SMC' and 'Net'
 -- together with 'sift'.
 --
--- >>> let m = SMCLift (+1) `SMCCompose` SMCLift (*2) :: SMC (,) (->) Int Int
+-- >>> let m = SMC.lift (+1) . SMC.lift (*2) :: SMC (,) (->) Int Int
 -- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
 -- Coherence: 'sift' projects 'widen' back to the original 'SMC'.
 --
--- >>> run (sift (widen m :: Net (,) (->) Int Int)) 5
+-- >>> eval (sift (widen m :: Net (,) (->) Int Int)) 5
 -- 11
--- >>> run m 5
+-- >>> eval m 5
 -- 11
 --
 -- Coherence: 'melt' agrees with the function fold on 'SMC' circuits.
 --
 -- >>> eval (melt (widen m :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
 -- 11
--- >>> let h f = f
--- >>> (bind h m :: Int -> Int) 5
+-- >>> eval m 5
 -- 11
 --
 -- Coherence: 'Net' folds through 'widen' match 'SMC' folds.
@@ -177,13 +178,13 @@ swap = FromSMC SMCSwap
 -- >>> let h f = f
 -- >>> (bind h (widen m :: Net (,) (->) Int Int) :: Int -> Int) 5
 -- 11
--- >>> (bind h m :: Int -> Int) 5
+-- >>> (evalInto h m :: Int -> Int) 5
 -- 11
 --
 -- Coherence: mirroring commutes with 'widen'.
 --
--- >>> let dm = SMCLift (Dg.Dagger (+1) (subtract 1)) `SMCCompose` SMCLift (Dg.Dagger (*2) (\x -> x `div` 2)) :: SMC (,) (Dg.Dagger (->)) Int Int
--- >>> Dg.front (Dg.transpose (run dm)) 10
+-- >>> let dm = SMC.lift (Dg.Dagger (+1) (subtract 1)) . SMC.lift (Dg.Dagger (*2) (\x -> x `div` 2)) :: SMC (,) (Dg.Dagger (->)) Int Int
+-- >>> Dg.front (Dg.transpose (eval dm)) 10
 -- 4
 -- >>> Dg.front (Dg.transpose (run (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
@@ -192,7 +193,7 @@ widen = FromSMC
 
 -- | Forget the bimonoid rows of a 'Net', keeping only the 'SMC' wiring.
 --
--- 'sift' collapses the bimonoid rows into 'SMCLift' while leaving
+-- 'sift' collapses the bimonoid rows into 'SMC.lift' while leaving
 -- 'Compose' and 'Par' inspectable. Together with 'widen' it gives the
 -- adjunction between 'SMC' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
@@ -203,12 +204,12 @@ sift ::
   Net w arr a b ->
   SMC w arr a b
 sift (FromSMC s) = s
-sift (Compose g f) = SMCCompose (sift g) (sift f)
-sift (Par f g) = SMCPar (sift f) (sift g)
-sift Copy = SMCLift (Bm.copyT @w)
-sift Discard = SMCLift (Bm.discardT @w)
-sift Plus = SMCLift (Bm.plusT @w)
-sift Zero = SMCLift (Bm.zeroT @w)
+sift (Compose g f) = sift g . sift f
+sift (Par f g) = SMC.par (sift f) (sift g)
+sift Copy = SMC.lift (Bm.copyT @w)
+sift Discard = SMC.lift (Bm.discardT @w)
+sift Plus = SMC.lift (Bm.plusT @w)
+sift Zero = SMC.lift (Bm.zeroT @w)
 
 -- | Melt the structural rows of a 'Net' into the free 'Trace' syntax.
 --
@@ -226,7 +227,7 @@ melt ::
   (Traced t arr, Action w arr) =>
   Net w arr a b ->
   Trace t arr a b
-melt (FromSMC s) = Layer.bind base s
+melt (FromSMC s) = evalInto base s
 melt (Compose g f) = melt g . melt f
 melt (Par f g) = par (melt f) (melt g)
 melt Copy = base (Bm.copyT @w)
@@ -280,7 +281,7 @@ instance Layer (Net w) where
     (arr :~> arr') ->
     Net w arr a b ->
     arr' a b
-  bind h (FromSMC s) = Layer.bind h s
+  bind h (FromSMC s) = evalInto h s
   bind h (Compose (g :: Net w arr b1 c) (f :: Net w arr a b1)) =
     bind h g . bind h f
   bind h (Par (f :: Net w arr a1 b1) (g :: Net w arr c d)) =

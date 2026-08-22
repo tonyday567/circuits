@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions #-}
@@ -69,9 +68,7 @@ module Circuit.Fragment
     yank,
 
     -- * Additional signatures
-    SigPar (..),
     SigShared (..),
-    SigSwap (..),
     SigCopy (..),
     SigDiscard (..),
     SigCopyDiscard,
@@ -80,7 +77,6 @@ module Circuit.Fragment
     SigMergeZero,
 
     -- * Common syntax combinations
-    AlgSMC,
     AlgShared,
     AlgRelevant,
     AlgAffine,
@@ -101,19 +97,19 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Net qualified as N
-import Circuit.SMC (SMC (..))
+import Circuit.SMC (SMC, SigPar (..), SigSwap (..))
 import Circuit.Shared (Bias (..), Pick, Schedule (..), Shared (..), sharedBy)
 import Circuit.Syntax
-  ( Algebra (..),
-    AlgCat,
+  ( AlgCat,
+    Algebra (..),
     Sig,
     SigCompose (..),
     Syntax (..),
-    (:+:) (..),
     eval,
     evalInto,
+    (:+:) (..),
   )
-import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Tensor (Unit)
 import Circuit.Trace (SigYank (..), Trace, base, yank)
 import Data.Kind (Constraint, Type)
 import Data.These (These (..))
@@ -121,21 +117,6 @@ import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
 -- Individual signatures
-
--- | Parallel composition (the tensor product ⊗).
---
--- This is the monoidal product over independent state.  It is sound as a
--- bifunctor in any 'Tensor' category; it does not represent shared-medium
--- fusion.  For the shared-state connective ⅋ see 'SigShared'.
-data SigPar (w :: Type -> Type -> Type) arr rec a b where
-  SigPar ::
-    rec a b ->
-    rec c d ->
-    SigPar w arr rec (w a c) (w b d)
-
-instance (Tensor w arr') => Algebra (SigPar w) arr arr' where
-  type Ctx (SigPar w) arr arr' = Tensor w arr'
-  alg _ rec (SigPar f g) = par (rec f) (rec g)
 
 -- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
 --
@@ -152,20 +133,6 @@ data SigShared (t :: Type -> Type -> Type) arr rec i o where
 instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   type Ctx (SigShared t) arr arr' = Shared t arr'
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
-
--- | Symmetric braiding.
-data SigSwap (w :: Type -> Type -> Type) arr rec a b where
-  SigSwap :: SigSwap w arr rec (w a b) (w b a)
-
-instance (Action w arr') => Algebra (SigSwap w) arr arr' where
-  type Ctx (SigSwap w) arr arr' = Action w arr'
-  alg ::
-    forall rec a b.
-    (forall x y. arr x y -> arr' x y) ->
-    (forall x y. rec x y -> arr' x y) ->
-    SigSwap w arr rec a b ->
-    arr' a b
-  alg _ _ SigSwap = swap
 
 -- | Copy: the contraction half of the comonoid.
 --
@@ -228,9 +195,6 @@ type SigMergeZero w = SigPlus w :+: SigZero w
 -- ---------------------------------------------------------------------------
 -- Common syntax combinations
 
--- | Free monoidal category over wiring tensor @w@.
-type AlgSMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
-
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
 type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr
 
@@ -275,13 +239,13 @@ type AlgNet w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w 
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 algNet :: forall w arr a b. N.Net w arr a b -> AlgNet w arr a b
-algNet (N.FromSMC s) = goSMC s
+algNet (N.FromSMC s) = widenSMC s
   where
-    goSMC :: forall x y. SMC w arr x y -> AlgNet w arr x y
-    goSMC (SMCLift f) = Lift f
-    goSMC (SMCCompose g f) = Op (L (SigCompose (goSMC g) (goSMC f)))
-    goSMC (SMCPar f g) = Op (R (L (SigPar (goSMC f) (goSMC g))))
-    goSMC SMCSwap = Op (R (R (L SigSwap)))
+    widenSMC :: forall x y. SMC w arr x y -> AlgNet w arr x y
+    widenSMC (Lift f) = Lift f
+    widenSMC (Op (L (SigCompose g f))) = Op (L (SigCompose (widenSMC g) (widenSMC f)))
+    widenSMC (Op (R (L (SigPar f g)))) = Op (R (L (SigPar (widenSMC f) (widenSMC g))))
+    widenSMC (Op (R (R SigSwap))) = Op (R (R (L SigSwap)))
 algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
 algNet (N.Par f g) = Op (R (L (SigPar (algNet f) (algNet g))))
 algNet N.Copy = Op (R (R (R (L SigCopy))))
