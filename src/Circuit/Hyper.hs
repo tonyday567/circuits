@@ -72,13 +72,6 @@ module Circuit.Hyper
     encodeEither,
     runEither,
 
-    -- * K aliases
-    liftArr,
-    observeArr,
-    baseArr,
-    pushArr,
-    runHyperArr,
-
     -- * Bridges from initial syntax
     encode,
     encodeFree,
@@ -392,41 +385,6 @@ instance Profunctor Hyper where
 
 instance Functor (Hyper a) where
   fmap = rmap
-
--- ---------------------------------------------------------------------------
--- K aliases
--- ---------------------------------------------------------------------------
-
--- | Alias for 'pushH' on @K m@.
-pushArr ::
-  (MonadFix m) =>
-  K m a b ->
-  HyperF (K m) a b ->
-  HyperF (K m) a b
-pushArr = pushH
-
--- | Alias for 'liftH' on @K m@.
-liftArr :: (MonadFix m) => K m a b -> HyperF (K m) a b
-liftArr = liftH
-
--- | Alias for 'baseH' on @K m@.
-baseArr :: (MonadFix m) => b -> HyperF (K m) a b
-baseArr = baseH
-
--- | Alias for 'observeH' on @K m@.
-observeArr ::
-  (MonadFix m) =>
-  HyperF (K m) a b ->
-  a ->
-  m b
-observeArr = observeH
-
--- | Alias for 'runHyperH' on @K m@.
-runHyperArr ::
-  (MonadFix m) =>
-  HyperF (K m) a a ->
-  m a
-runHyperArr = runHyperH
 
 -- ---------------------------------------------------------------------------
 -- Bridges from initial syntax
