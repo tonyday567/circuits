@@ -278,7 +278,7 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- become 'trace' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace
--- >>> observe (encode (Trace.base (+1) :: Trace (,) (->) Int Int)) 5
+-- >>> observe (encode (Trace.base (+1) :: Trace.Trace (,) (->) Int Int)) 5
 -- 6
 encode ::
   Trace (,) (->) a b ->
