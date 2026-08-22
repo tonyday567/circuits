@@ -51,6 +51,10 @@ module Circuit.Process
     fold,
     encode,
 
+    -- * Mealy-style processes
+    mealy,
+    runMealy,
+
     -- * Cross-tick feedback
     delay,
     register,
@@ -72,7 +76,7 @@ import Circuit.Shared (Bias (..), Fire (..), Schedule (..), Shared (..), chooseS
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.List (scanl')
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
@@ -425,6 +429,31 @@ scan (Process i st ex) (x : xs) =
 fold :: Process a b -> [a] -> Maybe b
 fold _ [] = Nothing
 fold p xs = Just (last (scan p xs))
+
+-- ---------------------------------------------------------------------------
+-- Mealy-style processes
+-- ---------------------------------------------------------------------------
+
+-- | Build a 'Process' from a Mealy-style step.
+--
+-- The output may depend on the current input. The state internally stores the
+-- most recent output so that the Moore-style 'Process' interface is preserved.
+mealy :: s -> (s -> a -> (s, Maybe b)) -> Process a (Maybe b)
+mealy s0 step = Process inject step' extract
+  where
+    inject a =
+      let (s, mb) = step s0 a
+       in (s, mb)
+    step' (s, _) a =
+      let (s', mb') = step s a
+       in (s', mb')
+    extract = snd
+{-# INLINEABLE mealy #-}
+
+-- | Collect the emitted outputs of a 'Process (Maybe b)'.
+runMealy :: Process a (Maybe b) -> [a] -> [b]
+runMealy = (catMaybes .) . scan
+{-# INLINEABLE runMealy #-}
 
 -- ---------------------------------------------------------------------------
 -- Cross-tick feedback

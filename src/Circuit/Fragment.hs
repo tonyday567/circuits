@@ -34,8 +34,7 @@
 -- The generic free-construction substrate lives in "Circuit.Syntax"; the
 -- core traced-morphism syntax lives in "Circuit.Trace". This module adds
 -- the remaining signatures (parallel composition, braiding, copy/discard,
--- shared-medium fusion, mediators) and the common combinations built from
--- them.
+-- shared-medium fusion) and the common combinations built from them.
 --
 -- The signatures are:
 --
@@ -43,7 +42,6 @@
 -- * @SigYank@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition (the tensor product ⊗)
 -- * @SigShared@  — shared-medium fusion (the par product ⅋), parameterised by a schedule
--- * @SigMediate@ — exponential / why-not (@?@), parameterised by a mediator
 -- * @SigSwap@    — symmetric braiding
 -- * @SigCopyDiscard@ — copy, discard
 -- * @SigMergeZero@   — plus, zero
@@ -71,7 +69,6 @@ module Circuit.Fragment
     yank,
 
     -- * Additional signatures
-    SigMediate (..),
     SigPar (..),
     SigShared (..),
     SigSwap (..),
@@ -82,13 +79,9 @@ module Circuit.Fragment
     SigZero (..),
     SigMergeZero,
 
-    -- * Mediator interpretation
-    Mediable (..),
-
     -- * Common syntax combinations
     AlgSMC,
     AlgShared,
-    AlgMediate,
     AlgRelevant,
     AlgAffine,
     AlgCartesian,
@@ -99,7 +92,6 @@ module Circuit.Fragment
     AlgNet,
 
     -- * Direct <-> algebra isomorphisms
-    algMediate,
     algNet,
     runAlgNet,
   )
@@ -108,7 +100,6 @@ where
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
-import Circuit.Mediate (Mediator (..), runMediator)
 import Circuit.Net qualified as N
 import Circuit.SMC (SMC (..))
 import Circuit.Shared (Bias (..), Fire, Schedule (..), Shared (..), sharedBy)
@@ -161,37 +152,6 @@ data SigShared (t :: Type -> Type -> Type) arr rec i o where
 instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   type Ctx (SigShared t) arr arr' = Shared t arr'
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
-
--- | Exponential / why-not (@?@): a mediator policy as a circuit constructor.
---
--- A mediator is a Mealy-style state machine with residual state @s@, input @a@,
--- and optional output @b@.  The @?@ connective embeds it as a stream morphism
--- @[a] -> [b]@.  The residual state is hidden inside the constructor; the
--- algebra interprets the policy in a target category that knows how to run
--- mediators.
---
--- This is the exponential counterpart to the additive and multiplicative
--- connectives: while 'SigCopyDiscard' gives explicit copy/discard capability,
--- 'SigMediate' is the policy that the exponential modalises.
-data SigMediate arr rec a b where
-  SigMediate :: Mediator s a b -> SigMediate arr rec [a] [b]
-
--- | Categories that can interpret a mediator as a morphism.
---
--- The canonical instance is over functions, where a mediator denotes the
--- causal stream function @[a] -> [b]@ obtained by running from its seed.
--- Other instances (stateful arrows, Kleisli arrows with state) can be added
--- as needed.
-class Mediable arr where
-  mediate :: Mediator s a b -> arr [a] [b]
-
--- | Functions interpret a mediator by running it as a stream transducer.
-instance Mediable (->) where
-  mediate = runMediator
-
-instance (Mediable arr') => Algebra SigMediate arr arr' where
-  type Ctx SigMediate arr arr' = Mediable arr'
-  alg _ _ (SigMediate med) = mediate med
 
 -- | Symmetric braiding.
 data SigSwap (w :: Type -> Type -> Type) arr rec a b where
@@ -274,9 +234,6 @@ type AlgSMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
 type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr
 
--- | Free traced category with mediator policies (the @?@ connective).
-type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigYank t) arr
-
 -- | Free relevant symmetric monoidal category over wiring tensor @w@.
 --
 -- SMC plus contraction ('Copy') but no weakening.
@@ -315,10 +272,6 @@ type AlgNet w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w 
 
 -- ---------------------------------------------------------------------------
 -- Direct <-> algebra isomorphisms
-
--- | Embed a mediator policy into the free @?@ syntax.
-algMediate :: forall t arr s a b. Mediator s a b -> AlgMediate t arr [a] [b]
-algMediate med = Op (R (L (SigMediate med)))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 algNet :: forall w arr a b. N.Net w arr a b -> AlgNet w arr a b

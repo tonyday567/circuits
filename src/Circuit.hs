@@ -122,6 +122,8 @@ module Circuit
     markSystem,
     delay,
     register,
+    mealy,
+    runMealy,
 
     -- * Channel poles (bi-polar effectful/process API; still the right tool for
     -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
@@ -198,7 +200,6 @@ module Circuit
 
     -- * Additive poles
     Bias (..),
-    raceMediator,
 
     -- * Par (multiplicative disjunction)
     Bot,
@@ -228,18 +229,6 @@ module Circuit
     Schedule (..),
     Shared (..),
 
-    -- * Mediator (Track B residual)
-    Mediator (..),
-    PS (..),
-    LinearResidual (..),
-    FlushableResidual (..),
-    LinearityViolation (..),
-    closeCertified,
-    closeCertifiedWith,
-    count,
-    linear,
-    pairSum,
-    runMediator,
   )
 where
 
@@ -257,7 +246,7 @@ import Circuit.Channel
     trace,
   )
 import Circuit.Channel qualified as Channel
-import Circuit.ChannelPoly
+import Circuit.Poly.Channel
   ( Channel (..),
     commitChannel,
     constChannel,
@@ -322,21 +311,6 @@ import Circuit.Markov
     deterministic,
     discardNatural,
   )
-import Circuit.Mediate
-  ( FlushableResidual (..),
-    LinearResidual (..),
-    LinearityViolation (..),
-    Mediator (..),
-    PS (..),
-    closeCertified,
-    closeCertifiedWith,
-    count,
-    linear,
-    mediateLoop,
-    pairSum,
-    raceMediator,
-    runMediator,
-  )
 import Circuit.Net
   ( Net,
     melt,
@@ -359,7 +333,9 @@ import Circuit.Process
     delay,
     fold,
     markSystem,
+    mealy,
     register,
+    runMealy,
     scan,
     systemToProcess,
   )

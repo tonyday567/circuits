@@ -48,7 +48,6 @@ library
     Circuit.Body
     Circuit.Category
     Circuit.Channel
-    Circuit.ChannelPoly
     Circuit.Dagger
     Circuit.Poles
     Circuit.FinRel
@@ -57,14 +56,15 @@ library
     Circuit.Layer
     Circuit.Linear
     Circuit.Markov
-    Circuit.Mediate
     Circuit.Net
     Circuit.Poly
+    Circuit.Poly.Channel
     Circuit.Prob
     Circuit.Process
     Circuit.SMC
     Circuit.Shared
     Circuit.Stamped
+    Circuit.System
     Circuit.Stream
     Circuit.Syntax
     Circuit.Tensor

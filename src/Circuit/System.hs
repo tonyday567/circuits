@@ -1,47 +1,38 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Poly-indexed channel type for Track B.
+-- | Dynamical-system execution and combinators over 'Circuit.Poly.System'.
 --
--- A channel is indexed by a polynomial interface @p :: Poly@. The polynomial
--- describes both the observable position (output) and the direction space
--- (input). The channel carries no residual field; any residual policy is
--- supplied by a 'Circuit.Mediate.Mediator' at composition time.
---
--- This module starts with function-category @(->)@ evaluation. The type
--- @Channel arr p@ keeps @arr@ as a parameter so that future slices can add
--- @Kleisli@ evaluation helpers without changing the type.
-module Circuit.ChannelPoly
-  ( -- * Poly-indexed channel
-    Channel (..),
-
-    -- * Observation and interaction
-    emitChannel,
-    commitChannel,
-
-    -- * Constructing channels
-    idChannel,
-    constChannel,
-    mapChannel,
-
-    -- * Systems and processes
+-- This module is the execution layer for polynomial dynamical systems: running
+-- them as processes, iterating them over lists, viewing them as lenses, and
+-- branching / composing them as coalgebras. It was split out of
+-- "Circuit.ChannelPoly" so that the poly-indexed channel type and the system
+-- combinators can evolve independently.
+module Circuit.System
+  ( -- * Running monomial systems
+    runSystemMono,
     systemAsProcess,
-    runSystem,
     iterateSystem,
     after,
+
+    -- * Lenses
     systemAsLens,
     lensAsSystem,
     duplicateSystem,
-    Coalgebra (..),
-    Step,
-    coalgebraToSystem,
-    composeCoalgebra,
-    systemToCoalgebraMono,
+
+    -- * Branches
     branchSystem,
     runSystemSum,
     branchSystemHet,
     runSystemSumHet,
     SumStep (..),
+
+    -- * Coalgebras
+    Coalgebra (..),
+    Step,
+    coalgebraToSystem,
+    composeCoalgebra,
+    systemToCoalgebraMono,
   )
 where
 
@@ -72,71 +63,10 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Poly (System, Mono, Morphism, lens, applyLens)
 
--- | A channel whose interface is the polynomial @p@.
---
--- Internally it is a Moore system with hidden state @s@. The state is
--- existentially quantified so that different channel constructors can use
--- different state types.
-data Channel arr (p :: Poly) where
-  Ch ::
-    (SystemEval p) =>
-    -- | Current state of the Moore machine.
-    s ->
-    -- | The system governing the channel interface.
-    System arr s p ->
-    Channel arr p
-
--- | Observe the current output of a @(->)@ channel.
---
--- The observation is an @Eval p ()@: a position together with a trivial
--- direction consumer. The position is the channel's current output; the
--- direction consumer is how a future input will advance the channel.
-emitChannel :: Channel (->) p -> Eval p ()
-emitChannel (Ch s sys) = void (toEvalSystem sys s)
-
--- | Commit an input direction to a @(->)@ channel, advancing its state.
-commitChannel :: Channel (->) p -> Dir p -> Channel (->) p
-commitChannel (Ch s sys) d =
-  let (_pos, next) = evalToSystem (toEvalSystem sys s)
-   in Ch (next d) sys
-
--- | Identity channel on a monomial interface @Mono a a@.
---
--- Output is the current state; next state is the input direction.  An
--- initial state must be supplied because a Moore machine has no input
--- before the first commit.
-idChannel :: a -> Channel (->) (Mono a a)
-idChannel s0 = Ch s0 (lensAsSystem (lens id (\_ d -> d)))
-
--- | Constant-output channel on a monomial interface @Mono a b@.
---
--- Output is always @b@; the state is the constant value and is preserved
--- across commits (the input direction is ignored).
-constChannel :: b -> Channel (->) (Mono a b)
-constChannel b = Ch b (lensAsSystem (lens (const b) const))
-
--- | Map a polynomial morphism over a @(->)@ channel.
---
--- The forward map transforms positions; the backward map transforms
--- directions. This is the functorial action of 'Circuit.Poly.Morphism' on
--- channels.
-mapChannel ::
-  (SystemEval p, SystemEval q) =>
-  Morphism p q ->
-  Channel (->) p ->
-  Channel (->) q
-mapChannel m (Ch s sys) =
-  Ch s (system step)
-  where
-    step (s', d') =
-      let tgtEval = runMorphism m (toEvalSystem sys s')
-          (pos, next) = evalToSystem tgtEval
-       in (next d', pos)
-
--- | Run a monomial system at a state, exposing the output position and the
--- state-transition function.
-runSystem :: System (->) s (Mono i o) -> s -> (o, i -> s)
-runSystem sys s = case toEvalSystem sys s of EP (EK o, EE f) -> (o, f)
+-- | Run a monomial @(->)@ system at a state, exposing the output position and
+-- the state-transition function.
+runSystemMono :: System (->) s (Mono i o) -> s -> (o, i -> s)
+runSystemMono sys s = case toEvalSystem sys s of EP (EK o, EE f) -> (o, f)
 
 -- | Convert a monomial 'System' into a 'Process' machine with a given initial
 -- state.
@@ -146,9 +76,9 @@ runSystem sys s = case toEvalSystem sys s of EP (EK o, EE f) -> (o, f)
 systemAsProcess :: System (->) s (Mono i o) -> s -> Process i o
 systemAsProcess sys s0 =
   Process
-    (snd (runSystem sys s0))
-    (snd . runSystem sys)
-    (fst . runSystem sys)
+    (snd (runSystemMono sys s0))
+    (snd . runSystemMono sys)
+    (fst . runSystemMono sys)
 
 -- | Run a system for as many steps as there are inputs, emitting one output
 -- per input. The output is the state /after/ consuming the input, matching
@@ -156,14 +86,14 @@ systemAsProcess sys s0 =
 iterateSystem :: System (->) s (Mono i o) -> s -> [i] -> [o]
 iterateSystem _ _ [] = []
 iterateSystem sys s (i : is) =
-  let s' = snd (runSystem sys s) i
-      (o, _) = runSystem sys s'
+  let s' = snd (runSystemMono sys s) i
+      (o, _) = runSystemMono sys s'
    in o : iterateSystem sys s' is
 
 -- | State after consuming a list of inputs.
 after :: System (->) s (Mono i o) -> s -> [i] -> s
 after _ s [] = s
-after sys s (i : is) = after sys (snd (runSystem sys s) i) is
+after sys s (i : is) = after sys (snd (runSystemMono sys s) i) is
 
 -- | The coalgebra-as-lens isomorphism.
 --
@@ -172,27 +102,13 @@ after sys s (i : is) = after sys (snd (runSystem sys s) i) is
 -- @o@, and each input direction @i@ determines the next state @s@.
 --
 -- This is the bridge to Spivak's presentation: @System s p ≅ Poly(S y^S, p)@.
---
--- Round-trip through 'lensAsSystem' gives the same observable step:
---
--- >>> let sys = lensAsSystem (lens (\s -> s + 1) (\s i -> s + i)) :: System (->) Int (Mono Int Int)
--- >>> let sys' = lensAsSystem (systemAsLens sys)
--- >>> let (o, put) = runSystem sys 5; (o', put') = runSystem sys' 5 in (o, put 3) == (o', put' 3)
--- True
 systemAsLens :: System (->) s (Mono i o) -> Morphism (Mono s s) (Mono i o)
 systemAsLens sys = lens get put
   where
-    get s = fst (runSystem sys s)
-    put s = snd (runSystem sys s)
+    get s = fst (runSystemMono sys s)
+    put s = snd (runSystemMono sys s)
 
 -- | Inverse of 'systemAsLens': build a system from a lens @S y^S -> Mono i o@.
---
--- Round-trip through 'systemAsLens' gives the same get/put pair:
---
--- >>> let m = lens (\s -> s * 2) (\s i -> s + i) :: Morphism (Mono Int Int) (Mono Int Int)
--- >>> let m' = systemAsLens (lensAsSystem m)
--- >>> let (o, put) = applyLens m 5; (o', put') = applyLens m' 5 in (o, put 3) == (o', put' 3)
--- True
 lensAsSystem :: Morphism (Mono s s) (Mono i o) -> System (->) s (Mono i o)
 lensAsSystem m = fromEvalSystem $ \s ->
   case applyLens m s of
@@ -202,15 +118,12 @@ lensAsSystem m = fromEvalSystem $ \s ->
 -- state. The result is a system over the two-step interface
 -- @Mono o s ◁ Mono o s@, so that feeding a pair of inputs @(o1, o2)@ runs the
 -- original system for two steps.
---
--- This is the concrete coalgebra witnessing that a Moore machine is a comonoid
--- in @(Poly, Y, ◁)@ once state is exposed as position.
 duplicateSystem :: System (->) s (Mono o s) -> System (->) s ('Comp (Mono o s) (Mono o s))
 duplicateSystem sys =
   fromEvalSystem $ \s ->
-    let (s0, step) = runSystem sys s
+    let (s0, step) = runSystemMono sys s
         nextEval o =
-          let (s1, step1) = runSystem sys (step o)
+          let (s1, step1) = runSystemMono sys (step o)
            in EP (EK s1, EE step1)
      in nestedToComp (EP (EK s0, EE nextEval))
 
@@ -231,10 +144,6 @@ branchSystem cond sysL sysR =
       else ES (Right (toEvalSystem sysR s))
 
 -- | Run a system with a homogeneous sum-of-monomials interface.
---
--- Both branches have the same direction type @i@, so the live branch is fully
--- determined by the output position.  The transition function is therefore
--- total: it takes an @i@ and dispatches to the branch that was selected.
 runSystemSum ::
   System (->) s ('Sum (Mono i o) (Mono i o)) ->
   s ->
@@ -253,11 +162,6 @@ data SumStep s o1 i1 o2 i2 where
 -- | Build a system whose interface is the coproduct of two /different/
 -- monomial interfaces.  The carrier state selects the active branch at each
 -- step.
---
--- This is the real level-2 test: the two branches have different direction
--- types, so the runner must use the output position to decide which input
--- constructor is valid.  The GADT in 'runSystemSumHet' makes that dependency
--- total.
 branchSystemHet ::
   (s -> Bool) ->
   System (->) s (Mono i1 o1) ->
@@ -270,10 +174,6 @@ branchSystemHet cond sysL sysR =
       else ES (Right (toEvalSystem sysR s))
 
 -- | Run a heterogeneous sum-interface system.
---
--- Returns a 'SumStep' that exposes the selected branch and its transition
--- function.  Because the branch is statically known in the GADT, there is no
--- wrong-branch input to raise an error on.
 runSystemSumHet ::
   System (->) s ('Sum (Mono i1 o1) (Mono i2 o2)) ->
   s ->
@@ -303,22 +203,14 @@ coalgebraToSystem :: (SystemEval q) => Coalgebra s 'Y q -> System (->) s q
 coalgebraToSystem coal = fromEvalSystem $ \s -> upd coal s (EY s)
 
 -- | Convert a monomial 'System' into a @Coalgebra s 'Y (Mono i o)@.
---
--- The @Y -> Mono i o@ morphism is built from the constant output position and
--- the trivial backward map on the unit direction space of @Y@.
 systemToCoalgebraMono :: System (->) s (Mono i o) -> Coalgebra s 'Y (Mono i o)
 systemToCoalgebraMono sys =
   Coalgebra
-    { act = \s -> let (o, _) = runSystem sys s in Point (EP (EK o, EE (const ()))),
+    { act = \s -> let (o, _) = runSystemMono sys s in Point (EP (EK o, EE (const ()))),
       upd = \s _ -> toEvalSystem sys s
     }
 
 -- | Sequential composition of two closed coalgebras via the composition product.
---
--- The first coalgebra's interface becomes the outer factor, the second's the
--- inner factor. The composite state is the product of the two carriers.
---
--- This is the operation whose associativity is O4.
 composeCoalgebra ::
   (Netlist p, Netlist q) =>
   Coalgebra s 'Y p ->

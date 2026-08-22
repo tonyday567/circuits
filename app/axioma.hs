@@ -7,14 +7,13 @@ module Main where
 import Circuit.Stamped (Stamped (..), stamp, stamped)
 import Circuit.Category (K (..), id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
-import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
+import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Body (Body (..), SomeBody (..), morphism, runSomeBody)
 import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
 import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..), box, close, copycat, poles, poles0, polesK, prefixIn, splay, splay0, suffixOut, (>:>))
 import Circuit.Poles qualified as Poles
 import Circuit.Body qualified as Body
 import Circuit.Process qualified as Process
-import Circuit.Mediate qualified as Med
 import Circuit.Poly qualified as Poly
 import Circuit.FinRel
 import Circuit.Fragment qualified as Frag
@@ -23,11 +22,10 @@ import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (Trace, base, yank)
-import Circuit.Mediate (Debt (..), FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, mediateSharedBodyChecked, pairSum, runMediator, runMediatorState, runSharedBodyChecked)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Prob (Prob (..), embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
-import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, register, scan, systemToProcess)
+import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
 import Circuit.Linear (BangCopy (..), BangWeaken (..), Bot, Exponential (..), Lolli (..), Par (..), WhyNotIntro (..), WhyNotMonoid (..), distL, distR, mix)
 import Circuit.Shared (Fire (..), Schedule (..), Shared (..))
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
@@ -274,19 +272,23 @@ leftFirst = Schedule $ \s -> (0 : s, Both LeftFirst)
 rightFirst :: Schedule [Int]
 rightFirst = Schedule $ \s -> (0 : s, Both RightFirst)
 
--- | Schedules for the @PS@ residual used in the B3 mediator-hyper oracles.
-leftFirstPS :: Schedule PS
-leftFirstPS = Schedule (,Both LeftFirst)
+-- | Residual state for the pair-sum mealy process.
+data PS = Empty | Held Int
+  deriving (Eq, Show)
 
-rightFirstPS :: Schedule PS
-rightFirstPS = Schedule (,Both RightFirst)
+-- | Mealy process that forwards every input.
+linearP :: Process Int (Maybe Int)
+linearP = mealy () (\() a -> ((), Just a))
 
--- | Gating schedules for the @PS@ residual: advance only one body.
-leftOnlyPS :: Schedule PS
-leftOnlyPS = Schedule (,L)
+-- | Mealy process that sums consecutive pairs.
+pairSumP :: Process Int (Maybe Int)
+pairSumP = mealy Empty $ \s x -> case s of
+  Empty -> (Held x, Nothing)
+  Held y -> (Empty, Just (x + y))
 
-rightOnlyPS :: Schedule PS
-rightOnlyPS = Schedule (,R)
+-- | Mealy process that emits the count of inputs seen so far.
+countP :: Process () (Maybe Int)
+countP = mealy 0 (\n _ -> let n' = n + 1 in (n', Just n'))
 
 -- | Premonoidal left-first product of two knot bodies.
 --
@@ -1217,211 +1219,21 @@ main = do
                       )
                   )
            in Frag.eval term ((), ()) == That [2, 2, 2],
-        -- Free-syntax bridge: SigMediate is the algebraic ? connective
-        check "AlgMediate Syn.eval agrees with runMediator (pairSum)" $
-          let term :: Frag.AlgMediate (,) (->) [Int] [Int]
-              term = Frag.algMediate pairSum
-           in Frag.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        check "AlgMediate Syn.eval agrees with runMediator (count)" $
-          let term :: Frag.AlgMediate (,) (->) [()] [Int]
-              term = Frag.algMediate count
-           in Frag.eval term [(), (), ()] == runMediator count [(), (), ()],
-        check "AlgMediate Syn.eval agrees with runMediator (linear)" $
-          let term :: Frag.AlgMediate (,) (->) [Int] [Int]
-              term = Frag.algMediate linear
-           in Frag.eval term [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
-        check "AlgMediate term composes with Lift inside the algebra" $
-          let term :: Frag.AlgMediate (,) (->) [Int] [Int]
-              term = Frag.Op (Frag.L (Frag.SigCompose (Frag.algMediate pairSum) (Frag.Lift (map (* 2)))))
-           in Frag.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [2, 4, 6, 8],
-        -- Mediator-hyper oracles (B8)
-        -- Pure @(->)@ 'Poles' boxes are constant, so the shared-medium bodies
-        -- below are used as the channel-end representatives.  The schedule is
-        -- the mediator stamp: an explicit schedule leaves observable tokens,
-        -- while a pure schedule is the unstamped / ⊗-like case.
-        check "mediator-hyper stamp: schedule stamp distinguishes shared composition in HyperF" $
-          let k1 = markerBody 1
-              k2 = markerBody 2
-              shared stamp = HyperLoop.encode (yank (base (sharedBy stamp k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
-              superposed = HyperLoop.encode (superpose (yank (base k1)) (yank (base k2))) :: Hyper ((), ()) ([Int], [Int])
-              stamped = shared leftFirst
-              unstamped = shared pureLeft
-              theseToPair (This a) = (a, [])
-              theseToPair (That b) = ([], b)
-              theseToPair (These a b) = (a, b)
-           in observe stamped ((), ()) /= observe unstamped ((), ())
-                && observe superposed ((), ()) /= theseToPair (observe stamped ((), ())),
-        check "stamped ⅋ probe: schedule stamp toggles entanglement in HyperF" $
-          let k1 = markerBody 1
-              k2 = markerBody 2
-              sharedHyper sched = HyperLoop.encode (yank (base (sharedBy sched k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
-              leftH = sharedHyper leftFirst
-              rightH = sharedHyper rightFirst
-              pureLeftH = sharedHyper pureLeft
-              pureRightH = sharedHyper pureRight
-           in observe leftH ((), ()) /= observe rightH ((), ())
-                && observe pureLeftH ((), ()) == observe pureRightH ((), ()),
-        -- Bridge square: medium commutes through encode
-        check "bridge square: sharedBy encodes to sharedHyperBy" $
-          let k1 = markerBody 1
-              k2 = markerBody 2
-              sched = leftFirst
-              leftSide = HyperLoop.encode (yank (base (sharedBy sched k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
-              rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (base k1)) (HyperLoop.encode (base k2))
-           in observe leftSide ((), ()) == observe rightSide ((), ()),
-        check "bridge square: pure schedule collapse agrees" $
-          let k1 = markerBody 1
-              k2 = markerBody 2
-              leftSide = HyperLoop.encode (yank (base (sharedBy pureLeft k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
-              rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (base k1)) (HyperLoop.encode (base k2))
-           in observe leftSide ((), ()) == observe rightSide ((), ()),
-        -- Mediate oracles (B1)
-        check "Mediator linear forwards every input" $
-          runMediator linear [1, 2, 3 :: Int] == [1, 2, 3],
-        check "Mediator pairSum buffers and sums pairs" $
-          runMediator pairSum [1, 2, 3, 4 :: Int] == [3, 7],
-        check "Mediator pairSum leaves one input unemitted" $
-          runMediator pairSum [1, 2, 3 :: Int] == [3],
-        check "Mediator count emits accumulating residual" $
-          runMediator count [(), (), ()] == [1, 2, 3],
-        -- Mediate / Poles equivalence oracles
-        check "mediatorToMed linear agrees with runMediator" $
-          Med.runMed (Med.mediatorToMed linear) [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
-        check "mediatorToMed pairSum agrees with runMediator" $
-          Med.runMed (Med.mediatorToMed pairSum) [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        check "mediatorToMed count agrees with runMediator" $
-          Med.runMed (Med.mediatorToMed count) [(), (), ()] == runMediator count [(), (), ()],
-        check "medToMediator . mediatorToMed round-trips behaviourally on pairSum" $
-          let m = Med.polesToMediator (Med.mediatorToMed pairSum)
-           in runMediator m [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        -- Circuit.Poles oracles
-        check "Poles medStep agrees with medStepDirect (linear)" $
-          let s = Nothing :: Maybe Int
-              a = 42
-           in Med.medStepP Med.medLinear s a == Med.medStepDirectP Med.medLinear s a,
-        check "Poles runMed linear forwards every input" $
-          Med.runMed Med.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
-        check "Poles runMed pairSum buffers and sums pairs" $
-          Med.runMed Med.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
-        check "Poles runMed pairSum zeroes are valid inputs" $
-          Med.runMed Med.medPairSum [0, 0 :: Int] == [0],
-        check "Poles runMed pairSum odd input leaves residual" $
-          Med.runMed Med.medPairSum [1, 2, 3 :: Int] == [3],
-        check "Poles medPairSum under left-only gating schedule reports violation" $
-          let med = Med.polesToMediatorBuffered Med.medPairSum
-              s0 = medInit med
-              leftOnlyPS' :: Schedule PS
-              leftOnlyPS' = Schedule $ \s -> (s, L)
-              step s x = fst (mediateSharedBody med leftOnlyPS' (s, (x, 0)))
-              sFinal = foldl step s0 [1, 2, 3 :: Int]
-           in case closeCertified med sFinal [] of
-                Left (LinearityViolation msg) -> "Held 3" `isInfixOf` msg
-                Right _ -> False,
-        check "count shared-body Both LeftFirst reports overdraw" $
-          let med = Med.polesToMediatorBuffered (Med.mediatorToMed count)
-              s0 = medInit med
-              bothLeftFirst :: Schedule Int
-              bothLeftFirst = Schedule $ \s -> (s, Both LeftFirst)
-           in case runSharedBodyChecked med bothLeftFirst s0 [((), ()), ((), ())] of
-                Left (LinearityViolation msg) -> "overdraw" `isInfixOf` msg
-                Right _ -> False,
-        check "count shared-body L does not overdraw" $
-          let med = Med.polesToMediatorBuffered (Med.mediatorToMed count)
-              s0 = medInit med
-              leftOnly :: Schedule Int
-              leftOnly = Schedule $ \s -> (s, L)
-           in case runSharedBodyChecked med leftOnly s0 [((), ()), ((), ())] of
-                Right _ -> True
-                Left _ -> False,
-        check "Poles runMed count emits accumulating residual" $
-          Med.runMed Med.medCount [(), (), ()] == [1, 2, 3],
-        -- Poles conversion oracles (Z4)
-        check "Poles loopToSomeBody runs Trace (,) as Body" $
-          let loop = yank (base (\ ~(s, ()) -> (0 : s, take 3 s))) :: Trace (,) (->) () [Int]
-           in Body.runSomeBody (Body.SomeBody () (Body.Body (\(s, a) -> (s, Syn.eval loop a)))) [(), ()]
-                == map (Syn.eval loop) [(), ()],
-        check "Poles loopEitherToSomeBody runs Trace Either as Body" $
-          let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
-              loop = encode sumProc :: Trace Either (->) [Int] [Int]
-           in Body.runSomeBody (Body.SomeBody () (Body.Body (\(s, a) -> (s, Syn.eval loop a)))) [[1, 2, 3], [4, 5 :: Int]]
-                == map (Syn.eval loop) [[1, 2, 3], [4, 5]],
-        check "Poles systemToPoles recovers running sum" $
-          let sys :: System (->) Int (Mono Int Int)
-              sys =
-                system $ \(s, d) -> case d of
-                  Left v -> absurd v
-                  Right i -> let s' = s + i in (s', (s', ()))
-              runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
-           in Poly.runSomePoles (Poly.SomePoles 0 (Poly.systemToPoles (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
-                == reverse (snd (runSys 0 [1, 2, 3])),
-        check "Poles systemWithSeedToPoles recovers pointed System sum" $
-          let sys = mooreSystem ((+) :: Int -> Int -> Int) id :: System (->) Int (Mono Int Int)
-              ends' = Poly.systemWithSeedToPoles 0 (\s -> (s, ())) sys
-           in Poly.runSomePoles ends' [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
-        -- Mediate.Tensor oracles (B3)
-        check "Mediate shared body left-first emits Just 3" $
-          snd (mediateSharedBody pairSum leftFirstPS (Empty :: PS, (1, 2 :: Int)))
-            == These () (Just 3),
-        check "Mediate shared body right-first emits Nothing" $
-          snd (mediateSharedBody pairSum rightFirstPS (Empty :: PS, (1, 2 :: Int)))
-            == These () Nothing,
-        check "Mediate shared body left-only stores but does not emit" $
-          mediateSharedBody pairSum leftOnlyPS (Empty :: PS, (1, 2 :: Int))
-            == (Held 1, This ()),
-        check "Mediate shared body right-only emits nothing without residual" $
-          mediateSharedBody pairSum rightOnlyPS (Empty :: PS, (1, 2 :: Int))
-            == (Held 2, That Nothing),
-        -- Mediate process stream oracles (B3b)
-        check "Mediate process pairSum [1,2] returns [3]" $
-          catMaybes (scan (mediateProcess pairSum Empty) [1, 2 :: Int]) == [3],
-        check "Mediate process pairSum [1,2,3,4] returns [3,7]" $
-          catMaybes (scan (mediateProcess pairSum Empty) [1, 2, 3, 4 :: Int]) == [3, 7],
-        check "Mediate process agrees with runMediator" $
-          catMaybes (scan (mediateProcess pairSum Empty) [1, 2, 3, 4 :: Int])
-            == runMediator pairSum [1, 2, 3, 4],
-        -- Mediate loop oracles (B3c)
-        check "Mediate loop is encode of mediateProcess" $
-          Syn.eval (mediateLoop pairSum) [1, 2, 3, 4 :: Int]
-            == scan (mediateProcess pairSum Empty) [1, 2, 3, 4],
-        check "Mediate loop outputs stripped Nothings agree with runMediator" $
-          catMaybes (Syn.eval (mediateLoop pairSum) [1, 2, 3, 4 :: Int])
-            == runMediator pairSum [1, 2, 3, 4],
-        -- Mediate close certification oracles (B4)
-        check "closeCertified linear closes cleanly" $
-          closeCertified linear () [1, 2, 3 :: Int] == Right [1, 2, 3],
-        check "closeCertified pairSum odd leaves residual" $
-          case closeCertified pairSum (Empty :: PS) [1, 2, 3 :: Int] of
-            Left _ -> True
-            Right _ -> False,
-        check "closeCertified count closes cleanly (counter is not residual)" $
-          closeCertified count (0 :: Int) [(), (), ()] == Right [1, 2, 3],
-        -- Mediate drain oracles (B4b)
-        check "closeCertifiedWith does not flush count (counter is not owed)" $
-          closeCertifiedWith count (0 :: Int) [()]
-            == Right [1],
-        check "closeCertifiedWith leaves final count unflushed (state, not residual)" $
-          closeCertifiedWith count (0 :: Int) [(), (), ()]
-            == Right [1, 2, 3],
-        check "closeCertifiedWithBy drains list residual via uncons" $
-          let buffer = Mediator [] (\s x -> (x : s, Nothing :: Maybe Int)) (not . null) (\_ _ -> Nothing)
-           in closeCertifiedWithBy null uncons buffer ([] :: [Int]) [1, 2, 3]
-                == Right [3, 2, 1],
-        -- Mediate ?-comonoid oracles
-        check "medCounit linear closes empty residual cleanly" $
-          medCounit linear () == (Right [] :: Either LinearityViolation [Int]),
-        check "medCounit pairSum non-empty residual reports violation" $
-          case medCounit pairSum (Held 1 :: PS) of
-            Left _ -> True
-            Right _ -> False,
-        check "medComult linear duplicates policy faithfully" $
-          let (m1, m2) = medComult linear
-           in runMediator m1 [1, 2 :: Int] == [1, 2]
-                && runMediator m2 [3, 4 :: Int] == [3, 4],
-        check "medComult pairSum splits input between copies" $
-          let (m1, m2) = medComult pairSum
-           in runMediator m1 [1, 2 :: Int] ++ runMediator m2 [3, 4 :: Int]
-                == runMediator pairSum [1, 2, 3, 4],
-        -- ChannelPoly oracles (B2)
+        -- Mealy process oracles
+        check "mealy linear forwards every input" $
+          runMealy linearP [1, 2, 3 :: Int] == [1, 2, 3],
+        check "mealy pairSum buffers and sums pairs" $
+          runMealy pairSumP [1, 2, 3, 4 :: Int] == [3, 7],
+        check "mealy pairSum leaves one input unemitted" $
+          runMealy pairSumP [1, 2, 3 :: Int] == [3],
+        check "mealy count emits accumulating count" $
+          runMealy countP [(), (), ()] == [1, 2, 3],
+        check "mealy scan matches runMealy" $
+          catMaybes (scan pairSumP [1, 2, 3, 4 :: Int]) == runMealy pairSumP [1, 2, 3, 4],
+        check "mealy process encodes to Trace Either" $
+          Syn.eval (encode pairSumP) [1, 2, 3, 4 :: Int]
+            == scan pairSumP [1, 2, 3, 4],
+        -- Poly.Channel oracles (B2)
         check "Poly Channel id emits committed input" $
           case emitChannel (commitChannel (idChannel 0) (monoIn (42 :: Int))) of
             EP (EK o, EE _) -> o == 42,
