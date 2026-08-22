@@ -183,12 +183,17 @@ module Circuit
 
     -- * Hyper
     Hyper,
-    HyperF (..),
+    HyperA (..),
     lift,
     observe,
     push,
     runHyper,
+    liftK,
+    observeK,
+    pushK,
+    runHyperK,
     encode,
+    encodeK,
     encodeEither,
     runEither,
 
@@ -286,14 +291,19 @@ import Circuit.Poles
   )
 import Circuit.Hyper
   ( Hyper,
-    HyperF (..),
+    HyperA (..),
     encode,
     encodeEither,
+    encodeK,
     lift,
+    liftK,
     observe,
+    observeK,
     push,
+    pushK,
     runEither,
     runHyper,
+    runHyperK,
   )
 import Circuit.Layer
   ( Cat2,
