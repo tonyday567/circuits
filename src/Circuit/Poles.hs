@@ -71,10 +71,10 @@ module Circuit.Poles
     -- * Parallel composition
     par,
 
-    -- * Profunctor structure (morphism-level)
-    dimap,
-    lmap,
-    rmap,
+    -- * Morphism-level mapping
+    iomap,
+    imap,
+    omap,
 
     -- * Dualising object / unit poles (requires constant morphisms)
     HasDual (..),
@@ -93,9 +93,9 @@ module Circuit.Poles
   )
 where
 
+import Circuit.Bimonoid (Copy (copy))
 import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Bimonoid (Copy (copy))
 import Circuit.Tensor (Bias (..), Tensor, Unit)
 import Circuit.Tensor qualified as Tensor
 import Data.Bifunctor (bimap)
@@ -399,35 +399,35 @@ par p1 p2 =
 -- emits.
 --
 -- >>> let p = poles0 (const ()) (const 42 :: () -> Int) :: Poles (->) () Int
--- >>> let p' = dimap (const ()) ((+1) :: Int -> Int) p :: Poles (->) () Int
+-- >>> let p' = iomap (const ()) ((+1) :: Int -> Int) p :: Poles (->) () Int
 -- >>> box @() p' ()
 -- 43
-dimap ::
+iomap ::
   forall arr a a' b b'.
   (Category arr) =>
   arr a' a ->
   arr b b' ->
   Poles arr a b ->
   Poles arr a' b'
-dimap f g (Poles i o) = Poles (prefixIn f i) (suffixOut o g)
+iomap f g (Poles i o) = Poles (prefixIn f i) (suffixOut o g)
 
 -- | Precompose the input of a @Poles@.
-lmap ::
+imap ::
   forall arr a a' b.
   (Category arr) =>
   arr a' a ->
   Poles arr a b ->
   Poles arr a' b
-lmap f (Poles i o) = Poles (prefixIn f i) o
+imap f (Poles i o) = Poles (prefixIn f i) o
 
 -- | Postcompose the output of a @Poles@.
-rmap ::
+omap ::
   forall arr a b b'.
   (Category arr) =>
   arr b b' ->
   Poles arr a b ->
   Poles arr a b'
-rmap g (Poles i o) = Poles i (suffixOut o g)
+omap g (Poles i o) = Poles i (suffixOut o g)
 
 -- | Dualising object @()@ for @(->)@.
 --
@@ -585,7 +585,7 @@ race ::
   Poles arr a b ->
   Poles arr a b ->
   Poles arr a b
-race isSilent bias p1 p2 = rmap (function (pick bias)) (pair p1 p2)
+race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
     pick RightFirst (x, y) = if isSilent y then x else y

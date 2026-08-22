@@ -35,12 +35,8 @@
 --
 -- >>> import Circuit.Hyper
 -- >>> import Circuit.Channel (trace)
--- >>> import Circuit.Layer (Free (..), run)
--- >>> import Circuit.Trace (Trace, base, yank)
--- >>> import qualified Circuit.Trace as T
 -- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
--- >>> import Data.Profunctor (dimap)
 --
 -- >>> let body = liftH (K (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: K Identity ([Int], ()) ([Int], [Int]))
 -- >>> runIdentity (observeH (trace body) ())
@@ -85,21 +81,12 @@ import Circuit.Trace (SigYank (..), Trace)
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
-import Data.Profunctor
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Prelude
--- >>> import Data.Profunctor
--- >>> import Circuit.Channel (Traced (..))
--- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..), invoke)
--- >>> import Circuit.Layer (Free (..), run)
--- >>> import qualified Circuit.Trace as T
+-- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..))
 -- >>> let h = lift (+1) :: Hyper Int Int
--- >>> let f1 = (*2) :: Int -> Int
--- >>> let g1 = (+10) :: Int -> Int
--- >>> let f2 = (+3) :: Int -> Int
--- >>> let g2 = (*100) :: Int -> Int
 
 -- ---------------------------------------------------------------------------
 -- Hyperfunctions
@@ -342,44 +329,6 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- >>> let body = lift (\(xs, ()) -> (0:xs, take 3 xs))
 -- >>> observe (trace body) ()
 -- [0,0,0]
-
--- | 'Profunctor' instance for @Hyper@.
---
--- 'dimap' routes both input and output through the continuation
--- structure.
-instance Profunctor Hyper where
-  dimap f g h = Hyper $ g . invoke h . dimap g f
-  lmap f h = Hyper $ invoke h . rmap f
-  rmap f h = Hyper $ f . invoke h . lmap f
-
--- Profunctor identity: dimap id id = id
---
--- >>> observe (dimap id id h) 5
--- 6
---
--- Profunctor composition: dimap f g . dimap f' g' = dimap (f' . f) (g . g')
---
--- >>> observe (dimap f1 g1 (dimap f2 g2 h)) 5
--- 1410
--- >>> observe (dimap (f2 . f1) (g1 . g2) h) 5
--- 1410
---
--- lmap f = dimap f id
---
--- >>> observe (lmap ((*2) :: Int -> Int) h) 5
--- 11
--- >>> observe (dimap ((*2) :: Int -> Int) id h) 5
--- 11
---
--- rmap g = dimap id g
---
--- >>> observe (rmap ((*2) :: Int -> Int) h) 5
--- 12
--- >>> observe (dimap id ((*2) :: Int -> Int) h) 5
--- 12
-
-instance Functor (Hyper a) where
-  fmap = rmap
 
 -- ---------------------------------------------------------------------------
 -- Bridges from initial syntax
