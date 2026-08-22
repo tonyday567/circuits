@@ -71,7 +71,7 @@ instance Category (->) where
   (f . g) x = f (g x)
 
 -- | Kleisli arrows of a monad, named locally.
-newtype K m a b = K { runK :: a -> m b }
+newtype K m a b = K {runK :: a -> m b}
 
 instance (Monad m) => Category (K m) where
   id = K pure
