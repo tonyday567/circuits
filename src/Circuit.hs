@@ -310,11 +310,6 @@ import Circuit.Layer
   )
 import Circuit.Trace (Trace, base, yank)
 import Circuit.Trace qualified as Trace
-import Circuit.Markov
-  ( copyNatural,
-    deterministic,
-    discardNatural,
-  )
 import Circuit.Net
   ( Net,
     melt,
