@@ -56,6 +56,7 @@ library
     Circuit.Fragment
     Circuit.Hyper
     Circuit.Layer
+    Circuit.Linear
     Circuit.Loop
     Circuit.Markov
     Circuit.Mediate
@@ -64,6 +65,7 @@ library
     Circuit.Prob
     Circuit.Process
     Circuit.SMC
+    Circuit.Shared
     Circuit.Stream
     Circuit.Tensor
 

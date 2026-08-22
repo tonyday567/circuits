@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
--- | Channel structure for the tensors used in traced categories.
+-- | Tensor action and braiding for traced categories.
 --
 -- This module collects the braided, cartesian, and cocartesian structure
 -- over the standard tensors @(,)@ and 'Either', along with the general
@@ -31,22 +31,19 @@
 --
 -- 'Tensor' / 'Action' are kind-polymorphic.
 module Circuit.Tensor
-  ( Braided (..),
+  ( -- * Braiding
+    Braided (..),
     ambient,
     ambientBy,
     superpose,
+
+    -- * Schedule bias (also used by additive disjunction)
+    Bias (..),
 
     -- * Channel product on base arrows
     Unit,
     Tensor (..),
     Action (..),
-
-    -- * Shared-medium fusion (the ⅋ connective)
-    Bias (..),
-    Fire (..),
-    Schedule (..),
-    Shared (..),
-    sharedKnotBy,
 
     -- * Cartesian / cocartesian associators
     assocL,
@@ -58,26 +55,6 @@ module Circuit.Tensor
     coabsorbR,
     coreleaseL,
     coreleaseR,
-
-    -- * Multiplicative disjunction (par)
-    Bot,
-    Par (..),
-    distL,
-    distR,
-    mix,
-
-    -- * Linear implication (internal hom)
-    Lolli (..),
-
-    -- * Exponentials
-    Exponential (..),
-    BangCopy (..),
-    BangWeaken (..),
-    WhyNotIntro (..),
-    WhyNotMonoid (..),
-    LinearBang,
-    AffineBang,
-    RelevantBang,
   )
 where
 
@@ -133,13 +110,22 @@ instance Braided Either where
   slide (Right (Right z)) = Right (Right z)
 
 -- | Thread a state wire through a circuit using the canonical slide.
---
--- This is 'ambientBy' with the slide supplied by the 'Braided' instance.
 ambient ::
   (Braided t, Strength t arr, Profunctor arr) =>
   Loop t arr a b ->
   Loop t arr (t s a) (t s b)
 ambient = ambientBy slide
+
+-- ===========================================================================
+-- SCHEDULE BIAS
+-- ===========================================================================
+
+-- | Bias for ordered choice in scheduling and additive disjunction.
+--
+-- 'LeftFirst' and 'RightFirst' are used by shared-medium fusion in
+-- "Circuit.Shared" and by additive disjunction in "Circuit.Ends".
+data Bias = LeftFirst | RightFirst
+  deriving (Eq, Show)
 
 -- ===========================================================================
 -- CARTESIAN STRUCTURE ((,))
@@ -552,347 +538,3 @@ superpose x y =
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
     pre = assoc .>> strength braid .>> assoc'
     post = assoc .>> strength braid .>> assoc'
-
--- ===========================================================================
--- Shared-medium fusion (the ⅋ connective)
--- ===========================================================================
-
--- | Nonempty ordered subsets of the active poles in shared-feedback fusion.
---
--- | Schedule bias for the inclusive @These@ branch.
-data Bias = LeftFirst | RightFirst
-  deriving (Eq, Show)
-
--- | A schedule decision, now shaped by the inclusive tensor.
---
--- * @L@ — advance the left body only; the right input is not consumed
---   (corresponds to 'This').
--- * @R@ — advance the right body only; the left input is not consumed
---   (corresponds to 'That').
--- * @Both b@ — advance both bodies, with the bias choosing the order
---   (corresponds to 'These').
-data Fire = L | R | Both Bias
-  deriving (Eq, Show)
-
--- | A schedule drives shared-feedback fusion.
---
--- The state @s@ is the shared feedback channel.  At each step the schedule
--- looks at the state and chooses which poles advance, returning the updated
--- schedule state.
-newtype Schedule s = Schedule
-  { -- | Given the current shared state, return the updated state and a 'Fire'
-    -- value describing which poles advance and in what order.
-    chooseS :: s -> (s, Fire)
-  }
-
--- | Tensors that support shared-feedback fusion of two knot bodies.
---
--- This is the operational content of the multiplicative disjunction: two
--- sub-loops share one feedback channel, and a 'Schedule' resolves the
--- interleaving.  Contrast 'superpose', which keeps the feedback channels
--- independent (⊗).
-class (Tensor t arr) => Shared t arr where
-  -- | Fuse two feedback bodies over a shared channel.
-  --
-  -- The combined body has type @arr (t s (t a c)) (t s (These b d))@: one
-  -- shared state @s@, paired inputs @a@ and @c@, and a partial output.  At
-  -- each step the schedule chooses which body advances; the gated body's
-  -- input is discarded and no output is produced for that side.
-  sharedBy ::
-    Schedule s ->
-    arr (t s a) (t s b) ->
-    arr (t s c) (t s d) ->
-    arr (t s (t a c)) (t s (These b d))
-
--- | Shared fusion wrapped as a 'Knot'.
---
--- This takes explicit knot bodies that already share the feedback type @s@.
--- 'Loop' hides its feedback type existentially, so a generic 'Loop'-level
--- combinator cannot constrain two arbitrary knots to share the same channel;
--- this helper makes the shared state explicit at the call site.
-sharedKnotBy ::
-  forall t arr a b c d s.
-  (Shared t arr) =>
-  Schedule s ->
-  arr (t s a) (t s b) ->
-  arr (t s c) (t s d) ->
-  Loop t arr (t a c) (These b d)
-sharedKnotBy sched f g = Knot (sharedBy sched f g)
-
--- | Cartesian shared fusion on functions.
---
--- The schedule chooses which bodies advance and in what order.  @L@/@R@
--- run only the chosen body and emit a partial 'This'/'That' product; the
--- other body's input is discarded.  @Both LeftFirst@ / @Both RightFirst@ run
--- both bodies, threading the shared state in the chosen order, and emit a
--- total 'These' product.  When both bodies read and write @s@, the two orders
--- are observationally different — this is the ⅋-vs-⊗ distinction.
-instance Shared (,) (->) where
-  sharedBy sched f g (s, (a, c)) =
-    let (s', fire) = chooseS sched s
-     in case fire of
-          L ->
-            let (s'', b) = f (s', a)
-             in (s'', This b)
-          R ->
-            let (s'', d) = g (s', c)
-             in (s'', That d)
-          Both LeftFirst ->
-            let (s'', b) = f (s', a)
-                (s''', d) = g (s'', c)
-             in (s''', These b d)
-          Both RightFirst ->
-            let (s'', d) = g (s', c)
-                (s''', b) = f (s'', a)
-             in (s''', These b d)
-  {-# INLINE sharedBy #-}
-
--- | Cartesian shared fusion on @K@ arrows.
-instance (Monad m) => Shared (,) (K m) where
-  sharedBy sched (K f) (K g) =
-    K $ \(s, (a, c)) -> do
-      let (s', fire) = chooseS sched s
-      case fire of
-        L -> do
-          (s'', b) <- f (s', a)
-          pure (s'', This b)
-        R -> do
-          (s'', d) <- g (s', c)
-          pure (s'', That d)
-        Both LeftFirst -> do
-          (s'', b) <- f (s', a)
-          (s''', d) <- g (s'', c)
-          pure (s''', These b d)
-        Both RightFirst -> do
-          (s'', d) <- g (s', c)
-          (s''', b) <- f (s'', a)
-          pure (s''', These b d)
-  {-# INLINE sharedBy #-}
-
--- | Unit of the par tensor (⊥).
-type family Bot (p :: k -> k -> k) :: k
-
--- | Multiplicative disjunction action on a category.
---
--- 'parP' is the par product of morphisms.  The unitors witness that
--- @⊥ ⅋ a ≅ a@ and @a ⅋ ⊥ ≅ a@.
-class (Category arr) => Par p arr where
-  -- | Parallel composition under par.
-  parP :: arr a b -> arr c d -> arr (p a c) (p b d)
-
-  -- | Left unitor: @⊥ ⅋ a -> a@.
-  unitlP :: arr (p (Bot p) a) a
-
-  -- | Inverse left unitor: @a -> ⊥ ⅋ a@.
-  unitlP' :: arr a (p (Bot p) a)
-
-  -- | Right unitor: @a ⅋ ⊥ -> a@.
-  unitrP :: arr (p a (Bot p)) a
-
-  -- | Inverse right unitor: @a -> a ⅋ ⊥@.
-  unitrP' :: arr a (p a (Bot p))
-
-type instance Bot Either = Void
-
--- | Coproduct as multiplicative disjunction on functions.
---
--- The unit is the initial object @Void@; the unitors are the coproduct
--- injections absorbed by the universal property.
-instance Par Either (->) where
-  parP = bimap
-  {-# INLINE parP #-}
-  unitlP = either absurd id
-  {-# INLINE unitlP #-}
-  unitlP' = Right
-  {-# INLINE unitlP' #-}
-  unitrP = either id absurd
-  {-# INLINE unitrP #-}
-  unitrP' = Left
-  {-# INLINE unitrP' #-}
-
--- | Coproduct as multiplicative disjunction on @K@ arrows.
-instance (Monad m) => Par Either (K m) where
-  parP (K f) (K g) =
-    K $ \case
-      Left a -> Left <$> f a
-      Right c -> Right <$> g c
-  {-# INLINE parP #-}
-  unitlP = K $ either absurd pure
-  {-# INLINE unitlP #-}
-  unitlP' = K $ pure . Right
-  {-# INLINE unitlP' #-}
-  unitrP = K $ either pure absurd
-  {-# INLINE unitrP #-}
-  unitrP' = K $ pure . Left
-  {-# INLINE unitrP' #-}
-
--- ---------------------------------------------------------------------------
--- Linear distributors and mix
--- ---------------------------------------------------------------------------
-
--- | Left linear distributor: @A ⊗ (B ⅋ C) -> (A ⊗ B) ⅋ C@.
---
--- For @(,)@ and @Either@ this is the one-way product-over-coproduct map.
--- Note that @(_, Right c) = Right c@ discards the @a@; this is legal
--- affinely but not in strict MLL. The distributors already live in the
--- affine fragment.
-distL :: (a, Either b c) -> Either (a, b) c
-distL (a, Left b) = Left (a, b)
-distL (_, Right c) = Right c
-{-# INLINE distL #-}
-
--- | Right linear distributor: @(B ⅋ C) ⊗ A -> B ⅋ (C ⊗ A)@.
---
--- Mirror of 'distL': the same affine discard is present when the left
--- summand is taken.
-distR :: (Either b c, a) -> Either b (c, a)
-distR (Left b, _) = Left b
-distR (Right c, a) = Right (c, a)
-{-# INLINE distR #-}
-
--- | Mix: the canonical map @⊥ -> 1@ from par unit to tensor unit.
---
--- Every @⊥@-value is vacuous, so it maps to the unique tensor unit.
-mix :: Void -> ()
-mix = absurd
-{-# INLINE mix #-}
-
--- ===========================================================================
--- Linear implication (internal hom)
--- ===========================================================================
-
--- | Closed monoidal structure: @A ⊸ B@ is the right adjoint of tensor.
---
--- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
--- 'eval' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
--- That is the existing Chu convention; it differs from @uncurry id@ by a
--- 'swap'.  'lolli' is identity on the implication object, used to mention
--- it.
---
--- Kind is fixed to 'Type' so type applications stay concrete (GHC 9.14
--- panics on kind-polymorphic @TypeApplications@ here).
-class (Category arr) => Lolli (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
-  -- | The implication object @A ⊸ B@.
-  --
-  -- Indexed by the base arrow as well as the tensor, so @(->)@ and
-  -- @Mat@ can both close @(,)@ without colliding.
-  type LolliT t arr a b :: Type
-
-  -- | Identity at the implication object.  The argument is a type proxy.
-  lolli ::
-    arr a b ->
-    arr (LolliT t arr a b) (LolliT t arr a b)
-
-  -- | Evaluation counit @A ⊗ (A ⊸ B) -> B@.
-  eval ::
-    arr (t a (LolliT t arr a b)) b
-
-  -- | Curry the left factor: @(A ⊗ B -> C) -> (A -> B ⊸ C)@.
-  curry ::
-    arr (t a b) c ->
-    arr a (LolliT t arr b c)
-
-  -- | Uncurry the left factor: @(A -> B ⊸ C) -> (A ⊗ B -> C)@.
-  uncurry ::
-    arr a (LolliT t arr b c) ->
-    arr (t a b) c
-
--- | Cartesian closed structure on functions: implication collapses to
--- function space.
-instance Lolli (,) (->) where
-  type LolliT (,) (->) a b = a -> b
-  lolli _ = id
-  {-# INLINE lolli #-}
-  eval (a, f) = f a
-  {-# INLINE eval #-}
-  curry f a b = f (a, b)
-  {-# INLINE curry #-}
-  uncurry g (a, b) = g a b
-  {-# INLINE uncurry #-}
-
--- ===========================================================================
--- Exponentials (! and ?)
--- ===========================================================================
-
--- | Exponential modality: object-level types for @!A@ and @?A@.
---
--- The structural rules are split into independent subclasses so that
--- affine and linear uses of the modality differ only in their constraint
--- sets, mirroring the 'Copy'/'Discard' split at the base-arrow level.
---
--- * @!A@ has a contraction half ('BangCopy') and a weakening half
---   ('BangWeaken').  Linear logic requires both; affine logic requires
---   only weakening.
--- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
---   multiplication on @?A@ ('WhyNotMerge') is missing. In the vocabulary of
---   'Circuit.Dagger', @?A@ is currently 'CoAffine'-only (the unit @Zero@)
---   and the missing half is 'CoRelevant' (the merge @Merge@). That hole is
---   the first observable thing the Exponential split made visible; wiring it
---   is part of the chu-depth class dig.
-class (Tensor t arr) => Exponential t arr where
-  type Bang t arr a :: Type
-  type WhyNot t arr a = result | result -> a
-
--- | Contraction half of @!A@: copy @!A → !A ⊗ !A@.
-class (Exponential t arr) => BangCopy t arr where
-  copyE ::
-    arr (Bang t arr a) (t (Bang t arr a) (Bang t arr a))
-
--- | Weakening half of @!A@: dereliction @!A → A@ and discard @!A → I@.
-class (Exponential t arr) => BangWeaken t arr where
-  discardE ::
-    arr (Bang t arr a) (Unit t)
-
-  derelict ::
-    arr (Bang t arr a) a
-
--- | Unit rule for @?A@: introduction @A → ?A@.
-class (Exponential t arr) => WhyNotIntro t arr where
-  introduce ::
-    arr a (WhyNot t arr a)
-
--- | The ⅋-monoid structure on @?A@.
---
--- Dual to the @!@-comonoid ('BangCopy' / 'BangWeaken'), but living on the
--- par product rather than the tensor product. 'mergeE' is the
--- multiplication @?A ⅋ ?A → ?A@ and 'zeroE' is the unit @⊥ → ?A@.
-class (Exponential t arr, Par p arr) => WhyNotMonoid t p arr where
-  mergeE ::
-    arr (p (WhyNot t arr a) (WhyNot t arr a)) (WhyNot t arr a)
-
-  zeroE ::
-    arr (Bot p) (WhyNot t arr a)
-
--- | Linear @!A@: both contraction and weakening.
-type LinearBang t arr = (Exponential t arr, BangCopy t arr, BangWeaken t arr)
-
--- | Affine @!A@: weakening only.
-type AffineBang t arr = (Exponential t arr, BangWeaken t arr)
-
--- | Relevant @!A@: contraction only.
-type RelevantBang t arr = (Exponential t arr, BangCopy t arr)
-
--- | Cartesian collapse: @!A ≅ A@, and @?A@ is the free monoid of lists.
-instance Exponential (,) (->) where
-  type Bang (,) (->) a = a
-  type WhyNot (,) (->) a = [a]
-
-instance BangCopy (,) (->) where
-  copyE x = (x, x)
-  {-# INLINE copyE #-}
-
-instance BangWeaken (,) (->) where
-  discardE _ = ()
-  {-# INLINE discardE #-}
-  derelict = id
-  {-# INLINE derelict #-}
-
-instance WhyNotIntro (,) (->) where
-  introduce x = [x]
-  {-# INLINE introduce #-}
-
-instance WhyNotMonoid (,) Either (->) where
-  mergeE = either id id
-  {-# INLINE mergeE #-}
-  zeroE = absurd
-  {-# INLINE zeroE #-}

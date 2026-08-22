@@ -105,7 +105,7 @@ import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Loop qualified as Loop
-import Circuit.Tensor (Schedule (..), Shared (..), sharedBy)
+import Circuit.Shared (Schedule (..), Shared (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)

@@ -65,7 +65,8 @@ import Circuit.Dagger qualified as Dagger
 import Circuit.Layer (run)
 import Circuit.Loop (Loop (..))
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
-import Circuit.Tensor (Action (..), Bias (..), Fire (..), Schedule (..), Shared (..), Tensor (..), chooseS)
+import Circuit.Shared (Bias (..), Fire (..), Schedule (..), Shared (..), chooseS)
+import Circuit.Tensor (Action (..), Tensor (..))
 import Control.Category qualified as Cat
 import Data.Bifunctor (bimap, first, second)
 import Data.List (scanl')

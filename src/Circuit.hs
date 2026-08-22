@@ -396,29 +396,34 @@ import Circuit.Process
 import Circuit.SMC
   ( SMC,
   )
-import Circuit.Tensor
-  ( Action (..),
-    AffineBang,
+import Circuit.Linear
+  ( AffineBang,
     BangCopy (..),
     BangWeaken (..),
     Bot,
-    Braided (..),
     Exponential (..),
-    Fire (..),
     LinearBang,
     Lolli (..),
     Par (..),
-    Schedule (..),
-    Shared (..),
-    Tensor (..),
+    RelevantBang,
     WhyNotIntro (..),
     WhyNotMonoid (..),
-    ambient,
-    ambientBy,
     distL,
     distR,
     mix,
+  )
+import Circuit.Shared
+  ( Fire (..),
+    Schedule (..),
+    Shared (..),
     sharedKnotBy,
+  )
+import Circuit.Tensor
+  ( Action (..),
+    Braided (..),
+    Tensor (..),
+    ambient,
+    ambientBy,
     superpose,
   )
 import Prelude hiding (curry, uncurry)

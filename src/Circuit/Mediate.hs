@@ -68,7 +68,7 @@ where
 import Circuit.Loop (Loop)
 import Circuit.Process (Process, scan)
 import Circuit.Process qualified as Process
-import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), chooseS)
+import Circuit.Shared (Bias (..), Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL, uncons)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))

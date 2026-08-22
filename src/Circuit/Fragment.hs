@@ -115,7 +115,8 @@ import Circuit.Loop qualified as C
 import Circuit.Mediate (Mediator (..), runMediator)
 import Circuit.Net qualified as N
 import Circuit.SMC (SMC (..))
-import Circuit.Tensor (Action (..), Bias (..), Fire, Schedule (..), Shared (..), Tensor (..), Unit, sharedBy)
+import Circuit.Shared (Bias (..), Fire, Schedule (..), Shared (..), sharedBy)
+import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Kind (Constraint, Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
