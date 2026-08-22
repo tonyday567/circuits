@@ -69,7 +69,7 @@ module Circuit.Poles
     (>:>),
 
     -- * Parallel composition
-    tensor,
+    polesTensor,
 
     -- * Morphism-level mapping
     iomap,
@@ -377,15 +377,15 @@ infixr 1 >:>
 --
 -- >>> let p1 = poles0 (const ()) (const 1 :: () -> Int) :: Poles (->) () Int
 -- >>> let p2 = poles0 (const ()) (const 2 :: () -> Int) :: Poles (->) () Int
--- >>> box @() (tensor p1 p2) ((), ())
+-- >>> box @() (polesTensor p1 p2) ((), ())
 -- (1,2)
-tensor ::
+polesTensor ::
   forall t arr a b c d bot.
   (Tensor t arr, HasDual bot arr, Unit t ~ bot) =>
   Poles arr a b ->
   Poles arr c d ->
   Poles arr (t a c) (t b d)
-tensor p1 p2 =
+polesTensor p1 p2 =
   let (write1, read1) = splay p1 :: (arr a bot, arr bot b)
       (write2, read2) = splay p2 :: (arr c bot, arr bot d)
       write = Tensor.unitr . Tensor.tensor write1 write2
