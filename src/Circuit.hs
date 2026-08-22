@@ -190,9 +190,7 @@ module Circuit
     runHyper,
     encode,
     encodeEither,
-    encodeFree,
     runEither,
-    flatten,
 
     -- * Tensor
     superpose,
@@ -291,8 +289,6 @@ import Circuit.Hyper
     HyperF (..),
     encode,
     encodeEither,
-    encodeFree,
-    flatten,
     lift,
     observe,
     push,

@@ -74,19 +74,14 @@ module Circuit.Hyper
 
     -- * Bridges from initial syntax
     encode,
-    encodeFree,
-    flatten,
-
   )
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Layer (Free (..), freeze, run)
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)
-import Circuit.Trace qualified as Trace
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
@@ -390,22 +385,6 @@ instance Functor (Hyper a) where
 -- Bridges from initial syntax
 -- ---------------------------------------------------------------------------
 
--- | Encode a 'Free' category into a 'HyperF'.
---
--- The lift of the canonical fold 'run' into the final encoding.
---
--- Law: @'observe' . 'encodeFree' = 'run'@ — the two interpreters
--- from Free agree.
---
--- >>> observe (encodeFree (Lift (+1))) 5
--- 6
-encodeFree ::
-  (HyperBase arr) =>
-  Free arr a b ->
-  HyperF arr a b
-encodeFree (Lift f) = liftH f
-encodeFree (Compose f g) = encodeFree f . encodeFree g
-
 -- | Encode a 'Trace' into a 'HyperF'.
 --
 -- This is the unique traced functor from the initial syntax ('Trace')
@@ -427,28 +406,3 @@ encode ::
 encode (Syn.Lift f) = liftH f
 encode (Syn.Op (L (SigCompose g f))) = encode g . encode f
 encode (Syn.Op (R (Yank body))) = trace (encode body)
-
--- | Flatten a 'HyperF' to a 'Trace' by observing it.
---
--- This is the forgetful map from the final encoding to the initial syntax.
--- All feedback structure is lost; only the observable behaviour remains.
---
--- >>> import Circuit.Syntax (eval)
--- >>> import qualified Circuit.Trace as T
--- >>> let h = Circuit.Hyper.lift (+ 1)
--- >>> eval (flatten h) 5
--- 6
---
--- Flatten then encode is not identity — the feedback structure is gone:
---
--- >>> import Circuit.Syntax (eval)
--- >>> import qualified Circuit.Trace as T
--- >>> let h = Circuit.Hyper.lift (+ 1)
--- >>> Circuit.Hyper.observe (encode (flatten h)) 5
--- 6
-flatten ::
-  (HyperBase arr) =>
-  HyperF arr a b ->
-  Trace (,) arr a b
-flatten h = Trace.base (mkArr (observeH h))
-
