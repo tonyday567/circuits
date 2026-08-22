@@ -35,7 +35,7 @@
 --
 -- A stateful function @(s, a) -> (s, b)@ is isomorphic to a K arrow
 -- @a -> State s b@. 'stateK' records that isomorphism; it is the bridge
--- between 'Circuit.Body.SArr' (the cartesian stateful arrow) and the state
+-- between 'Circuit.Body.Body' (the cartesian knot body) and the state
 -- monad. The same isomorphism justifies 'Circuit.Body.Body' for general
 -- tensors: a knot body @arr (t s a) (t s b)@ is stateful over the
 -- tensor-paired carrier @t s -@.

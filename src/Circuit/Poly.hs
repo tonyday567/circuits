@@ -767,7 +767,7 @@ prismMatch p s = case runMorphism p (EP (EK s, EE id)) of
 -- The cartesian specialisation @SystemT (,)@ is kept as the type synonym
 -- 'System'; use 'system' and 'runSystem' to construct and inspect it.
 newtype SystemT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) s (p :: Poly)
-  = SystemT (Body t arr s (Dir p) (Pos p))
+  = SystemT (Body t s arr (Dir p) (Pos p))
 
 -- | Cartesian systems: the state-pairing tensor is @(,)@.
 type System = SystemT (,)

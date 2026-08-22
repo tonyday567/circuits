@@ -4,120 +4,68 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | The knot-body category and its cartesian instance.
+-- | A morphism across a tensored channel.
 --
--- This is the crystal from which the unification thesis is built:
+-- There is nothing more useless than an organ.
+-- When you will have made him a body without organs,
+-- then you will have delivered him from all his automatic reactions
+-- and restored him to his true freedom.
 --
 -- @
---   Body t arr s a b  =  arr (t s a) (t s b)
---   SArr s a b        =  Body (,) (->) s a b
+--   Body t ch arr a b  =  arr (t ch a) (t ch b)
 -- @
 --
--- 'Body' is the category that 'Circuit.Loop.Knot' wraps before tracing.
--- Every other stateful view — 'Circuit.Poly.System', 'Circuit.Process.Process',
--- 'Circuit.Ends.Med' — is a specialisation or projection of it.
+-- == Anatomy
+--
+-- * __@t@ — tensor__: the bifunctor that pairs a channel with a payload.
+--   Common choices are @(,)@ for simultaneous sharing, 'Either' for sequential
+--   iteration, and 'These' for scheduled interleaving.
+--
+-- * __@ch@ — channel__: the value threaded alongside the payload.  It may be
+--   state, residual, a stream, or a feedback wire.
+--
+-- * __@arr@ — arrow / morphism__: the base category.  Usually @(->)@ or a
+--   Kleisli arrow @K m@.
+--
+-- This arrangement is the common shape underlying loops, processes, systems,
+-- and channel ends: a morphism whose input and output both carry an ambient
+-- channel.  'Body' makes that shape explicit before any tracing, scheduling,
+-- or pole-splitting is added.
 module Circuit.Body
-  ( -- * Cartesian ambient-state arrow
-    SArr (..),
-    SomeSArr (..),
-    runSomeSArr,
-
-    -- * Knot-body category
+  ( -- * Knot-body category
     Body (..),
     SomeBody (..),
-    bodyToLoop,
-    bodyToSArr,
-    sArrToBody,
-
-    -- * Loop as ambient-state arrow
-    loopToSomeSArr,
-    loopEitherToSomeSArr,
+    runSomeBody,
   )
 where
 
 import Circuit.Category (Category (..), (.>))
-import Circuit.Layer (run)
-import Circuit.Loop (Loop (..))
-import Data.Bifunctor (second)
 import Prelude hiding (id, (.))
 
--- | The ambient-state arrow: a morphism that threads a state wire @s@.
+-- | A morphism across a tensored channel.
 --
--- This is the cartesian instance of the knot-body category. Composition
--- threads the state sequentially.
-newtype SArr s a b = SArr {runSArr :: (s, a) -> (s, b)}
+-- @Body t ch arr a b@ is a morphism @arr (t ch a) (t ch b)@.  The channel
+-- @ch@ is threaded alongside the payload by the tensor @t@; it may be state,
+-- residual, a stream, or any other value the base arrow @arr@ carries along
+-- with the input and output.  Composition threads the same channel through
+-- both morphisms.
+newtype Body t ch arr a b = Body {morphism :: arr (t ch a) (t ch b)}
 
-instance Category (SArr s) where
-  id :: SArr s a a
-  id = SArr id
-  {-# INLINE id #-}
-
-  (.) :: SArr s b c -> SArr s a b -> SArr s a c
-  SArr g . SArr f = SArr $ \(s, a) ->
-    let (s', b) = f (s, a)
-     in g (s', b)
-  {-# INLINE (.) #-}
-
--- | The knot-body category: morphisms @arr (t s a) (t s b)@ for a fixed
--- feedback/state type @s@, base arrow @arr@, and tensor @t@.
---
--- Composition is just @arr@ composition; no @Channel@, @Strength@, or @Traced@
--- structure is required. This is the category 'Circuit.Loop.Knot' hides before
--- tracing.
---
--- @SArr s = Body (,) (->) s@ is the cartesian instance.
-newtype Body t arr s a b = Body {runBody :: arr (t s a) (t s b)}
-
-instance (Category arr) => Category (Body t arr s) where
-  id :: forall a. Body t arr s a a
+instance (Category arr) => Category (Body t ch arr) where
+  id :: forall a. Body t ch arr a a
   id = Body id
   {-# INLINE id #-}
 
-  (.) :: forall a b c. Body t arr s b c -> Body t arr s a b -> Body t arr s a c
+  (.) :: forall a b c. Body t ch arr b c -> Body t ch arr a b -> Body t ch arr a c
   Body g . Body f = Body (g . f)
   {-# INLINE (.) #-}
 
--- | Cartesian instance: @SArr s@ is exactly @Body (,) (->) s@.
-sArrToBody :: SArr s a b -> Body (,) (->) s a b
-sArrToBody (SArr f) = Body f
-
-bodyToSArr :: Body (,) (->) s a b -> SArr s a b
-bodyToSArr (Body f) = SArr f
-
--- | A 'Body' with its state type hidden, for the same reason 'SomeSArr'
--- exists.
+-- | A 'Body' with its channel type hidden.
 data SomeBody t arr a b where
-  SomeBody :: s -> Body t arr s a b -> SomeBody t arr a b
+  SomeBody :: ch -> Body t ch arr a b -> SomeBody t arr a b
 
--- | Lift a knot body into a 'Loop' by hiding the state wire.
-bodyToLoop ::
-  Body t arr s a b ->
-  Loop t arr a b
-bodyToLoop (Body f) = Knot f
-
--- | An existentially-quantified ambient-state arrow.
---
--- This is the packing that lets us treat a 'Process' as a value of the form
--- @exists s. SArr s a b@.
-data SomeSArr a b where
-  SomeSArr :: s -> SArr s a b -> SomeSArr a b
-
--- | Run an existentially-packed stateful arrow over a list of inputs.
-runSomeSArr :: SomeSArr a b -> [a] -> [b]
-runSomeSArr (SomeSArr s0 (SArr f)) xs =
-  let (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
+-- | Run an existentially-packed cartesian body over a list of inputs.
+runSomeBody :: SomeBody (,) (->) a b -> [a] -> [b]
+runSomeBody (SomeBody ch0 (Body f)) xs =
+  let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
-
--- | View a 'Loop (,) (->)' as an existentially-quantified 'SArr'.
---
--- The hidden feedback channel of the loop becomes the ambient unit state of the
--- 'SArr'; the runner is just 'run' on the underlying traced category.
-loopToSomeSArr :: Loop (,) (->) a b -> SomeSArr a b
-loopToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)
-
--- | View a 'Loop Either (->)' as an existentially-quantified 'SArr'.
---
--- Same idea as 'loopToSomeSArr' for the iteration tensor: the loop is
--- interpreted into functions, then wrapped in a trivial ambient state.
-loopEitherToSomeSArr :: Loop Either (->) a b -> SomeSArr a b
-loopEitherToSomeSArr loop = SomeSArr () $ SArr $ second (run loop)

@@ -94,19 +94,12 @@ module Circuit.Ends
     raceEnds,
     raceMediator,
 
-    -- * Stateful conversions over 'SArr'
-    SArr (..),
-    SomeSArr (..),
-    runSomeSArr,
+    -- * Stateful conversions over 'Body'
     Body (..),
     SomeBody (..),
-    bodyToLoop,
-    bodyToSArr,
-    sArrToBody,
+    runSomeBody,
     processToBody,
-    processToSomeSArr,
-    loopToSomeSArr,
-    loopEitherToSomeSArr,
+    processToSomeBody,
 
     -- * Pole-unfused mediator
     Med (..),
@@ -139,15 +132,8 @@ where
 
 import Circuit.Body
   ( Body (..),
-    SArr (..),
     SomeBody (..),
-    SomeSArr (..),
-    bodyToLoop,
-    bodyToSArr,
-    loopEitherToSomeSArr,
-    loopToSomeSArr,
-    runSomeSArr,
-    sArrToBody,
+    runSomeBody,
   )
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Dagger (Copy (copy), Discard (discard))
@@ -707,28 +693,28 @@ raceMediator bias =
     pick RightFirst (x, y) = if isSilent y then x else y
 
 -- ---------------------------------------------------------------------------
--- Stateful conversions over 'SArr'
+-- Stateful conversions over 'Body'
 -- ---------------------------------------------------------------------------
 
--- | Unit ends for @SArr s@ at the unit object @()@.
+-- | Unit ends for @Body (,) s (->)@ at the unit object @()@.
 --
 -- The companion discards its input and returns @()@; the conjoint delegates
 -- to the companion. Yanking recovers the identity on @()@.
 --
--- This instance is technically orphan because 'SArr' now lives in
+-- This instance is technically orphan because 'Body' now lives in
 -- 'Circuit.Body', but keeping it here keeps the 'Ends' plumbing local to the
 -- conversions section.
-instance HasDual () (SArr s) where
+instance HasDual () (Body (,) s (->)) where
   open =
-    let outU = Out $ \_ -> SArr $ \(s, _) -> (s, ())
+    let outU = Out $ \_ -> Body $ \(s, _) -> (s, ())
         inU = In $ \o -> emit o inU
      in Ends inU outU
 
--- | Dualising object @()@ for @Body (,) (K m) s@.
+-- | Dualising object @()@ for @Body (,) s (K m)@.
 --
--- Same shape as the 'SArr' instance, but the companion returns @()@ in the
+-- Same shape as the 'Body' instance, but the companion returns @()@ in the
 -- monad and threads the ambient state through unchanged.
-instance (Monad m) => HasDual () (Body (,) (K m) s) where
+instance (Monad m) => HasDual () (Body (,) s (K m)) where
   open =
     let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
         inU = In $ \o -> emit o inU
@@ -737,7 +723,7 @@ instance (Monad m) => HasDual () (Body (,) (K m) s) where
 -- | View a 'Process' as a knot body over the 'Either' tensor.
 --
 -- This is the same body used by 'Circuit.Process.encode', now exposed as a value
--- of @Body Either (->) s@. It confirms the Process / Loop Either round-trip
+-- of @Body Either s (->)@. It confirms the Process / Loop Either round-trip
 -- factors through the knot-body category.
 processToBody :: Process a b -> SomeBody Either (->) [a] [b]
 processToBody (Process inject step extract) =
@@ -752,15 +738,15 @@ processToBody (Process inject step extract) =
        in Left (Just s', as, extract s' : bs)
     Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
 
--- | View a 'Process' as an existentially-quantified 'SArr'.
+-- | View a 'Process' as an existentially-quantified 'Body'.
 --
 -- The process state is exposed as the ambient wire.  The initial state is
 -- 'Nothing'; the first input is fed to 'inject' to create the real state, and
 -- subsequent inputs use 'step'.  The output is always 'extract' of the current
 -- state.
-processToSomeSArr :: Process a b -> SomeSArr a b
-processToSomeSArr (Process inject step extract) =
-  SomeSArr Nothing $ SArr $ \case
+processToSomeBody :: Process a b -> SomeBody (,) (->) a b
+processToSomeBody (Process inject step extract) =
+  SomeBody Nothing $ Body $ \case
     (Nothing, a) ->
       let s = inject a
        in (Just s, extract s)
@@ -791,27 +777,27 @@ data Med s a b = Med
     medDraw :: s -> s -> Maybe Int
   }
 
--- | View a mediator as a matched pair of channel ends over @SArr s@.
+-- | View a mediator as a matched pair of channel ends over @Body (,) s (->)@.
 --
--- The write pole becomes the conjoint @SArr s a ()@; the read pole becomes
--- the companion @SArr s () (Maybe b)@.
-medToEnds :: Med s a b -> Ends (SArr s) a (Maybe b)
+-- The write pole becomes the conjoint @Body (,) s (->) a ()@; the read pole becomes
+-- the companion @Body (,) s (->) () (Maybe b)@.
+medToEnds :: Med s a b -> Ends (Body (,) s (->)) a (Maybe b)
 medToEnds med =
   ends0
-    (SArr $ \(s, a) -> (medIn med (s, a), ()))
-    (SArr $ \(s, ()) -> medOut med s)
+    (Body $ \(s, a) -> (medIn med (s, a), ()))
+    (Body $ \(s, ()) -> medOut med s)
 
 -- | Recover a mediator from a pair of unit-split ends.
 --
 -- The seed, owed predicate, and draw predicate are not present in the 'Ends'
 -- view; the caller must supply them.
-medFromEnds :: s -> (s -> Bool) -> (s -> s -> Maybe Int) -> Ends (SArr s) a (Maybe b) -> Med s a b
+medFromEnds :: s -> (s -> Bool) -> (s -> s -> Maybe Int) -> Ends (Body (,) s (->)) a (Maybe b) -> Med s a b
 medFromEnds s0 owed draw e =
   let (write, receive) = splay0 e
    in Med
         { medSeed = s0,
-          medIn = \(s, a) -> fst (runSArr write (s, a)),
-          medOut = \s -> runSArr receive (s, ()),
+          medIn = \(s, a) -> fst (morphism write (s, a)),
+          medOut = \s -> morphism receive (s, ()),
           medOwed = owed,
           medDraw = draw
         }
@@ -823,7 +809,7 @@ medFromEnds s0 owed draw e =
 medStep :: Med s a b -> s -> a -> (s, Maybe b)
 medStep med s a =
   let (write, receive) = splay0 (medToEnds med)
-   in runSArr (write .> receive) (s, a)
+   in morphism (write .> receive) (s, a)
 
 -- | Direct reference implementation of the mediator step.
 --
@@ -841,29 +827,29 @@ runMed med xs =
 
 -- | An existentially-quantified pair of channel ends, carrying its seed.
 data SomeEnds a b where
-  SomeEnds :: s -> Ends (SArr s) a b -> SomeEnds a b
+  SomeEnds :: s -> Ends (Body (,) s (->)) a b -> SomeEnds a b
 
 -- | Run an existentially-packed pair of ends over a list of inputs.
 runSomeEnds :: SomeEnds a b -> [a] -> [b]
 runSomeEnds (SomeEnds s0 e) xs =
   let (write, receive) = splay0 e
-      SArr f = write .> receive
+      Body f = write .> receive
       (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
    in reverse bs
 
--- | Convert a '(->)' 'System' into companion/conjoint channel ends over @SArr@.
+-- | Convert a '(->)' 'System' into companion/conjoint channel ends over @Body@.
 --
 -- The write pole runs the step and discards the output position; the read pole
 -- runs the step with the supplied probe direction and returns the position.
 -- This is a lower-level split than a pointed Moore machine: it does not assume
 -- a separate observation map.
-systemToEnds :: Dir p -> System (->) s p -> Ends (SArr s) (Dir p) (Pos p)
+systemToEnds :: Dir p -> System (->) s p -> Ends (Body (,) s (->)) (Dir p) (Pos p)
 systemToEnds probe sys =
   ends0
-    (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
-    (SArr $ \(s, ()) -> runSystem sys (s, probe))
+    (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+    (Body $ \(s, ()) -> runSystem sys (s, probe))
 
--- | Convert a pointed 'System' into companion/conjoint channel ends over @SArr@.
+-- | Convert a pointed 'System' into companion/conjoint channel ends over @Body@.
 --
 -- The state carrier is the system's state @s@ and the seed @s0@ is carried by
 -- 'SomeEnds'.  The write pole steps with the supplied direction; the read pole
@@ -873,10 +859,10 @@ systemWithSeedToEnds :: s -> (s -> Pos p) -> System (->) s p -> SomeEnds (Dir p)
 systemWithSeedToEnds s0 ex sys =
   SomeEnds s0 $
     ends0
-      (SArr $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
-      (SArr $ \(s, ()) -> (s, ex s))
+      (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+      (Body $ \(s, ()) -> (s, ex s))
 
--- | Embed a Mealy-style 'Mediator' into a pole-unfused 'Med' over 'SArr'.
+-- | Embed a Mealy-style 'Mediator' into a pole-unfused 'Med' over 'Body'.
 --
 -- The residual is extended with a one-slot output buffer @Maybe (Maybe b)@:
 -- the outer 'Maybe' is the buffer slot, the inner 'Maybe' is the mediator's

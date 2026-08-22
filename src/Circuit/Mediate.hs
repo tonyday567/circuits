@@ -12,7 +12,7 @@
 -- @
 --
 -- It is also a pole-unfused pair of channel ends over the ambient-state arrow
--- @SArr (s, Maybe b)@; see 'Circuit.Ends.mediatorToMed' and
+-- @Body (,) (s, Maybe b) (->)@; see 'Circuit.Ends.mediatorToMed' and
 -- 'Circuit.Ends.medToMediator' for the conversions.
 --
 -- The wrapper keeps the residual type @s@ exposed so that close certification

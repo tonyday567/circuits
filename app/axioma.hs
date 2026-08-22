@@ -283,7 +283,7 @@ rightOnlyPS = Schedule (,R)
 -- | Premonoidal left-first product of two knot bodies.
 --
 -- This is the composite @(f ⊗ id) ; (id ⊗ g)@ in the category of knot bodies
--- @Body (,) (->) s@.  It threads the shared state through @f@ first, then @g@.
+-- @Body (,) s (->)@.  It threads the shared state through @f@ first, then @g@.
 bodyParL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, These b d))
 bodyParL f g (s, (a, c)) =
   let (s', b) = f (s, a)
@@ -303,7 +303,7 @@ bodyParR f g (s, (a, c)) =
 -- | Centrality of two knot bodies at a chosen input.
 --
 -- Two bodies are central when the premonoidal left-first and right-first
--- products agree.  For the cartesian instance @Body (,) (->) s@ this is the
+-- products agree.  For the cartesian instance @Body (,) s (->)@ this is the
 -- statement that order of state threading is invisible.
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
@@ -701,16 +701,16 @@ main = do
                 Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
            in scan (register s0 body) xs
                 == scan (trace (swapP (body . strength (delay s0)))) xs,
-        -- Process / SArr equivalence
-        check "processToSomeSArr sumP agrees with scan" $
-          MedState.runSomeSArr (MedState.processToSomeSArr sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
-        check "processToSomeSArr swapPairP agrees with scan" $
-          MedState.runSomeSArr (MedState.processToSomeSArr swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
-        check "processToSomeSArr ewma agrees with scan" $
-          MedState.runSomeSArr (MedState.processToSomeSArr (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
-        -- Process / Loop Either round-trip factors through Body Either (->)
-        check "Process encode factors through Body Either (->)" $
-          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ b -> MedState.bodyToLoop b
+        -- Process / Body equivalence
+        check "processToSomeBody sumP agrees with scan" $
+          MedState.runSomeBody (MedState.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
+        check "processToSomeBody swapPairP agrees with scan" $
+          MedState.runSomeBody (MedState.processToSomeBody swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
+        check "processToSomeBody ewma agrees with scan" $
+          MedState.runSomeBody (MedState.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
+        -- Process / Loop Either round-trip factors through Body Either ch (->)
+        check "Process encode factors through Body Either ch (->)" $
+          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ (MedState.Body f) -> Knot f
            in scan sumP [1, 2, 3] == run (viaBody sumP) [1, 2, 3]
                 && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
                 && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
@@ -1090,7 +1090,7 @@ main = do
                   v <- readIORef ref
                   pure (s + v, b * 2)
                 gf = g . f
-            (sOut, c) <- runK (MedState.runBody gf) (0, 5)
+            (sOut, c) <- runK (MedState.morphism gf) (0, 5)
             pure (sOut == 2 && c == 12),
         -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful
@@ -1335,14 +1335,14 @@ main = do
         check "Ends runMed count emits accumulating residual" $
           MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
         -- Ends conversion oracles (Z4)
-        check "Ends loopToSomeSArr runs Loop (,) as SArr" $
+        check "Ends loopToSomeBody runs Loop (,) as Body" $
           let loop = Knot (\ ~(s, ()) -> (0 : s, take 3 s)) :: Loop (,) (->) () [Int]
-           in MedState.runSomeSArr (MedState.loopToSomeSArr loop) [(), ()]
+           in MedState.runSomeBody (MedState.SomeBody () (MedState.Body (\(s, a) -> (s, run loop a)))) [(), ()]
                 == map (run loop) [(), ()],
-        check "Ends loopEitherToSomeSArr runs Loop Either as SArr" $
+        check "Ends loopEitherToSomeBody runs Loop Either as Body" $
           let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
               loop = encode sumProc :: Loop Either (->) [Int] [Int]
-           in MedState.runSomeSArr (MedState.loopEitherToSomeSArr loop) [[1, 2, 3], [4, 5 :: Int]]
+           in MedState.runSomeBody (MedState.SomeBody () (MedState.Body (\(s, a) -> (s, run loop a)))) [[1, 2, 3], [4, 5 :: Int]]
                 == map (run loop) [[1, 2, 3], [4, 5]],
         check "Ends systemToEnds recovers running sum" $
           let sys :: System (->) Int (Mono Int Int)

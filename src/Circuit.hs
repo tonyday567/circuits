@@ -39,8 +39,8 @@
 -- * `Loop` (in "Circuit.Loop") — the initial, inspectable GADT encoding.
 -- * @Hyper@ (in "Circuit.Hyper") — the final, coinductive encoding.
 -- * `Body` (in "Circuit.Body") — the knot-body category
---   @arr (t s a) (t s b)@, the stateful substrate that `Loop` hides before
---   tracing. `SArr` is its cartesian instance.
+--   @arr (t ch a) (t ch b)@, the stateful substrate that `Loop` hides before
+--   tracing. The cartesian instance is `Body (,) ch (->)`.
 --
 -- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
 -- supporting lazy knots with @(,@), iteration with `Either`, and scheduling
@@ -97,10 +97,7 @@ module Circuit
     -- * Body (knot-body category)
     Body (..),
     SomeBody (..),
-    SArr (..),
-    SomeSArr (..),
-    bodyToLoop,
-    runSomeSArr,
+    runSomeBody,
 
     -- * Polynomial interfaces
     System,
@@ -268,11 +265,8 @@ where
 
 import Circuit.Body
   ( Body (..),
-    SArr (..),
     SomeBody (..),
-    SomeSArr (..),
-    bodyToLoop,
-    runSomeSArr,
+    runSomeBody,
   )
 import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
 import Circuit.Category ((.>), (<|), (|>))
