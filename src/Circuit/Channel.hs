@@ -23,8 +23,8 @@
 -- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
 -- names but the opposite directions. Also, 'slide' here is the slide
 -- @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
--- lives in Circuit.Tensor as swap. Where both structures exist,
--- @slide = assoc' .> par swap id .> assoc@.
+-- lives in Circuit.Tensor as braid. Where both structures exist,
+-- @slide = assoc' .> tensor braid id .> assoc@.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 module Circuit.Channel
@@ -55,7 +55,7 @@ import Prelude hiding (id, (.))
 
 -- | A monoidal structure on the tensor @t@ internal to the category @arr@.
 --
--- Provides the associator and braiding required to reassociate and swap
+-- Provides the associator and braiding required to reassociate and braid
 -- nested tensor values inside an arrow. This is the structure that traced
 -- categories inherit as a superclass.
 --
@@ -249,10 +249,10 @@ class (Strength t arr) => Traced t arr where
 -- >>> trace ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
 -- 3
 --
--- Yanking: tracing a swap is the identity.
+-- Yanking: tracing a braid is the identity.
 --
--- >>> let swap (x, y) = (y, x)
--- >>> trace swap 42
+-- >>> let braid (x, y) = (y, x)
+-- >>> trace braid 42
 -- 42
 --
 -- >>> trace ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
@@ -266,7 +266,7 @@ class (Strength t arr) => Traced t arr where
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --
--- >>> let swap (x, y) = (y, x)
+-- >>> let braid (x, y) = (y, x)
 -- >>> trace ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
@@ -322,7 +322,7 @@ instance Traced (,) (->) where
 -- >>> trace ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
 -- 3
 --
--- Yanking: tracing a swap is the identity.
+-- Yanking: tracing a braid is the identity.
 --
 -- >>> :{
 -- let swapEither (Left x)  = Right x

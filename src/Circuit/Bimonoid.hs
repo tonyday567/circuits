@@ -204,7 +204,7 @@ instance Zero (->) [a] where
 --   fst . copy = id              -- left unit
 --   snd . copy = id              -- right unit
 --   (copy × id) . copy = (id × copy) . copy  -- coassociativity
---   swap . copy = copy            -- cocommutativity
+--   braid . copy = copy            -- cocommutativity
 -- @
 class Copy arr a where
   copy :: arr a (a, a)

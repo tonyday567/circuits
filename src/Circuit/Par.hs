@@ -4,9 +4,9 @@
 
 -- | Multiplicative disjunction (@⅋@) and its linear distributors.
 --
--- This module surfaces the par product, its unit @⊥@, and the one-way
--- distributors between tensor and par.  These are "mixed metaphor"
--- structure: they relate a tensor @t@ (typically @(,)@) with a par
+-- This module surfaces the tensor product, its unit @⊥@, and the one-way
+-- distributors between tensor and tensor.  These are "mixed metaphor"
+-- structure: they relate a tensor @t@ (typically @(,)@) with a tensor
 -- product @p@ (typically 'Either').
 module Circuit.Par
   ( -- * Multiplicative disjunction
@@ -26,15 +26,15 @@ import Data.Kind (Type)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
--- | Unit of the par tensor (@⊥@).
+-- | Unit of the tensor tensor (@⊥@).
 type family Bot (p :: k -> k -> k) :: k
 
 -- | Multiplicative disjunction action on a category.
 --
--- 'parP' is the par product of morphisms.  The unitors witness that
+-- 'parP' is the tensor product of morphisms.  The unitors witness that
 -- @⊥ ⅋ a ≅ a@ and @a ⅋ ⊥ ≅ a@.
 class (Category arr) => Par p arr where
-  -- | Parallel composition under par.
+  -- | Parallel composition under tensor.
   parP :: arr a b -> arr c d -> arr (p a c) (p b d)
 
   -- | Left unitor: @⊥ ⅋ a -> a@.
@@ -49,7 +49,7 @@ class (Category arr) => Par p arr where
   -- | Inverse right unitor: @a -> a ⅋ ⊥@.
   unitrP' :: arr a (p a (Bot p))
 
--- | The coproduct is the canonical par product on functions.
+-- | The coproduct is the canonical tensor product on functions.
 type instance Bot Either = Void
 
 -- | Coproduct as multiplicative disjunction on functions.
@@ -108,7 +108,7 @@ distR (Left b, _) = Left b
 distR (Right c, a) = Right (c, a)
 {-# INLINE distR #-}
 
--- | Mix: the canonical map @⊥ -> 1@ from par unit to tensor unit.
+-- | Mix: the canonical map @⊥ -> 1@ from tensor unit to tensor unit.
 --
 -- Every @⊥@-value is vacuous, so it maps to the unique tensor unit.
 mix :: Void -> ()

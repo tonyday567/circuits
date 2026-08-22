@@ -24,7 +24,7 @@
 -- where 'SigCompose' provides sequential composition and 'SigYank' provides
 -- feedback / trace over the channel tensor @t@.
 --
--- Higher-level signatures (parallel composition, swap, copy\/discard,
+-- Higher-level signatures (parallel composition, braid, copy\/discard,
 -- shared-medium fusion, mediators) live in "Circuit.Fragment".
 module Circuit.Trace
   ( -- * Free traced category
@@ -43,8 +43,8 @@ import Circuit.Syntax
   ( Algebra (..),
     SigCompose (..),
     Syntax (..),
-    (:+:) (..),
     eval,
+    (:+:) (..),
   )
 import Data.Kind (Type)
 import Prelude hiding (id, (.))

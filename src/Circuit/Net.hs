@@ -36,7 +36,7 @@ module Circuit.Net
 
     -- * Smart constructors
     lift,
-    swap,
+    braid,
 
     -- * Conversion
     widen,
@@ -55,9 +55,9 @@ import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
-import Circuit.SMC (FreeSMC, SMC)
+import Circuit.SMC (FreeSMC, SMC, SigSwap (..))
 import Circuit.SMC qualified as SMC
-import Circuit.Syntax (evalInto)
+import Circuit.Syntax (Syntax (..), evalInto, (:+:) (..))
 import Circuit.Tensor (Action, Tensor (..), Unit)
 import Circuit.Trace (Trace, base, yank)
 import Data.Kind (Type)
@@ -79,7 +79,7 @@ import Prelude hiding (id, (.))
 -- Three families of constructor:
 --
 --   * __SMC__ — 'FromSMC' embeds the whole 'SMC' syntax layer; 'lift' and
---     'swap' are smart constructors for the common cases.
+--     'braid' are smart constructors for the common cases.
 --   * __Sequential / monoidal__ — 'Compose' and 'Par' extend the SMC
 --     embedding to arbitrary 'Net' values; they are needed because the
 --     bimonoid generators are not SMC morphisms.
@@ -146,8 +146,8 @@ lift :: arr a b -> Net w arr a b
 lift = FromSMC . SMC.lift
 
 -- | Symmetric braiding in 'Net' via 'SMC'.
-swap :: Net w arr (w a b) (w b a)
-swap = FromSMC SMC.swap
+braid :: Net w arr (w a b) (w b a)
+braid = FromSMC (Op (R (R SigSwap)))
 
 -- | Include an 'SMC' circuit into 'Net'.
 --
@@ -205,7 +205,7 @@ sift ::
   SMC w arr a b
 sift (FromSMC s) = s
 sift (Compose g f) = sift g . sift f
-sift (Par f g) = SMC.par (sift f) (sift g)
+sift (Par f g) = tensor (sift f) (sift g)
 sift Copy = SMC.lift (Bm.copyT @w)
 sift Discard = SMC.lift (Bm.discardT @w)
 sift Plus = SMC.lift (Bm.plusT @w)
@@ -229,7 +229,7 @@ melt ::
   Trace t arr a b
 melt (FromSMC s) = evalInto base s
 melt (Compose g f) = melt g . melt f
-melt (Par f g) = par (melt f) (melt g)
+melt (Par f g) = tensor (melt f) (melt g)
 melt Copy = base (Bm.copyT @w)
 melt Discard = base (Bm.discardT @w)
 melt Plus = base (Bm.plusT @w)
@@ -262,7 +262,7 @@ mirror Zero = Discard
 -- | Free symmetric monoidal category with a bimonoid.
 --
 -- Structural rows are interpreted in the target category: parallel
--- composition uses 'par', braiding uses 'swap', and the bimonoid
+-- composition uses 'tensor', braiding uses 'braid', and the bimonoid
 -- generators are the images under @h@ of the source dictionaries carried
 -- by the 'Copy', 'Discard', 'Plus', and 'Zero' constructors.
 --
@@ -285,7 +285,7 @@ instance Layer (Net w) where
   bind h (Compose (g :: Net w arr b1 c) (f :: Net w arr a b1)) =
     bind h g . bind h f
   bind h (Par (f :: Net w arr a1 b1) (g :: Net w arr c d)) =
-    par (bind h f) (bind h g)
+    tensor (bind h f) (bind h g)
   bind h Copy = h (Bm.copyT @w)
   bind h Discard = h (Bm.discardT @w)
   bind h Plus = h (Bm.plusT @w)

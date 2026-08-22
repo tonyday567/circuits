@@ -40,7 +40,7 @@
 -- * @SigCompose@ — sequential composition
 -- * @SigYank@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition (the tensor product ⊗)
--- * @SigShared@  — shared-medium fusion (the par product ⅋), parameterised by a schedule
+-- * @SigShared@  — shared-medium fusion (the tensor product ⅋), parameterised by a schedule
 -- * @SigSwap@    — symmetric braiding
 -- * @SigCopyDiscard@ — copy, discard
 -- * @SigMergeZero@   — plus, zero
@@ -118,7 +118,7 @@ import Prelude hiding (id, (.))
 -- ---------------------------------------------------------------------------
 -- Individual signatures
 
--- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
+-- | Shared-medium fusion (the tensor product ⅋), parameterised by a schedule.
 --
 -- The constructor takes two bodies that already share a feedback type @s@ and
 -- produces the untraced shared body.  The surrounding 'SigYank' closes the
@@ -267,7 +267,7 @@ runAlgNet = goTop
       N.Net w arr x y
     goOp (L (SigCompose g f)) = N.Compose (goTop g) (goTop f)
     goOp (R (L (SigPar f g))) = N.Par (goTop f) (goTop g)
-    goOp (R (R (L SigSwap))) = N.swap
+    goOp (R (R (L SigSwap))) = N.braid
     goOp (R (R (R (L SigCopy)))) = N.Copy
     goOp (R (R (R (R (L SigDiscard))))) = N.Discard
     goOp (R (R (R (R (R (L SigPlus)))))) = N.Plus

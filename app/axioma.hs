@@ -4,30 +4,30 @@
 
 module Main where
 
-import Circuit.Stamped (Stamped (..), stamp, stamped)
+import Circuit.Bimonoid (Copy (..), CopyDiscard, Discard (..), Merge (..), MergeZero, Zero (..))
+import Circuit.Body (Body (..), SomeBody (..), morphism, runSomeBody)
+import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
-import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
-import Circuit.Body (Body (..), SomeBody (..), morphism, runSomeBody)
-import Circuit.Bimonoid (Copy (..), CopyDiscard, Discard (..), Merge (..), MergeZero, Zero (..))
 import Circuit.Dagger (Dagger (..), transpose)
-import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..), box, close, copycat, poles, poles0, polesK, prefixIn, splay, splay0, suffixOut, (>:>))
-import Circuit.Poles qualified as Poles
-import Circuit.Body qualified as Body
-import Circuit.Process qualified as Process
-import Circuit.Poly qualified as Poly
 import Circuit.FinRel
 import Circuit.Fragment qualified as Frag
 import Circuit.Layer (run)
-import Circuit.Syntax qualified as Syn
-import Circuit.Trace (Trace, base, yank)
 import Circuit.Net qualified as Net
-import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
-import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
 import Circuit.Par (Par (..), distL, distR, mix)
+import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..), box, close, copycat, poles, poles0, polesK, prefixIn, splay, splay0, suffixOut, (>:>))
+import Circuit.Poles qualified as Poles
+import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
+import Circuit.Poly qualified as Poly
+import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
+import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
+import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..))
+import Circuit.Stamped (Stamped (..), stamp, stamped)
+import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
 import Circuit.Tools.Test (check)
+import Circuit.Trace (Trace, base, yank)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Kind (Type)
 import Data.List (foldl', isInfixOf, permutations, sort, uncons)
@@ -84,11 +84,11 @@ swapMiddle2 = swapBlocks @2
 sumP :: Process Int Int
 sumP = Process id (+) id
 
--- | Pair swap for the (,) trace yanking oracle.
+-- | Pair braid for the (,) trace yanking oracle.
 swapPairP :: Process (Int, Int) (Int, Int)
 swapPairP = Process id (\_ x -> x) (\(a, b) -> (b, a))
 
--- | Either swap for the Either trace yanking oracle.
+-- | Either braid for the Either trace yanking oracle.
 swapEitherP :: Process (Either Int Int) (Either Int Int)
 swapEitherP = Process id (\_ x -> x) swapEither
   where
@@ -210,7 +210,7 @@ markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
 markerBody n (ns, ()) = (n : ns, take 3 ns)
 
 -- | Schedule that always runs the left body first without modifying the shared
--- state.  A pure order swap is invisible to the trace — this is the sliding
+-- state.  A pure order braid is invisible to the trace — this is the sliding
 -- axiom of the traced category observed at the shared channel.
 pureLeft :: Schedule [Int]
 pureLeft = Schedule (,Both LeftFirst)
@@ -283,10 +283,10 @@ bodyCentral f g input = bodyParL f g input == bodyParR f g input
 whiskerL :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, (b, d)))
 whiskerL f g =
   assoc' @(,) @(->)
-    .> par @(,) @(->) f id
+    .> tensor @(,) @(->) f id
     .> assoc @(,) @(->)
     .> slide @(,) @(->)
-    .> par @(,) @(->) id g
+    .> tensor @(,) @(->) id g
     .> slide @(,) @(->)
 
 -- | Premonoidal right-first whiskering built from assoc / slide / first.
@@ -295,10 +295,10 @@ whiskerL f g =
 whiskerR :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, (b, d)))
 whiskerR f g =
   slide @(,) @(->)
-    .> par @(,) @(->) id g
+    .> tensor @(,) @(->) id g
     .> slide @(,) @(->)
     .> assoc' @(,) @(->)
-    .> par @(,) @(->) f id
+    .> tensor @(,) @(->) f id
     .> assoc @(,) @(->)
 
 -- | Lift a payload map to a body that leaves shared state alone.
@@ -625,7 +625,7 @@ main = do
               step (These m n) = These (m + 1) n
            in traceTheseEmit step 5 /= traceTheseLoop step 5,
         -- ⊗/⅋ probe: sharedBy vs superpose
-        check "pure order swap is invisible at the shared channel (sliding axiom)" $
+        check "pure order braid is invisible at the shared channel (sliding axiom)" $
           let k1 = markerBody 1
               k2 = markerBody 2
            in Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ())
@@ -711,7 +711,7 @@ main = do
         check "zero witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((), 3)) :: (Int, ((), Int))
            in bodyCentral (liftBody (const (0 :: Int))) sharedAddF input,
-        check "swap witnesses centrality wrt state-touching body at a point" $
+        check "braid witnesses centrality wrt state-touching body at a point" $
           let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
            in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
         -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
@@ -726,8 +726,8 @@ main = do
                 g = K $ \ ~() -> do
                   modifyIORef' ref (* 2)
                   pure ()
-                post = trace (par @(,) @(K IO) g id . f)
-                pre = trace (f . par @(,) @(K IO) g id)
+                post = trace (tensor @(,) @(K IO) g id . f)
+                pre = trace (f . tensor @(,) @(K IO) g id)
             (l, r) <- (,) <$> runK post () <*> runK pre ()
             pure (l /= r),
         -- Body (,) (K IO) must compose as a category. This is the untested
@@ -761,8 +761,8 @@ main = do
                 g = K $ \ ~() -> do
                   modifyIORef' ref (* 2)
                   pure ()
-                post = trace (base f . base (par @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
-                pre = trace (base (par @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
+                post = trace (base f . base (tensor @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
+                pre = trace (base (tensor @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
             l <- runK (Syn.eval post) ()
             writeIORef ref 1
             r <- runK (Syn.eval pre) ()
@@ -785,12 +785,15 @@ main = do
                 loopFG = yank (base f) . yank (base g) :: Trace (,) (K IO) Int Int
                 -- Same threading as Trace's (.) normal form: g's state wire first.
                 handBuiltFG =
-                  yank (base
-                    (K $
-                      \ ~((s1, s2), a) -> do
-                        (s1', b) <- runK g (s1, a)
-                        (s2', c) <- runK f (s2, b)
-                        pure ((s1', s2'), c)))
+                  yank
+                    ( base
+                        ( K $
+                            \ ~((s1, s2), a) -> do
+                              (s1', b) <- runK g (s1, a)
+                              (s2', c) <- runK f (s2, b)
+                              pure ((s1', s2'), c)
+                        )
+                    )
             r1 <- runK (Syn.eval loopFG) 5
             writeIORef ref 1
             r2 <- runK (Syn.eval handBuiltFG) 5

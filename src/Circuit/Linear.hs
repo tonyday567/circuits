@@ -9,7 +9,7 @@
 -- | Linear-logic connectives over a base category.
 --
 -- This module surfaces linear implication (@⊸@) and the exponential
--- modalities @!@ / @?@ as type-class structure.  The par product @⅋@ and
+-- modalities @!@ / @?@ as type-class structure.  The tensor product @⅋@ and
 -- its unit @⊥@ live in "Circuit.Par".
 module Circuit.Linear
   ( -- * Linear implication (internal hom)
@@ -43,7 +43,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 -- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
 -- 'eval' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
 -- That is the existing Chu convention; it differs from @uncurry id@ by a
--- 'swap'.  'lolli' is identity on the implication object, used to mention
+-- 'braid'.  'lolli' is identity on the implication object, used to mention
 -- it.
 --
 -- Kind is fixed to 'Type' so type applications stay concrete (GHC 9.14
@@ -131,7 +131,7 @@ class (Exponential t arr) => WhyNotIntro t arr where
 -- | The ⅋-monoid structure on @?A@.
 --
 -- Dual to the @!@-comonoid ('BangCopy' / 'BangWeaken'), but living on the
--- par product rather than the tensor product. 'mergeE' is the
+-- tensor product rather than the tensor product. 'mergeE' is the
 -- multiplication @?A ⅋ ?A → ?A@ and 'zeroE' is the unit @⊥ → ?A@.
 class (Exponential t arr, Par p arr) => WhyNotMonoid t p arr where
   mergeE ::

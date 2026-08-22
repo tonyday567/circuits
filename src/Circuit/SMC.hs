@@ -25,14 +25,13 @@
 -- the symmetry / braiding.
 --
 -- The 'Tensor' and 'Action' instances are the syntactic constructors:
--- @'par' f g@ builds a 'SigPar' node and @'swap'@ builds a 'SigSwap' node.
--- Folding uses 'Circuit.Syntax.eval' or 'Circuit.Syntax.evalInto'.
+-- @'Tensor.tensor' f g@ builds a 'SigPar' node and @'Action.braid'@ builds a
+-- 'SigSwap' node. Folding uses 'Circuit.Syntax.eval' or
+-- 'Circuit.Syntax.evalInto'.
 module Circuit.SMC
   ( -- * Free symmetric monoidal category
     SMC,
     lift,
-    par,
-    swap,
 
     -- * Dagger mirror
     mirror,
@@ -73,7 +72,7 @@ data SigPar (w :: Type -> Type -> Type) arr rec a b where
 
 instance (Tensor w arr') => Algebra (SigPar w) arr arr' where
   type Ctx (SigPar w) arr arr' = Tensor w arr'
-  alg _ rec (SigPar f g) = T.par (rec f) (rec g)
+  alg _ rec (SigPar f g) = T.tensor (rec f) (rec g)
 
 -- | Symmetric braiding over the wiring tensor @w@.
 data SigSwap (w :: Type -> Type -> Type) arr rec a b where
@@ -81,7 +80,7 @@ data SigSwap (w :: Type -> Type -> Type) arr rec a b where
 
 instance (Action w arr') => Algebra (SigSwap w) arr arr' where
   type Ctx (SigSwap w) arr arr' = Action w arr'
-  alg _ _ SigSwap = T.swap
+  alg _ _ SigSwap = T.braid
 
 -- ---------------------------------------------------------------------------
 -- Free symmetric monoidal category
@@ -93,14 +92,6 @@ type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 lift :: arr a b -> SMC w arr a b
 lift = Lift
 
--- | Parallel composition of two SMC morphisms.
-par :: SMC w arr a b -> SMC w arr c d -> SMC w arr (w a c) (w b d)
-par f g = Op (R (L (SigPar f g)))
-
--- | Symmetric braiding.
-swap :: SMC w arr (w a b) (w b a)
-swap = Op (R (R SigSwap))
-
 -- ---------------------------------------------------------------------------
 -- Instances for the free symmetric monoidal category
 
@@ -109,14 +100,14 @@ instance (Category arr) => Category (SMC w arr) where
   f . g = Op (L (SigCompose f g))
 
 instance (Tensor w arr) => Tensor w (SMC w arr) where
-  par f g = Op (R (L (SigPar f g)))
+  tensor f g = Op (R (L (SigPar f g)))
   unitl = lift T.unitl
   unitl' = lift T.unitl'
   unitr = lift T.unitr
   unitr' = lift T.unitr'
 
 instance (Action w arr) => Action w (SMC w arr) where
-  swap = Op (R (R SigSwap))
+  braid = Op (R (R SigSwap))
 
 instance (Category arr, Channel t arr) => Channel t (SMC w arr) where
   assoc = lift assoc
@@ -134,8 +125,8 @@ instance (Traced t arr, Action w arr) => Traced t (SMC w arr) where
 
 -- | Mirror an 'SMC' built over 'Dg.Dagger'.
 --
--- Reverses composition, transposes each lifted arrow, and leaves 'par'
--- and 'swap' self-dual. This is the structural transpose of the SMC
+-- Reverses composition, transposes each lifted arrow, and leaves 'tensor'
+-- and 'braid' self-dual. This is the structural transpose of the SMC
 -- layer that 'Circuit.Net.mirror' delegates to.
 mirror ::
   forall w arr a b.

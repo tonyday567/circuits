@@ -63,7 +63,7 @@ data Dagger arr a b = Dagger
     back :: arr b a
   }
 
--- | The dagger operation: swap forward and backward.
+-- | The dagger operation: braid forward and backward.
 --
 -- Involutive: @transpose . transpose = id@.
 transpose :: Dagger arr a b -> Dagger arr b a
@@ -136,8 +136,8 @@ instance {-# INCOHERENT #-} (ZeroT t arr a, DiscardT t arr a) => ZeroT t (Dagger
   {-# INLINE zeroT #-}
 
 instance (Tensor t arr) => Tensor t (Dagger arr) where
-  par (Dagger f g) (Dagger f' g') = Dagger (par f f') (par g g')
-  {-# INLINE par #-}
+  tensor (Dagger f g) (Dagger f' g') = Dagger (tensor f f') (tensor g g')
+  {-# INLINE tensor #-}
   unitl = Dagger unitl unitl'
   {-# INLINE unitl #-}
   unitl' = Dagger unitl' unitl
@@ -148,8 +148,8 @@ instance (Tensor t arr) => Tensor t (Dagger arr) where
   {-# INLINE unitr' #-}
 
 instance (Action t arr) => Action t (Dagger arr) where
-  swap = Dagger swap swap
-  {-# INLINE swap #-}
+  braid = Dagger braid braid
+  {-# INLINE braid #-}
 
 instance (Channel t arr) => Channel t (Dagger arr) where
   assoc = Dagger assoc assoc'

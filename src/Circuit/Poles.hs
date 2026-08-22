@@ -69,7 +69,7 @@ module Circuit.Poles
     (>:>),
 
     -- * Parallel composition
-    par,
+    tensor,
 
     -- * Morphism-level mapping
     iomap,
@@ -377,19 +377,19 @@ infixr 1 >:>
 --
 -- >>> let p1 = poles0 (const ()) (const 1 :: () -> Int) :: Poles (->) () Int
 -- >>> let p2 = poles0 (const ()) (const 2 :: () -> Int) :: Poles (->) () Int
--- >>> box @() (par p1 p2) ((), ())
+-- >>> box @() (tensor p1 p2) ((), ())
 -- (1,2)
-par ::
+tensor ::
   forall t arr a b c d bot.
   (Tensor t arr, HasDual bot arr, Unit t ~ bot) =>
   Poles arr a b ->
   Poles arr c d ->
   Poles arr (t a c) (t b d)
-par p1 p2 =
+tensor p1 p2 =
   let (write1, read1) = splay p1 :: (arr a bot, arr bot b)
       (write2, read2) = splay p2 :: (arr c bot, arr bot d)
-      write = Tensor.unitr . Tensor.par write1 write2
-      readPoles = Tensor.par read1 read2 . Tensor.unitl'
+      write = Tensor.unitr . Tensor.tensor write1 write2
+      readPoles = Tensor.tensor read1 read2 . Tensor.unitl'
    in poles write readPoles
 
 -- | Precompose the input and postcompose the output of a @Poles@.
@@ -515,7 +515,7 @@ box p =
 
 -- | Asymmetric box with the dualising object exposed on opposite sides.
 --
--- Uses 'par' at the base arrow level. The input carries the dualising object
+-- Uses 'tensor' at the base arrow level. The input carries the dualising object
 -- on the right and the output carries it on the left; most users will prefer
 -- the dualising-object-normalised 'box'.
 --
@@ -528,7 +528,7 @@ boxAsymmetric ::
   Poles arr a b ->
   arr (t a bot) (t bot b)
 boxAsymmetric p =
-  Tensor.par
+  Tensor.tensor
     (commit (conjoint p) (companion open))
     (emit (companion p) (conjoint open))
 
@@ -560,8 +560,8 @@ pair ::
 pair p1 p2 =
   let (w1, r1) = splay0 p1
       (w2, r2) = splay0 p2
-      w = Tensor.unitr . Tensor.par w1 w2 . copy
-      r = Tensor.par r1 r2 . Tensor.unitl'
+      w = Tensor.unitr . Tensor.tensor w1 w2 . copy
+      r = Tensor.tensor r1 r2 . Tensor.unitl'
    in poles0 w r
 
 -- | Additive disjunction / race: both sub-poles receive the same input, but

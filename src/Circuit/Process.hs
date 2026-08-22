@@ -65,15 +65,15 @@ module Circuit.Process
   )
 where
 
+import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
+import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
-import Circuit.Bimonoid qualified as Bm
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
-import Circuit.Trace (Trace, base, yank)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Trace (Trace, base, yank)
 import Data.Bifunctor (Bifunctor (..))
 import Data.List (scanl')
 import Data.Maybe (catMaybes, fromMaybe)
@@ -240,12 +240,12 @@ instance Traced (,) Process where
 -- ---------------------------------------------------------------------------
 
 instance Tensor (,) Process where
-  par (Process i1 st1 ex1) (Process i2 st2 ex2) =
+  tensor (Process i1 st1 ex1) (Process i2 st2 ex2) =
     Process
       (bimap i1 i2)
       (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
       (bimap ex1 ex2)
-  {-# INLINE par #-}
+  {-# INLINE tensor #-}
 
   unitl = Process snd (\_ (_, a) -> a) id
   unitl' = Process id const ((),)
@@ -253,10 +253,10 @@ instance Tensor (,) Process where
   unitr' = Process id const (,())
 
 instance Action (,) Process where
-  swap = Process id (const id) sw
+  braid = Process id (const id) sw
     where
       sw (a, b) = (b, a)
-  {-# INLINE swap #-}
+  {-# INLINE braid #-}
 
 -- | Cartesian shared fusion on processes.
 --
@@ -489,7 +489,6 @@ register s0 (Process i st ex) = Process i' st' ex'
     i' a = i (a, s0)
     st' s a = st s (a, snd (ex s))
     ex' s = fst (ex s)
-
 
 -- ---------------------------------------------------------------------------
 -- Body conversions

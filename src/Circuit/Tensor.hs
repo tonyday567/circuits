@@ -53,8 +53,8 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Strength (..), Traced (..))
 import Circuit.Channel qualified as Ch
-import Circuit.Syntax (Syntax (..), (:+:) (..), eval)
-import Circuit.Trace (Trace, base, yank, SigYank (..))
+import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
+import Circuit.Trace (SigYank (..), Trace, base, yank)
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -182,7 +182,7 @@ type family Unit (t :: k -> k -> k) :: k
 
 -- | The tensor action of @t@ on a category @arr@, without braiding.
 --
--- 'par' is the tensor product of morphisms (parallel composition on
+-- 'tensor' is the tensor product of morphisms (parallel composition on
 -- disjoint wires). 'unitl' and 'unitr' witness that the tensor has a unit
 -- object. This is the planar fragment: 'Tensor' only provides the
 -- associator and unitors, not a braiding.
@@ -191,9 +191,9 @@ type family Unit (t :: k -> k -> k) :: k
 class (Category arr) => Tensor t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
-  -- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
+  -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
-  par :: arr a b -> arr c d -> arr (t a c) (t b d)
+  tensor :: arr a b -> arr c d -> arr (t a c) (t b d)
 
   -- | Left unitor: @I ⊗ a -> a@.
   unitl :: arr (t (Unit t) a) a
@@ -211,14 +211,14 @@ class (Category arr) => Tensor t arr where
 -- symmetric braiding.
 --
 -- This is the self-action of a symmetric monoidal category: @t@ acts on
--- @arr@ by taking morphisms to morphisms over paired objects, and 'swap'
+-- @arr@ by taking morphisms to morphisms over paired objects, and 'braid'
 -- provides the symmetry.
 class (Tensor t arr) => Action t arr where
   -- | Symmetric braiding.
   --
-  -- >>> swap (3, 4) :: (Int, Int)
+  -- >>> braid (3, 4) :: (Int, Int)
   -- (4,3)
-  swap :: arr (t a b) (t b a)
+  braid :: arr (t a b) (t b a)
 
 type instance Unit (,) = ()
 
@@ -226,8 +226,8 @@ type instance Unit (,) = ()
 --
 -- Laws: 'unitl' = 'snd', 'unitl'' = @((),)@, 'unitr' = 'fst', 'unitr'' = @(,) ()@.
 instance Tensor (,) (->) where
-  par f g (a, c) = (f a, g c)
-  {-# INLINE par #-}
+  tensor f g (a, c) = (f a, g c)
+  {-# INLINE tensor #-}
   unitl ~((), a) = a
   {-# INLINE unitl #-}
   unitl' a = ((), a)
@@ -239,17 +239,17 @@ instance Tensor (,) (->) where
 
 -- | Cartesian symmetry on functions.
 instance Action (,) (->) where
-  swap (a, b) = (b, a)
-  {-# INLINE swap #-}
+  braid (a, b) = (b, a)
+  {-# INLINE braid #-}
 
 -- | Cartesian tensor on @K@ (effectful sequential product).
 instance (Monad m) => Tensor (,) (K m) where
-  par (K f) (K g) =
+  tensor (K f) (K g) =
     K $ \(a, c) -> do
       b <- f a
       d <- g c
       pure (b, d)
-  {-# INLINE par #-}
+  {-# INLINE tensor #-}
   unitl = K $ \((), a) -> pure a
   {-# INLINE unitl #-}
   unitl' = K $ \a -> pure ((), a)
@@ -260,21 +260,21 @@ instance (Monad m) => Tensor (,) (K m) where
   {-# INLINE unitr' #-}
 
 instance (Monad m) => Action (,) (K m) where
-  swap = K $ \(a, b) -> pure (b, a)
-  {-# INLINE swap #-}
+  braid = K $ \(a, b) -> pure (b, a)
+  {-# INLINE braid #-}
 
 type instance Unit Either = Void
 
 -- | Coproduct tensor action on functions.
 --
--- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
+-- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
 -- Left 4
 --
--- >>> par ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
+-- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
 -- Right 6
 instance Tensor Either (->) where
-  par = bimap
-  {-# INLINE par #-}
+  tensor = bimap
+  {-# INLINE tensor #-}
   unitl = either absurd id
   {-# INLINE unitl #-}
   unitl' = Right
@@ -286,29 +286,29 @@ instance Tensor Either (->) where
 
 -- | Coproduct symmetry on functions.
 --
--- >>> swap (Left 3 :: Either Int Int) :: Either Int Int
+-- >>> braid (Left 3 :: Either Int Int) :: Either Int Int
 -- Right 3
 instance Action Either (->) where
-  swap = \case
+  braid = \case
     Left a -> Right a
     Right b -> Left b
-  {-# INLINE swap #-}
+  {-# INLINE braid #-}
 
 -- | Coproduct tensor action on @K@ @m@.
 --
 -- >>> import Circuit.Category (K(..), runK)
 -- >>> let f = K (\n -> pure (n + 1)) :: K IO Int Int
 -- >>> let g = K (\n -> pure (n * 2)) :: K IO Int Int
--- >>> runK (par f g) (Left 3 :: Either Int Int)
+-- >>> runK (tensor f g) (Left 3 :: Either Int Int)
 -- Left 4
--- >>> runK (par f g) (Right 3 :: Either Int Int)
+-- >>> runK (tensor f g) (Right 3 :: Either Int Int)
 -- Right 6
 instance (Monad m) => Tensor Either (K m) where
-  par (K f) (K g) =
+  tensor (K f) (K g) =
     K $ \case
       Left a -> Left <$> f a
       Right c -> Right <$> g c
-  {-# INLINE par #-}
+  {-# INLINE tensor #-}
   unitl = K $ either absurd pure
   {-# INLINE unitl #-}
   unitl' = K $ pure . Right
@@ -320,8 +320,8 @@ instance (Monad m) => Tensor Either (K m) where
 
 -- | Coproduct symmetry on @K@ @m@.
 instance (Monad m) => Action Either (K m) where
-  swap = K $ pure . swap
-  {-# INLINE swap #-}
+  braid = K $ pure . braid
+  {-# INLINE braid #-}
 
 type instance Unit These = Void
 
@@ -330,8 +330,8 @@ type instance Unit These = Void
 -- Laws: 'unitl' eliminates a vacuous 'This', 'unitl'' injects with 'That';
 -- 'unitr' eliminates a vacuous 'That', 'unitr'' injects with 'This'.
 instance Tensor These (->) where
-  par = bimap
-  {-# INLINE par #-}
+  tensor = bimap
+  {-# INLINE tensor #-}
   unitl (That a) = a
   unitl (This v) = absurd v
   unitl (These v _) = absurd v
@@ -347,19 +347,19 @@ instance Tensor These (->) where
 
 -- | Inclusive symmetry on functions.
 instance Action These (->) where
-  swap (This a) = That a
-  swap (That b) = This b
-  swap (These a b) = These b a
-  {-# INLINE swap #-}
+  braid (This a) = That a
+  braid (That b) = This b
+  braid (These a b) = These b a
+  {-# INLINE braid #-}
 
 -- | Inclusive tensor action on @K@ @m@.
 instance (Monad m) => Tensor These (K m) where
-  par (K f) (K g) =
+  tensor (K f) (K g) =
     K $ \case
       This a -> This <$> f a
       That c -> That <$> g c
       These a c -> These <$> f a <*> g c
-  {-# INLINE par #-}
+  {-# INLINE tensor #-}
   unitl = K $ \case
     That a -> pure a
     This v -> absurd v
@@ -377,13 +377,13 @@ instance (Monad m) => Tensor These (K m) where
 
 -- | Inclusive symmetry on @K@ @m@.
 instance (Monad m) => Action These (K m) where
-  swap =
+  braid =
     K $
       pure . \case
         This a -> That a
         That b -> This b
         These a b -> These b a
-  {-# INLINE swap #-}
+  {-# INLINE braid #-}
 
 -- | Lift 'Tensor'/'Action' through 'Trace'.
 --
@@ -392,21 +392,21 @@ instance (Monad m) => Action These (K m) where
 -- tensor. It is correct and black-hole-free, but does not fuse feedback
 -- loops. For the fused superposition of two 'yank's, use 'superpose'.
 instance (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
-  par f g = base (par (eval f) (eval g))
+  tensor f g = base (tensor (eval f) (eval g))
   unitl = base unitl
   unitl' = base unitl'
   unitr = base unitr
   unitr' = base unitr'
 
 instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
-  swap = base swap
+  braid = base braid
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.
 --
 -- Two 'yank's in parallel superpose into one 'yank' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
 --
--- @superpose (trace f) (trace g) = trace (pre . par f g . post)@
+-- @superpose (trace f) (trace g) = trace (pre . tensor f g . post)@
 --
 -- where @pre@ and @post@ rearrange the paired channel via associators
 -- and braiding. This preserves sharing for recursive circuits; the lawful
@@ -433,16 +433,16 @@ superpose ::
 superpose x y =
   case (x, y) of
     (Lift f, Lift g) ->
-      base (par f g)
+      base (tensor f g)
     (Op (R (Yank f)), Lift g) ->
-      yank (base assoc . base (par (eval f) g) . base assoc')
+      yank (base assoc . base (tensor (eval f) g) . base assoc')
     (Lift f, Op (R (Yank g))) ->
-      yank (base braid . base (par f (eval g)) . base braid)
+      yank (base shuffle . base (tensor f (eval g)) . base shuffle)
     (Op (R (Yank f)), Op (R (Yank g))) ->
-      yank (base post . base (par (eval f) (eval g)) . base pre)
+      yank (base post . base (tensor (eval f) (eval g)) . base pre)
     -- Non-normal forms fall back to the lawful independent-evaluation instance.
     _ ->
-      base (par (eval x) (eval y))
+      base (tensor (eval x) (eval y))
   where
     assoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
     assoc = Ch.assoc
@@ -450,9 +450,9 @@ superpose x y =
     assoc' :: forall x y z. arr (t x (t y z)) (t (t x y) z)
     assoc' = Ch.assoc'
 
-    braid :: forall x y z. arr (t x (t y z)) (t y (t x z))
-    braid = Ch.slide
+    shuffle :: forall x y z. arr (t x (t y z)) (t y (t x z))
+    shuffle = Ch.slide
 
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
-    pre = assoc .> strength braid .> assoc'
-    post = assoc .> strength braid .> assoc'
+    pre = assoc .> strength shuffle .> assoc'
+    post = assoc .> strength shuffle .> assoc'
