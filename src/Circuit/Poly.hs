@@ -106,11 +106,19 @@ module Circuit.Poly
     toEvalSystem,
     monoDir,
     monoIn,
+
+    -- * Channel-pole view of systems
+    SomePoles (..),
+    runSomePoles,
+    systemToPoles,
+    systemWithSeedToPoles,
   )
 where
 
 import Circuit.Body (Body (..))
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), (.>))
+import Circuit.Poles (HasDual (..), Poles (..))
+import Circuit.Poles qualified as Poles
 import Data.Bifunctor
 import Data.Kind (Type)
 import Data.Void (Void, absurd)
@@ -877,3 +885,45 @@ instance (SystemEval p, SystemEval q) => SystemEval ('Comp p q) where
 
 offFibre :: a
 offFibre = error "off-fibre direction"
+
+
+-- ---------------------------------------------------------------------------
+-- Channel-pole view of systems
+-- ---------------------------------------------------------------------------
+
+-- | An existentially-quantified pair of channel poles, carrying its seed.
+data SomePoles a b where
+  SomePoles :: s -> Poles (Body (,) s (->)) a b -> SomePoles a b
+
+-- | Run an existentially-packed pair of poles over a list of inputs.
+runSomePoles :: SomePoles a b -> [a] -> [b]
+runSomePoles (SomePoles s0 p) xs =
+  let (write, receive) = Poles.splay0 p
+      Body f = write .> receive
+      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
+   in reverse bs
+
+-- | Convert a '(->)' 'System' into companion/conjoint channel poles over @Body@.
+--
+-- The write pole runs the step and discards the output position; the read pole
+-- runs the step with the supplied probe direction and returns the position.
+-- This is a lower-level split than a pointed Moore machine: it does not assume
+-- a separate observation map.
+systemToPoles :: Dir p -> System (->) s p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
+systemToPoles probe sys =
+  Poles.poles0
+    (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+    (Body $ \(s, ()) -> runSystem sys (s, probe))
+
+-- | Convert a pointed 'System' into companion/conjoint channel poles over @Body@.
+--
+-- The state carrier is the system's state @s@ and the seed @s0@ is carried by
+-- 'SomePoles'.  The write pole steps with the supplied direction; the read pole
+-- observes the current state without stepping, using the supplied observation
+-- function.
+systemWithSeedToPoles :: s -> (s -> Pos p) -> System (->) s p -> SomePoles (Dir p) (Pos p)
+systemWithSeedToPoles s0 ex sys =
+  SomePoles s0 $
+    Poles.poles0
+      (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+      (Body $ \(s, ()) -> (s, ex s))

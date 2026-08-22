@@ -17,7 +17,7 @@
 -- This module collects the cartesian and cocartesian structure over the
 -- standard tensors @(,)@ and 'Either', plus the tensor action on morphisms.
 --
--- The goal is to keep the core 'Loop' GADT and 'run' mechanism
+-- The goal is to keep the core 'Trace' syntax and 'eval' fold
 -- independent of these structural details.
 --
 -- Note: the monomorphic 'assocL' and 'assocR' helpers below reassociate
@@ -53,8 +53,8 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Strength (..), Traced (..))
 import Circuit.Channel qualified as Ch
-import Circuit.Layer (run)
-import Circuit.Loop (Loop (..))
+import Circuit.Syntax (Syntax (..), (:+:) (..), eval)
+import Circuit.Trace (Trace, base, yank, SigYank (..))
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -64,8 +64,8 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
--- >>> import Circuit.Layer (run)
--- >>> import Circuit.Loop (Loop (..))
+-- >>> import Circuit.Trace (Trace, base, yank)
+-- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
@@ -77,7 +77,7 @@ import Prelude hiding (id, (.))
 -- | Bias for ordered choice in scheduling and additive disjunction.
 --
 -- 'LeftFirst' and 'RightFirst' are used by shared-medium fusion in
--- "Circuit.Shared" and by additive disjunction in "Circuit.Ends".
+-- "Circuit.Shared" and by additive disjunction in "Circuit.Poles".
 data Bias = LeftFirst | RightFirst
   deriving (Eq, Show)
 
@@ -385,25 +385,25 @@ instance (Monad m) => Action These (K m) where
         These a b -> These b a
   {-# INLINE swap #-}
 
--- | Lift 'Tensor'/'Action' through 'Loop'.
+-- | Lift 'Tensor'/'Action' through 'Trace'.
 --
--- This is the single lawful instance: it evaluates each 'Loop' branch
--- independently with 'run' and combines the results using the base arrow's
+-- This is the single lawful instance: it evaluates each 'Trace' branch
+-- independently with 'eval' and combines the results using the base arrow's
 -- tensor. It is correct and black-hole-free, but does not fuse feedback
--- loops. For the fused superposition of two 'Knot's, use 'superpose'.
-instance (Tensor t arr, Traced t' arr) => Tensor t (Loop t' arr) where
-  par f g = Lift (par (run f) (run g))
-  unitl = Lift unitl
-  unitl' = Lift unitl'
-  unitr = Lift unitr
-  unitr' = Lift unitr'
+-- loops. For the fused superposition of two 'yank's, use 'superpose'.
+instance (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
+  par f g = base (par (eval f) (eval g))
+  unitl = base unitl
+  unitl' = base unitl'
+  unitr = base unitr
+  unitr' = base unitr'
 
-instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
-  swap = Lift swap
+instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
+  swap = base swap
 
--- | Fused parallel composition for 'Loop' when the feedback tensor matches.
+-- | Fused parallel composition for 'Trace' when the feedback tensor matches.
 --
--- Two 'Knot's in parallel superpose into one 'Knot' over a paired channel,
+-- Two 'yank's in parallel superpose into one 'yank' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
 --
 -- @superpose (trace f) (trace g) = trace (pre . par f g . post)@
@@ -412,40 +412,38 @@ instance (Action t arr, Traced t' arr) => Action t (Loop t' arr) where
 -- and braiding. This preserves sharing for recursive circuits; the lawful
 -- 'Tensor' instance falls back to independent evaluation.
 --
--- >>> let k1 = Circuit.Loop.Knot (\(ns, _) -> (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (->) [Int] [Int]
--- >>> let k2 = Circuit.Loop.Knot (\(ns, _) -> (2 : ns, take 3 ns))
--- >>> Circuit.Layer.run (superpose k1 k2) ([], [])
+-- >>> let k1 = yank (base (\(ns, _) -> (1 : ns, take 3 ns))) :: Trace (,) (->) [Int] [Int]
+-- >>> let k2 = yank (base (\(ns, _) -> (2 : ns, take 3 ns)))
+-- >>> eval (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
 -- The same fusion works for @K@, preserving sharing across the
 -- recursive channels under @MonadFix@.
 --
--- >>> let k1 = Circuit.Loop.Knot (K $ \(ns, _) -> pure (1 : ns, take 3 ns)) :: Circuit.Loop.Loop (,) (K Identity) [Int] [Int]
--- >>> let k2 = Circuit.Loop.Knot (K $ \(ns, _) -> pure (2 : ns, take 3 ns))
--- >>> runK (Circuit.Layer.run (superpose k1 k2)) ([], [])
+-- >>> let k1 = yank (base (K $ \(ns, _) -> pure (1 : ns, take 3 ns))) :: Trace (,) (K Identity) [Int] [Int]
+-- >>> let k2 = yank (base (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
+-- >>> runK (eval (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.
-  (Tensor t arr, Strength t arr) =>
-  Loop t arr a b ->
-  Loop t arr c d ->
-  Loop t arr (t a c) (t b d)
+  (Tensor t arr, Traced t arr) =>
+  Trace t arr a b ->
+  Trace t arr c d ->
+  Trace t arr (t a c) (t b d)
 superpose x y =
   case (x, y) of
-    (Knot @_ @_ @_ @_ @_ f, Knot @_ @_ @_ @_ @_ g) ->
-      Knot $
-        pre .>> par f g .>> post
-    (Knot @_ @_ @_ @_ @_ f, Lift g) ->
-      Knot $
-        assoc' .>> par f g .>> assoc
-    (Lift f, Knot @_ @_ @_ @_ @_ g) ->
-      Knot $
-        braid .>> par f g .>> braid
-    (Lift f, Lift g) -> Lift (par f g)
+    (Lift f, Lift g) ->
+      base (par f g)
+    (Op (R (Yank f)), Lift g) ->
+      yank (base assoc . base (par (eval f) g) . base assoc')
+    (Lift f, Op (R (Yank g))) ->
+      yank (base braid . base (par f (eval g)) . base braid)
+    (Op (R (Yank f)), Op (R (Yank g))) ->
+      yank (base post . base (par (eval f) (eval g)) . base pre)
+    -- Non-normal forms fall back to the lawful independent-evaluation instance.
+    _ ->
+      base (par (eval x) (eval y))
   where
-    (.>>) :: forall x y z. arr x y -> arr y z -> arr x z
-    (.>>) = (.>)
-
     assoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
     assoc = Ch.assoc
 
@@ -456,5 +454,5 @@ superpose x y =
     braid = Ch.slide
 
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
-    pre = assoc .>> strength braid .>> assoc'
-    post = assoc .>> strength braid .>> assoc'
+    pre = assoc .> strength braid .> assoc'
+    post = assoc .> strength braid .> assoc'

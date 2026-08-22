@@ -13,8 +13,8 @@
 -- | The free symmetric monoidal category with a bimonoid over a primitive set.
 --
 -- 'Net' extends 'SMC' with structural rows for the bimonoid
--- operations: copy, discard, addition, and zero.  Where 'C.Loop' keeps
--- only 'C.Lift' and 'C.Knot' in normal form, 'Net' keeps the wiring
+-- operations: copy, discard, addition, and zero.  Where 'Trace' keeps
+-- only 'base' and 'yank' in normal form, 'Net' keeps the wiring
 -- inspectable — the difference between wiring you can read backwards and
 -- wiring that has been melted into a single loop.
 --
@@ -29,7 +29,7 @@
 -- @
 --
 -- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' interprets the
--- structural rows into the normal form of 'C.Loop'.
+-- structural rows into the free 'Trace' syntax.
 module Circuit.Net
   ( -- * Net
     Net (..),
@@ -55,8 +55,8 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.Layer qualified as Layer
-import Circuit.Loop qualified as C
 import Circuit.SMC (FreeSMC, SMC (..))
+import Circuit.Trace (Trace, base, yank)
 import Circuit.SMC qualified as SMC
 import Circuit.Tensor (Action, Tensor (..), Unit)
 import Data.Kind (Type)
@@ -65,8 +65,9 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Layer (bind, run, unit)
--- >>> import Circuit.Loop qualified as C
 -- >>> import Circuit.Net
+-- >>> import Circuit.Trace (Trace, base, yank)
+-- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.SMC
 -- >>> import Prelude hiding (id, (.))
 
@@ -91,12 +92,12 @@ import Prelude hiding (id, (.))
 -- and 'Discard' swaps with 'Zero' (see 'mirror').
 --
 -- The wiring monoidal structure is over a generic tensor @w@.  Feedback is
--- not represented inside 'Net'; it lives in 'C.Loop' and is introduced only
+-- not represented inside 'Net'; it lives in 'Trace' and is introduced only
 -- at the boundary by 'melt' or by interpreting into a traced target
 -- category.
 --
--- 'Net' extends 'C.Loop' inspectably for the wiring rows.  'melt'
--- collapses the structure to the normal form of 'C.Loop'.
+-- 'Net' extends 'Trace' inspectably for the wiring rows.  'melt'
+-- collapses the structure to the free 'Trace' syntax.
 data Net (w :: Type -> Type -> Type) arr a b where
   -- | Embed an 'SMC' circuit whole.  This is the only contact point between
   -- the SMC layer and the bimonoid layer; 'Net' no longer duplicates the
@@ -164,7 +165,7 @@ swap = FromSMC SMCSwap
 --
 -- Coherence: 'melt' agrees with the function fold on 'SMC' circuits.
 --
--- >>> run (melt (widen m :: Net (,) (->) Int Int) :: C.Loop (,) (->) Int Int) 5
+-- >>> eval (melt (widen m :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
 -- 11
 -- >>> let h f = f
 -- >>> (bind h m :: Int -> Int) 5
@@ -208,29 +209,29 @@ sift Discard = SMCLift (Dg.discardT @w)
 sift Plus = SMCLift (Dg.plusT @w)
 sift Zero = SMCLift (Dg.zeroT @w)
 
--- | Melt the structural rows of a 'Net' into the normal form of 'C.Loop'.
+-- | Melt the structural rows of a 'Net' into the free 'Trace' syntax.
 --
 -- The interpretation from the free symmetric monoidal category with
 -- bimonoid to the free traced monoidal category.  Structural rows ('Par',
 -- 'Copy', 'Plus', etc.) become opaque base-arrow operations wrapped in
--- 'C.Lift'; @Compose@ uses the 'Category' instance of 'C.Loop'.
+-- 'base'; @Compose@ uses the 'Category' instance of 'Trace'.
 --
--- @'run' @Net = 'run' . 'melt'@.
+-- @'run' @Net = 'eval' . 'melt'@.
 --
--- >>> run (melt (lift (+1) :: Net (,) (->) Int Int) :: C.Loop (,) (->) Int Int) 5
+-- >>> eval (melt (lift (+1) :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
 -- 6
 melt ::
   forall w t arr a b.
   (Traced t arr, Action w arr) =>
   Net w arr a b ->
-  C.Loop t arr a b
-melt (FromSMC s) = Layer.bind C.Lift s
+  Trace t arr a b
+melt (FromSMC s) = Layer.bind base s
 melt (Compose g f) = melt g . melt f
 melt (Par f g) = par (melt f) (melt g)
-melt Copy = C.Lift (Dg.copyT @w)
-melt Discard = C.Lift (Dg.discardT @w)
-melt Plus = C.Lift (Dg.plusT @w)
-melt Zero = C.Lift (Dg.zeroT @w)
+melt Copy = base (Dg.copyT @w)
+melt Discard = base (Dg.discardT @w)
+melt Plus = base (Dg.plusT @w)
+melt Zero = base (Dg.zeroT @w)
 
 -- | Mirror a 'Net' over 'Dg.Dagger'.
 --

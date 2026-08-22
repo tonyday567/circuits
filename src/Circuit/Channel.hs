@@ -17,7 +17,7 @@
 -- @Channel → Strength → Traced@ and all base instances for the standard
 -- base arrows @(->)@ and @K m@.  These classes
 -- describe the monoidal structure, tensorial strength, and feedback-fixing
--- trace that underlie the syntax in "Circuit.Loop".
+-- trace that underlie the syntax in "Circuit.Trace".
 --
 -- 'assoc' and 'assoc'' here reassociate /rightward/ and /leftward/
 -- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
@@ -163,7 +163,7 @@ class (Channel t arr) => Strength t arr where
 --
 -- The implementation uses explicit projections so that the result pair
 -- constructor exists before the feedback channel is forced; this keeps
--- fused 'Circuit.Loop.Knot' bodies productive even when the body has a strict
+-- fused 'Circuit.Trace.yank' bodies productive even when the body has a strict
 -- top-level pattern on the recursive channel.
 --
 -- >>> strength (+1) (error "forced" :: (Int, Int)) `seq` ()

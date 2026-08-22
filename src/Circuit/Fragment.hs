@@ -31,16 +31,16 @@
 -- design space a lattice: start with the features you need, add more
 -- when you need them, and forget them via algebras.
 --
--- Signatures expose the design space as a lattice: start with the
--- features you need, add more when you need them, and forget them via
--- algebras. The direct GADTs in "Circuit.Loop" and "Circuit.Net" are
--- the canonical circuit types; this module gives those constructions as
--- compositional syntax.
+-- The generic free-construction substrate lives in "Circuit.Syntax"; the
+-- core traced-morphism syntax lives in "Circuit.Trace". This module adds
+-- the remaining signatures (parallel composition, braiding, copy/discard,
+-- shared-medium fusion, mediators) and the common combinations built from
+-- them.
 --
 -- The signatures are:
 --
 -- * @SigCompose@ — sequential composition
--- * @SigKnot@    — feedback / trace over a tensor @t@
+-- * @SigYank@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition (the tensor product ⊗)
 -- * @SigShared@  — shared-medium fusion (the par product ⅋), parameterised by a schedule
 -- * @SigMediate@ — exponential / why-not (@?@), parameterised by a mediator
@@ -51,24 +51,26 @@
 -- Examples:
 --
 -- * @'Syntax' @SigCompose@ arr@                              — free category
--- * @'Syntax' (@SigCompose@ ':+:' @SigKnot@ t) arr@          — free traced category
+-- * @'Syntax' (@SigCompose@ ':+:' @SigYank@ t) arr@          — free traced category
 -- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@) arr@ — free monoidal category
--- * @'Syntax' (@SigCompose@ ':+:' @SigShared@ t ':+:' @SigKnot@ t) arr@ — free traced category with shared-medium fusion
+-- * @'Syntax' (@SigCompose@ ':+:' @SigShared@ t ':+:' @SigYank@ t) arr@ — free traced category with shared-medium fusion
 -- * @'Syntax' (@SigCompose@ ':+:' @SigPar@ ':+:' @SigSwap@ ':+:' 'SigCopyDiscard' ':+:' 'SigMergeZero') arr@ — Net
 module Circuit.Fragment
-  ( -- * Signatures
+  ( -- * Core syntax (re-exported from "Circuit.Syntax" and "Circuit.Trace")
     Sig,
     (:+:) (..),
-
-    -- * Syntax and algebra
     Syntax (..),
     Algebra (..),
     eval,
     evalInto,
-
-    -- * Individual signatures
     SigCompose (..),
-    SigKnot (..),
+    AlgCat,
+    SigYank (..),
+    Trace,
+    base,
+    yank,
+
+    -- * Additional signatures
     SigMediate (..),
     SigPar (..),
     SigShared (..),
@@ -84,11 +86,9 @@ module Circuit.Fragment
     Mediable (..),
 
     -- * Common syntax combinations
-    AlgCat,
-    AlgLoop,
-    AlgMediate,
-    AlgShared,
     AlgSMC,
+    AlgShared,
+    AlgMediate,
     AlgRelevant,
     AlgAffine,
     AlgCartesian,
@@ -100,8 +100,6 @@ module Circuit.Fragment
 
     -- * Direct <-> algebra isomorphisms
     algMediate,
-    algLoop,
-    runAlgLoop,
     algNet,
     runAlgNet,
   )
@@ -110,125 +108,28 @@ where
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
-import Circuit.Layer (Layer, run)
-import Circuit.Loop qualified as C
 import Circuit.Mediate (Mediator (..), runMediator)
 import Circuit.Net qualified as N
 import Circuit.SMC (SMC (..))
 import Circuit.Shared (Bias (..), Fire, Schedule (..), Shared (..), sharedBy)
+import Circuit.Syntax
+  ( Algebra (..),
+    AlgCat,
+    Sig,
+    SigCompose (..),
+    Syntax (..),
+    (:+:) (..),
+    eval,
+    evalInto,
+  )
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Trace (SigYank (..), Trace, base, yank)
 import Data.Kind (Constraint, Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
--- Signature functors
-
--- | A signature describes a set of constructors for a profunctor.
---
--- * @arr@ — the base arrow (used for constructor constraints)
--- * @rec@ — the recursive arrow type being defined
--- * @a@, @b@ — input and output objects
-type Sig = (Type -> Type -> Type) -> (Type -> Type -> Type) -> Type -> Type -> Type
-
--- | Coproduct of signatures.
-data (sig1 :+: sig2) arr rec a b where
-  L :: sig1 arr rec a b -> (sig1 :+: sig2) arr rec a b
-  R :: sig2 arr rec a b -> (sig1 :+: sig2) arr rec a b
-
-infixr 6 :+:
-
--- ---------------------------------------------------------------------------
--- Free construction over a signature.
-
--- | The free construction over a signature.
-data Syntax (sig :: Sig) (arr :: Type -> Type -> Type) a b where
-  Lift :: arr a b -> Syntax sig arr a b
-  Op :: sig arr (Syntax sig arr) a b -> Syntax sig arr a b
-
--- | Algebra for a signature. Interprets operations of a signature over
--- source arrow @arr@ into a target arrow @arr'@.
---
--- * @emb@ maps base arrows of the source into the target.
--- * @rec@ maps recursive sub-terms into the target.
-class Algebra (sig :: Sig) (arr :: Type -> Type -> Type) (arr' :: Type -> Type -> Type) where
-  type Ctx sig arr arr' :: Constraint
-  type Ctx sig arr arr' = ()
-  alg ::
-    (Ctx sig arr arr') =>
-    (forall x y. arr x y -> arr' x y) ->
-    (forall x y. rec x y -> arr' x y) ->
-    sig arr rec a b ->
-    arr' a b
-
--- | Coproduct algebra dispatches to the appropriate component.
-instance (Algebra sig1 arr arr', Algebra sig2 arr arr') => Algebra (sig1 :+: sig2) arr arr' where
-  type Ctx (sig1 :+: sig2) arr arr' = (Ctx sig1 arr arr', Ctx sig2 arr arr')
-  alg emb rec (L op) = alg emb rec op
-  alg emb rec (R op) = alg emb rec op
-
--- | Fold a free construction into a target arrow using its algebra.
---
--- The embedding @emb@ maps base arrows of the source into the target.
--- For folding to the same arrow, use 'eval'.
---
--- This is the à la carte analogue of 'Circuit.Layer.bind': @evalInto emb@
--- folds syntax into a target just as @bind h@ folds a 'Circuit.Layer.Layer'
--- construction. For example, folding 'AlgNet' into 'AlgLoop' is just
--- @'evalInto' 'Lift'@, playing the same role as a structural forgetting map
--- built with @bind unit@.
---
--- A signature like @@SigKnot@ t@ is best read as a type-level tag that tracks
--- which constructors are present in the union; the coproduct @(':+:')@ is the
--- union of those tags.
-evalInto ::
-  (Category arr', Algebra sig arr arr', Ctx sig arr arr') =>
-  (forall x y. arr x y -> arr' x y) ->
-  Syntax sig arr a b ->
-  arr' a b
-evalInto emb (Lift f) = emb f
-evalInto emb (Op op) = alg emb (evalInto emb) op
-
--- | Fold a free construction into its own base arrow.
-eval ::
-  (Category arr, Algebra sig arr arr, Ctx sig arr arr) =>
-  Syntax sig arr a b ->
-  arr a b
-eval = evalInto id
-
--- ---------------------------------------------------------------------------
 -- Individual signatures
-
--- | Sequential composition.
-data SigCompose arr rec a b where
-  SigCompose :: rec b c -> rec a b -> SigCompose arr rec a c
-
-instance Algebra SigCompose arr arr' where
-  type Ctx SigCompose arr arr' = Category arr'
-  alg ::
-    forall (rec :: Type -> Type -> Type) (a :: Type) (c :: Type).
-    (Ctx SigCompose arr arr') =>
-    (forall x y. arr x y -> arr' x y) ->
-    (forall x y. rec x y -> arr' x y) ->
-    SigCompose arr rec a c ->
-    arr' a c
-  alg _ rec (SigCompose @_ @_ @_ @_ @_ g f) = rec g . rec f
-
--- | Feedback loop / trace over tensor @t@.
-data SigKnot (t :: Type -> Type -> Type) arr rec a b where
-  SigKnot ::
-    rec (t s a) (t s b) ->
-    SigKnot t arr rec a b
-
-instance (Traced t arr') => Algebra (SigKnot t) arr arr' where
-  type Ctx (SigKnot t) arr arr' = Traced t arr'
-  alg ::
-    forall (rec :: Type -> Type -> Type) (b :: Type) (c :: Type).
-    (forall x y. arr x y -> arr' x y) ->
-    (forall x y. rec x y -> arr' x y) ->
-    SigKnot t arr rec b c ->
-    arr' b c
-  alg _ rec (SigKnot @_ @_ @_ @_ @_ @_ f) = trace (rec f)
 
 -- | Parallel composition (the tensor product ⊗).
 --
@@ -248,7 +149,7 @@ instance (Tensor w arr') => Algebra (SigPar w) arr arr' where
 -- | Shared-medium fusion (the par product ⅋), parameterised by a schedule.
 --
 -- The constructor takes two bodies that already share a feedback type @s@ and
--- produces the untraced shared body.  The surrounding 'SigKnot' closes the
+-- produces the untraced shared body.  The surrounding 'SigYank' closes the
 -- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
 data SigShared (t :: Type -> Type -> Type) arr rec i o where
   SigShared ::
@@ -367,20 +268,14 @@ type SigMergeZero w = SigPlus w :+: SigZero w
 -- ---------------------------------------------------------------------------
 -- Common syntax combinations
 
--- | Free category.
-type AlgCat arr = Syntax SigCompose arr
-
--- | Free traced monoidal category over tensor @t@.
-type AlgLoop t arr = Syntax (SigCompose :+: SigKnot t) arr
-
 -- | Free monoidal category over wiring tensor @w@.
 type AlgSMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
-type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigKnot t) arr
+type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr
 
 -- | Free traced category with mediator policies (the @?@ connective).
-type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigKnot t) arr
+type AlgMediate t arr = Syntax (SigCompose :+: SigMediate :+: SigYank t) arr
 
 -- | Free relevant symmetric monoidal category over wiring tensor @w@.
 --
@@ -419,78 +314,11 @@ type AlgBimonoidal w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: Sig
 type AlgNet w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
 
 -- ---------------------------------------------------------------------------
--- Instances for signature-based categories
-
-instance (Category arr) => Category (AlgCat arr) where
-  id = Lift id
-  f . g = Op (SigCompose f g)
-
-instance (Category arr) => Category (AlgLoop t arr) where
-  id = Lift id
-  f . g = Op (L (SigCompose f g))
-
-instance (Category arr, Channel t arr) => Channel t (AlgLoop t arr) where
-  assoc = Lift assoc
-  assoc' = Lift assoc'
-  slide = Lift slide
-
-instance (Category arr, Traced t arr) => Strength t (AlgLoop t arr) where
-  strength f = Lift (strength (eval f))
-
-instance (Category arr, Traced t arr) => Traced t (AlgLoop t arr) where
-  trace body = Op (R (SigKnot body))
-
-instance (Category arr, Traced t arr, Tensor (,) arr) => Tensor (,) (AlgLoop t arr) where
-  par f g = Lift (par (eval f) (eval g))
-  unitl = Lift unitl
-  unitl' = Lift unitl'
-  unitr = Lift unitr
-  unitr' = Lift unitr'
-
-instance (Category arr, Traced t arr, Action (,) arr) => Action (,) (AlgLoop t arr) where
-  swap = Lift swap
-
-instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
-  assoc = Lift assoc
-  assoc' = Lift assoc'
-  slide = Lift slide
-
-instance (Category arr, Strength t arr) => Strength t (AlgCat arr) where
-  strength f = Lift (strength (eval f))
-
-instance (Category arr, Traced t arr) => Traced t (AlgCat arr) where
-  trace body = Lift (trace (eval body))
-
--- ---------------------------------------------------------------------------
 -- Direct <-> algebra isomorphisms
 
 -- | Embed a mediator policy into the free @?@ syntax.
 algMediate :: forall t arr s a b. Mediator s a b -> AlgMediate t arr [a] [b]
 algMediate med = Op (R (L (SigMediate med)))
-
--- | Embed the direct 'C.Loop' GADT into the signature-based form.
-algLoop :: forall t arr a b. C.Loop t arr a b -> AlgLoop t arr a b
-algLoop (C.Lift f) = Lift f
-algLoop (C.Knot f) = Op (R (SigKnot (Lift f)))
-
--- | Project the signature-based circuit back to the direct GADT.
---
--- @SigCompose@ nodes are interpreted using the 'Category' instance of
--- 'C.Loop', so the result is in normal form (at most one 'C.Knot').
-runAlgLoop ::
-  forall t a b.
-  (C.FreeLoop t (->)) =>
-  AlgLoop t (->) a b ->
-  C.Loop t (->) a b
-runAlgLoop (Lift f) = C.Lift f
-runAlgLoop (Op op) = go op
-  where
-    go ::
-      forall x y.
-      (SigCompose :+: SigKnot t) (->) (AlgLoop t (->)) x y ->
-      C.Loop t (->) x y
-    go (L (SigCompose g f)) = runAlgLoop g . runAlgLoop f
-    go (R (SigKnot @_ f)) = C.Knot (run (runAlgLoop f))
 
 -- | Embed the direct 'N.Net' GADT into the signature-based form.
 algNet :: forall w arr a b. N.Net w arr a b -> AlgNet w arr a b

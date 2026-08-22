@@ -46,18 +46,16 @@ library
   exposed-modules:
     Circuit
     Circuit.Body
-    Circuit.Boundary
     Circuit.Category
     Circuit.Channel
     Circuit.ChannelPoly
     Circuit.Dagger
-    Circuit.Ends
+    Circuit.Poles
     Circuit.FinRel
     Circuit.Fragment
     Circuit.Hyper
     Circuit.Layer
     Circuit.Linear
-    Circuit.Loop
     Circuit.Markov
     Circuit.Mediate
     Circuit.Net
@@ -66,8 +64,11 @@ library
     Circuit.Process
     Circuit.SMC
     Circuit.Shared
+    Circuit.Stamped
     Circuit.Stream
+    Circuit.Syntax
     Circuit.Tensor
+    Circuit.Trace
 
   build-depends:
     base >=4.20 && <5,

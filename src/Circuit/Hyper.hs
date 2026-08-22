@@ -45,8 +45,8 @@
 -- >>> import Circuit.Hyper
 -- >>> import Circuit.Channel (trace)
 -- >>> import Circuit.Layer (Free (..), run)
--- >>> import Circuit.Loop (Loop (..))
--- >>> import qualified Circuit.Loop as Loop
+-- >>> import Circuit.Trace (Trace, base, yank)
+-- >>> import qualified Circuit.Trace as T
 -- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 -- >>> import Data.Profunctor (dimap)
@@ -104,8 +104,11 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (Free (..), freeze, run)
-import Circuit.Loop qualified as Loop
 import Circuit.Shared (Schedule (..), Shared (..))
+import Circuit.Syntax (SigCompose (..), (:+:) (..))
+import Circuit.Syntax qualified as Syn
+import Circuit.Trace (SigYank (..), Trace)
+import Circuit.Trace qualified as Trace
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
@@ -119,7 +122,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Channel (Traced (..))
 -- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..), invoke)
 -- >>> import Circuit.Layer (Free (..), run)
--- >>> import qualified Circuit.Loop as Loop
+-- >>> import qualified Circuit.Trace as T
 -- >>> let h = lift (+1) :: Hyper Int Int
 -- >>> let f1 = (*2) :: Int -> Int
 -- >>> let g1 = (+10) :: Int -> Int
@@ -503,47 +506,51 @@ encodeFree ::
 encodeFree (Lift f) = liftH f
 encodeFree (Compose f g) = encodeFree f . encodeFree g
 
--- | Encode a 'Loop' into a 'HyperF'.
+-- | Encode a 'Trace' into a 'HyperF'.
 --
--- This is the unique traced functor from the initial object ('Loop')
+-- This is the unique traced functor from the initial syntax ('Trace')
 -- to the final object ('HyperF'), satisfying the commuting triangle
--- @'observe' . 'encode' = 'run'@.
+-- @'observe' . 'encode' = 'eval'@.
 --
--- 'Lift' constructors embed directly via 'liftH'; 'Knot' constructors
+-- 'base' constructors embed directly via 'liftH'; 'yank' constructors
 -- become 'trace' over a hyperfunction.
 --
--- >>> import Circuit.Layer (run)
--- >>> import Circuit.Loop (Loop (..))
--- >>> observe (encode (Loop.Lift (+1) :: Loop (,) (->) Int Int)) 5
+-- >>> import qualified Circuit.Trace as Trace
+-- >>> observe (encode (Trace.base (+1) :: Trace.Trace (,) (->) Int Int)) 5
 -- 6
 encode ::
   ( HyperBase arr,
     Strength (,) arr
   ) =>
-  Loop.Loop (,) arr a b ->
+  Trace (,) arr a b ->
   HyperF arr a b
-encode (Loop.Lift f) = liftH f
-encode (Loop.Knot f) = trace (liftH f)
+encode (Syn.Lift f) = liftH f
+encode (Syn.Op (L (SigCompose g f))) = encode g . encode f
+encode (Syn.Op (R (Yank body))) = trace (encode body)
 
--- | Flatten a 'HyperF' to a 'Loop' by observing it.
+-- | Flatten a 'HyperF' to a 'Trace' by observing it.
 --
--- This is the forgetful map from the final encoding to the initial encoding.
+-- This is the forgetful map from the final encoding to the initial syntax.
 -- All feedback structure is lost; only the observable behaviour remains.
 --
+-- >>> import Circuit.Syntax (eval)
+-- >>> import qualified Circuit.Trace as T
 -- >>> let h = Circuit.Hyper.lift (+ 1)
--- >>> run (flatten h) 5
+-- >>> eval (flatten h) 5
 -- 6
 --
 -- Flatten then encode is not identity — the feedback structure is gone:
 --
+-- >>> import Circuit.Syntax (eval)
+-- >>> import qualified Circuit.Trace as T
 -- >>> let h = Circuit.Hyper.lift (+ 1)
 -- >>> Circuit.Hyper.observe (encode (flatten h)) 5
 -- 6
 flatten ::
   (HyperBase arr) =>
   HyperF arr a b ->
-  Loop.Loop (,) arr a b
-flatten h = Loop.Lift (mkArr (observeH h))
+  Trace (,) arr a b
+flatten h = Trace.base (mkArr (observeH h))
 
 -- ---------------------------------------------------------------------------
 -- Shared-medium composition (the bridge square)
@@ -575,7 +582,7 @@ runSharedHyperH s0 h a = runStateT (observeH h a) s0
 -- the bridge square:
 --
 -- @
---   encode (Knot (sharedBy sched k1 k2))  ≅  sharedHyperBy sched (encode (Lift k1)) (encode (Lift k2))
+--   encode (yank (base (sharedBy sched k1 k2)))  ≅  sharedHyperBy sched (encode (base k1)) (encode (base k2))
 -- @
 --
 -- The implementation extracts the underlying arrows via 'observeH'/'mkArr',

@@ -27,6 +27,7 @@ module Circuit.Category
     (|>),
     (<|),
     K (..),
+    FunctionLike (..),
   )
 where
 
@@ -85,3 +86,23 @@ instance (Functor m) => Profunctor (K m) where
 instance (Functor m) => Strong (K m) where
   first' (K k) = K (\(a, c) -> fmap (\b -> (b, c)) (k a))
   second' (K k) = K (\(c, a) -> fmap (\b -> (c, b)) (k a))
+
+-- | Categories that can embed pure functions as morphisms.
+--
+-- This is the canonical functor from the function category @(->)@ into
+-- @arr@. It is useful for lifting decision procedures (e.g. bias in a
+-- race) into arrows such as Kleisli categories.
+class (Category arr) => FunctionLike arr where
+  -- | Lift a pure function into the arrow.
+  function :: (a -> b) -> arr a b
+
+-- | Functions embed as themselves.
+instance FunctionLike (->) where
+  function = id
+  {-# INLINE function #-}
+
+-- | Kleisli arrows embed pure functions by returning the result in the
+-- monad.
+instance (Monad m) => FunctionLike (K m) where
+  function f = K (pure . f)
+  {-# INLINE function #-}

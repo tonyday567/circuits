@@ -1,5 +1,5 @@
 -- | Mediator abstraction as a thin wrapper over 'Circuit.Process' and
--- 'Circuit.Ends'.
+-- 'Circuit.Poles'.
 --
 -- A mediator is a Mealy-style state machine with residual state @s@. It
 -- consumes inputs of type @a@ and may produce outputs of type @b@. The
@@ -11,9 +11,9 @@
 --   Mediator s a b  ≈  Process a (Maybe b)
 -- @
 --
--- It is also a pole-unfused pair of channel ends over the ambient-state arrow
--- @Body (,) (s, Maybe b) (->)@; see 'Circuit.Ends.mediatorToMed' and
--- 'Circuit.Ends.medToMediator' for the conversions.
+-- It is also a pole-unfused pair of channel poles over the ambient-state arrow
+-- @Body (,) (s, Maybe b) (->)@; see 'Circuit.Mediate.medToPoles' and
+-- 'Circuit.Mediate.polesToMediator' for the conversions.
 --
 -- The wrapper keeps the residual type @s@ exposed so that close certification
 -- can inspect the final state. All streaming behaviour is delegated to the
@@ -21,7 +21,7 @@
 -- and 'mediateLoop' is 'Circuit.Process.encode'.
 --
 -- The shared-medium fusion ('mediateSharedBody') exposes the two poles of the
--- mediator as the store and emit bodies of an @Ends (Kleisli (State s))@
+-- mediator as the store and emit bodies of a @Poles (Kleisli (State s))@
 -- channel, threaded by a 'Circuit.Tensor.Fire' schedule.
 module Circuit.Mediate
   ( -- * Mediator state machine
@@ -49,6 +49,7 @@ module Circuit.Mediate
     linear,
     pairSum,
     count,
+    raceMediator,
 
     -- * Pair-sum residual (distinguishes held half-pair from ready output)
     PS (..),
@@ -62,15 +63,35 @@ module Circuit.Mediate
     Debt (..),
     mediateSharedBodyChecked,
     runSharedBodyChecked,
+
+    -- * Pole-unfused mediator view
+    Med,
+    medToPoles,
+    polesToMed,
+    medStepP,
+    medStepDirectP,
+    runMed,
+    mediatorToMed,
+    polesToMediator,
+    polesToMediatorBuffered,
+
+    -- * Reusable pole-unfused mediators
+    medLinear,
+    medPairSum,
+    medCount,
   )
 where
 
-import Circuit.Loop (Loop)
+import Circuit.Body (Body (..))
+import Circuit.Category (Category, (.>))
+import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..))
+import Circuit.Poles qualified as Poles
 import Circuit.Process (Process, scan)
 import Circuit.Process qualified as Process
-import Circuit.Shared (Bias (..), Fire (..), Schedule (..), chooseS)
+import Circuit.Trace (Trace)
+import Circuit.Shared (Fire (..), Schedule (..), chooseS)
 import Data.List (mapAccumL, uncons)
-import Data.Maybe (catMaybes, isNothing)
+import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.These (These (..))
 
 -- | A mediator with state @s@, input @a@, output @b@.
@@ -322,7 +343,7 @@ medComult m = (m, m)
 --
 -- This is the honest stream cut: the residual state is carried by the
 -- process's feedback wire, exactly as 'Process.encode' carries it in a
--- @Loop Either (->) [a] [Maybe b]@.
+-- @Trace Either (->) [a] [Maybe b]@.
 mediateProcess :: Mediator s a b -> s -> Process a (Maybe b)
 mediateProcess med s0 =
   Process.Process
@@ -330,11 +351,11 @@ mediateProcess med s0 =
     (\(s, _) a -> let (s', my) = medStep med s a in (s', my))
     snd
 
--- | View a mediator as a 'Loop' over input / output lists.
+-- | View a mediator as a 'Trace' over input / output lists.
 --
 -- This is the wrapper collapsed one layer further: the mediator is just a
 -- traced state machine iterating over lists.
-mediateLoop :: Mediator s a b -> Loop Either (->) [a] [Maybe b]
+mediateLoop :: Mediator s a b -> Trace Either (->) [a] [Maybe b]
 mediateLoop m = Process.encode (mediateProcess m (medInit m))
 
 -- | Linear mediator: no state is owed, every input is forwarded immediately.
@@ -443,3 +464,195 @@ runSharedBodyChecked med sched s (xy : xys) =
     extractOutput (This ()) = Nothing
     extractOutput (That mb) = mb
     extractOutput (These () mb) = mb
+
+
+-- ---------------------------------------------------------------------------
+-- Pole-unfused mediator view
+-- ---------------------------------------------------------------------------
+
+-- | A pole-unfused mediator with state @s@, input @a@, output @b@.
+--
+-- * @medIn@ is the write pole: it consumes an input together with the current
+--   state and updates the state.
+-- * @medOut@ is the read pole: it observes the state and may emit an output,
+--   updating the state again.
+-- * @medOwed@ selects which states carry resource debt for close certification.
+-- * @medDraw@ checks for overdraw on shared-medium transitions.
+-- * @medStep@ is the sequential composition of the two poles, recovered as
+--   'close' on the unit poles.
+data Med s a b = Med
+  { -- | Initial state.
+    medSeed :: s,
+    -- | Write pole: consume input, update state.
+    medIn :: (s, a) -> s,
+    -- | Read pole: observe state, optionally emit output.
+    medOut :: s -> (s, Maybe b),
+    -- | Predicate selecting states that are owed / residual at close time.
+    medOwedP :: s -> Bool,
+    -- | Overdraw check for shared-medium transitions.
+    medDrawP :: s -> s -> Maybe Int
+  }
+
+-- | View a mediator as a matched pair of channel poles over @Body (,) s (->)@.
+--
+-- The write pole becomes the conjoint @Body (,) s (->) a ()@; the read pole becomes
+-- the companion @Body (,) s (->) () (Maybe b)@.
+medToPoles :: Med s a b -> Poles (Body (,) s (->)) a (Maybe b)
+medToPoles med =
+  Poles.poles0
+    (Body $ \(s, a) -> (medIn med (s, a), ()))
+    (Body $ \(s, ()) -> medOut med s)
+
+-- | Recover a mediator from a pair of unit-split poles.
+--
+-- The seed, owed predicate, and draw predicate are not present in the 'Poles'
+-- view; the caller must supply them.
+polesToMed :: s -> (s -> Bool) -> (s -> s -> Maybe Int) -> Poles (Body (,) s (->)) a (Maybe b) -> Med s a b
+polesToMed s0 owed draw p =
+  let (write, receive) = Poles.splay0 p
+   in Med
+        { medSeed = s0,
+          medIn = \(s, a) -> fst (morphism write (s, a)),
+          medOut = \s -> morphism receive (s, ()),
+          medOwedP = owed,
+          medDrawP = draw
+        }
+
+-- | The mediator step, recovered by closing the unit poles of 'medToPoles'.
+--
+-- The write and read poles are splayed out and composed forward: write the
+-- input into the residual, then read whatever the residual is willing to emit.
+medStepP :: Med s a b -> s -> a -> (s, Maybe b)
+medStepP med s a =
+  let (write, receive) = Poles.splay0 (medToPoles med)
+   in morphism (write .> receive) (s, a)
+
+-- | Direct reference implementation of the mediator step.
+--
+-- Law: @medStepP med s a == medStepDirectP med s a@.
+medStepDirectP :: Med s a b -> s -> a -> (s, Maybe b)
+medStepDirectP med s a = medOut med (medIn med (s, a))
+
+-- | Run a pole-unfused mediator over a list of inputs, collecting emitted outputs.
+--
+-- The seed is taken from 'medSeed'.
+runMed :: Med s a b -> [a] -> [b]
+runMed med xs =
+  let (_, mys) = foldl (\(s, acc) a -> let (s', mb) = medStepP med s a in (s', mb : acc)) (medSeed med, []) xs
+   in reverse (catMaybes mys)
+
+-- | Embed a Mealy-style 'Mediator' into a pole-unfused 'Med' over 'Body'.
+--
+-- The residual is extended with a one-slot output buffer @Maybe (Maybe b)@:
+-- the outer 'Maybe' is the buffer slot, the inner 'Maybe' is the mediator's
+-- optional output.  The write pole runs the full mediator step and stores the
+-- output; the read pole emits and clears the buffer.  This keeps same-tick
+-- semantics: one input in, zero or one output out.
+--
+-- This is an embedding, not an isomorphism: the buffer slot is extra structure
+-- that a natively-written 'Med' does not carry.  Behaviour is preserved:
+-- @runMediator med xs == runMed (mediatorToMed med) xs@.
+--
+-- For close certification use 'polesToMediatorBuffered', which projects away the
+-- output-buffer slot so that 'closeCertified' inspects only the original
+-- residual @s@.
+mediatorToMed :: Mediator s a b -> Med (s, Maybe (Maybe b)) a b
+mediatorToMed med =
+  Med
+    { medSeed = (medInit med, Nothing),
+      medIn = \((s, _), a) ->
+        let (s', mb) = medStep med s a
+         in (s', Just mb),
+      medOut = \case
+        (s, Just mb) -> ((s, Nothing), mb)
+        (s, Nothing) -> ((s, Nothing), Nothing),
+      medOwedP = \(s, _) -> medOwed med s,
+      medDrawP = \(s, _) (s', _) -> medDraw med s s'
+    }
+
+-- | View a pole-unfused 'Med' as a Mealy-style 'Mediator'.
+--
+-- The step is 'medStepDirect', i.e. write then read.  This is a left inverse
+-- to 'mediatorToMed' up to behaviour: @runMediator (polesToMediator (mediatorToMed m)) xs@
+-- equals @runMediator m xs@.  It is not an isomorphism because the buffer slot
+-- introduced by 'mediatorToMed' is discarded.
+polesToMediator :: Med s a b -> Mediator s a b
+polesToMediator med = Mediator (medSeed med) (medStepDirectP med) (medOwedP med) (medDrawP med)
+
+-- | View a buffered 'Med' (produced by 'mediatorToMed') as a 'Mediator' over
+-- the original residual @s@, discarding the output-buffer slot.
+--
+-- 'mediatorToMed' adds @(Maybe (Maybe b))@ to the residual so the two poles
+-- can be scheduled independently.  That slot is an output register, not part
+-- of the linear residual, so it must not be inspected by 'closeCertified'.
+-- This function projects it away: each step starts with an empty buffer, runs
+-- the full write-then-read step, and returns only the original residual.
+polesToMediatorBuffered :: Med (s, Maybe (Maybe b)) a b -> Mediator s a b
+polesToMediatorBuffered med =
+  Mediator
+    { medInit = fst (medSeed med),
+      medStep = \s a ->
+        let ((s', _), mb) = medStepDirectP med (s, Nothing) a
+         in (s', mb),
+      medOwed = \s -> medOwedP med (s, Nothing),
+      medDraw = \s s' -> medDrawP med (s, Nothing) (s', Nothing)
+    }
+
+-- | Linear mediator: no state is owed, every input is forwarded immediately.
+--
+-- A held value is pending output, so it is owed until emitted.
+medLinear :: Med (Maybe a) a a
+medLinear =
+  Med
+    { medSeed = Nothing,
+      medIn = \(_, a) -> Just a,
+      medOut = \case
+        Just a -> (Nothing, Just a)
+        Nothing -> (Nothing, Nothing),
+      medOwedP = isJust,
+      medDrawP = \_ _ -> Nothing
+    }
+
+-- | Pair-sum mediator: buffers the first integer, emits the sum on the second.
+--
+-- State is 'PS' extended with the output-buffer slot introduced by
+-- 'mediatorToMed'.  Only the 'PS' component is owed; the buffer slot
+-- is an output register.
+medPairSum :: Med (PS, Maybe (Maybe Int)) Int Int
+medPairSum = mediatorToMed pairSum
+
+-- | Count mediator: emits the number of inputs seen so far.
+--
+-- The counter is state, not residual: nothing is owed at close.
+medCount :: Med Int () Int
+medCount =
+  Med
+    { medSeed = 0,
+      medIn = \case
+        (n, ()) -> n + 1,
+      medOut = \case
+        n -> (n, Just n),
+      medOwedP = const False,
+      medDrawP = debtDraw
+    }
+
+-- | Additive disjunction / race as a mediator.
+--
+-- The residual is the first non-silent value seen.  Once set, every further
+-- input is ignored and the chosen value is emitted repeatedly.  This is the
+-- same picking logic as 'Poles.race', expressed in the @?@-policy vocabulary.
+raceMediator :: (b -> Bool) -> Bias -> Mediator (Maybe b) (b, b) b
+raceMediator isSilent bias =
+  Mediator
+    Nothing
+    ( \s (x, y) -> case s of
+        Just z -> (Just z, Just z)
+        Nothing ->
+          let z = pick bias (x, y)
+           in (Just z, Just z)
+    )
+    (const False)
+    (\_ _ -> Nothing)
+  where
+    pick LeftFirst (x, y) = if isSilent x then y else x
+    pick RightFirst (x, y) = if isSilent y then x else y

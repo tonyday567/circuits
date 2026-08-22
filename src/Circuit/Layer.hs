@@ -16,7 +16,7 @@
 --
 -- * @run@ @Free@       — free category
 -- * @run@ @SMC@        — free symmetric monoidal category
--- * @run@ @(Loop t)@   — free traced monoidal category
+-- * @run@ @Trace@      — free traced monoidal category (in "Circuit.Trace")
 -- * @run@ @Net@        — free symmetric monoidal category with bimonoid
 --
 -- 'Law' says what the /target/ category must satisfy to receive a 'bind'

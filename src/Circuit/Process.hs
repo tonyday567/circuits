@@ -1,10 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-pattern-namespace-specifier #-}
 
 -- | Stateful processes as a 'Circuit' base arrow.
 --
@@ -21,14 +18,13 @@
 -- This is the circuits-native carrier for streaming state machines. It is
 -- intended to replace the hand-rolled state-machine arrow: stats packages
 -- become boxes @Process a b@, while the arrow itself lives in the substrate
--- next to 'Circuit.Loop' and 'Circuit.Net'.
+-- next to 'Circuit.Trace' and 'Circuit.Net'.
 --
 -- The semantics are intentionally tied to the circuits substrate:
 --
--- * 'scan' is defined as @'run' . 'encode'@, where 'encode' maps the process
---   into a stream-level 'Loop' 'Either' @(->)@ over lists.
--- * A fused @scanl'@ implementation is provided as a fast path, verified by
---   oracle against the 'run' . 'encode' definition.
+-- * 'scan' is the reference runner: a fused @scanl'@ over the Moore triple.
+-- * 'encode' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
+--   lists; the two runners are verified equivalent by oracle.
 -- * The arrow-level 'Traced' Either instance is per-tick Conway/Elgot settle,
 --   not cross-tick state feedback; see 'register' for the latter.
 --
@@ -40,7 +36,11 @@
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
-    pattern P,
+
+    -- * Boundary tokens (K + payload)
+    Boundary (..),
+    isMark,
+    isPayload,
 
     -- * System <-> Process conversions
     systemToProcess,
@@ -54,31 +54,68 @@ module Circuit.Process
     -- * Cross-tick feedback
     delay,
     register,
+
+    -- * Body conversions
+    processToBody,
+    processToSomeBody,
   )
 where
 
-import Circuit.Boundary (Boundary (..))
+import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Dagger qualified as Dagger
-import Circuit.Layer (run)
-import Circuit.Loop (Loop (..))
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
+import Circuit.Trace (Trace, base, yank)
 import Circuit.Shared (Bias (..), Fire (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Tensor (Action (..), Tensor (..))
-import Control.Category qualified as Cat
-import Data.Bifunctor (bimap, first, second)
+import Data.Bifunctor (Bifunctor (..))
 import Data.List (scanl')
 import Data.Maybe (fromMaybe)
-import Data.Profunctor (Costrong (..), Profunctor (..), Strong (..))
 import Data.These (These (..))
-import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Process
 -- >>> import Prelude hiding (id, (.))
+
+-- ---------------------------------------------------------------------------
+-- Boundary tokens (K + payload)
+-- ---------------------------------------------------------------------------
+
+-- | The free boundary @K + payload@.
+--
+-- A token on the boundary is either a mark from a finite alphabet @k@ or a
+-- payload value @a@.  This is the level-0 grammar of process boundaries:
+-- marks are the control tokens, payloads are the data.
+--
+-- 'fmap' acts only on the payload side; marks are carried through unchanged.
+--
+-- >>> fmap length (Payload "hi")
+-- Payload 2
+-- >>> fmap length (Mark "halt")
+-- Mark "halt"
+data Boundary k a
+  = -- | Control token from the finite mark alphabet.
+    Mark k
+  | -- | Data-carrying payload.
+    Payload a
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor Boundary where
+  bimap f _ (Mark k) = Mark (f k)
+  bimap _ g (Payload a) = Payload (g a)
+
+-- | True iff the token is a 'Mark'.
+isMark :: Boundary k a -> Bool
+isMark (Mark _) = True
+isMark (Payload _) = False
+
+-- | True iff the token is a 'Payload'.
+isPayload :: Boundary k a -> Bool
+isPayload (Mark _) = False
+isPayload (Payload _) = True
 
 -- | A stateful process from @a@ to @b@.
 --
@@ -93,12 +130,6 @@ data Process a b where
     (s -> a -> s) ->
     (s -> b) ->
     Process a b
-
--- | Bidirectional pattern synonym for the Moore triple.
-pattern P :: (a -> s) -> (s -> a -> s) -> (s -> b) -> Process a b
-pattern P i st ex = Process i st ex
-
-{-# COMPLETE P #-}
 
 -- | Convert a monomial 'System', an explicit seed, and a state observation
 -- into a first-input-seeded 'Process'.
@@ -141,107 +172,26 @@ markSystem isHalt ex sys =
         Right _ -> Nothing
     )
 
--- | Strict pair, reused from the original mealy package for fused composition.
-data Pair' a b = Pair' !a !b
-  deriving (Eq, Ord, Show, Read)
-
-instance (Semigroup a, Semigroup b) => Semigroup (Pair' a b) where
-  Pair' a b <> Pair' c d = Pair' (a <> c) (b <> d)
-  {-# INLINE (<>) #-}
-
-instance (Monoid a, Monoid b) => Monoid (Pair' a b) where
-  mempty = Pair' mempty mempty
-
--- ---------------------------------------------------------------------------
--- Functor / Applicative
--- ---------------------------------------------------------------------------
-
-instance Functor (Process a) where
-  fmap f (P i st ex) = P i st (f . ex)
-  {-# INLINE fmap #-}
-
-instance Applicative (Process a) where
-  pure b = P (const ()) (\() _ -> ()) (\() -> b)
-  {-# INLINE pure #-}
-
-  P i1 st1 ex1 <*> P i2 st2 ex2 =
-    P
-      (\a -> Pair' (i1 a) (i2 a))
-      (\(Pair' s1 s2) a -> Pair' (st1 s1 a) (st2 s2 a))
-      (\(Pair' s1 s2) -> ex1 s1 (ex2 s2))
-  {-# INLINE (<*>) #-}
-
 -- ---------------------------------------------------------------------------
 -- Category
 -- ---------------------------------------------------------------------------
 
 instance Category Process where
   id :: Process a a
-  id = P id const id
+  id = Process id const id
   {-# INLINE id #-}
 
   (.) :: Process b c -> Process a b -> Process a c
-  P i2 st2 ex2 . P i1 st1 ex1 =
-    P
-      (\a -> let s1 = i1 a in Pair' s1 (i2 (ex1 s1)))
-      ( \(Pair' s1 s2) a ->
+  Process i2 st2 ex2 . Process i1 st1 ex1 =
+    Process
+      (\a -> let s1 = i1 a in (s1, i2 (ex1 s1)))
+      ( \(s1, s2) a ->
           let s1' = st1 s1 a
               s2' = st2 s2 (ex1 s1')
-           in Pair' s1' s2'
+           in (s1', s2')
       )
-      (\(Pair' _ s2) -> ex2 s2)
+      (\(_, s2) -> ex2 s2)
   {-# INLINE (.) #-}
-
--- | Backwards-compatible 'Control.Category' instance.
---
--- This is a migration aid for code that still uses @(>>>)@ and the rest of
--- the standard arrow vocabulary. New circuits-native code should prefer the
--- 'Circuit.Category' methods.
-instance Cat.Category Process where
-  id = id
-  (.) = (.)
-
--- ---------------------------------------------------------------------------
--- Profunctor
--- ---------------------------------------------------------------------------
-
-instance Profunctor Process where
-  dimap f g (P i st ex) = P (i . f) (\s -> st s . f) (g . ex)
-  {-# INLINE dimap #-}
-
-  lmap f (P i st ex) = P (i . f) (\s -> st s . f) ex
-  {-# INLINE lmap #-}
-
-  rmap g (P i st ex) = P i st (g . ex)
-  {-# INLINE rmap #-}
-
--- ---------------------------------------------------------------------------
--- Strong / Costrong (profunctors layer)
--- ---------------------------------------------------------------------------
-
--- | Cartesian strength from the 'profunctors' package.
---
--- 'first'' puts the active wire on the left; 'second'' puts it on the right.
--- Both are derivable from the circuits 'Strength (,) Process' instance.
-instance Strong Process where
-  first' p = dimap sw sw (strength p)
-    where
-      sw (a, b) = (b, a)
-  {-# INLINE first' #-}
-  second' = strength
-  {-# INLINE second' #-}
-
--- | Costrength: closed feedback over the cartesian tensor.
---
--- 'unfirst' and 'unsecond' are exactly the cartesian 'trace' after swapping
--- the active wire into / out of the feedback position.
-instance Costrong Process where
-  unfirst p = trace (dimap sw sw p)
-    where
-      sw (a, b) = (b, a)
-  {-# INLINE unfirst #-}
-  unsecond = trace
-  {-# INLINE unsecond #-}
 
 -- ---------------------------------------------------------------------------
 -- Channel / Strength / Traced for (,)
@@ -254,20 +204,20 @@ instance Costrong Process where
 -- ---------------------------------------------------------------------------
 
 instance Channel (,) Process where
-  assoc = P id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
-  assoc' = P id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
-  slide = P id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
+  assoc = Process id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
+  assoc' = Process id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
+  slide = Process id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
 instance Strength (,) Process where
-  strength (P i st ex) =
-    P
+  strength (Process i st ex) =
+    Process
       (\(~(a, b)) -> (a, i b))
       (\(~(_, s)) (~(a', b)) -> (a', st s b))
       (\(~(a, s)) -> (a, ex s))
 
 instance Traced (,) Process where
-  trace (P i st ex) =
-    P
+  trace (Process i st ex) =
+    Process
       (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
       ( \s b ->
           let (s', _a) = fix (\ ~(s'', a') -> (st s (a', b), fst (ex s'')))
@@ -282,24 +232,24 @@ instance Traced (,) Process where
 --
 -- These instances make @Process@ a cartesian monoidal category in its own
 -- right, so it can serve as a base category for shared-medium fusion and
--- for @Loop (,) Process@.
+-- for @Trace (,) Process@.
 -- ---------------------------------------------------------------------------
 
 instance Tensor (,) Process where
-  par (P i1 st1 ex1) (P i2 st2 ex2) =
-    P
+  par (Process i1 st1 ex1) (Process i2 st2 ex2) =
+    Process
       (bimap i1 i2)
       (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
       (bimap ex1 ex2)
   {-# INLINE par #-}
 
-  unitl = P snd (\_ (_, a) -> a) id
-  unitl' = P id const ((),)
-  unitr = P fst (\_ (a, ()) -> a) id
-  unitr' = P id const (,())
+  unitl = Process snd (\_ (_, a) -> a) id
+  unitl' = Process id const ((),)
+  unitr = Process fst (\_ (a, ()) -> a) id
+  unitr' = Process id const (,())
 
 instance Action (,) Process where
-  swap = P id (const id) sw
+  swap = Process id (const id) sw
     where
       sw (a, b) = (b, a)
   {-# INLINE swap #-}
@@ -311,8 +261,8 @@ instance Action (,) Process where
 -- not step. Each process is injected lazily on its first firing, so a body that
 -- is never scheduled consumes no inputs and produces no outputs.
 instance Shared (,) Process where
-  sharedBy sched (P iL stL exL) (P iR stR exR) =
-    P inject step extract
+  sharedBy sched (Process iL stL exL) (Process iR stR exR) =
+    Process inject step extract
     where
       inject (s, (a, c)) =
         let (s', fire) = chooseS sched s
@@ -385,25 +335,25 @@ instance Shared (,) Process where
 -- ---------------------------------------------------------------------------
 
 instance Channel Either Process where
-  assoc = P id (\_ x -> x) assocEither
+  assoc = Process id (\_ x -> x) assocEither
     where
       assocEither (Left (Left a)) = Left a
       assocEither (Left (Right b)) = Right (Left b)
       assocEither (Right c) = Right (Right c)
-  assoc' = P id (\_ x -> x) assocEither'
+  assoc' = Process id (\_ x -> x) assocEither'
     where
       assocEither' (Left a) = Left (Left a)
       assocEither' (Right (Left b)) = Left (Right b)
       assocEither' (Right (Right c)) = Right c
-  slide = P id (\_ x -> x) slideEither
+  slide = Process id (\_ x -> x) slideEither
     where
       slideEither (Left a) = Right (Left a)
       slideEither (Right (Left b)) = Left b
       slideEither (Right (Right c)) = Right (Right c)
 
 instance Strength Either Process where
-  strength (P i st ex) =
-    P
+  strength (Process i st ex) =
+    Process
       (\case Left a -> (Nothing, Left a); Right b -> let s0 = i b in (Just s0, Right (ex s0)))
       ( \(ms, _) -> \case
           Left a -> (ms, Left a)
@@ -414,7 +364,7 @@ instance Strength Either Process where
       snd
 
 instance Traced Either Process where
-  trace (P i st ex) = P i' st' ex'
+  trace (Process i st ex) = Process i' st' ex'
     where
       settle m = case ex m of
         Left s -> settle (st m (Left s))
@@ -431,27 +381,27 @@ instance Traced Either Process where
 -- ---------------------------------------------------------------------------
 
 instance (Copy (->) a) => Copy Process a where
-  copy = P id (\_ x -> x) Dagger.copy
+  copy = Process id (\_ x -> x) Dagger.copy
 
 instance Discard Process a where
-  discard = P id (\_ x -> x) (const ())
+  discard = Process id (\_ x -> x) (const ())
 
 instance (Merge (->) a) => Merge Process a where
-  plus = P id (\_ x -> x) Dagger.plus
+  plus = Process id (\_ x -> x) Dagger.plus
 
 instance (Zero (->) a) => Zero Process a where
-  zero = P id (\_ x -> x) Dagger.zero
+  zero = Process id (\_ x -> x) Dagger.zero
 
 -- ---------------------------------------------------------------------------
 -- Runners
 -- ---------------------------------------------------------------------------
 
--- | Encode a 'Process' as a stream-level 'Loop Either (->)' over lists.
+-- | Encode a 'Process' as a stream-level 'Trace Either (->)' over lists.
 --
--- This is the definitional runner: 'scan' is 'run' composed with 'encode'.
+-- This is the definitional runner: 'scan' is 'eval' composed with 'encode'.
 -- The feedback channel carries @(state, remaining input, accumulated output)@.
-encode :: Process a b -> Loop Either (->) [a] [b]
-encode (P i st ex) = Knot body
+encode :: Process a b -> Trace Either (->) [a] [b]
+encode (Process i st ex) = yank (base body)
   where
     body (Right []) = Right []
     body (Right (a : as)) =
@@ -464,10 +414,10 @@ encode (P i st ex) = Knot body
 
 -- | Run a process over a list, returning the output at each step.
 --
--- Law: @scan p xs == 'run' ('encode' p) xs@.
+-- Law: @scan p xs == eval (encode p) xs@, where @eval@ is 'Circuit.Syntax.eval'.
 scan :: Process a b -> [a] -> [b]
 scan _ [] = []
-scan (P i st ex) (x : xs) =
+scan (Process i st ex) (x : xs) =
   let s0 = i x
    in ex <$> scanl' st s0 xs
 
@@ -486,7 +436,7 @@ fold p xs = Just (last (scan p xs))
 -- thereafter. This is the primitive that makes 'register' productive: the
 -- feedback wire is observable one tick late.
 delay :: s -> Process s s
-delay s0 = P (const s0) (const id) id
+delay s0 = Process (const s0) (const id) id
 
 -- | Cross-tick register feedback.
 --
@@ -502,13 +452,50 @@ delay s0 = P (const s0) (const id) id
 --
 -- For bodies whose fixed-point is independent of the initial feedback value
 -- (e.g. affine/stateless feedback such as 'ewmaBody'), the same wiring can
--- be expressed using 'delay', 'strength' and 'trace':
---
--- @register s0 body == trace (dimap swap swap (body . strength (delay s0)))@,
--- where @swap (a, b) = (b, a)@.
+-- be expressed by swapping the feedback wire into the active position,
+-- applying 'strength' ('delay' s0), and tracing.
 register :: s -> Process (a, s) (b, s) -> Process a b
-register s0 (P i st ex) = P i' st' ex'
+register s0 (Process i st ex) = Process i' st' ex'
   where
     i' a = i (a, s0)
     st' s a = st s (a, snd (ex s))
     ex' s = fst (ex s)
+
+
+-- ---------------------------------------------------------------------------
+-- Body conversions
+-- ---------------------------------------------------------------------------
+
+-- | View a 'Process' as a knot body over the 'Either' tensor.
+--
+-- This is the same body used by 'encode', now exposed as a value
+-- of @Body Either s (->)@. It confirms the Process / Trace Either round-trip
+-- factors through the knot-body category.
+processToBody :: Process a b -> SomeBody Either (->) [a] [b]
+processToBody (Process inject step extract) =
+  SomeBody (Nothing, [], []) $ Body $ \case
+    Right [] -> Right []
+    Right (a : as) ->
+      let s0 = inject a
+       in Left (Just s0, as, [extract s0])
+    Left (_, [], bs) -> Right (reverse bs)
+    Left (Just s, a : as, bs) ->
+      let s' = step s a
+       in Left (Just s', as, extract s' : bs)
+    Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
+
+-- | View a 'Process' as an existentially-quantified 'Body'.
+--
+-- The process state is exposed as the ambient wire.  The initial state is
+-- 'Nothing'; the first input is fed to 'inject' to create the real state, and
+-- subsequent inputs use 'step'.  The output is always 'extract' of the current
+-- state.
+processToSomeBody :: Process a b -> SomeBody (,) (->) a b
+processToSomeBody (Process inject step extract) =
+  SomeBody Nothing $ Body $ \case
+    (Nothing, a) ->
+      let s = inject a
+       in (Just s, extract s)
+    (Just s, a) ->
+      let s' = step s a
+       in (Just s', extract s')

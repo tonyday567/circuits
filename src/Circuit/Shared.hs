@@ -13,7 +13,7 @@
 -- (the @⊗@ product).
 --
 -- 'Bias' is re-exported from "Circuit.Tensor" because it is also used for
--- additive disjunction in "Circuit.Ends".
+-- additive disjunction in "Circuit.Poles".
 module Circuit.Shared
   ( -- * Schedule bias
     Bias (..),

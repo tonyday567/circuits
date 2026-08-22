@@ -25,21 +25,21 @@
 --
 -- === Switching between representations
 --
--- `Loop` is the inspectable GADT form. @Hyper@ is the final, coinductive
--- encoding. Convert a `Loop` to a @Hyper@ with `encode`, and observe it
--- with `observe` (or eliminate it with `runHyper`).
+-- @Trace@ is the inspectable free-syntax form. @Hyper@ is the final,
+-- coinductive encoding. Convert a @Trace@ to a @Hyper@ with `encode`, and
+-- observe it with `observe` (or eliminate it with `runHyper`).
 --
--- >>> observe (encode (Circuit.Loop.Lift (+1) :: Loop (,) (->) Int Int)) 41
+-- >>> observe (encode (base (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
 --
 -- This library provides three views on feedback:
 --
--- * `Loop` (in "Circuit.Loop") — the initial, inspectable GADT encoding.
+-- * @Trace@ (in "Circuit.Trace") — the initial, inspectable free-syntax.
 -- * @Hyper@ (in "Circuit.Hyper") — the final, coinductive encoding.
 -- * `Body` (in "Circuit.Body") — the knot-body category
---   @arr (t ch a) (t ch b)@, the stateful substrate that `Loop` hides before
+--   @arr (t ch a) (t ch b)@, the stateful substrate that @Trace@ hides before
 --   tracing. The cartesian instance is `Body (,) ch (->)`.
 --
 -- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
@@ -52,13 +52,13 @@
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a `Loop` (currently @(,), `Either`, or `These` for scheduling).
+--   inside a @Trace@ (currently @(,), `Either`, or `These` for scheduling).
 --
 -- * __Feedback value__: The component that travels around the loop (the first
---   parameter of the tensor inside a `Loop`).
+--   parameter of the tensor inside a @Trace@).
 --
 -- * __Payload__: The value being transformed and emitted (the second
---   parameter of the tensor inside a `Loop`).
+--   parameter of the tensor inside a @Trace@).
 --
 -- * __Feedback channel__: The path the feedback value takes when routed back
 --   into the next step.
@@ -67,23 +67,25 @@
 --
 -- * __Folds__ eliminate a free construction:
 --   `run` (any `Layer`), `freeze` (`Free` to its base arrow),
---   `melt` (`Net` to `Loop`), @sift@ (`Net` to `SMC`),
+--   `melt` (`Net` to @Trace@), @sift@ (`Net` to `SMC`),
 --   @eval@ / @evalInto@ (@Syntax@ via a fragment algebra).
 --
 -- * __Injections__ embed one construction into another without eliminating:
 --   `unit` (base arrow into a `Layer`), @widen@ (`SMC` into `Net`),
---   @algLoop@ / @algNet@ (direct GADT into @Syntax@).
+--   @base@ / @yank@ (base arrow or body into @Trace@), @algNet@ (direct GADT into @Syntax@).
 --
--- * __Representation changes__: `encode` (`Loop` to @Hyper@),
+-- * __Representation changes__: `encode` (@Trace@ to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
 module Circuit
-  ( -- * Loop
-    Loop (..),
+  ( -- * Trace (free traced category syntax)
+    Trace,
+    base,
+    yank,
     Traced,
     Strength,
-    -- | Close a feedback loop. See "Circuit.Loop".
+    -- | Close a feedback loop. See "Circuit.Channel".
     trace,
-    -- | Open a feedback loop. See "Circuit.Loop".
+    -- | Open a feedback loop. See "Circuit.Channel".
     strength,
 
     -- * Polynomial channels (successor to pure '(->)' Ends)
@@ -121,24 +123,18 @@ module Circuit
     delay,
     register,
 
-    -- * Channel ends (bi-polar effectful/process API; still the right tool for
-
+    -- * Channel poles (bi-polar effectful/process API; still the right tool for
     -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
-    Ends (..),
+    Poles (..),
     close,
     prefixIn,
     suffixOut,
-    ends,
-    endsK,
+    poles,
+    polesK,
     splay,
-    composeEnds,
     (>:>),
-    parEnds,
-    dimapEnds,
-    lmapEnds,
-    rmapEnds,
     HasDual (..),
 
     -- * Copycat / multiplicative excluded middle
@@ -186,7 +182,6 @@ module Circuit
     HyperF (..),
     lift,
     observe,
-    base,
     push,
     runHyper,
     encode,
@@ -198,22 +193,11 @@ module Circuit
     -- * Tensor
     superpose,
 
-    -- * Boundary (K + payload)
-    Boundary (..),
-    isMark,
-    isPayload,
+    -- * Stamped values
+    Stamped (..),
 
-    -- * Linearity marks
-    Linear (..),
-    IsLinear,
-    NotLinear,
-
-    -- * Additive ends
+    -- * Additive poles
     Bias (..),
-    IsSilent (..),
-    HasSilent (..),
-    pairEnds,
-    raceEnds,
     raceMediator,
 
     -- * Par (multiplicative disjunction)
@@ -264,7 +248,7 @@ import Circuit.Body
     SomeBody (..),
     runSomeBody,
   )
-import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
+import Circuit.Stamped (Stamped (..))
 import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
   ( Strength,
@@ -292,29 +276,19 @@ import Circuit.Dagger
     Zero (..),
     transpose,
   )
-import Circuit.Ends
+import Circuit.Poles
   ( Bias (..),
-    Ends (..),
     HasDual (..),
-    HasSilent (..),
     In (..),
-    IsSilent (..),
     Out (..),
+    Poles (..),
     box,
     boxAsymmetric,
     close,
-    composeEnds,
     copycat,
-    dimapEnds,
-    ends,
-    endsK,
-    lmapEnds,
-    pairEnds,
-    parEnds,
+    poles,
+    polesK,
     prefixIn,
-    raceEnds,
-    raceMediator,
-    rmapEnds,
     splay,
     suffixOut,
     (>:>),
@@ -322,7 +296,6 @@ import Circuit.Ends
 import Circuit.Hyper
   ( Hyper,
     HyperF (..),
-    base,
     encode,
     encodeEither,
     encodeFree,
@@ -342,8 +315,8 @@ import Circuit.Layer
     run,
     (:~>),
   )
-import Circuit.Loop (Loop (..))
-import Circuit.Loop qualified as Loop
+import Circuit.Trace (Trace, base, yank)
+import Circuit.Trace qualified as Trace
 import Circuit.Markov
   ( copyNatural,
     deterministic,
@@ -361,6 +334,7 @@ import Circuit.Mediate
     linear,
     mediateLoop,
     pairSum,
+    raceMediator,
     runMediator,
   )
 import Circuit.Net

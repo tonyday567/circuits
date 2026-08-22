@@ -4,24 +4,30 @@
 
 module Main where
 
-import Circuit.Boundary (Boundary (..), IsLinear, Linear (..), NotLinear, Stamped (..), isMark, isPayload)
+import Circuit.Stamped (Stamped (..), stamp, stamped)
 import Circuit.Category (K (..), id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.ChannelPoly (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
+import Circuit.Body (Body (..), SomeBody (..), morphism, runSomeBody)
 import Circuit.Dagger (Copy (..), CopyDiscard, Dagger (..), Discard (..), Merge (..), MergeZero, Zero (..), transpose)
-import Circuit.Ends (Bias (..), Ends (..), HasDual (..), box, close, composeEnds0, copycat, ends, ends0, endsK, pairEnds, prefixIn, raceEnds, splay, splay0, suffixOut)
-import Circuit.Ends qualified as MedState
+import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..), box, close, copycat, poles, poles0, polesK, prefixIn, splay, splay0, suffixOut, (>:>))
+import Circuit.Poles qualified as Poles
+import Circuit.Body qualified as Body
+import Circuit.Process qualified as Process
+import Circuit.Mediate qualified as Med
+import Circuit.Poly qualified as Poly
 import Circuit.FinRel
 import Circuit.Fragment qualified as Frag
 import Circuit.Hyper (Hyper, observe)
 import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
-import Circuit.Loop (Loop (..))
+import Circuit.Syntax qualified as Syn
+import Circuit.Trace (Trace, base, yank)
 import Circuit.Mediate (Debt (..), FlushableResidual (..), LinearResidual (..), LinearityViolation (..), Mediator (..), PS (..), closeCertified, closeCertifiedWith, closeCertifiedWithBy, count, linear, medComult, medCounit, mediateLoop, mediateProcess, mediateSharedBody, mediateSharedBodyChecked, pairSum, runMediator, runMediatorState, runSharedBodyChecked)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Prob (Prob (..), embed, fromWeighted, mass, orP, parFG, parGF, score, traceE, traceEN)
-import Circuit.Process (Process (..), delay, encode, fold, markSystem, register, scan, systemToProcess)
+import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, register, scan, systemToProcess)
 import Circuit.Linear (BangCopy (..), BangWeaken (..), Bot, Exponential (..), Lolli (..), Par (..), WhyNotIntro (..), WhyNotMonoid (..), distL, distR, mix)
 import Circuit.Shared (Fire (..), Schedule (..), Shared (..))
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
@@ -242,7 +248,7 @@ checkIO name act = do
 -- ⅋ probe helpers
 -- ---------------------------------------------------------------------------
 
--- | Body that prepends a marker to the shared feedback list and emits the
+-- | Body that preppoles a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
 markerBody :: Int -> ([Int], ()) -> ([Int], [Int])
 markerBody n (ns, ()) = (n : ns, take 3 ns)
@@ -354,10 +360,10 @@ sharedAddFPair (s, (a, b)) = let s' = s + a + b in (s', (s', s'))
 -- 'IORef' and reads retrieve the most recently stored value.  This is the
 -- effectful counterpart of the unit/copycat end: closing the two poles
 -- yanks to the identity morphism.
-mkIdentityEnd :: IO (Ends (K IO) Int Int)
+mkIdentityEnd :: IO (Poles (K IO) Int Int)
 mkIdentityEnd = do
   ref <- newIORef (0 :: Int)
-  pure $ endsK (writeIORef ref) (readIORef ref)
+  pure $ polesK (writeIORef ref) (readIORef ref)
 
 -- ---------------------------------------------------------------------------
 -- Keystone: System (Prob (->) r) s (Mono i o)
@@ -688,7 +694,7 @@ main = do
         check "Process fold empty" $
           isNothing (fold sumP []),
         check "Process scan == run . encode" $
-          run (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
+          Syn.eval (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
         check "Process Traced (,) yanking" $
           scan (trace swapPairP) [1, 2, 3] == [1, 2, 3],
         check "Process Traced Either yanking" $
@@ -705,20 +711,20 @@ main = do
                 == scan (trace (swapP (body . strength (delay s0)))) xs,
         -- Process / Body equivalence
         check "processToSomeBody sumP agrees with scan" $
-          MedState.runSomeBody (MedState.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
+          Body.runSomeBody (Process.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
         check "processToSomeBody swapPairP agrees with scan" $
-          MedState.runSomeBody (MedState.processToSomeBody swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
+          Body.runSomeBody (Process.processToSomeBody swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
         check "processToSomeBody ewma agrees with scan" $
-          MedState.runSomeBody (MedState.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
-        -- Process / Loop Either round-trip factors through Body Either ch (->)
+          Body.runSomeBody (Process.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
+        -- Process / Trace Either round-trip factors through Body Either ch (->)
         check "Process encode factors through Body Either ch (->)" $
-          let viaBody p = case MedState.processToBody p of MedState.SomeBody _ (MedState.Body f) -> Knot f
-           in scan sumP [1, 2, 3] == run (viaBody sumP) [1, 2, 3]
-                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == run (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
-                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == run (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
-        -- Process as a base arrow for Loop / Net / Shared
-        check "Process lifts into Loop (,) Process" $
-          scan (run (Lift sumP :: Loop (,) Process Int Int)) [1, 2, 3]
+          let viaBody p = case Process.processToBody p of Body.SomeBody _ (Body.Body f) -> yank (base f)
+           in scan sumP [1, 2, 3] == Syn.eval (viaBody sumP) [1, 2, 3]
+                && scan swapPairP [(1, 2), (3, 4), (5, 6)] == Syn.eval (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
+                && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == Syn.eval (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
+        -- Process as a base arrow for Trace / Net / Shared
+        check "Process lifts into Trace (,) Process" $
+          scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]
             == scan sumP [1, 2, 3],
         check "Net (,) Process copy uses Process.copy" $
           let p = run (Net.Copy :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
@@ -801,66 +807,66 @@ main = do
            in approx (e 60) 2.0 && e 5 < e 20 && e 20 < e 60,
         check "Prob Bool trace reachability via lazy (||)" $
           reach 2,
-        -- Ends oracles
-        check "O9 ends . splay == id" $
-          let e :: Ends (->) () Int
-              e = ends0 (const ()) (const 42)
+        -- Poles oracles
+        check "O9 poles . splay == id" $
+          let e :: Poles (->) () Int
+              e = poles0 (const ()) (const 42)
               (write', receive') = splay0 e
-              e' = ends0 write' receive'
-           in run (box @(,) e') () == 42 && run (box @(,) e) () == 42,
+              e' = poles0 write' receive'
+           in box @() e' () == 42 && box @() e () == 42,
         check "annihilation: close on non-copycat end violates yanking" $
-          let e :: Ends (->) Int Int
-              e = ends0 (const ()) (const 42)
+          let e :: Poles (->) Int Int
+              e = poles0 (const ()) (const 42)
            in close (conjoint e) (companion e) 0 == 42
                 && close (conjoint e) (companion e) 7 == 42,
         checkIO "residual observed: sequential boxes agree but residual is exposed" $ do
           ref <- newIORef (0 :: Int)
-          let e1 :: Ends (K IO) Int Int
-              e1 = endsK (\x -> modifyIORef' ref (+ x)) (pure 0)
-              e2 :: Ends (K IO) Int Int
-              e2 = endsK (\_ -> pure ()) (pure 1)
-          r1 <- runK (run (box @(,) (composeEnds0 e1 e2))) 5
+          let e1 :: Poles (K IO) Int Int
+              e1 = polesK (\x -> modifyIORef' ref (+ x)) (pure 0)
+              e2 :: Poles (K IO) Int Int
+              e2 = polesK (\_ -> pure ()) (pure 1)
+          r1 <- runK (box @() (Poles.compose0 e1 e2)) 5
           residual1 <- readIORef ref
           writeIORef ref 0
-          r2 <- runK (run (box @(,) e2 . box @(,) e1)) 5
+          r2 <- runK (box @() e2 . box @() e1) 5
           residual2 <- readIORef ref
           pure (r1 == r2 && r1 == 1 && residual1 == 5 && residual2 == 5),
-        check "Bool as a non-terminal 'Ends' pole composes write then read" $
-          let e :: Ends (->) Int Int
-              e = ends @(->) @Int @Int @Bool (const False) (\b -> if b then 1 :: Int else 0)
+        check "Bool as a non-terminal 'Poles' pole composes write then read" $
+          let e :: Poles (->) Int Int
+              e = poles @(->) @Int @Int @Bool (const False) (\b -> if b then 1 :: Int else 0)
               (w, r) = splay @(->) @Int @Int @Bool e
            in not (w 42) && r False == 0 && close (conjoint e) (companion e) 42 == 0,
         check "Bool copycat is not identity (Bool is not terminal)" $
-          let e :: Ends (->) Bool Bool
+          let e :: Poles (->) Bool Bool
               e = copycat @(->) @Bool
            in not (close (conjoint e) (companion e) True)
                 && not (close (conjoint e) (companion e) False),
-        -- Additive Ends oracles
-        check "Additive pairEnds pairs outputs" $
-          let e1 :: Ends (->) () Int
-              e1 = ends0 (const ()) (const 1)
-              e2 :: Ends (->) () Int
-              e2 = ends0 (const ()) (const 2)
-           in run (box @(,) (pairEnds e1 e2)) () == (1, 2),
-        check "raceEnds LeftFirst picks left when both speak" $
-          let eL :: Ends (->) () (Maybe Int)
-              eL = ends0 (const ()) (const (Just 1))
-              eR :: Ends (->) () (Maybe Int)
-              eR = ends0 (const ()) (const (Just 2))
-           in run (box @(,) (raceEnds LeftFirst eL eR)) () == Just 1,
-        check "raceEnds RightFirst picks right when both speak" $
-          let eL :: Ends (->) () (Maybe Int)
-              eL = ends0 (const ()) (const (Just 1))
-              eR :: Ends (->) () (Maybe Int)
-              eR = ends0 (const ()) (const (Just 2))
-           in run (box @(,) (raceEnds RightFirst eL eR)) () == Just 2,
-        check "raceEnds falls back when left is silent" $
-          let eL :: Ends (->) () (Maybe Int)
-              eL = ends0 (const ()) (const Nothing)
-              eR :: Ends (->) () (Maybe Int)
-              eR = ends0 (const ()) (const (Just 2))
-           in run (box @(,) (raceEnds LeftFirst eL eR)) () == Just 2
-                && run (box @(,) (raceEnds RightFirst eL eR)) () == Just 2,
+        -- Additive Poles oracles
+        check "Additive Poles.pair pairs outputs" $
+          let e1 :: Poles (->) () Int
+              e1 = poles0 (const ()) (const 1)
+              e2 :: Poles (->) () Int
+              e2 = poles0 (const ()) (const 2)
+           in box @() (Poles.pair e1 e2) () == (1, 2),
+        check "Poles.race LeftFirst picks left when both speak" $
+          let eL :: Poles (->) () (Maybe Int)
+              eL = poles0 (const ()) (const (Just 1))
+              eR :: Poles (->) () (Maybe Int)
+              eR = poles0 (const ()) (const (Just 2))
+           in box @() (Poles.race isNothing LeftFirst eL eR) () == Just 1,
+        check "Poles.race RightFirst picks right when both speak" $
+          let eL :: Poles (->) () (Maybe Int)
+              eL = poles0 (const ()) (const (Just 1))
+              eR :: Poles (->) () (Maybe Int)
+              eR = poles0 (const ()) (const (Just 2))
+           in box @() (Poles.race isNothing RightFirst eL eR) () == Just 2,
+        check "Poles.race falls back when left is silent" $
+          let eL :: Poles (->) () (Maybe Int)
+              eL = poles0 (const ()) (const Nothing)
+              eR :: Poles (->) () (Maybe Int)
+              eR = poles0 (const ()) (const (Just 2))
+           in box @() (Poles.race isNothing LeftFirst eL eR) () == Just 2
+                && box @() (Poles.race isNothing RightFirst eL eR) () == Just 2,
         -- Stamped oracles
         check "Stamped fmap preserves stamp (Int token)" $
           let s = Stamped 7 ("hello" :: String)
@@ -900,13 +906,6 @@ main = do
               sys = markSystem (== "HALT") id innerSys
               p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
            in scan p [] == [] && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
-        -- Linear marks (Z6c) — SwapQ integration is deferred
-        check "Linear marker round-trips through unLinear" $
-          unLinear (Linear 42 :: Linear Int) == (42 :: Int),
-        check "NotLinear constraint accepts plain payloads" $
-          let acceptsNonLinear :: a -> a
-              acceptsNonLinear = id
-           in acceptsNonLinear (42 :: Int) == 42,
         -- Par / linear distributivity
         check "Par distL is the one-way (,) / Either distributor" $
           distL ('x', Left True :: Either Bool Int) == Left ('x', True)
@@ -976,21 +975,21 @@ main = do
         check "pure order swap is invisible at the shared channel (sliding axiom)" $
           let k1 = markerBody 1
               k2 = markerBody 2
-           in run (Knot (sharedBy pureLeft k1 k2)) ((), ())
-                == run (Knot (sharedBy pureRight k1 k2)) ((), ()),
+           in Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ())
+                == Syn.eval (yank (base (sharedBy pureRight k1 k2))) ((), ()),
         check "sharedBy differs from superpose (shared vs independent feedback)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               theseToPair (This a) = (a, [])
               theseToPair (That b) = ([], b)
               theseToPair (These a b) = (a, b)
-           in run (superpose (Knot k1) (Knot k2)) ((), ())
-                /= theseToPair (run (Knot (sharedBy leftFirst k1 k2)) ((), ())),
+           in Syn.eval (superpose (yank (base k1)) (yank (base k2))) ((), ())
+                /= theseToPair (Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())),
         check "sharedBy schedule changes observable interleaving" $
           let k1 = markerBody 1
               k2 = markerBody 2
-           in run (Knot (sharedBy rightFirst k1 k2)) ((), ())
-                /= run (Knot (sharedBy leftFirst k1 k2)) ((), ()),
+           in Syn.eval (yank (base (sharedBy rightFirst k1 k2))) ((), ())
+                /= Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ()),
         check "sharedBy Both LeftFirst equals premonoidal left-first product" $
           let k1 = markerBody 1
               k2 = markerBody 2
@@ -1043,8 +1042,8 @@ main = do
         check "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
           let k1 = markerBody 1
               k2 = markerBody 2
-           in run (Knot (bodyParL k1 k2)) ((), ())
-                == run (Knot (bodyParR k1 k2)) ((), ()),
+           in Syn.eval (yank (base (bodyParL k1 k2))) ((), ())
+                == Syn.eval (yank (base (bodyParR k1 k2))) ((), ()),
         -- Structural maps are central: they do not touch the shared state,
         -- so order of threading is invisible (Benton–Hyland centrality).
         check "copy witnesses centrality wrt state-touching body at a point" $
@@ -1079,27 +1078,27 @@ main = do
             (l, r) <- (,) <$> runK post () <*> runK pre ()
             pure (l /= r),
         -- Body (,) (K IO) must compose as a category. This is the untested
-        -- edge of parameterising Body over arr; Z2's Loop-level witness stands
+        -- edge of parameterising Body over arr; Z2's Trace-level witness stands
         -- on it. The bodies touch a shared IORef to confirm composition threads
         -- state through the K base, not just the function base.
         checkIO "Body (,) (K IO) composes as a category" $
           do
             ref <- newIORef (0 :: Int)
-            let f = MedState.Body $ K $ \((s, a) :: (Int, Int)) -> do
+            let f = Body.Body $ K $ \((s, a) :: (Int, Int)) -> do
                   writeIORef ref (s + 1)
                   pure (s + 1, a + 1)
-                g = MedState.Body $ K $ \(s, b) -> do
+                g = Body.Body $ K $ \(s, b) -> do
                   v <- readIORef ref
                   pure (s + v, b * 2)
                 gf = g . f
-            (sOut, c) <- runK (MedState.morphism gf) (0, 5)
+            (sOut, c) <- runK (Body.morphism gf) (0, 5)
             pure (sOut == 2 && c == 12),
-        -- Benton-Hyland Def 3.2 at the Loop level: Loop's trace inherits the
+        -- Benton-Hyland Def 3.2 at the Trace level: Trace's trace inherits the
         -- Central Sliding side-condition from its base. A non-central effectful
         -- morphism g slid past f gives a different result depending on order.
-        -- Loop's 'trace' discharges into the base 'trace', so the same witness
-        -- that fails for K IO directly also fails for Loop (,) (K IO).
-        checkIO "Loop trace requires centrality over K IO (Central Sliding)" $
+        -- Trace's 'trace' discharges into the base 'trace', so the same witness
+        -- that fails for K IO directly also fails for Trace (,) (K IO).
+        checkIO "Trace trace requires centrality over K IO (Central Sliding)" $
           do
             ref <- newIORef 1
             let f = K $ \ ~((), ()) -> do
@@ -1109,17 +1108,17 @@ main = do
                 g = K $ \ ~() -> do
                   modifyIORef' ref (* 2)
                   pure ()
-                post = trace (Lift f . Lift (par @(,) @(K IO) g id)) :: Loop (,) (K IO) () Int
-                pre = trace (Lift (par @(,) @(K IO) g id) . Lift f) :: Loop (,) (K IO) () Int
-            l <- runK (run post) ()
+                post = trace (base f . base (par @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
+                pre = trace (base (par @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
+            l <- runK (Syn.eval post) ()
             writeIORef ref 1
-            r <- runK (run pre) ()
+            r <- runK (Syn.eval pre) ()
             pure (l /= r),
-        -- Loop (.) preserves the semantic order of composed Knot bodies over
+        -- Trace (.) preserves the semantic order of composed yank bodies over
         -- an effectful base. This is not a centrality claim; it just checks
-        -- that Loop's normal form agrees with a hand-built body that threads
+        -- that Trace's normal form agrees with a hand-built body that threads
         -- state in the same order.
-        checkIO "Loop (.) preserves semantic order of composed Knot bodies" $
+        checkIO "Trace (.) preserves semantic order of composed yank bodies" $
           do
             ref <- newIORef 1
             let g = K $ \ ~(s, a) -> do
@@ -1130,39 +1129,39 @@ main = do
                   v <- readIORef ref
                   writeIORef ref (v * 2)
                   pure (s, v * b)
-                loopFG = Knot f . Knot g :: Loop (,) (K IO) Int Int
-                -- Same threading as Loop's (.) normal form: g's state wire first.
+                loopFG = yank (base f) . yank (base g) :: Trace (,) (K IO) Int Int
+                -- Same threading as Trace's (.) normal form: g's state wire first.
                 handBuiltFG =
-                  Knot $
-                    K $
+                  yank (base
+                    (K $
                       \ ~((s1, s2), a) -> do
                         (s1', b) <- runK g (s1, a)
                         (s2', c) <- runK f (s2, b)
-                        pure ((s1', s2'), c)
-            r1 <- runK (run loopFG) 5
+                        pure ((s1', s2'), c)))
+            r1 <- runK (Syn.eval loopFG) 5
             writeIORef ref 1
-            r2 <- runK (run handBuiltFG) 5
+            r2 <- runK (Syn.eval handBuiltFG) 5
             pure (r1 == r2),
         check "sharedBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               leftOnly = Schedule (,L) :: Schedule [Int]
-           in run (Knot (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
+           in Syn.eval (yank (base (sharedBy leftOnly k1 k2))) ((), ()) == This [1, 1, 1],
         check "sharedBy R gates left body (output is That only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
               rightOnly = Schedule (,R) :: Schedule [Int]
-           in run (Knot (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
+           in Syn.eval (yank (base (sharedBy rightOnly k1 k2))) ((), ()) == That [2, 2, 2],
         check "sharedBy left-first and right-first both agree on body sets" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftResult = run (Knot (sharedBy leftFirst k1 k2)) ((), ())
-              rightResult = run (Knot (sharedBy rightFirst k1 k2)) ((), ())
+              leftResult = Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())
+              rightResult = Syn.eval (yank (base (sharedBy rightFirst k1 k2))) ((), ())
               bodySet = sort . these id id (++)
            in bodySet leftResult == [0, 0, 1, 1, 2, 2]
                 && bodySet rightResult == [0, 0, 1, 1, 2, 2],
         -- Free-syntax bridge: SigShared is the algebraic ⅋ connective
-        check "AlgShared eval agrees with sharedBy" $
+        check "AlgShared Syn.eval agrees with sharedBy" $
           let k1 = markerBody 1
               k2 = markerBody 2
               term :: Frag.AlgShared (,) (->) ((), ()) (These [Int] [Int])
@@ -1170,7 +1169,7 @@ main = do
                 Frag.Op
                   ( Frag.R
                       ( Frag.R
-                          ( Frag.SigKnot
+                          ( Frag.Yank
                               ( Frag.Op
                                   ( Frag.R
                                       (Frag.L (Frag.SigShared pureLeft (Frag.Lift k1) (Frag.Lift k2)))
@@ -1179,7 +1178,7 @@ main = do
                           )
                       )
                   )
-           in Frag.eval term ((), ()) == run (Knot (sharedBy pureLeft k1 k2)) ((), ()),
+           in Frag.eval term ((), ()) == Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ()),
         check "AlgShared L schedule gates right body" $
           let k1 = markerBody 1
               k2 = markerBody 2
@@ -1189,7 +1188,7 @@ main = do
                 Frag.Op
                   ( Frag.R
                       ( Frag.R
-                          ( Frag.SigKnot
+                          ( Frag.Yank
                               ( Frag.Op
                                   ( Frag.R
                                       (Frag.L (Frag.SigShared leftOnly (Frag.Lift k1) (Frag.Lift k2)))
@@ -1208,7 +1207,7 @@ main = do
                 Frag.Op
                   ( Frag.R
                       ( Frag.R
-                          ( Frag.SigKnot
+                          ( Frag.Yank
                               ( Frag.Op
                                   ( Frag.R
                                       (Frag.L (Frag.SigShared rightOnly (Frag.Lift k1) (Frag.Lift k2)))
@@ -1219,15 +1218,15 @@ main = do
                   )
            in Frag.eval term ((), ()) == That [2, 2, 2],
         -- Free-syntax bridge: SigMediate is the algebraic ? connective
-        check "AlgMediate eval agrees with runMediator (pairSum)" $
+        check "AlgMediate Syn.eval agrees with runMediator (pairSum)" $
           let term :: Frag.AlgMediate (,) (->) [Int] [Int]
               term = Frag.algMediate pairSum
            in Frag.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        check "AlgMediate eval agrees with runMediator (count)" $
+        check "AlgMediate Syn.eval agrees with runMediator (count)" $
           let term :: Frag.AlgMediate (,) (->) [()] [Int]
               term = Frag.algMediate count
            in Frag.eval term [(), (), ()] == runMediator count [(), (), ()],
-        check "AlgMediate eval agrees with runMediator (linear)" $
+        check "AlgMediate Syn.eval agrees with runMediator (linear)" $
           let term :: Frag.AlgMediate (,) (->) [Int] [Int]
               term = Frag.algMediate linear
            in Frag.eval term [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
@@ -1236,15 +1235,15 @@ main = do
               term = Frag.Op (Frag.L (Frag.SigCompose (Frag.algMediate pairSum) (Frag.Lift (map (* 2)))))
            in Frag.eval term [1, 2, 3, 4 :: Int] == runMediator pairSum [2, 4, 6, 8],
         -- Mediator-hyper oracles (B8)
-        -- Pure @(->)@ 'Ends' boxes are constant, so the shared-medium bodies
+        -- Pure @(->)@ 'Poles' boxes are constant, so the shared-medium bodies
         -- below are used as the channel-end representatives.  The schedule is
         -- the mediator stamp: an explicit schedule leaves observable tokens,
         -- while a pure schedule is the unstamped / ⊗-like case.
         check "mediator-hyper stamp: schedule stamp distinguishes shared composition in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              shared stamp = HyperLoop.encode (Knot (sharedBy stamp k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
-              superposed = HyperLoop.encode (superpose (Knot k1) (Knot k2)) :: Hyper ((), ()) ([Int], [Int])
+              shared stamp = HyperLoop.encode (yank (base (sharedBy stamp k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
+              superposed = HyperLoop.encode (superpose (yank (base k1)) (yank (base k2))) :: Hyper ((), ()) ([Int], [Int])
               stamped = shared leftFirst
               unstamped = shared pureLeft
               theseToPair (This a) = (a, [])
@@ -1255,7 +1254,7 @@ main = do
         check "stamped ⅋ probe: schedule stamp toggles entanglement in HyperF" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              sharedHyper sched = HyperLoop.encode (Knot (sharedBy sched k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
+              sharedHyper sched = HyperLoop.encode (yank (base (sharedBy sched k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
               leftH = sharedHyper leftFirst
               rightH = sharedHyper rightFirst
               pureLeftH = sharedHyper pureLeft
@@ -1267,14 +1266,14 @@ main = do
           let k1 = markerBody 1
               k2 = markerBody 2
               sched = leftFirst
-              leftSide = HyperLoop.encode (Knot (sharedBy sched k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
-              rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
+              leftSide = HyperLoop.encode (yank (base (sharedBy sched k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
+              rightSide = HyperLoop.sharedHyperBy sched (HyperLoop.encode (base k1)) (HyperLoop.encode (base k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         check "bridge square: pure schedule collapse agrees" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftSide = HyperLoop.encode (Knot (sharedBy pureLeft k1 k2)) :: Hyper ((), ()) (These [Int] [Int])
-              rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (Lift k1)) (HyperLoop.encode (Lift k2))
+              leftSide = HyperLoop.encode (yank (base (sharedBy pureLeft k1 k2))) :: Hyper ((), ()) (These [Int] [Int])
+              rightSide = HyperLoop.sharedHyperBy pureLeft (HyperLoop.encode (base k1)) (HyperLoop.encode (base k2))
            in observe leftSide ((), ()) == observe rightSide ((), ()),
         -- Mediate oracles (B1)
         check "Mediator linear forwards every input" $
@@ -1285,33 +1284,33 @@ main = do
           runMediator pairSum [1, 2, 3 :: Int] == [3],
         check "Mediator count emits accumulating residual" $
           runMediator count [(), (), ()] == [1, 2, 3],
-        -- Mediate / Ends equivalence oracles
+        -- Mediate / Poles equivalence oracles
         check "mediatorToMed linear agrees with runMediator" $
-          MedState.runMed (MedState.mediatorToMed linear) [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
+          Med.runMed (Med.mediatorToMed linear) [1, 2, 3 :: Int] == runMediator linear [1, 2, 3],
         check "mediatorToMed pairSum agrees with runMediator" $
-          MedState.runMed (MedState.mediatorToMed pairSum) [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
+          Med.runMed (Med.mediatorToMed pairSum) [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
         check "mediatorToMed count agrees with runMediator" $
-          MedState.runMed (MedState.mediatorToMed count) [(), (), ()] == runMediator count [(), (), ()],
+          Med.runMed (Med.mediatorToMed count) [(), (), ()] == runMediator count [(), (), ()],
         check "medToMediator . mediatorToMed round-trips behaviourally on pairSum" $
-          let m = MedState.medToMediator (MedState.mediatorToMed pairSum)
+          let m = Med.polesToMediator (Med.mediatorToMed pairSum)
            in runMediator m [1, 2, 3, 4 :: Int] == runMediator pairSum [1, 2, 3, 4],
-        -- Circuit.Ends oracles
-        check "Ends medStep agrees with medStepDirect (linear)" $
+        -- Circuit.Poles oracles
+        check "Poles medStep agrees with medStepDirect (linear)" $
           let s = Nothing :: Maybe Int
               a = 42
-           in MedState.medStep MedState.medLinear s a == MedState.medStepDirect MedState.medLinear s a,
-        check "Ends runMed linear forwards every input" $
-          MedState.runMed MedState.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
-        check "Ends runMed pairSum buffers and sums pairs" $
-          MedState.runMed MedState.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
-        check "Ends runMed pairSum zeroes are valid inputs" $
-          MedState.runMed MedState.medPairSum [0, 0 :: Int] == [0],
-        check "Ends runMed pairSum odd input leaves residual" $
-          MedState.runMed MedState.medPairSum [1, 2, 3 :: Int] == [3],
-        check "Ends medPairSum under left-only gating schedule reports violation" $
-          let med = MedState.medToMediatorBuffered MedState.medPairSum
+           in Med.medStepP Med.medLinear s a == Med.medStepDirectP Med.medLinear s a,
+        check "Poles runMed linear forwards every input" $
+          Med.runMed Med.medLinear [1, 2, 3 :: Int] == [1, 2, 3],
+        check "Poles runMed pairSum buffers and sums pairs" $
+          Med.runMed Med.medPairSum [1, 2, 3, 4 :: Int] == [3, 7],
+        check "Poles runMed pairSum zeroes are valid inputs" $
+          Med.runMed Med.medPairSum [0, 0 :: Int] == [0],
+        check "Poles runMed pairSum odd input leaves residual" $
+          Med.runMed Med.medPairSum [1, 2, 3 :: Int] == [3],
+        check "Poles medPairSum under left-only gating schedule reports violation" $
+          let med = Med.polesToMediatorBuffered Med.medPairSum
               s0 = medInit med
-              leftOnlyPS' :: Schedule MedState.PS
+              leftOnlyPS' :: Schedule PS
               leftOnlyPS' = Schedule $ \s -> (s, L)
               step s x = fst (mediateSharedBody med leftOnlyPS' (s, (x, 0)))
               sFinal = foldl step s0 [1, 2, 3 :: Int]
@@ -1319,7 +1318,7 @@ main = do
                 Left (LinearityViolation msg) -> "Held 3" `isInfixOf` msg
                 Right _ -> False,
         check "count shared-body Both LeftFirst reports overdraw" $
-          let med = MedState.medToMediatorBuffered (MedState.mediatorToMed count)
+          let med = Med.polesToMediatorBuffered (Med.mediatorToMed count)
               s0 = medInit med
               bothLeftFirst :: Schedule Int
               bothLeftFirst = Schedule $ \s -> (s, Both LeftFirst)
@@ -1327,38 +1326,38 @@ main = do
                 Left (LinearityViolation msg) -> "overdraw" `isInfixOf` msg
                 Right _ -> False,
         check "count shared-body L does not overdraw" $
-          let med = MedState.medToMediatorBuffered (MedState.mediatorToMed count)
+          let med = Med.polesToMediatorBuffered (Med.mediatorToMed count)
               s0 = medInit med
               leftOnly :: Schedule Int
               leftOnly = Schedule $ \s -> (s, L)
            in case runSharedBodyChecked med leftOnly s0 [((), ()), ((), ())] of
                 Right _ -> True
                 Left _ -> False,
-        check "Ends runMed count emits accumulating residual" $
-          MedState.runMed MedState.medCount [(), (), ()] == [1, 2, 3],
-        -- Ends conversion oracles (Z4)
-        check "Ends loopToSomeBody runs Loop (,) as Body" $
-          let loop = Knot (\ ~(s, ()) -> (0 : s, take 3 s)) :: Loop (,) (->) () [Int]
-           in MedState.runSomeBody (MedState.SomeBody () (MedState.Body (\(s, a) -> (s, run loop a)))) [(), ()]
-                == map (run loop) [(), ()],
-        check "Ends loopEitherToSomeBody runs Loop Either as Body" $
+        check "Poles runMed count emits accumulating residual" $
+          Med.runMed Med.medCount [(), (), ()] == [1, 2, 3],
+        -- Poles conversion oracles (Z4)
+        check "Poles loopToSomeBody runs Trace (,) as Body" $
+          let loop = yank (base (\ ~(s, ()) -> (0 : s, take 3 s))) :: Trace (,) (->) () [Int]
+           in Body.runSomeBody (Body.SomeBody () (Body.Body (\(s, a) -> (s, Syn.eval loop a)))) [(), ()]
+                == map (Syn.eval loop) [(), ()],
+        check "Poles loopEitherToSomeBody runs Trace Either as Body" $
           let sumProc = Process (id :: Int -> Int) ((+) :: Int -> Int -> Int) id :: Process Int Int
-              loop = encode sumProc :: Loop Either (->) [Int] [Int]
-           in MedState.runSomeBody (MedState.SomeBody () (MedState.Body (\(s, a) -> (s, run loop a)))) [[1, 2, 3], [4, 5 :: Int]]
-                == map (run loop) [[1, 2, 3], [4, 5]],
-        check "Ends systemToEnds recovers running sum" $
+              loop = encode sumProc :: Trace Either (->) [Int] [Int]
+           in Body.runSomeBody (Body.SomeBody () (Body.Body (\(s, a) -> (s, Syn.eval loop a)))) [[1, 2, 3], [4, 5 :: Int]]
+                == map (Syn.eval loop) [[1, 2, 3], [4, 5]],
+        check "Poles systemToPoles recovers running sum" $
           let sys :: System (->) Int (Mono Int Int)
               sys =
                 system $ \(s, d) -> case d of
                   Left v -> absurd v
                   Right i -> let s' = s + i in (s', (s', ()))
               runSys s0 = foldl (\(s, acc) i -> let (s', pos) = runSystem sys (s, Right i) in (s', pos : acc)) (s0, [])
-           in MedState.runSomeEnds (MedState.SomeEnds 0 (MedState.systemToEnds (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
+           in Poly.runSomePoles (Poly.SomePoles 0 (Poly.systemToPoles (Right 0) sys)) [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)]
                 == reverse (snd (runSys 0 [1, 2, 3])),
-        check "Ends systemWithSeedToEnds recovers pointed System sum" $
+        check "Poles systemWithSeedToPoles recovers pointed System sum" $
           let sys = mooreSystem ((+) :: Int -> Int -> Int) id :: System (->) Int (Mono Int Int)
-              ends' = MedState.systemWithSeedToEnds 0 (\s -> (s, ())) sys
-           in MedState.runSomeEnds ends' [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
+              ends' = Poly.systemWithSeedToPoles 0 (\s -> (s, ())) sys
+           in Poly.runSomePoles ends' [Right 1, Right 2, Right 3 :: Dir (Mono Int Int)] == [(1, ()), (3, ()), (6, ())],
         -- Mediate.Tensor oracles (B3)
         check "Mediate shared body left-first emits Just 3" $
           snd (mediateSharedBody pairSum leftFirstPS (Empty :: PS, (1, 2 :: Int)))
@@ -1382,10 +1381,10 @@ main = do
             == runMediator pairSum [1, 2, 3, 4],
         -- Mediate loop oracles (B3c)
         check "Mediate loop is encode of mediateProcess" $
-          run (mediateLoop pairSum) [1, 2, 3, 4 :: Int]
+          Syn.eval (mediateLoop pairSum) [1, 2, 3, 4 :: Int]
             == scan (mediateProcess pairSum Empty) [1, 2, 3, 4],
         check "Mediate loop outputs stripped Nothings agree with runMediator" $
-          catMaybes (run (mediateLoop pairSum) [1, 2, 3, 4 :: Int])
+          catMaybes (Syn.eval (mediateLoop pairSum) [1, 2, 3, 4 :: Int])
             == runMediator pairSum [1, 2, 3, 4],
         -- Mediate close certification oracles (B4)
         check "closeCertified linear closes cleanly" $

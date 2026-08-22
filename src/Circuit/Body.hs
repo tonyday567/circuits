@@ -39,7 +39,8 @@ module Circuit.Body
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), K (..), (.>))
+import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
 import Prelude hiding (id, (.))
 
 -- | A morphism across a tensored channel.
@@ -69,3 +70,28 @@ runSomeBody :: SomeBody (,) (->) a b -> [a] -> [b]
 runSomeBody (SomeBody ch0 (Body f)) xs =
   let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
+
+
+-- ---------------------------------------------------------------------------
+-- HasDual instances for Body
+-- ---------------------------------------------------------------------------
+
+-- | Unit poles for @Body (,) s (->)@ at the unit object @()@.
+--
+-- The companion discards its input and returns @()@; the conjoint delegates
+-- to the companion. Yanking recovers the identity on @()@.
+instance HasDual () (Body (,) s (->)) where
+  open =
+    let outU = Out $ \_ -> Body $ \(s, _) -> (s, ())
+        inU = In $ \o -> emit o inU
+     in Poles inU outU
+
+-- | Unit poles for @Body (,) s (K m)@.
+--
+-- Same shape as the @(->)@ instance, but the companion returns @()@ in the
+-- monad and threads the ambient state through unchanged.
+instance (Monad m) => HasDual () (Body (,) s (K m)) where
+  open =
+    let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
+        inU = In $ \o -> emit o inU
+     in Poles inU outU
