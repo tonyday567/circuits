@@ -97,9 +97,9 @@ module Circuit.Fragment
   )
 where
 
+import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Dagger qualified as Dg
 import Circuit.Net qualified as N
 import Circuit.SMC (SMC (..))
 import Circuit.Shared (Bias (..), Fire, Schedule (..), Shared (..), sharedBy)
@@ -169,58 +169,58 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
 
 -- | Copy: the contraction half of the comonoid.
 --
--- The constructor carries a 'Dg.CopyT' constraint on the wiring tensor @w@,
+-- The constructor carries a 'Bm.CopyT' constraint on the wiring tensor @w@,
 -- resolved at pattern-match time rather than in the algebra context.
 data SigCopy (w :: Type -> Type -> Type) arr rec a b where
   SigCopy ::
-    (Dg.CopyT w arr a) =>
+    (Bm.CopyT w arr a) =>
     SigCopy w arr rec a (w a a)
 
 instance Algebra (SigCopy w) arr arr' where
   type Ctx (SigCopy w) arr arr' = ()
-  alg emb _ SigCopy = emb (Dg.copyT @w)
+  alg emb _ SigCopy = emb (Bm.copyT @w)
 
 -- | Discard: the weakening half of the comonoid.
 --
--- The constructor carries a 'Dg.DiscardT' constraint on the wiring tensor
+-- The constructor carries a 'Bm.DiscardT' constraint on the wiring tensor
 -- @w@, resolved at pattern-match time rather than in the algebra context.
 data SigDiscard (w :: Type -> Type -> Type) arr rec a b where
   SigDiscard ::
-    (Dg.DiscardT w arr a) =>
+    (Bm.DiscardT w arr a) =>
     SigDiscard w arr rec a (Unit w)
 
 instance Algebra (SigDiscard w) arr arr' where
   type Ctx (SigDiscard w) arr arr' = ()
-  alg emb _ SigDiscard = emb (Dg.discardT @w)
+  alg emb _ SigDiscard = emb (Bm.discardT @w)
 
 -- | Comonoid operations: copy and discard.
 type SigCopyDiscard w = SigCopy w :+: SigDiscard w
 
 -- | Plus: the multiplication half of the monoid.
 --
--- The constructor carries a 'Dg.MergeT' constraint on the wiring tensor @w@,
+-- The constructor carries a 'Bm.MergeT' constraint on the wiring tensor @w@,
 -- resolved at pattern-match time rather than in the algebra context.
 data SigPlus (w :: Type -> Type -> Type) arr rec a b where
   SigPlus ::
-    (Dg.MergeT w arr a) =>
+    (Bm.MergeT w arr a) =>
     SigPlus w arr rec (w a a) a
 
 instance Algebra (SigPlus w) arr arr' where
   type Ctx (SigPlus w) arr arr' = ()
-  alg emb _ SigPlus = emb (Dg.plusT @w)
+  alg emb _ SigPlus = emb (Bm.plusT @w)
 
 -- | Zero: the unit half of the monoid.
 --
--- The constructor carries a 'Dg.ZeroT' constraint on the wiring tensor @w@,
+-- The constructor carries a 'Bm.ZeroT' constraint on the wiring tensor @w@,
 -- resolved at pattern-match time rather than in the algebra context.
 data SigZero (w :: Type -> Type -> Type) arr rec a b where
   SigZero ::
-    (Dg.ZeroT w arr a) =>
+    (Bm.ZeroT w arr a) =>
     SigZero w arr rec (Unit w) a
 
 instance Algebra (SigZero w) arr arr' where
   type Ctx (SigZero w) arr arr' = ()
-  alg emb _ SigZero = emb (Dg.zeroT @w)
+  alg emb _ SigZero = emb (Bm.zeroT @w)
 
 -- | Monoid operations: plus and zero.
 type SigMergeZero w = SigPlus w :+: SigZero w

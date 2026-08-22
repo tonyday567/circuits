@@ -33,7 +33,7 @@ module Circuit.Markov
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Dagger (Copy (..), Discard (..))
+import Circuit.Bimonoid (Copy (..), Discard (..))
 import Circuit.Tensor (Tensor (..))
 import Prelude hiding (id, (.))
 

@@ -161,15 +161,17 @@ module Circuit
     (|>),
     (<|),
 
-    -- * Dagger (bimonoid + dagger)
+    -- * Bimonoid (structural rules)
     Copy (..),
     Discard (..),
     Merge (..),
     Zero (..),
     CopyDiscard,
     MergeZero,
-    Dagger (..),
     Bimonoid,
+
+    -- * Dagger (free dagger category)
+    Dagger (..),
     transpose,
 
     -- * SMC
@@ -254,15 +256,17 @@ import Circuit.Poly.Channel
     idChannel,
     mapChannel,
   )
-import Circuit.Dagger
+import Circuit.Bimonoid
   ( Bimonoid,
     Copy (..),
     CopyDiscard,
-    Dagger (..),
     Discard (..),
     Merge (..),
     MergeZero,
     Zero (..),
+  )
+import Circuit.Dagger
+  ( Dagger (..),
     transpose,
   )
 import Circuit.Poles

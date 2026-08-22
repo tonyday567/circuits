@@ -10,7 +10,7 @@
 module Main where
 
 import Circuit.Category (id, (.), (.>))
-import Circuit.Dagger (Copy (..), Discard (..))
+import Circuit.Bimonoid (Copy (..), Discard (..))
 import Circuit.FinRel
 import Circuit.Markov (copyNatural, deterministic, discardNatural)
 import Circuit.Prob (Prob (..), choiceBy, copyP, discardP, embed, fromWeighted, parFG, parGF, score)

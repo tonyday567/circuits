@@ -53,7 +53,7 @@ module Circuit.FinRel
 where
 
 import Circuit.Category (Category (..), (.>))
-import Circuit.Dagger (Copy (..), Discard (..), Merge (..), Zero (..))
+import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Data.Kind (Type)
 import Data.List (findIndex, foldl', transpose)
 import Data.Maybe (listToMaybe, mapMaybe)

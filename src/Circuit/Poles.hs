@@ -95,7 +95,7 @@ where
 
 import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Dagger (Copy (copy))
+import Circuit.Bimonoid (Copy (copy))
 import Circuit.Tensor (Bias (..), Tensor, Unit)
 import Circuit.Tensor qualified as Tensor
 import Data.Bifunctor (bimap)

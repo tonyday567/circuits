@@ -45,6 +45,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
     Circuit.Channel

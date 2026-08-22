@@ -19,7 +19,7 @@
 -- wiring that has been melted into a single loop.
 --
 -- The bimonoid rows are the dagger's fixed structure: they are owned by
--- "Circuit.Dagger", and 'Dg.BimonoidT' is exactly the precondition that
+-- "Circuit.Dagger", and 'Bm.BimonoidT' is exactly the precondition that
 -- lets 'Net' mirror over 'Dg.Dagger' (see 'mirror').
 --
 -- @
@@ -50,6 +50,7 @@ module Circuit.Net
   )
 where
 
+import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
@@ -81,10 +82,10 @@ import Prelude hiding (id, (.))
 --     embedding to arbitrary 'Net' values; they are needed because the
 --     bimonoid generators are not SMC morphisms.
 --   * __Copy/Discard/Plus/Zero__ — the four atomic bimonoid generators,
---     each carrying its own 'Dg.CopyT' / 'Dg.DiscardT' / 'Dg.MergeT' /
---     'Dg.ZeroT' dictionary.
+--     each carrying its own 'Bm.CopyT' / 'Bm.DiscardT' / 'Bm.MergeT' /
+--     'Bm.ZeroT' dictionary.
 --
--- 'Dg.CopyT' / 'Dg.DiscardT' and 'Dg.MergeT' / 'Dg.ZeroT' constraints ride
+-- 'Bm.CopyT' / 'Bm.DiscardT' and 'Bm.MergeT' / 'Bm.ZeroT' constraints ride
 -- as dictionary arguments on the constructors that need them — laws in the
 -- typeclass holes, evidence on the GADT rows.
 --
@@ -110,21 +111,21 @@ data Net (w :: Type -> Type -> Type) arr a b where
     Net w arr a b ->
     Net w arr c d ->
     Net w arr (w a c) (w b d)
-  -- | Copy: fan-out.  Requires 'Dg.CopyT' on the wiring tensor @w@.
+  -- | Copy: fan-out.  Requires 'Bm.CopyT' on the wiring tensor @w@.
   Copy ::
-    (Dg.CopyT w arr a) =>
+    (Bm.CopyT w arr a) =>
     Net w arr a (w a a)
-  -- | Discard: erase.  Requires 'Dg.DiscardT' on the wiring tensor @w@.
+  -- | Discard: erase.  Requires 'Bm.DiscardT' on the wiring tensor @w@.
   Discard ::
-    (Dg.DiscardT w arr a) =>
+    (Bm.DiscardT w arr a) =>
     Net w arr a (Unit w)
-  -- | Plus: fan-in.  Requires 'Dg.MergeT' on the wiring tensor @w@.
+  -- | Plus: fan-in.  Requires 'Bm.MergeT' on the wiring tensor @w@.
   Plus ::
-    (Dg.MergeT w arr a) =>
+    (Bm.MergeT w arr a) =>
     Net w arr (w a a) a
-  -- | Zero: the neutral element.  Requires 'Dg.ZeroT' on the wiring tensor @w@.
+  -- | Zero: the neutral element.  Requires 'Bm.ZeroT' on the wiring tensor @w@.
   Zero ::
-    (Dg.ZeroT w arr a) =>
+    (Bm.ZeroT w arr a) =>
     Net w arr (Unit w) a
 
 -- | The 'Category' instance preserves inspectable wiring.
@@ -204,10 +205,10 @@ sift ::
 sift (FromSMC s) = s
 sift (Compose g f) = SMCCompose (sift g) (sift f)
 sift (Par f g) = SMCPar (sift f) (sift g)
-sift Copy = SMCLift (Dg.copyT @w)
-sift Discard = SMCLift (Dg.discardT @w)
-sift Plus = SMCLift (Dg.plusT @w)
-sift Zero = SMCLift (Dg.zeroT @w)
+sift Copy = SMCLift (Bm.copyT @w)
+sift Discard = SMCLift (Bm.discardT @w)
+sift Plus = SMCLift (Bm.plusT @w)
+sift Zero = SMCLift (Bm.zeroT @w)
 
 -- | Melt the structural rows of a 'Net' into the free 'Trace' syntax.
 --
@@ -228,10 +229,10 @@ melt ::
 melt (FromSMC s) = Layer.bind base s
 melt (Compose g f) = melt g . melt f
 melt (Par f g) = par (melt f) (melt g)
-melt Copy = base (Dg.copyT @w)
-melt Discard = base (Dg.discardT @w)
-melt Plus = base (Dg.plusT @w)
-melt Zero = base (Dg.zeroT @w)
+melt Copy = base (Bm.copyT @w)
+melt Discard = base (Bm.discardT @w)
+melt Plus = base (Bm.plusT @w)
+melt Zero = base (Bm.zeroT @w)
 
 -- | Mirror a 'Net' over 'Dg.Dagger'.
 --
@@ -241,12 +242,12 @@ melt Zero = base (Dg.zeroT @w)
 --
 -- This operation is total exactly when the base arrow carries a bimonoid
 -- on the wiring tensor for every object, i.e. when
--- @'Dg.BimonoidT' w arr x@ holds for all @x@.  That precondition is the
+-- @'Bm.BimonoidT' w arr x@ holds for all @x@.  That precondition is the
 -- tensor-generic form of the 'Dg.Bimonoid' law that makes 'Dagger' and the
 -- bimonoid rows presentable as one structure.
 mirror ::
   forall w arr a b.
-  (forall x. Dg.BimonoidT w arr x) =>
+  (forall x. Bm.BimonoidT w arr x) =>
   Net w (Dg.Dagger arr) a b ->
   Net w (Dg.Dagger arr) b a
 mirror (FromSMC s) = FromSMC (SMC.mirror s)
@@ -284,7 +285,7 @@ instance Layer (Net w) where
     bind h g . bind h f
   bind h (Par (f :: Net w arr a1 b1) (g :: Net w arr c d)) =
     par (bind h f) (bind h g)
-  bind h Copy = h (Dg.copyT @w)
-  bind h Discard = h (Dg.discardT @w)
-  bind h Plus = h (Dg.plusT @w)
-  bind h Zero = h (Dg.zeroT @w)
+  bind h Copy = h (Bm.copyT @w)
+  bind h Discard = h (Bm.discardT @w)
+  bind h Plus = h (Bm.plusT @w)
+  bind h Zero = h (Bm.zeroT @w)

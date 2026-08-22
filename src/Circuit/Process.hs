@@ -68,8 +68,8 @@ where
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Dagger (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
-import Circuit.Dagger qualified as Dagger
+import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
+import Circuit.Bimonoid qualified as Bm
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
 import Circuit.Trace (Trace, base, yank)
 import Circuit.Shared (Bias (..), Fire (..), Schedule (..), Shared (..), chooseS)
@@ -385,16 +385,16 @@ instance Traced Either Process where
 -- ---------------------------------------------------------------------------
 
 instance (Copy (->) a) => Copy Process a where
-  copy = Process id (\_ x -> x) Dagger.copy
+  copy = Process id (\_ x -> x) Bm.copy
 
 instance Discard Process a where
   discard = Process id (\_ x -> x) (const ())
 
 instance (Merge (->) a) => Merge Process a where
-  plus = Process id (\_ x -> x) Dagger.plus
+  plus = Process id (\_ x -> x) Bm.plus
 
 instance (Zero (->) a) => Zero Process a where
-  zero = Process id (\_ x -> x) Dagger.zero
+  zero = Process id (\_ x -> x) Bm.zero
 
 -- ---------------------------------------------------------------------------
 -- Runners
