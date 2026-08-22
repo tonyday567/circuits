@@ -18,8 +18,6 @@ import Circuit.Process qualified as Process
 import Circuit.Poly qualified as Poly
 import Circuit.FinRel
 import Circuit.Fragment qualified as Frag
-import Circuit.Hyper (Hyper, observe)
-import Circuit.Hyper qualified as HyperLoop
 import Circuit.Layer (run)
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (Trace, base, yank)
