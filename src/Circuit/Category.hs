@@ -32,6 +32,7 @@ where
 
 import Control.Monad ((<=<))
 import Data.Kind (Type)
+import Data.Profunctor (Profunctor (..), Strong (..))
 import Prelude hiding (id, (.))
 
 -- | A category without object constraints.
@@ -75,3 +76,12 @@ newtype K m a b = K { runK :: a -> m b }
 instance (Monad m) => Category (K m) where
   id = K pure
   K f . K g = K (f <=< g)
+
+instance (Functor m) => Profunctor (K m) where
+  dimap f g (K k) = K (fmap g . k . f)
+  lmap f (K k) = K (k . f)
+  rmap g (K k) = K (fmap g . k)
+
+instance (Functor m) => Strong (K m) where
+  first' (K k) = K (\(a, c) -> fmap (\b -> (b, c)) (k a))
+  second' (K k) = K (\(c, a) -> fmap (\b -> (c, b)) (k a))
