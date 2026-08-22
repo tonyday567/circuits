@@ -227,7 +227,7 @@ module Circuit
     Action (..),
 
     -- * Shared-medium fusion (the ⅋ connective)
-    Fire (..),
+    Pick (..),
     Schedule (..),
     Shared (..),
 
@@ -345,20 +345,22 @@ import Circuit.Linear
   ( AffineBang,
     BangCopy (..),
     BangWeaken (..),
-    Bot,
     Exponential (..),
     LinearBang,
     Lolli (..),
-    Par (..),
     RelevantBang,
     WhyNotIntro (..),
     WhyNotMonoid (..),
+  )
+import Circuit.Par
+  ( Bot,
+    Par (..),
     distL,
     distR,
     mix,
   )
 import Circuit.Shared
-  ( Fire (..),
+  ( Pick (..),
     Schedule (..),
     Shared (..),
   )

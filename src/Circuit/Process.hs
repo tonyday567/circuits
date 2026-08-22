@@ -72,7 +72,7 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
 import Circuit.Trace (Trace, base, yank)
-import Circuit.Shared (Bias (..), Fire (..), Schedule (..), Shared (..), chooseS)
+import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.List (scanl')
@@ -269,16 +269,16 @@ instance Shared (,) Process where
     Process inject step extract
     where
       inject (s, (a, c)) =
-        let (s', fire) = chooseS sched s
-         in runInject fire s' a c
+        let (s', pick) = chooseS sched s
+         in runInject pick s' a c
 
       step (msL, msR, _, _) (sIn, (a, c)) =
-        let (s', fire) = chooseS sched sIn
-         in runStep fire msL msR s' a c
+        let (s', pick) = chooseS sched sIn
+         in runStep pick msL msR s' a c
 
       extract (_, _, s, out) = (s, out)
 
-      runInject fire s' a c = case fire of
+      runInject pick s' a c = case pick of
         L ->
           let sL0 = iL (s', a)
               (s'', b) = exL sL0
@@ -300,7 +300,7 @@ instance Shared (,) Process where
               (sOut, b) = exL sL0
            in (Just sL0, Just sR0, sOut, These b d)
 
-      runStep fire msL msR s' a c = case fire of
+      runStep pick msL msR s' a c = case pick of
         L ->
           let sL = fromMaybe (iL (s', a)) msL
               sL' = stL sL (s', a)

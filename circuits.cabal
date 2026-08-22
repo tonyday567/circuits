@@ -57,6 +57,7 @@ library
     Circuit.Layer
     Circuit.Linear
     Circuit.Net
+    Circuit.Par
     Circuit.Poly
     Circuit.Poly.Channel
     Circuit.Process

@@ -18,8 +18,8 @@ module Circuit.Shared
   ( -- * Schedule bias
     Bias (..),
 
-    -- * Firing decision
-    Fire (..),
+    -- * Schedule decision
+    Pick (..),
 
     -- * Schedule driver
     Schedule (..),
@@ -35,7 +35,7 @@ import Control.Monad (Monad)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
--- | A schedule decision, now shaped by the inclusive tensor.
+-- | A schedule decision: which poles advance on a shared feedback channel.
 --
 -- * @L@ — advance the left body only; the right input is not consumed
 --   (corresponds to 'This').
@@ -43,7 +43,7 @@ import Prelude hiding (id, (.))
 --   (corresponds to 'That').
 -- * @Both b@ — advance both bodies, with the bias choosing the order
 --   (corresponds to 'These').
-data Fire = L | R | Both Bias
+data Pick = L | R | Both Bias
   deriving (Eq, Show)
 
 -- | A schedule drives shared-feedback fusion.
@@ -52,9 +52,9 @@ data Fire = L | R | Both Bias
 -- looks at the state and chooses which poles advance, returning the updated
 -- schedule state.
 newtype Schedule s = Schedule
-  { -- | Given the current shared state, return the updated state and a 'Fire'
+  { -- | Given the current shared state, return the updated state and a 'Pick'
     -- value describing which poles advance and in what order.
-    chooseS :: s -> (s, Fire)
+    chooseS :: s -> (s, Pick)
   }
 
 -- | Tensors that support shared-feedback fusion of two knot bodies.
@@ -86,8 +86,8 @@ class (Tensor t arr) => Shared t arr where
 -- are observationally different — this is the ⅋-vs-⊗ distinction.
 instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
-    let (s', fire) = chooseS sched s
-     in case fire of
+    let (s', pick) = chooseS sched s
+     in case pick of
           L ->
             let (s'', b) = f (s', a)
              in (s'', This b)
@@ -108,8 +108,8 @@ instance Shared (,) (->) where
 instance (Monad m) => Shared (,) (K m) where
   sharedBy sched (K f) (K g) =
     K $ \(s, (a, c)) -> do
-      let (s', fire) = chooseS sched s
-      case fire of
+      let (s', pick) = chooseS sched s
+      case pick of
         L -> do
           (s'', b) <- f (s', a)
           pure (s'', This b)

@@ -102,7 +102,7 @@ import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Net qualified as N
 import Circuit.SMC (SMC (..))
-import Circuit.Shared (Bias (..), Fire, Schedule (..), Shared (..), sharedBy)
+import Circuit.Shared (Bias (..), Pick, Schedule (..), Shared (..), sharedBy)
 import Circuit.Syntax
   ( Algebra (..),
     AlgCat,
