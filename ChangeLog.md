@@ -103,6 +103,9 @@ knot-body category, polynomial interfaces, and close certification.
 
 *Removed / merged*
 
+- `Circuit.Fragment` is removed. Its re-exports are replaced by direct
+  imports from `Circuit.Syntax`, `Circuit.Trace`, `Circuit.Shared`, and
+  `Circuit.SMC`.
 - `Circuit.Ends.State` is merged into `Circuit.Ends`; stale
   `Circuit.Ends.State.*` references are updated.
 

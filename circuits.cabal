@@ -52,7 +52,6 @@ library
     Circuit.Dagger
     Circuit.Poles
     Circuit.FinRel
-    Circuit.Fragment
     Circuit.Hyper
     Circuit.Layer
     Circuit.Linear

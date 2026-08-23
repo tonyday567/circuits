@@ -26,7 +26,7 @@
 --
 -- Higher-level signatures (parallel composition, braid, copy\/discard,
 -- shared-medium fusion, mediators) live in "Circuit.SMC", "Circuit.Bimonoid",
--- and "Circuit.Shared"; "Circuit.Fragment" re-exports the whole lattice.
+-- and "Circuit.Shared".
 module Circuit.Trace
   ( -- * Free traced category
     Trace,

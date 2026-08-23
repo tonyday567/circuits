@@ -74,7 +74,6 @@ graph LR
   Ends["Circuit.Ends"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
-  Fragment["Circuit.Fragment"]
   Mediate["Circuit.Mediate"]
 
   Category --> ChannelClass --> Strength --> Traced
@@ -85,15 +84,13 @@ graph LR
   Ends --> Loop
   Poly --> Body
   Body --> Loop
-  Fragment --> Net
-  Fragment --> Loop
   Mediate --> Ends
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
   linkStyle 5,6 stroke:#8FB83A,stroke-width:2px
   linkStyle 7,8 stroke:#9B6BC0,stroke-width:2px
-  linkStyle 9,10,11,12,13,14 stroke:#4B96B0,stroke-width:2px
+  linkStyle 9,10,11 stroke:#4B96B0,stroke-width:2px
 
   style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5

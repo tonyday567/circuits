@@ -11,7 +11,6 @@ import Circuit.Category (K (..), id, (.), (.>))
 import Circuit.Channel (assoc, assoc', slide, strength, trace)
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.FinRel
-import Circuit.Fragment qualified as Frag
 import Circuit.Layer (run)
 import Circuit.Net qualified as Net
 import Circuit.Par (Par (..), distL, distR, mix)
@@ -22,12 +21,14 @@ import Circuit.Poly qualified as Poly
 import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
 import Circuit.Process qualified as Process
-import Circuit.Shared (Pick (..), Schedule (..), Shared (..))
+import Circuit.Shared (AlgShared, Pick (Both), Schedule (..), Shared (..), SigShared (..))
+import Circuit.Shared qualified as Shared
 import Circuit.Stamped (Stamped (..), stamp, stamped)
+import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
 import Circuit.Tools.Test (check)
-import Circuit.Trace (Trace, base, yank)
+import Circuit.Trace (SigYank (..), Trace, base, yank)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Kind (Type)
 import Data.List (foldl', isInfixOf, permutations, sort, uncons)
@@ -801,12 +802,12 @@ main = do
         check "sharedBy L gates right body (output is This only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftOnly = Schedule (,L) :: Schedule [Int]
+              leftOnly = Schedule (,Shared.L) :: Schedule [Int]
            in Syn.eval (yank (base (sharedBy leftOnly k1 k2))) ((), ()) == This [1, 1, 1],
         check "sharedBy R gates left body (output is That only)" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              rightOnly = Schedule (,R) :: Schedule [Int]
+              rightOnly = Schedule (,Shared.R) :: Schedule [Int]
            in Syn.eval (yank (base (sharedBy rightOnly k1 k2))) ((), ()) == That [2, 2, 2],
         check "sharedBy left-first and right-first both agree on body sets" $
           let k1 = markerBody 1
@@ -820,59 +821,59 @@ main = do
         check "AlgShared Syn.eval agrees with sharedBy" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              term :: Frag.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
               term =
-                Frag.Op
-                  ( Frag.R
-                      ( Frag.R
-                          ( Frag.Yank
-                              ( Frag.Op
-                                  ( Frag.R
-                                      (Frag.L (Frag.SigShared pureLeft (Frag.Lift k1) (Frag.Lift k2)))
+                Op
+                  ( R
+                      ( R
+                          ( Yank
+                              ( Op
+                                  ( R
+                                      (L (SigShared pureLeft (Lift k1) (Lift k2)))
                                   )
                               )
                           )
                       )
                   )
-           in Frag.eval term ((), ()) == Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ()),
+           in eval term ((), ()) == Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ()),
         check "AlgShared L schedule gates right body" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              leftOnly = Schedule (,L) :: Schedule [Int]
-              term :: Frag.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              leftOnly = Schedule (,Shared.L) :: Schedule [Int]
+              term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
               term =
-                Frag.Op
-                  ( Frag.R
-                      ( Frag.R
-                          ( Frag.Yank
-                              ( Frag.Op
-                                  ( Frag.R
-                                      (Frag.L (Frag.SigShared leftOnly (Frag.Lift k1) (Frag.Lift k2)))
+                Op
+                  ( R
+                      ( R
+                          ( Yank
+                              ( Op
+                                  ( R
+                                      (L (SigShared leftOnly (Lift k1) (Lift k2)))
                                   )
                               )
                           )
                       )
                   )
-           in Frag.eval term ((), ()) == This [1, 1, 1],
+           in eval term ((), ()) == This [1, 1, 1],
         check "AlgShared R schedule gates left body" $
           let k1 = markerBody 1
               k2 = markerBody 2
-              rightOnly = Schedule (,R) :: Schedule [Int]
-              term :: Frag.AlgShared (,) (->) ((), ()) (These [Int] [Int])
+              rightOnly = Schedule (,Shared.R) :: Schedule [Int]
+              term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
               term =
-                Frag.Op
-                  ( Frag.R
-                      ( Frag.R
-                          ( Frag.Yank
-                              ( Frag.Op
-                                  ( Frag.R
-                                      (Frag.L (Frag.SigShared rightOnly (Frag.Lift k1) (Frag.Lift k2)))
+                Op
+                  ( R
+                      ( R
+                          ( Yank
+                              ( Op
+                                  ( R
+                                      (L (SigShared rightOnly (Lift k1) (Lift k2)))
                                   )
                               )
                           )
                       )
                   )
-           in Frag.eval term ((), ()) == That [2, 2, 2],
+           in eval term ((), ()) == That [2, 2, 2],
         -- Mealy process oracles
         check "mealy linear forwards every input" $
           runMealy linearP [1, 2, 3 :: Int] == [1, 2, 3],
