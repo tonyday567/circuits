@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -22,7 +24,8 @@
 --
 -- The semantics are intentionally tied to the circuits substrate:
 --
--- * 'scan' is the reference runner: a fused @scanl'@ over the Moore triple.
+-- * 'scan' is the reference runner over lists.
+-- * 'scanStream' generalizes this to any 'Uncons' input and 'Cons' output.
 -- * 'encode' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
 --   lists; the two runners are verified equivalent by oracle.
 -- * The arrow-level 'Traced' Either instance is per-tick Conway/Elgot settle,
@@ -48,12 +51,16 @@ module Circuit.Process
 
     -- * Runners
     scan,
+    scanStream,
     fold,
+    foldStream,
     encode,
+    encodeStream,
 
     -- * Mealy-style processes
     mealy,
     runMealy,
+    runMealyStream,
 
     -- * Cross-tick feedback
     delay,
@@ -72,11 +79,11 @@ import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
+import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Trace, base, yank)
 import Data.Bifunctor (Bifunctor (..))
-import Data.List (scanl')
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
@@ -400,35 +407,68 @@ instance (Zero (->) a) => Zero Process a where
 -- Runners
 -- ---------------------------------------------------------------------------
 
--- | Encode a 'Process' as a stream-level 'Trace Either (->)' over lists.
+-- | Run a process over any stream with an 'Uncons' coalgebra and build the
+-- output with a 'Cons' algebra.
 --
--- This is the definitional runner: 'scan' is 'eval' composed with 'encode'.
--- The feedback channel carries @(state, remaining input, accumulated output)@.
-encode :: Process a b -> Trace Either (->) [a] [b]
-encode (Process i st ex) = yank (base body)
+-- The first element seeds the hidden channel via 'inject'; each subsequent
+-- element steps it via 'step'; each output is 'extract' of the current channel.
+scanStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> f -> g
+scanStream (Process inject step extract) = goInit
   where
-    body (Right []) = Right []
-    body (Right (a : as)) =
-      let s0 = i a
-       in Left (s0, as, [ex s0])
-    body (Left (_, [], bs)) = Right (reverse bs)
-    body (Left (s, a : as, bs)) =
-      let s' = st s a
-       in Left (s', as, ex s' : bs)
+    nilG :: g
+    nilG = consNil @g @b
 
--- | Run a process over a list, returning the output at each step.
---
--- Law: @scan p xs == eval (encode p) xs@, where @eval@ is 'Circuit.Syntax.eval'.
+    consG :: b -> g -> g
+    consG = cons
+
+    goInit f = case uncons f of
+      That _ -> nilG
+      This a -> let s0 = inject a in consG (extract s0) nilG
+      These a rest -> let s0 = inject a in consG (extract s0) (go s0 rest)
+
+    go s f = case uncons f of
+      That _ -> nilG
+      This a -> let s' = step s a in consG (extract s') nilG
+      These a rest -> let s' = step s a in consG (extract s') (go s' rest)
+
+-- | List specialization of 'scanStream'.
 scan :: Process a b -> [a] -> [b]
-scan _ [] = []
-scan (Process i st ex) (x : xs) =
-  let s0 = i x
-   in ex <$> scanl' st s0 xs
+scan = scanStream
+{-# INLINE scan #-}
 
--- | Run a process over a list, returning the final output (if any).
+-- | Run a process over a stream, returning the final output (if any).
+foldStream :: (Uncons f a) => Process a b -> f -> Maybe b
+foldStream (Process inject step extract) = goInit
+  where
+    goInit f = case uncons f of
+      That _ -> Nothing
+      This a -> Just (extract (inject a))
+      These a rest -> Just (go (inject a) rest)
+
+    go s f = case uncons f of
+      That _ -> extract s
+      This a -> extract (step s a)
+      These a rest -> go (step s a) rest
+
+-- | List specialization of 'foldStream'.
 fold :: Process a b -> [a] -> Maybe b
-fold _ [] = Nothing
-fold p xs = Just (last (scan p xs))
+fold = foldStream
+{-# INLINE fold #-}
+
+-- | Encode a process as a stream-level 'Trace' over arbitrary 'Uncons'/'Cons'
+-- streams.
+--
+-- This is the definitional runner: 'scanStream' is 'eval' composed with
+-- 'encodeStream'. The feedback channel carries
+-- @(Maybe channel, remaining input, accumulated output)@.
+encodeStream :: (Uncons f a, Cons g b) => Process a b -> Trace Either (->) f g
+encodeStream p = case processToBodyStream p of
+  SomeBody _ (Body b) -> yank (base b)
+
+-- | List specialization of 'encodeStream'.
+encode :: Process a b -> Trace Either (->) [a] [b]
+encode = encodeStream
+{-# INLINE encode #-}
 
 -- ---------------------------------------------------------------------------
 -- Mealy-style processes
@@ -436,23 +476,47 @@ fold p xs = Just (last (scan p xs))
 
 -- | Build a 'Process' from a Mealy-style step.
 --
--- The output may depend on the current input. The state internally stores the
+-- The output may depend on the current input. The channel internally stores the
 -- most recent output so that the Moore-style 'Process' interface is preserved.
-mealy :: s -> (s -> a -> (s, Maybe b)) -> Process a (Maybe b)
-mealy s0 step = Process inject step' extract
+mealy :: ch -> (ch -> a -> (ch, Maybe b)) -> Process a (Maybe b)
+mealy ch0 step = Process inject step' extract
   where
     inject a =
-      let (s, mb) = step s0 a
-       in (s, mb)
-    step' (s, _) a =
-      let (s', mb') = step s a
-       in (s', mb')
+      let (ch, mb) = step ch0 a
+       in (ch, mb)
+    step' (ch, _) a =
+      let (ch', mb') = step ch a
+       in (ch', mb')
     extract = snd
 {-# INLINEABLE mealy #-}
 
--- | Collect the emitted outputs of a 'Process (Maybe b)'.
+-- | Collect the emitted outputs of a 'Process (Maybe b)' over any stream.
+runMealyStream :: forall f a g b. (Uncons f a, Cons g b) => Process a (Maybe b) -> f -> g
+runMealyStream (Process inject step extract) = goInit
+  where
+    nilG :: g
+    nilG = consNil @g @b
+
+    consG :: b -> g -> g
+    consG = cons
+
+    emit ch rest = case extract ch of
+      Nothing -> rest
+      Just b -> consG b rest
+
+    goInit f = case uncons f of
+      That _ -> nilG
+      This a -> let ch0 = inject a in emit ch0 nilG
+      These a rest -> let ch0 = inject a in emit ch0 (go ch0 rest)
+
+    go ch f = case uncons f of
+      That _ -> nilG
+      This a -> let ch' = step ch a in emit ch' nilG
+      These a rest -> let ch' = step ch a in emit ch' (go ch' rest)
+
+-- | List specialization of 'runMealyStream'.
 runMealy :: Process a (Maybe b) -> [a] -> [b]
-runMealy = (catMaybes .) . scan
+runMealy = runMealyStream
 {-# INLINEABLE runMealy #-}
 
 -- ---------------------------------------------------------------------------
@@ -494,23 +558,45 @@ register s0 (Process i st ex) = Process i' st' ex'
 -- Body conversions
 -- ---------------------------------------------------------------------------
 
--- | View a 'Process' as a knot body over the 'Either' tensor.
+-- | View a 'Process' as a knot body over the 'Either' tensor, for any
+-- 'Uncons' input and 'Cons' output stream.
 --
--- This is the same body used by 'encode', now exposed as a value
--- of @Body Either s (->)@. It confirms the Process / Trace Either round-trip
+-- This is the same body used by 'encodeStream', now exposed as a value of
+-- @Body Either ch (->)@. It confirms the Process / Trace Either round-trip
 -- factors through the knot-body category.
+processToBodyStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> SomeBody Either (->) f g
+processToBodyStream (Process inject step extract) =
+  SomeBody (Nothing, nilF, []) $ Body $ \case
+    Right f -> case uncons f of
+      That _ -> Right nilG
+      This a ->
+        let ch0 = inject a
+         in Left (Just ch0, nilF, [extract ch0])
+      These a rest ->
+        let ch0 = inject a
+         in Left (Just ch0, rest, [extract ch0])
+    Left (Nothing, _, _) -> error "processToBodyStream: feedback reached before first input"
+    Left (Just ch, f, bs) -> case uncons f of
+      That _ -> Right (foldl (flip consG) nilG bs)
+      This a ->
+        let ch' = step ch a
+         in Left (Just ch', nilF, extract ch' : bs)
+      These a rest ->
+        let ch' = step ch a
+         in Left (Just ch', rest, extract ch' : bs)
+  where
+    nilF :: f
+    nilF = nil @f @a
+
+    nilG :: g
+    nilG = consNil @g @b
+
+    consG :: b -> g -> g
+    consG = cons
+
+-- | List specialization of 'processToBodyStream'.
 processToBody :: Process a b -> SomeBody Either (->) [a] [b]
-processToBody (Process inject step extract) =
-  SomeBody (Nothing, [], []) $ Body $ \case
-    Right [] -> Right []
-    Right (a : as) ->
-      let s0 = inject a
-       in Left (Just s0, as, [extract s0])
-    Left (_, [], bs) -> Right (reverse bs)
-    Left (Just s, a : as, bs) ->
-      let s' = step s a
-       in Left (Just s', as, extract s' : bs)
-    Left (Nothing, _, _) -> error "processToBody: feedback reached before first input"
+processToBody = processToBodyStream
 
 -- | View a 'Process' as an existentially-quantified 'Body'.
 --
