@@ -336,13 +336,9 @@ import Circuit.Poly
     Mono,
     Morphism (..),
     Pos,
-    System,
     applyLens,
     lens,
-    mooreSystem,
     prism,
-    runSystem,
-    system,
   )
 import Circuit.Poly.Channel
   ( Channel (..),
@@ -376,6 +372,12 @@ import Circuit.Shared
     Shared (..),
   )
 import Circuit.Stamped (Stamped (..))
+import Circuit.System
+  ( System,
+    mooreSystem,
+    runSystem,
+    system,
+  )
 import Circuit.Tensor
   ( Action (..),
     Tensor (..),

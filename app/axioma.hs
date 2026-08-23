@@ -16,7 +16,7 @@ import Circuit.Net qualified as Net
 import Circuit.Par (Par (..), distL, distR, mix)
 import Circuit.Poles (Bias (..), HasDual (..), In (..), Out (..), Poles (..), box, close, copycat, poles, poles0, polesK, prefixIn, splay, splay0, suffixOut, (>:>))
 import Circuit.Poles qualified as Poles
-import Circuit.Poly (Dir, Eval (..), Mono, System, fromEvalSystem, lens, monoDir, monoIn, mooreSystem, runSystem, system)
+import Circuit.Poly (Dir, Eval (..), Mono, lens)
 import Circuit.Poly qualified as Poly
 import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
@@ -26,6 +26,7 @@ import Circuit.Shared qualified as Shared
 import Circuit.Stamped (Stamped (..), stamp, stamped)
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
+import Circuit.System (System, fromEvalSystem, monoDir, monoIn, mooreSystem, runSystem, system)
 import Circuit.Tensor (Action (..), Tensor (..), superpose)
 import Circuit.Tools.Test (check)
 import Circuit.Trace (SigYank (..), Trace, base, yank)

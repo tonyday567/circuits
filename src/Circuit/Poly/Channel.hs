@@ -32,13 +32,16 @@ import Circuit.Poly
     Mono,
     Morphism (..),
     Poly (..),
-    System,
-    SystemEval (..),
     applyLens,
-    evalToSystem,
-    fromEvalSystem,
     lens,
     runMorphism,
+  )
+import Circuit.System
+  ( System,
+    SystemEval (..),
+    evalToSystem,
+    fromEvalSystem,
+    lensAsSystem,
     system,
     toEvalSystem,
   )
@@ -47,7 +50,8 @@ import Data.Functor (void)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Poly (System, Mono, Morphism, lens, applyLens)
+-- >>> import Circuit.Poly (Mono, Morphism, lens, applyLens)
+-- >>> import Circuit.System (System)
 
 -- | A channel whose interface is the polynomial @p@.
 --
@@ -109,9 +113,3 @@ mapChannel m (Ch s sys) =
       let tgtEval = runMorphism m (toEvalSystem sys s')
           (pos, next) = evalToSystem tgtEval
        in (next d', pos)
-
--- | Build a monomial system from a lens @S y^S -> Mono i o@.
-lensAsSystem :: Morphism (Mono s s) (Mono i o) -> System (->) s (Mono i o)
-lensAsSystem m = fromEvalSystem $ \s ->
-  case applyLens m s of
-    (o, put) -> EP (EK o, EE put)

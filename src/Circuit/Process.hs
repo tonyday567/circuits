@@ -33,8 +33,8 @@
 --
 -- = Pointed systems
 --
--- The pointed-Moore view of a stateful morphism is 'Circuit.Poly.System' with
--- an explicit seed.  Use 'Circuit.Poly.mooreSystem' to build such a system,
+-- The pointed-Moore view of a stateful morphism is 'Circuit.System.System' with
+-- an explicit seed.  Use 'Circuit.System.mooreSystem' to build such a system,
 -- and 'systemToProcess' to turn it into a first-input-seeded 'Process'.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
@@ -47,9 +47,12 @@ module Circuit.Process
 
     -- * System <-> Process conversions
     systemToProcess,
+    systemAsProcess,
     markSystem,
 
     -- * Runners
+    iterateSystem,
+    after,
     scan,
     scanStream,
     fold,
@@ -77,9 +80,10 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Poly (Mono, Pos, System, mooreSystem, runSystem)
+import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
+import Circuit.System (System, mooreSystem, runSystem, runSystemMono)
 import Circuit.Tensor (Action (..), Tensor (..))
 import Circuit.Trace (Trace, base, yank)
 import Data.Bifunctor (Bifunctor (..))
@@ -154,6 +158,33 @@ systemToProcess s0 ex sys =
     (\a -> fst (runSystem sys (s0, Right a)))
     (\s a -> fst (runSystem sys (s, Right a)))
     ex
+
+-- | Convert a monomial 'System' into a 'Process' machine with a given initial
+-- state.
+--
+-- The first input is consumed for the state transition from the supplied
+-- initial state, matching the coalgebra intuition of a 'System'.
+systemAsProcess :: System (->) s (Mono i o) -> s -> Process i o
+systemAsProcess sys s0 =
+  Process
+    (snd (runSystemMono sys s0))
+    (snd . runSystemMono sys)
+    (fst . runSystemMono sys)
+
+-- | Run a system for as many steps as there are inputs, emitting one output
+-- per input. The output is the state /after/ consuming the input, matching
+-- the 'Process' semantics of 'systemAsProcess'.
+iterateSystem :: System (->) s (Mono i o) -> s -> [i] -> [o]
+iterateSystem _ _ [] = []
+iterateSystem sys s (i : is) =
+  let s' = snd (runSystemMono sys s) i
+      (o, _) = runSystemMono sys s'
+   in o : iterateSystem sys s' is
+
+-- | State after consuming a list of inputs.
+after :: System (->) s (Mono i o) -> s -> [i] -> s
+after _ s [] = s
+after sys s (i : is) = after sys (snd (runSystemMono sys s) i) is
 
 -- | Lift a monomial 'System' and a state observation into a boundary system
 -- over 'Boundary' tokens.

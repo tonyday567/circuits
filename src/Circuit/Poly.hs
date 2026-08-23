@@ -2,12 +2,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -78,7 +76,6 @@ module Circuit.Poly
 
     -- * Tensor wiring
     tensorEval,
-    parWiring,
 
     -- * Morphisms
     Morphism (..),
@@ -93,32 +90,10 @@ module Circuit.Poly
     -- * Prisms
     prism,
     prismMatch,
-
-    -- * Dynamical systems
-    SystemT (..),
-    System,
-    system,
-    runSystem,
-    mooreSystem,
-    SystemEval (..),
-    step,
-    fromEvalSystem,
-    toEvalSystem,
-    monoDir,
-    monoIn,
-
-    -- * Channel-pole view of systems
-    SomePoles (..),
-    runSomePoles,
-    systemToPoles,
-    systemWithSeedToPoles,
   )
 where
 
-import Circuit.Body (Body (..))
 import Circuit.Category (Category (..), (.>))
-import Circuit.Poles (HasDual (..), Poles (..))
-import Circuit.Poles qualified as Poles
 import Data.Bifunctor
 import Data.Kind (Type)
 import Data.Void (Void, absurd)
@@ -399,17 +374,6 @@ tensorEval v w =
   let (i, fv) = toNet v
       (j, fw) = toNet w
    in ET (i, j) (bimap fv fw)
-
--- | Place two Moore systems side by side: interface @p ⊗ q@, state @(s, t)@.
---
--- This is the entry point for acyclic wiring over the Dirichlet tensor —
--- boxes in parallel, pins assigned jointly.
-parWiring :: System (->) s p -> System (->) t q -> System (->) (s, t) (Tensor p q)
-parWiring sp sq =
-  system $ \((s, t), (dp, dq)) ->
-    let (s', posP) = runSystem sp (s, dp)
-        (t', posQ) = runSystem sq (t, dq)
-     in ((s', t'), (posP, posQ))
 
 -- $netlist-roundtrip
 --
@@ -700,20 +664,6 @@ runMorphism = \case
 -- >>> let vb = EE (\n -> n * 10) :: Eval ('Exp Int) Int
 -- >>> case tensorEval va vb of ET ((), ()) f -> (f ("hi", 3), f ("", 0))
 -- (("hix",30),("x",0))
---
--- 'parWiring' places two monomial systems side by side; 'parT' maps the
--- wired interface (wire-then-map).
---
--- >>> let sysN = System (\(s, d) -> (s + monoDir d, (s + 1, ()))) :: System (->) Int (Mono Int Int)
--- >>> let sysB = System (\(b, d) -> (b && monoDir d, (b, ()))) :: System (->) Bool (Mono Bool Bool)
--- >>> case toEvalSystem (parWiring sysN sysB) (3, True) of ET ((n, ()), (c, ())) f -> (n, c, f (Right 2, Right False))
--- (4,True,(5,False))
---
--- >>> let m1 = lens show (\n dn -> n + dn) :: Morphism (Mono Int Int) (Mono Int String)
--- >>> let m2 = lens (\b -> if b then 1 else 0 :: Int) (\b db -> b && db) :: Morphism (Mono Bool Bool) (Mono Bool Int)
--- >>> let wired = toEvalSystem (parWiring sysN sysB) (5, True)
--- >>> case parT m1 m2 wired of ET ((_, ()), (_, ())) f -> f (Right 3, Right True)
--- (14,True)
 
 -- | The monomial interface: @i@ directions (input), @o@ positions (output).
 type Mono i o = 'Prod ('Const o) ('Exp i)
@@ -763,167 +713,3 @@ prismMatch ::
 prismMatch p s = case runMorphism p (EP (EK s, EE id)) of
   ES (Left (EP (EK a, _))) -> Left a
   ES (Right (EP (EK s', _))) -> Right s'
-
--- | A dynamical system with interface @p@, carrier @s@, over base arrow @arr@,
--- parameterised by the state-pairing tensor @t@.
---
--- Uncurried netlist form: the state and the current input direction are fed
--- together under @t@, and the result is the next state together with the current
--- output position.  For the monomial @Mono i o@ and @t = (,)@ this is exactly
--- the Moore body @arr (s, i) (s, o)@ after collapsing the unit positions.
---
--- The cartesian specialisation @SystemT (,)@ is kept as the type synonym
--- 'System'; use 'system' and 'runSystem' to construct and inspect it.
-newtype SystemT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) s (p :: Poly)
-  = SystemT (Body t s arr (Dir p) (Pos p))
-
--- | Cartesian systems: the state-pairing tensor is @(,)@.
-type System = SystemT (,)
-
--- | Construct a cartesian 'System' from its underlying arrow.
-system :: arr (s, Dir p) (s, Pos p) -> System arr s p
-system = SystemT . Body
-
--- | Inspect a cartesian 'System' as its underlying arrow.
-runSystem :: System arr s p -> arr (s, Dir p) (s, Pos p)
-runSystem (SystemT (Body f)) = f
-
--- | Build a monomial 'System' from a step and an observation.
---
--- This is the pointed-Moore view of a stateful morphism, expressed directly
--- in 'System' terminology.  The state transition @s -> a -> s@ and the
--- observation @s -> b@ are explicit; the seed is supplied later (for example
--- by 'Circuit.Process.systemToProcess').
-mooreSystem :: (s -> a -> s) -> (s -> b) -> System (->) s (Mono a b)
-mooreSystem st ex =
-  system $ \case
-    (_, Left v) -> absurd v
-    (s, Right a) ->
-      let s' = st s a
-       in (s', (ex s', ()))
-
--- | Extract the monomial direction from its 'Either Void' encoding.
-monoDir :: Dir (Mono i o) -> i
-monoDir (Right i) = i
-monoDir (Left v) = absurd v
-
--- | Inject a monomial direction into its 'Either Void' encoding.
-monoIn :: i -> Dir (Mono i o)
-monoIn = Right
-
--- | Convert an eval-form '(->)' system into the arrow form.
-fromEvalSystem :: (SystemEval p) => (s -> Eval p s) -> System (->) s p
-fromEvalSystem f = system $ \(s, d) ->
-  let (pos, next) = evalToSystem (f s)
-   in (next d, pos)
-
--- | Convert an arrow-form '(->)' system back into eval form.
-toEvalSystem :: forall p s. (SystemEval p) => System (->) s p -> s -> Eval p s
-toEvalSystem sys s = evalFromSystem pos (\d -> fst (runSystem sys (s, d)))
-  where
-    pos = snd (runSystem sys (s, probeDir @p))
-
--- | Run one step: observe the current @p@-output from state @s@.
-step :: (SystemEval p) => System (->) s p -> s -> Eval p s
-step = toEvalSystem
-
--- | Helpers for translating between the 'Eval' presentation and the arrow
--- presentation of a '(->)' system.  These extend the netlist view to 'Sum'.
-class SystemEval (p :: Poly) where
-  evalToSystem :: Eval p x -> (Pos p, Dir p -> x)
-  evalFromSystem :: Pos p -> (Dir p -> x) -> Eval p x
-  probeDir :: Dir p
-
-instance SystemEval 'Y where
-  evalToSystem (EY x) = ((), \() -> x)
-  evalFromSystem () k = EY (k ())
-  probeDir = ()
-
-instance SystemEval ('Const a) where
-  evalToSystem (EK c) = (c, absurd)
-  evalFromSystem c _ = EK c
-  probeDir = error "probeDir Const"
-
-instance SystemEval ('Exp a) where
-  evalToSystem (EE f) = ((), f)
-  evalFromSystem () = EE
-  probeDir = error "probeDir Exp"
-
-instance (SystemEval p, SystemEval q) => SystemEval ('Sum p q) where
-  evalToSystem (ES (Left v)) =
-    let (i, f) = evalToSystem v
-     in (Left i, either f (const offFibre))
-  evalToSystem (ES (Right w)) =
-    let (j, g) = evalToSystem w
-     in (Right j, either (const offFibre) g)
-  evalFromSystem (Left i) k = ES (Left (evalFromSystem i (k . Left)))
-  evalFromSystem (Right j) k = ES (Right (evalFromSystem j (k . Right)))
-  probeDir :: Dir ('Sum p q)
-  probeDir = Left (probeDir @p)
-
-instance (SystemEval p, SystemEval q) => SystemEval ('Prod p q) where
-  evalToSystem (EP (u, v)) =
-    let (i, f) = evalToSystem u
-        (j, g) = evalToSystem v
-     in ((i, j), either f g)
-  evalFromSystem (i, j) k =
-    EP (evalFromSystem i (k . Left), evalFromSystem j (k . Right))
-  probeDir :: Dir ('Prod p q)
-  probeDir = Left (probeDir @p)
-
-instance (SystemEval p, SystemEval q) => SystemEval ('Tensor p q) where
-  evalToSystem (ET pos f) = (pos, f)
-  evalFromSystem = ET
-  probeDir :: Dir ('Tensor p q)
-  probeDir = (probeDir @p, probeDir @q)
-
-instance (SystemEval p, SystemEval q) => SystemEval ('Comp p q) where
-  evalToSystem (EC pos f) = (pos, f)
-  evalFromSystem = EC
-  probeDir :: Dir ('Comp p q)
-  probeDir = (probeDir @p, probeDir @q)
-
-offFibre :: a
-offFibre = error "off-fibre direction"
-
-
--- ---------------------------------------------------------------------------
--- Channel-pole view of systems
--- ---------------------------------------------------------------------------
-
--- | An existentially-quantified pair of channel poles, carrying its seed.
-data SomePoles a b where
-  SomePoles :: s -> Poles (Body (,) s (->)) a b -> SomePoles a b
-
--- | Run an existentially-packed pair of poles over a list of inputs.
-runSomePoles :: SomePoles a b -> [a] -> [b]
-runSomePoles (SomePoles s0 p) xs =
-  let (write, receive) = Poles.splay0 p
-      Body f = write .> receive
-      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
-   in reverse bs
-
--- | Convert a '(->)' 'System' into companion/conjoint channel poles over @Body@.
---
--- The write pole runs the step and discards the output position; the read pole
--- runs the step with the supplied probe direction and returns the position.
--- This is a lower-level split than a pointed Moore machine: it does not assume
--- a separate observation map.
-systemToPoles :: Dir p -> System (->) s p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
-systemToPoles probe sys =
-  Poles.poles0
-    (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
-    (Body $ \(s, ()) -> runSystem sys (s, probe))
-
--- | Convert a pointed 'System' into companion/conjoint channel poles over @Body@.
---
--- The state carrier is the system's state @s@ and the seed @s0@ is carried by
--- 'SomePoles'.  The write pole steps with the supplied direction; the read pole
--- observes the current state without stepping, using the supplied observation
--- function.
-systemWithSeedToPoles :: s -> (s -> Pos p) -> System (->) s p -> SomePoles (Dir p) (Pos p)
-systemWithSeedToPoles s0 ex sys =
-  SomePoles s0 $
-    Poles.poles0
-      (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
-      (Body $ \(s, ()) -> (s, ex s))
