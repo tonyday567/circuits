@@ -61,6 +61,7 @@ library
     Circuit.Poly
     Circuit.Poly.Channel
     Circuit.Process
+    Circuit.Pullback
     Circuit.SMC
     Circuit.Shared
     Circuit.Stamped

@@ -182,6 +182,10 @@ module Circuit
     Net,
     melt,
 
+    -- * Pullback (linear cotangent maps)
+    Pullback (..),
+    evalPullback,
+
     -- * Hyper
     Hyper,
     HyperA (..),
@@ -358,6 +362,10 @@ import Circuit.Process
     runMealy,
     scan,
     systemToProcess,
+  )
+import Circuit.Pullback
+  ( Pullback (..),
+    evalPullback,
   )
 import Circuit.SMC
   ( SMC,

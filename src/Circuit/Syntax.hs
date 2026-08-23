@@ -16,9 +16,9 @@
 --
 -- This module holds the à-la-carte machinery: signatures, the free
 -- construction over a signature, algebras, and the universal folds. Each
--- concrete language layer ('Circuit.Trace.Trace', 'Circuit.Fragment.AlgSMC',
--- 'Circuit.Fragment.AlgNet', ...) is obtained by choosing a signature sum and
--- adding smart constructors and structural instances on top of this substrate.
+-- concrete language layer ('Circuit.Trace.Trace', 'Circuit.SMC.SMC',
+-- 'Circuit.Net.Net', ...) is obtained by choosing a signature sum and adding
+-- smart constructors and structural instances on top of this substrate.
 --
 -- The design is a profunctor-shaped variation of the classic "datatypes à la
 -- carte":
