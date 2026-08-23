@@ -32,7 +32,7 @@
 -- structural rows into the free 'Trace' syntax.
 module Circuit.Net
   ( -- * Net
-    Net (..),
+    Net,
 
     -- * Smart constructors
     lift,
@@ -50,14 +50,20 @@ module Circuit.Net
   )
 where
 
+import Circuit.Bimonoid
+  ( SigCopy (..),
+    SigDiscard (..),
+    SigPlus (..),
+    SigZero (..),
+  )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
-import Circuit.SMC (FreeSMC, SMC, SigSwap (..))
+import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))
 import Circuit.SMC qualified as SMC
-import Circuit.Syntax (Syntax (..), evalInto, (:+:) (..))
+import Circuit.Syntax (Algebra (..), SigCompose (..), Syntax (..), evalInto, (:+:) (..))
 import Circuit.Tensor (Action, Tensor (..), Unit)
 import Circuit.Trace (Trace, base, yank)
 import Data.Kind (Type)
@@ -76,83 +82,37 @@ import Prelude hiding (id, (.))
 
 -- | The free symmetric monoidal category with a bimonoid.
 --
--- Three families of constructor:
+-- 'Net' is the free 'Syntax' over the signature sum
 --
---   * __SMC__ — 'FromSMC' embeds the whole 'SMC' syntax layer; 'lift' and
---     'braid' are smart constructors for the common cases.
---   * __Sequential / monoidal__ — 'Compose' and 'Par' extend the SMC
---     embedding to arbitrary 'Net' values; they are needed because the
---     bimonoid generators are not SMC morphisms.
---   * __Copy/Discard/Plus/Zero__ — the four atomic bimonoid generators,
---     each carrying its own 'Bm.CopyT' / 'Bm.DiscardT' / 'Bm.MergeT' /
---     'Bm.ZeroT' dictionary.
+-- @
+-- 'SigCompose' ':+:' 'SigPar' w ':+:' 'SigSwap' w ':+:' 'SigCopy' w ':+:' 'SigDiscard' w ':+:' 'SigPlus' w ':+:' 'SigZero' w
+-- @
 --
--- 'Bm.CopyT' / 'Bm.DiscardT' and 'Bm.MergeT' / 'Bm.ZeroT' constraints ride
--- as dictionary arguments on the constructors that need them — laws in the
--- typeclass holes, evidence on the GADT rows.
---
--- The bimonoid rows mirror under 'Dg.Dagger': 'Copy' swaps with 'Plus',
--- and 'Discard' swaps with 'Zero' (see 'mirror').
---
--- The wiring monoidal structure is over a generic tensor @w@.  Feedback is
--- not represented inside 'Net'; it lives in 'Trace' and is introduced only
--- at the boundary by 'melt' or by interpreting into a traced target
--- category.
---
--- 'Net' extends 'Trace' inspectably for the wiring rows.  'melt'
--- collapses the structure to the free 'Trace' syntax.
-data Net (w :: Type -> Type -> Type) arr a b where
-  -- | Embed an 'SMC' circuit whole.  This is the only contact point between
-  -- the SMC layer and the bimonoid layer; 'Net' no longer duplicates the
-  -- SMC constructors.
-  FromSMC :: SMC w arr a b -> Net w arr a b
-  -- | Sequential composition.
-  Compose :: Net w arr b c -> Net w arr a b -> Net w arr a c
-  -- | Parallel composition (monoidal product over @w@).
-  Par ::
-    Net w arr a b ->
-    Net w arr c d ->
-    Net w arr (w a c) (w b d)
-  -- | Copy: fan-out.  Requires 'Bm.CopyT' on the wiring tensor @w@.
-  Copy ::
-    (Bm.CopyT w arr a) =>
-    Net w arr a (w a a)
-  -- | Discard: erase.  Requires 'Bm.DiscardT' on the wiring tensor @w@.
-  Discard ::
-    (Bm.DiscardT w arr a) =>
-    Net w arr a (Unit w)
-  -- | Plus: fan-in.  Requires 'Bm.MergeT' on the wiring tensor @w@.
-  Plus ::
-    (Bm.MergeT w arr a) =>
-    Net w arr (w a a) a
-  -- | Zero: the neutral element.  Requires 'Bm.ZeroT' on the wiring tensor @w@.
-  Zero ::
-    (Bm.ZeroT w arr a) =>
-    Net w arr (Unit w) a
+-- The 'Lift' constructor embeds a base arrow; the 'Op' constructor holds
+-- one of the signature nodes.  Smart constructors 'lift' and 'braid'
+-- build the common cases, and 'widen' embeds an entire 'SMC' circuit.
+type Net (w :: Type -> Type -> Type) arr =
+  Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
 
--- | The 'Category' instance preserves inspectable wiring.
---
--- Composition of two 'FromSMC' values is pushed back into 'SMC'; all other
--- compositions use the explicit 'Compose' constructor, so 'Copy', 'Plus',
--- and 'Par' stay visible.  'melt' collapses the structure when the normal
--- form is needed.
+-- | The 'Category' instance is the generic free-category instance:
+-- 'id' is a lifted identity and composition is a 'SigCompose' node.
 instance (Category arr) => Category (Net w arr) where
-  id = FromSMC id
-  FromSMC g . FromSMC f = FromSMC (g . f)
-  g . f = Compose g f
+  id = Lift id
+  f . g = Op (L (SigCompose f g))
 
--- | Lift a base arrow into 'Net' via 'SMC'.
+-- | Lift a base arrow into 'Net'.
 lift :: arr a b -> Net w arr a b
-lift = FromSMC . SMC.lift
+lift = Lift
 
--- | Symmetric braiding in 'Net' via 'SMC'.
+-- | Symmetric braiding in 'Net'.
 braid :: Net w arr (w a b) (w b a)
-braid = FromSMC (Op (R (R SigSwap)))
+braid = Op (R (R (L SigSwap)))
 
 -- | Include an 'SMC' circuit into 'Net'.
 --
--- 'Net' no longer duplicates the SMC constructors; the injection is a single
--- 'FromSMC' wrapper.  This gives the adjunction between 'SMC' and 'Net'
+-- 'Net' no longer duplicates the SMC constructors; the injection recurses
+-- through the SMC signature sum and rebuilds each node in the larger
+-- 'Net' signature sum.  This gives the adjunction between 'SMC' and 'Net'
 -- together with 'sift'.
 --
 -- >>> let m = SMC.lift (+1) . SMC.lift (*2) :: SMC (,) (->) Int Int
@@ -189,12 +149,16 @@ braid = FromSMC (Op (R (R SigSwap)))
 -- >>> Dg.front (Dg.transpose (run (widen dm :: Net (,) (Dg.Dagger (->)) Int Int))) 10
 -- 4
 widen :: SMC w arr a b -> Net w arr a b
-widen = FromSMC
+widen (Lift f) = Lift f
+widen (Op op) = case op of
+  L (SigCompose g f) -> Op (L (SigCompose (widen g) (widen f)))
+  R (L (SigPar f g)) -> Op (R (L (SigPar (widen f) (widen g))))
+  R (R SigSwap) -> Op (R (R (L SigSwap)))
 
 -- | Forget the bimonoid rows of a 'Net', keeping only the 'SMC' wiring.
 --
 -- 'sift' collapses the bimonoid rows into 'SMC.lift' while leaving
--- 'Compose' and 'Par' inspectable. Together with 'widen' it gives the
+-- 'SigCompose' and 'SigPar' inspectable. Together with 'widen' it gives the
 -- adjunction between 'SMC' and 'Net'.
 -- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
 -- forgets bimonoid structure.
@@ -203,20 +167,14 @@ sift ::
   (Action w arr) =>
   Net w arr a b ->
   SMC w arr a b
-sift (FromSMC s) = s
-sift (Compose g f) = sift g . sift f
-sift (Par f g) = tensor (sift f) (sift g)
-sift Copy = SMC.lift (Bm.copyT @w)
-sift Discard = SMC.lift (Bm.discardT @w)
-sift Plus = SMC.lift (Bm.plusT @w)
-sift Zero = SMC.lift (Bm.zeroT @w)
+sift = evalInto SMC.lift
 
 -- | Melt the structural rows of a 'Net' into the free 'Trace' syntax.
 --
 -- The interpretation from the free symmetric monoidal category with
--- bimonoid to the free traced monoidal category.  Structural rows ('Par',
--- 'Copy', 'Plus', etc.) become opaque base-arrow operations wrapped in
--- 'base'; @Compose@ uses the 'Category' instance of 'Trace'.
+-- bimonoid to the free traced monoidal category.  Structural rows ('SigPar',
+-- 'SigCopy', 'SigPlus', etc.) become opaque base-arrow operations wrapped in
+-- 'base'; @SigCompose@ uses the 'Category' instance of 'Trace'.
 --
 -- @'run' @Net = 'eval' . 'melt'@.
 --
@@ -227,19 +185,13 @@ melt ::
   (Traced t arr, Action w arr) =>
   Net w arr a b ->
   Trace t arr a b
-melt (FromSMC s) = evalInto base s
-melt (Compose g f) = melt g . melt f
-melt (Par f g) = tensor (melt f) (melt g)
-melt Copy = base (Bm.copyT @w)
-melt Discard = base (Bm.discardT @w)
-melt Plus = base (Bm.plusT @w)
-melt Zero = base (Bm.zeroT @w)
+melt = evalInto base
 
 -- | Mirror a 'Net' over 'Dg.Dagger'.
 --
--- The dagger dualizes the bimonoid rows: 'Copy' becomes 'Plus', 'Discard'
--- becomes 'Zero', and vice versa.  Composition is reversed; parallel
--- composition and the braiding are self-dual.
+-- The dagger dualizes the bimonoid rows: 'SigCopy' becomes 'SigPlus',
+-- 'SigDiscard' becomes 'SigZero', and vice versa.  Composition is reversed;
+-- parallel composition and the braiding are self-dual.
 --
 -- This operation is total exactly when the base arrow carries a bimonoid
 -- on the wiring tensor for every object, i.e. when
@@ -251,42 +203,36 @@ mirror ::
   (forall x. Bm.BimonoidT w arr x) =>
   Net w (Dg.Dagger arr) a b ->
   Net w (Dg.Dagger arr) b a
-mirror (FromSMC s) = FromSMC (SMC.mirror s)
-mirror (Compose g f) = Compose (mirror f) (mirror g)
-mirror (Par f g) = Par (mirror f) (mirror g)
-mirror Copy = Plus
-mirror Discard = Zero
-mirror Plus = Copy
-mirror Zero = Discard
+mirror (Lift d) = Lift (Dg.transpose d)
+mirror (Op op) = case op of
+  L (SigCompose g f) -> Op (L (SigCompose (mirror f) (mirror g)))
+  R (L (SigPar f g)) -> Op (R (L (SigPar (mirror f) (mirror g))))
+  R (R (L SigSwap)) -> Op (R (R (L SigSwap)))
+  R (R (R (L SigCopy))) -> Op (R (R (R (R (R (L SigPlus))))))
+  R (R (R (R (L SigDiscard)))) -> Op (R (R (R (R (R (R SigZero))))))
+  R (R (R (R (R (L SigPlus))))) -> Op (R (R (R (L SigCopy))))
+  R (R (R (R (R (R SigZero))))) -> Op (R (R (R (R (L SigDiscard)))))
 
 -- | Free symmetric monoidal category with a bimonoid.
 --
 -- Structural rows are interpreted in the target category: parallel
 -- composition uses 'tensor', braiding uses 'braid', and the bimonoid
 -- generators are the images under @h@ of the source dictionaries carried
--- by the 'Copy', 'Discard', 'Plus', and 'Zero' constructors.
+-- by the 'SigCopy', 'SigDiscard', 'SigPlus', and 'SigZero' constructors.
 --
 -- [Conditional] 'bind' @h@ interprets bimonoid generators as images under
 -- @h@ of the source arrow's dictionaries.  This is the free-PROP fold
 -- only when @h@ is a bimonoid homomorphism (automatic for the generator
 -- embedding, but must be verified for custom @h@).
-instance Layer (Net w) where
-  type Law (Net w) arr' = FreeSMC w arr'
-  type Run (Net w) arr = Action w arr
-  type Bind (Net w) arr = ()
+instance Layer (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) where
+  type Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr' = FreeSMC w arr'
+  type Run (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = Action w arr
+  type Bind (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = ()
   unit = lift
   bind ::
     forall arr' arr a b.
-    (Law (Net w) arr') =>
+    (Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr') =>
     (arr :~> arr') ->
-    Net w arr a b ->
+    Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr a b ->
     arr' a b
-  bind h (FromSMC s) = evalInto h s
-  bind h (Compose (g :: Net w arr b1 c) (f :: Net w arr a b1)) =
-    bind h g . bind h f
-  bind h (Par (f :: Net w arr a1 b1) (g :: Net w arr c d)) =
-    tensor (bind h f) (bind h g)
-  bind h Copy = h (Bm.copyT @w)
-  bind h Discard = h (Bm.discardT @w)
-  bind h Plus = h (Bm.plusT @w)
-  bind h Zero = h (Bm.zeroT @w)
+  bind h = evalInto h

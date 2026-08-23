@@ -187,10 +187,10 @@ zero0 = zero
 -- 'Merge' on the base, so the back of @copy@ is @plus@.  The
 -- constructors are pinned by type signatures so the instance method
 -- resolves unambiguously.
-daggerCopy1 :: Dagger (FinRel) N1 (N1, N1)
+daggerCopy1 :: Dagger FinRel N1 (N1, N1)
 daggerCopy1 = copy
 
-daggerDiscard1 :: Dagger (FinRel) N1 ()
+daggerDiscard1 :: Dagger FinRel N1 ()
 daggerDiscard1 = discard
 
 -- | 'check' for assertions that live in 'IO'.
@@ -450,10 +450,10 @@ main = do
           scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]
             == scan sumP [1, 2, 3],
         check "Net (,) Process copy uses Process.copy" $
-          let p = run (Net.Copy :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
+          let p = run (Net.lift (copy :: Process Int (Int, Int)) :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
            in scan p [5] == [(5, 5)],
         check "Net (,) Process plus uses Process.plus" $
-          let p = run (Net.Plus :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
+          let p = run (Net.lift (plus :: Process (Int, Int) Int) :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
            in scan p [(2, 3)] == [5],
         check "Shared (,) Process LR order differs from RL" $
           let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP

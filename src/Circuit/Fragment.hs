@@ -69,6 +69,8 @@ module Circuit.Fragment
 
     -- * Additional signatures
     SigShared (..),
+
+    -- * Bimonoid signatures (re-exported from "Circuit.Bimonoid")
     SigCopy (..),
     SigDiscard (..),
     SigCopyDiscard,
@@ -86,17 +88,20 @@ module Circuit.Fragment
     AlgCocartesian,
     AlgBimonoidal,
     AlgNet,
-
-    -- * Direct <-> algebra isomorphisms
-    algNet,
-    runAlgNet,
   )
 where
 
+import Circuit.Bimonoid
+  ( SigCopy (..),
+    SigCopyDiscard,
+    SigDiscard (..),
+    SigMergeZero,
+    SigPlus (..),
+    SigZero (..),
+  )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Net qualified as N
 import Circuit.SMC (SMC, SigPar (..), SigSwap (..))
 import Circuit.Shared (Bias (..), Pick, Schedule (..), Shared (..), sharedBy)
 import Circuit.Syntax
@@ -133,64 +138,6 @@ data SigShared (t :: Type -> Type -> Type) arr rec i o where
 instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   type Ctx (SigShared t) arr arr' = Shared t arr'
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
-
--- | Copy: the contraction half of the comonoid.
---
--- The constructor carries a 'Bm.CopyT' constraint on the wiring tensor @w@,
--- resolved at pattern-match time rather than in the algebra context.
-data SigCopy (w :: Type -> Type -> Type) arr rec a b where
-  SigCopy ::
-    (Bm.CopyT w arr a) =>
-    SigCopy w arr rec a (w a a)
-
-instance Algebra (SigCopy w) arr arr' where
-  type Ctx (SigCopy w) arr arr' = ()
-  alg emb _ SigCopy = emb (Bm.copyT @w)
-
--- | Discard: the weakening half of the comonoid.
---
--- The constructor carries a 'Bm.DiscardT' constraint on the wiring tensor
--- @w@, resolved at pattern-match time rather than in the algebra context.
-data SigDiscard (w :: Type -> Type -> Type) arr rec a b where
-  SigDiscard ::
-    (Bm.DiscardT w arr a) =>
-    SigDiscard w arr rec a (Unit w)
-
-instance Algebra (SigDiscard w) arr arr' where
-  type Ctx (SigDiscard w) arr arr' = ()
-  alg emb _ SigDiscard = emb (Bm.discardT @w)
-
--- | Comonoid operations: copy and discard.
-type SigCopyDiscard w = SigCopy w :+: SigDiscard w
-
--- | Plus: the multiplication half of the monoid.
---
--- The constructor carries a 'Bm.MergeT' constraint on the wiring tensor @w@,
--- resolved at pattern-match time rather than in the algebra context.
-data SigPlus (w :: Type -> Type -> Type) arr rec a b where
-  SigPlus ::
-    (Bm.MergeT w arr a) =>
-    SigPlus w arr rec (w a a) a
-
-instance Algebra (SigPlus w) arr arr' where
-  type Ctx (SigPlus w) arr arr' = ()
-  alg emb _ SigPlus = emb (Bm.plusT @w)
-
--- | Zero: the unit half of the monoid.
---
--- The constructor carries a 'Bm.ZeroT' constraint on the wiring tensor @w@,
--- resolved at pattern-match time rather than in the algebra context.
-data SigZero (w :: Type -> Type -> Type) arr rec a b where
-  SigZero ::
-    (Bm.ZeroT w arr a) =>
-    SigZero w arr rec (Unit w) a
-
-instance Algebra (SigZero w) arr arr' where
-  type Ctx (SigZero w) arr arr' = ()
-  alg emb _ SigZero = emb (Bm.zeroT @w)
-
--- | Monoid operations: plus and zero.
-type SigMergeZero w = SigPlus w :+: SigZero w
 
 -- ---------------------------------------------------------------------------
 -- Common syntax combinations
@@ -233,42 +180,3 @@ type AlgBimonoidal w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: Sig
 
 -- | Free symmetric monoidal category with bimonoid over wiring tensor @w@.
 type AlgNet w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
-
--- ---------------------------------------------------------------------------
--- Direct <-> algebra isomorphisms
-
--- | Embed the direct 'N.Net' GADT into the signature-based form.
-algNet :: forall w arr a b. N.Net w arr a b -> AlgNet w arr a b
-algNet (N.FromSMC s) = widenSMC s
-  where
-    widenSMC :: forall x y. SMC w arr x y -> AlgNet w arr x y
-    widenSMC (Lift f) = Lift f
-    widenSMC (Op (L (SigCompose g f))) = Op (L (SigCompose (widenSMC g) (widenSMC f)))
-    widenSMC (Op (R (L (SigPar f g)))) = Op (R (L (SigPar (widenSMC f) (widenSMC g))))
-    widenSMC (Op (R (R SigSwap))) = Op (R (R (L SigSwap)))
-algNet (N.Compose g f) = Op (L (SigCompose (algNet g) (algNet f)))
-algNet (N.Par f g) = Op (R (L (SigPar (algNet f) (algNet g))))
-algNet N.Copy = Op (R (R (R (L SigCopy))))
-algNet N.Discard = Op (R (R (R (R (L SigDiscard)))))
-algNet N.Plus = Op (R (R (R (R (R (L SigPlus))))))
-algNet N.Zero = Op (R (R (R (R (R (R SigZero))))))
-
--- | Project the signature-based Net back to the direct GADT.
-runAlgNet :: forall w arr a b. AlgNet w arr a b -> N.Net w arr a b
-runAlgNet = goTop
-  where
-    goTop :: forall x y. AlgNet w arr x y -> N.Net w arr x y
-    goTop (Lift f) = N.lift f
-    goTop (Op op) = goOp op
-
-    goOp ::
-      forall x y.
-      (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr (AlgNet w arr) x y ->
-      N.Net w arr x y
-    goOp (L (SigCompose g f)) = N.Compose (goTop g) (goTop f)
-    goOp (R (L (SigPar f g))) = N.Par (goTop f) (goTop g)
-    goOp (R (R (L SigSwap))) = N.braid
-    goOp (R (R (R (L SigCopy)))) = N.Copy
-    goOp (R (R (R (R (L SigDiscard))))) = N.Discard
-    goOp (R (R (R (R (R (L SigPlus)))))) = N.Plus
-    goOp (R (R (R (R (R (R SigZero)))))) = N.Zero

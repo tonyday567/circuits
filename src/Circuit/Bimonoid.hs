@@ -1,8 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | The bimonoid layer of circuit wiring.
@@ -41,6 +46,14 @@ module Circuit.Bimonoid
     MergeZero,
     Bimonoid,
 
+    -- * Free-syntax signatures
+    SigCopy (..),
+    SigDiscard (..),
+    SigCopyDiscard,
+    SigPlus (..),
+    SigZero (..),
+    SigMergeZero,
+
     -- * The substructural square
     Affine,
     Relevant,
@@ -58,7 +71,9 @@ module Circuit.Bimonoid
 where
 
 import Circuit.Category (Category (..))
+import Circuit.Syntax (Algebra (..), Sig, SigCompose (..), Syntax (..), (:+:) (..))
 import Circuit.Tensor (Tensor (..), Unit)
+import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -390,6 +405,68 @@ instance Copy (->) (Maybe a) where
 instance Discard (->) (Maybe a) where
   discard _ = ()
   {-# INLINE discard #-}
+
+-- ---------------------------------------------------------------------------
+-- Free-syntax signatures for the bimonoid generators
+-- ---------------------------------------------------------------------------
+
+-- | Copy: the contraction half of the comonoid.
+--
+-- The constructor carries a 'CopyT' constraint on the wiring tensor @w@,
+-- resolved at pattern-match time rather than in the algebra context.
+data SigCopy (w :: Type -> Type -> Type) arr rec a b where
+  SigCopy ::
+    (CopyT w arr a) =>
+    SigCopy w arr rec a (w a a)
+
+instance Algebra (SigCopy w) arr arr' where
+  type Ctx (SigCopy w) arr arr' = ()
+  alg emb _ SigCopy = emb (copyT @w)
+
+-- | Discard: the weakening half of the comonoid.
+--
+-- The constructor carries a 'DiscardT' constraint on the wiring tensor @w@,
+-- resolved at pattern-match time rather than in the algebra context.
+data SigDiscard (w :: Type -> Type -> Type) arr rec a b where
+  SigDiscard ::
+    (DiscardT w arr a) =>
+    SigDiscard w arr rec a (Unit w)
+
+instance Algebra (SigDiscard w) arr arr' where
+  type Ctx (SigDiscard w) arr arr' = ()
+  alg emb _ SigDiscard = emb (discardT @w)
+
+-- | Comonoid operations: copy and discard.
+type SigCopyDiscard w = SigCopy w :+: SigDiscard w
+
+-- | Plus: the multiplication half of the monoid.
+--
+-- The constructor carries a 'MergeT' constraint on the wiring tensor @w@,
+-- resolved at pattern-match time rather than in the algebra context.
+data SigPlus (w :: Type -> Type -> Type) arr rec a b where
+  SigPlus ::
+    (MergeT w arr a) =>
+    SigPlus w arr rec (w a a) a
+
+instance Algebra (SigPlus w) arr arr' where
+  type Ctx (SigPlus w) arr arr' = ()
+  alg emb _ SigPlus = emb (plusT @w)
+
+-- | Zero: the unit half of the monoid.
+--
+-- The constructor carries a 'ZeroT' constraint on the wiring tensor @w@,
+-- resolved at pattern-match time rather than in the algebra context.
+data SigZero (w :: Type -> Type -> Type) arr rec a b where
+  SigZero ::
+    (ZeroT w arr a) =>
+    SigZero w arr rec (Unit w) a
+
+instance Algebra (SigZero w) arr arr' where
+  type Ctx (SigZero w) arr arr' = ()
+  alg emb _ SigZero = emb (zeroT @w)
+
+-- | Monoid operations: plus and zero.
+type SigMergeZero w = SigPlus w :+: SigZero w
 
 -- ---------------------------------------------------------------------------
 -- Default tensor-generic instances for the cartesian tensor

@@ -72,7 +72,7 @@
 --
 -- * __Injections__ embed one construction into another without eliminating:
 --   `unit` (base arrow into a `Layer`), @widen@ (`SMC` into `Net`),
---   @base@ / @yank@ (base arrow or body into @Trace@), @algNet@ (direct GADT into @Syntax@).
+--   @base@ / @yank@ (base arrow or body into @Trace@).
 --
 -- * __Representation changes__: `encode` (@Trace@ to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
@@ -126,6 +126,7 @@ module Circuit
     runMealy,
 
     -- * Channel poles (bi-polar effectful/process API; still the right tool for
+
     -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
@@ -233,32 +234,9 @@ module Circuit
     Pick (..),
     Schedule (..),
     Shared (..),
-
   )
 where
 
-import Circuit.Body
-  ( Body (..),
-    SomeBody (..),
-    runSomeBody,
-  )
-import Circuit.Stamped (Stamped (..))
-import Circuit.Category ((.>), (<|), (|>))
-import Circuit.Channel
-  ( Strength,
-    Traced,
-    strength,
-    trace,
-  )
-import Circuit.Channel qualified as Channel
-import Circuit.Poly.Channel
-  ( Channel (..),
-    commitChannel,
-    constChannel,
-    emitChannel,
-    idChannel,
-    mapChannel,
-  )
 import Circuit.Bimonoid
   ( Bimonoid,
     Copy (..),
@@ -268,26 +246,22 @@ import Circuit.Bimonoid
     MergeZero,
     Zero (..),
   )
+import Circuit.Body
+  ( Body (..),
+    SomeBody (..),
+    runSomeBody,
+  )
+import Circuit.Category ((.>), (<|), (|>))
+import Circuit.Channel
+  ( Strength,
+    Traced,
+    strength,
+    trace,
+  )
+import Circuit.Channel qualified as Channel
 import Circuit.Dagger
   ( Dagger (..),
     transpose,
-  )
-import Circuit.Poles
-  ( Bias (..),
-    HasDual (..),
-    In (..),
-    Out (..),
-    Poles (..),
-    box,
-    boxAsymmetric,
-    close,
-    copycat,
-    poles,
-    polesK,
-    prefixIn,
-    splay,
-    suffixOut,
-    (>:>),
   )
 import Circuit.Hyper
   ( Hyper,
@@ -314,11 +288,44 @@ import Circuit.Layer
     run,
     (:~>),
   )
-import Circuit.Trace (Trace, base, yank)
-import Circuit.Trace qualified as Trace
+import Circuit.Linear
+  ( AffineBang,
+    BangCopy (..),
+    BangWeaken (..),
+    Exponential (..),
+    LinearBang,
+    Lolli (..),
+    RelevantBang,
+    WhyNotIntro (..),
+    WhyNotMonoid (..),
+  )
 import Circuit.Net
   ( Net,
     melt,
+  )
+import Circuit.Par
+  ( Bot,
+    Par (..),
+    distL,
+    distR,
+    mix,
+  )
+import Circuit.Poles
+  ( Bias (..),
+    HasDual (..),
+    In (..),
+    Out (..),
+    Poles (..),
+    box,
+    boxAsymmetric,
+    close,
+    copycat,
+    poles,
+    polesK,
+    prefixIn,
+    splay,
+    suffixOut,
+    (>:>),
   )
 import Circuit.Poly
   ( Dir,
@@ -332,6 +339,14 @@ import Circuit.Poly
     prism,
     runSystem,
     system,
+  )
+import Circuit.Poly.Channel
+  ( Channel (..),
+    commitChannel,
+    constChannel,
+    emitChannel,
+    idChannel,
+    mapChannel,
   )
 import Circuit.Process
   ( Process (..),
@@ -347,32 +362,17 @@ import Circuit.Process
 import Circuit.SMC
   ( SMC,
   )
-import Circuit.Linear
-  ( AffineBang,
-    BangCopy (..),
-    BangWeaken (..),
-    Exponential (..),
-    LinearBang,
-    Lolli (..),
-    RelevantBang,
-    WhyNotIntro (..),
-    WhyNotMonoid (..),
-  )
-import Circuit.Par
-  ( Bot,
-    Par (..),
-    distL,
-    distR,
-    mix,
-  )
 import Circuit.Shared
   ( Pick (..),
     Schedule (..),
     Shared (..),
   )
+import Circuit.Stamped (Stamped (..))
 import Circuit.Tensor
   ( Action (..),
     Tensor (..),
     superpose,
   )
+import Circuit.Trace (Trace, base, yank)
+import Circuit.Trace qualified as Trace
 import Prelude hiding (curry, uncurry)
