@@ -2,6 +2,13 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- | Axioma oracles for the circuits library.
+--
+-- These are named witnesses, not quantified tests. Each assertion would fail
+-- if the mechanism it names were deleted or implemented incorrectly. The
+-- suite covers the bimonoid laws on 'FinRel', 'Process' semantics, 'Body'
+-- conversions, centrality and Central Sliding, shared-medium scheduling, and
+-- polynomial-channel behaviour.
 module Main where
 
 import Circuit.Bimonoid (Copy (..), CopyDiscard, Discard (..), Merge (..), MergeZero, Zero (..))

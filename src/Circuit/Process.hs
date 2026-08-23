@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Stateful processes as a 'Circuit' base arrow.
+-- | Stateful processes as a @Circuit@ base arrow.
 --
 -- A 'Process' is a Moore machine packaged as a category morphism:
 --
@@ -441,8 +441,8 @@ instance (Zero (->) a) => Zero Process a where
 -- | Run a process over any stream with an 'Uncons' coalgebra and build the
 -- output with a 'Cons' algebra.
 --
--- The first element seeds the hidden channel via 'inject'; each subsequent
--- element steps it via 'step'; each output is 'extract' of the current channel.
+-- The first element seeds the hidden channel via @inject@; each subsequent
+-- element steps it via @step@; each output is @extract@ of the current channel.
 scanStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> f -> g
 scanStream (Process inject step extract) = goInit
   where
@@ -489,8 +489,8 @@ fold = foldStream
 -- | Encode a process as a stream-level 'Trace' over arbitrary 'Uncons'/'Cons'
 -- streams.
 --
--- This is the definitional runner: 'scanStream' is 'eval' composed with
--- 'encodeStream'. The feedback channel carries
+-- This is the definitional runner: 'scanStream' is 'Circuit.Syntax.eval'
+-- composed with 'encodeStream'. The feedback channel carries
 -- @(Maybe channel, remaining input, accumulated output)@.
 encodeStream :: (Uncons f a, Cons g b) => Process a b -> Trace Either (->) f g
 encodeStream p = case processToBodyStream p of
@@ -575,7 +575,7 @@ delay s0 = Process (const s0) (const id) id
 -- by making the one-tick delay observable.
 --
 -- For bodies whose fixed-point is independent of the initial feedback value
--- (e.g. affine/stateless feedback such as 'ewmaBody'), the same wiring can
+-- (e.g. affine/stateless feedback such as @ewmaBody@), the same wiring can
 -- be expressed by swapping the feedback wire into the active position,
 -- applying 'strength' ('delay' s0), and tracing.
 register :: s -> Process (a, s) (b, s) -> Process a b
@@ -632,8 +632,8 @@ processToBody = processToBodyStream
 -- | View a 'Process' as an existentially-quantified 'Body'.
 --
 -- The process state is exposed as the ambient wire.  The initial state is
--- 'Nothing'; the first input is fed to 'inject' to create the real state, and
--- subsequent inputs use 'step'.  The output is always 'extract' of the current
+-- 'Nothing'; the first input is fed to @inject@ to create the real state, and
+-- subsequent inputs use @step@.  The output is always @extract@ of the current
 -- state.
 processToSomeBody :: Process a b -> SomeBody (,) (->) a b
 processToSomeBody (Process inject step extract) =

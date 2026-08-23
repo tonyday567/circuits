@@ -44,15 +44,15 @@
 --
 -- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
 -- supporting lazy knots with @(,@), iteration with `Either`, and scheduling
--- with `These`.
+-- with `Data.These.These`.
 --
--- All braided, cartesian, and cocartesian structure, plus the general
--- `ambientBy` state-threading combinator, lives in "Circuit.Tensor".
+-- All braided, cartesian, and cocartesian structure, plus the fused
+-- parallel composition `superpose`, lives in "Circuit.Tensor".
 --
 -- == Core Concepts
 --
 -- * __Tensor__ (@t@): The bifunctor pairing a feedback value with a payload
---   inside a @Trace@ (currently @(,), `Either`, or `These` for scheduling).
+--   inside a @Trace@ (currently @(,), `Either`, or `Data.These.These` for scheduling).
 --
 -- * __Feedback value__: The component that travels around the loop (the first
 --   parameter of the tensor inside a @Trace@).
@@ -67,12 +67,12 @@
 --
 -- * __Folds__ eliminate a free construction:
 --   `run` (any `Layer`), `freeze` (`Free` to its base arrow),
---   `melt` (`Net` to @Trace@), @sift@ (`Net` to `SMC`),
---   @eval@ / @evalInto@ (@Syntax@ via a fragment algebra).
+--   `melt` (`Net` to @Trace@), `bind` (fold into a target category),
+--   `lower` (restrict a fold to the generators).
 --
 -- * __Injections__ embed one construction into another without eliminating:
---   `unit` (base arrow into a `Layer`), @widen@ (`SMC` into `Net`),
---   @base@ / @yank@ (base arrow or body into @Trace@).
+--   `unit` (base arrow into a `Layer`), `base` (base arrow into @Trace@),
+--   `yank` (close a feedback loop in @Trace@).
 --
 -- * __Representation changes__: `encode` (@Trace@ to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
@@ -88,7 +88,7 @@ module Circuit
     -- | Open a feedback loop. See "Circuit.Channel".
     strength,
 
-    -- * Polynomial channels (successor to pure '(->)' Ends)
+    -- * Polynomial channels (successor to pure @(->)@ Ends)
     Channel (..),
     emitChannel,
     commitChannel,

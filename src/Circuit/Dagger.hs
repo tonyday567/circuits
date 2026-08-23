@@ -111,7 +111,7 @@ instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
 --
 -- These instances mirror the cartesian ones above, but work for any wiring
 -- tensor @t@.  They are the missing lemma that makes 'Circuit.Net.mirror'
--- total: a 'Net' over 'Dagger arr' can transpose its bimonoid rows because
+-- total: a 'Circuit.Net.Net' over 'Dagger arr' can transpose its bimonoid rows because
 -- the dagger swaps the tensor-comonoid and tensor-monoid dictionaries.
 --
 -- >>> let d = copyT @(,) @(Dagger (->)) @Int :: Dagger (->) Int (Int, Int)

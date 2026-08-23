@@ -43,7 +43,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 -- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
 -- 'eval' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
 -- That is the existing Chu convention; it differs from @uncurry id@ by a
--- 'braid'.  'lolli' is identity on the implication object, used to mention
+-- 'Circuit.Tensor.braid'.  'lolli' is identity on the implication object, used to mention
 -- it.
 --
 -- Kind is fixed to 'Type' so type applications stay concrete (GHC 9.14
@@ -95,15 +95,15 @@ instance Lolli (,) (->) where
 --
 -- The structural rules are split into independent subclasses so that
 -- affine and linear uses of the modality differ only in their constraint
--- sets, mirroring the 'Copy'/'Discard' split at the base-arrow level.
+-- sets, mirroring the 'Circuit.Bimonoid.Copy'/'Circuit.Bimonoid.Discard' split at the base-arrow level.
 --
 -- * @!A@ has a contraction half ('BangCopy') and a weakening half
 --   ('BangWeaken').  Linear logic requires both; affine logic requires
 --   only weakening.
 -- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
---   multiplication on @?A@ ('WhyNotMerge') is missing. In the vocabulary of
---   'Circuit.Dagger', @?A@ is currently 'CoAffine'-only (the unit @Zero@)
---   and the missing half is 'CoRelevant' (the merge @Merge@). That hole is
+--   multiplication on @?A@ (@WhyNotMerge@) is missing. In the vocabulary of
+--   'Circuit.Dagger', @?A@ is currently 'Circuit.Bimonoid.CoAffine'-only (the unit @Zero@)
+--   and the missing half is 'Circuit.Bimonoid.CoRelevant' (the merge @Merge@). That hole is
 --   the first observable thing the Exponential split made visible; wiring it
 --   is part of the chu-depth class dig.
 class (Tensor t arr) => Exponential t arr where

@@ -23,20 +23,16 @@
 -- it routes traffic between the two poles without ever deciding which side is
 -- true.  For the unit object use 'open' (also exported as 'copycat').
 --
--- == Relationship to 'Circuit.ChannelPoly'
+-- == Relationship to 'Circuit.Poly.Channel'
 --
 -- @Poles@ is the bi-polar / effectful API: it is the right tool for
 -- @K IO/STM@ process plumbing where the channel is a write pole paired
 -- with a read pole.  For pure @(->)@ Moore-style channels indexed by a
--- polynomial, prefer 'Circuit.ChannelPoly.Channel'.
+-- polynomial, prefer 'Circuit.Poly.Channel'.
 --
 -- There is no deprecation shim yet: the relationship between the bi-polar
 -- and polynomial views is still being settled.  This module stays unchanged
--- until 'Channel' gains 'K' evaluation or an equivalent effectful
--- story.
---
--- Effectful queue-based constructors ('openSTM', 'openIO') live in
--- @Circuit.Agent.Poles@ so that the core library does not depend on @stm@.
+-- until the polynomial 'Channel' gains an equivalent effectful story.
 module Circuit.Poles
   ( -- * Channel poles (bi-polar contract)
     Out (..),
@@ -515,7 +511,7 @@ box p =
 
 -- | Asymmetric box with the dualising object exposed on opposite sides.
 --
--- Uses 'tensor' at the base arrow level. The input carries the dualising object
+-- Uses 'Circuit.Tensor.tensor' at the base arrow level. The input carries the dualising object
 -- on the right and the output carries it on the left; most users will prefer
 -- the dualising-object-normalised 'box'.
 --
@@ -544,7 +540,7 @@ boxAsymmetric p =
 -- | Additive conjunction: both sub-poles receive the same input and their
 -- outputs are paired.
 --
--- This is the @&@ connective / 'await' fragment: every branch sees the
+-- This is the @&@ connective / @await@ fragment: every branch sees the
 -- input, and the composite emits all of their results.
 --
 -- >>> let p1 = poles0 (const ()) (const 1 :: () -> Int) :: Poles (->) () Int

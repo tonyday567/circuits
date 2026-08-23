@@ -7,12 +7,12 @@
 -- @Pullback b a@ is a linear map @b -> a@ read as an arrow from @b@
 -- (output cotangent) to @a@ (input cotangent).  Composition is plain
 -- function composition — the /reversal/ is not in this category, it is
--- in how nets are built over it: 'Circuit.Diff.Backprop.linearizeAt' transposes a
+-- in how nets are built over it: @linearizeAt@ (in circuits-ad) transposes a
 -- @Net (,) (Diff p) a b@ into a @Net (,) Pullback b a@, emitting
 -- @Compose f' g'@ for every source @Compose g f@.  Within an arrow the
 -- chain rule is then just @(.)@.
 --
--- This is the arrow that 'linearizeAt' builds: a 'Net' whose wires
+-- This is the arrow that @linearizeAt@ builds: a 'Net' whose wires
 -- carry pullbacks rather than smooth maps.  It is the honest linear
 -- semantics behind reverse-mode AD, free of the second-derivative
 -- confusion that comes from trying to compose 'Diff arrows directly.
@@ -94,14 +94,14 @@ instance Strength (,) Pullback where
 --
 -- > (dx, db) = f (dx, dc)
 --
--- solved by the same lazy knot that 'Trace Diff (,)' uses.  For
+-- solved by the same lazy knot that @Trace Diff (,)@ uses.  For
 -- strict carriers with nonzero channel self-coupling this diverges,
--- exactly as the lazy 'Diff trace does.  Unlike the 'Diff case,
+-- exactly as the lazy @Diff@ trace does.  Unlike the @Diff@ case,
 -- though, the equation here is /always affine/ — 'Pullback' arrows are
 -- linear by construction — so a knot over a star-semiring carrier can
--- be eliminated outright ('NumHask' @star@ \/
--- 'Circuit.Mat.Dense.starMatrix') rather than iterated.  See
--- @Circuit.Diff.Star@ for the closed forms.
+-- be eliminated outright (NumHask @star@ / circuits-mat @starMatrix@)
+-- rather than iterated.  See circuits-ad @Circuit.Diff.Star@ for the
+-- closed forms.
 --
 -- >>> let body = Pullback (\(dx', dc) -> (2.0 * dc, dx')) :: Pullback (Double, Double) (Double, Double)
 -- >>> runPullback (trace body) 1.0
@@ -115,8 +115,8 @@ instance Traced (,) Pullback where
 -- | Pullback-instance of the comonoid structure.
 --
 -- Copy's pullback is addition; discard's pullback is the zero
--- cotangent.  These are not used by 'linearizeAt' (which encodes
--- structural rows as 'Lift's to avoid channel-type constraints), but
+-- cotangent.  These are not used by @linearizeAt@ (which encodes
+-- structural rows as @Lift@s to avoid channel-type constraints), but
 -- they make 'Pullback' a full bimonoid carrier.
 --
 -- >>> runPullback (copy :: Pullback Int (Int, Int)) 3
@@ -126,7 +126,7 @@ instance Traced (,) Pullback where
 --
 -- NOTE: unlike @Dup Diff@ (whose pullback genuinely needs 'plus'),
 -- neither method here uses the @Additive (->) a@ constraint — copying
--- and discarding are linear as they stand.  If the 'Dup' class head
+-- and discarding are linear as they stand.  If the @Dup@ class head
 -- permits, drop the constraint; keeping a stray @Additive@ here reads
 -- as "addition happens in this instance", which is exactly the
 -- confusion the paragraph above tries to dispel.
@@ -157,7 +157,7 @@ instance (Zero (->) a) => Zero Pullback a where
 -- | Evaluate a pullback net at a single output cotangent.
 --
 -- This is the one-shot reverse pass: the net was built by
--- 'linearizeAt', and applying it to a cotangent @db@ yields the
+-- @linearizeAt@, and applying it to a cotangent @db@ yields the
 -- input cotangent @da@.
 evalPullback :: Net (,) Pullback b a -> b -> a
 evalPullback n = runPullback (run n)

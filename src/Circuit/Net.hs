@@ -210,7 +210,7 @@ sift = evalInto SMC.lift
 -- 'SigCopy', 'SigPlus', etc.) become opaque base-arrow operations wrapped in
 -- 'base'; @SigCompose@ uses the 'Category' instance of 'Trace'.
 --
--- @'run' @Net = 'eval' . 'melt'@.
+-- @'run' @Net = 'Circuit.Syntax.eval' . 'melt'@.
 --
 -- >>> eval (melt (lift (+1) :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
 -- 6

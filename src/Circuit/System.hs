@@ -134,13 +134,13 @@ monoDir (Left v) = absurd v
 monoIn :: i -> Dir (Mono i o)
 monoIn = Right
 
--- | Convert an eval-form '(->)' system into the arrow form.
+-- | Convert an eval-form @(->)@ system into the arrow form.
 fromEvalSystem :: (SystemEval p) => (s -> Eval p s) -> System (->) s p
 fromEvalSystem f = system $ \(s, d) ->
   let (pos, next) = evalToSystem (f s)
    in (next d, pos)
 
--- | Convert an arrow-form '(->)' system back into eval form.
+-- | Convert an arrow-form @(->)@ system back into eval form.
 toEvalSystem :: forall p s. (SystemEval p) => System (->) s p -> s -> Eval p s
 toEvalSystem sys s = evalFromSystem pos (\d -> fst (runSystem sys (s, d)))
   where
@@ -151,7 +151,7 @@ step :: (SystemEval p) => System (->) s p -> s -> Eval p s
 step = toEvalSystem
 
 -- | Helpers for translating between the 'Eval' presentation and the arrow
--- presentation of a '(->)' system.  These extend the netlist view to 'Sum'.
+-- presentation of a @(->)@ system.  These extend the netlist view to 'Sum'.
 class SystemEval (p :: Poly) where
   evalToSystem :: Eval p x -> (Pos p, Dir p -> x)
   evalFromSystem :: Pos p -> (Dir p -> x) -> Eval p x
@@ -251,7 +251,7 @@ runSomePoles (SomePoles s0 p) xs =
       (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
    in reverse bs
 
--- | Convert a '(->)' 'System' into companion/conjoint channel poles over @Body@.
+-- | Convert a @(->)@ 'System' into companion/conjoint channel poles over @Body@.
 --
 -- The write pole runs the step and discards the output position; the read pole
 -- runs the step with the supplied probe direction and returns the position.

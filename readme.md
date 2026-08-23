@@ -16,26 +16,29 @@ graph LR
   Traced["Traced"]
   Tensor["Tensor"]
   Action["Action"]
+  Bimonoid["Bimonoid"]
 
   Free["Free"]
   SMC["SMC"]
   Net["Net"]
-  Loop["Loop"]
+  Trace["Trace"]
 
   Category -.-> Free
-  Strength -.-> Loop
-  Traced -.-> Loop
+  Channel -.-> Trace
+  Strength -.-> Trace
+  Traced -.-> Trace
   Action -.-> SMC
   Action -.-> Net
+  Bimonoid -.-> Net
 
   Category --> Channel --> Strength --> Traced
   Category --> Tensor --> Action
   Free --> SMC --> Net
-  Net --> Loop
+  Net --> Trace
 
-  linkStyle 0,1,2,3,4,5 stroke:#C44E8A,stroke-width:2px
-  linkStyle 6,7,8,9,10 stroke:#4B7FBD,stroke-width:2px
-  linkStyle 11,12,13 stroke:#8FB83A,stroke-width:2px
+  linkStyle 0,1,2,3,4,5,6 stroke:#C44E8A,stroke-width:2px
+  linkStyle 7,8,9,10,11 stroke:#4B7FBD,stroke-width:2px
+  linkStyle 12,13,14 stroke:#8FB83A,stroke-width:2px
 
   style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
   style Channel fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
@@ -43,10 +46,11 @@ graph LR
   style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
   style Tensor fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Trace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
 ```
 
 The module view groups the classes into their source files and adds the
@@ -68,29 +72,39 @@ graph LR
   end
 
   Net["Circuit.Net"]
-  Loop["Circuit.Loop"]
+  Trace["Circuit.Trace"]
   Hyper["Circuit.Hyper"]
   Dagger["Circuit.Dagger"]
-  Ends["Circuit.Ends"]
+  Poles["Circuit.Poles"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
-  Mediate["Circuit.Mediate"]
+  System["Circuit.System"]
+  Process["Circuit.Process"]
+  Shared["Circuit.Shared"]
+  Bimonoid["Circuit.Bimonoid"]
+  Par["Circuit.Par"]
+  Linear["Circuit.Linear"]
 
   Category --> ChannelClass --> Strength --> Traced
   Category --> TensorClass --> Action
-  Net --> Loop
-  Loop --> Hyper
+  Net --> Trace
+  Trace --> Hyper
   Dagger --> Net
-  Ends --> Loop
+  Body --> Trace
   Poly --> Body
-  Body --> Loop
-  Mediate --> Ends
+  Poly --> System
+  System --> Process
+  Shared --> Body
+  Bimonoid --> Net
+  Par --> Shared
+  Linear --> Par
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
   linkStyle 5,6 stroke:#8FB83A,stroke-width:2px
-  linkStyle 7,8 stroke:#9B6BC0,stroke-width:2px
-  linkStyle 9,10,11 stroke:#4B96B0,stroke-width:2px
+  linkStyle 7,8,9 stroke:#9B6BC0,stroke-width:2px
+  linkStyle 10,11,12,13 stroke:#4B96B0,stroke-width:2px
+  linkStyle 14,15 stroke:#D98A3A,stroke-width:2px
 
   style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
@@ -103,21 +117,25 @@ graph LR
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Loop fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style Trace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
-  style Ends fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style Poles fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Body fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style Algebra fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Mediate fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style System fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Process fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
+  style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Par fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style Linear fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
 ```
 
 ## the shape of the library
 
-Everything is built over a base arrow that you bring — `(->)`, `Kleisli m`,
-matrices over a semiring. The library does not pick a semantics; it adds
-structure along two ladders.
+Everything is built over a base arrow that you bring — `(->)`, `K m`,
+`Process`, `FinRel`, matrices over a semiring. The library does not pick a
+semantics; it adds structure along two ladders and one common shape.
 
 **A ladder of laws.** The type classes form chains out of `Category`:
 `Channel → Strength → Traced` (monoidal structure, tensorial strength, feedback
@@ -125,8 +143,14 @@ via trace) and `Tensor → Action` (the concrete `(,)` and `Either` machinery).
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
-**A deck of languages.** The GADTs form a parallel chain of free constructions,
-each rung one enrichment of the last:
+**A common shape.** Under all the syntax lives `Body t ch arr a b`, the
+category `arr (t ch a) (t ch b)`. A body threads an ambient channel `ch`
+alongside a payload, under a tensor `t`. It is the shared substrate of loops,
+processes, systems, and poles: the stateful machinery that `Trace` hides
+before tracing.
+
+**A deck of languages.** The GADTs form a chain of free constructions, each
+rung one enrichment of the last:
 
     Free = Lift + Compose
     SMC  = Free + Par + Swap
@@ -134,36 +158,34 @@ each rung one enrichment of the last:
 
 `Free` is the free category; `SMC` the free symmetric monoidal category; `Net`
 the free symmetric monoidal category with a bimonoid, where every wire is a
-constructor you can inspect. `Loop` sits to the side of this chain rather than
+constructor you can inspect. `Trace` sits to the side of this chain rather than
 on it: it is the free traced monoidal category *in normal form*. Its laws are
-performed by its instances, so every value collapses to at most one `Knot` over
-a base arrow. `Net` and `Loop` are the two poles of the library — wiring you can
-read backwards, and wiring that has been melted into a single loop. `melt` goes
-from `Net` to `Loop`; feedback lives in `Loop`, not in `Net`.
+performed by its instances, so every value collapses to at most one `yank` over
+a base arrow. `Net` and `Trace` are the two poles of the library — wiring you
+can read backwards, and wiring that has been melted into a single loop. `melt`
+goes from `Net` to `Trace`; feedback lives in `Trace`, not in `Net`.
 
 **Between the ladders** there is a family of folds. Each free construction can
 be evaluated into any target category that satisfies the right laws; the GADT's
 constructors are forgotten one at a time. `Layer` captures this pattern
-uniformly, and `Algebra` provides the same deck à la carte from signature
+uniformly, and `Circuit.Syntax` provides the same deck à la carte from signature
 functors.
 
 **Four axes.** The library's breadth comes from four independent parameters:
 
 - `t` — the feedback tensor: `(,)` for lazy dataflow, `Either` for iteration,
-  `These` for scheduling / shared-medium fusion (the ⅋ connective).
-- `arr` — the base arrow: `(->)`, `Kleisli m` for effects, `Prob` for exact
-  probabilistic dynamics, `FinRel` for nondeterminism, matrices over a semiring.
-- `s` — the residual state carried by a `Body` / `Mediator`; close
-  certification (`closeCertified`, `closeCertifiedWith`) makes linearity
-  violations observable.
+  `These` for scheduling / shared-medium fusion.
+- `arr` — the base arrow: `(->)`, `K m` for effects, `Process` for streaming,
+  `FinRel` for nondeterminism, matrices over a semiring.
+- `s` / `ch` — the residual state carried by a `Body` / `System`; `Body` makes
+  this channel explicit before tracing.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms,
-  giving `Circuit.ChannelPoly` its interactive channel model.
+  giving `Circuit.Poly.Channel` its interactive channel model.
 
-The recent refactor crystallised this around `Body t arr s a b`, the
-knot-body category `arr (t s a) (t s b)` that `Loop` wraps before tracing.
-Everything stateful — `SArr`, `SystemT`, `Process.Machine`, `Ends.Med` — is a
-specialisation or projection of it.
+The recent refactor crystallised this around `Body t ch arr a b`. Everything
+stateful — `Process`, `SystemT`, `Poles` — is a specialisation or projection of
+it.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a
@@ -184,6 +206,7 @@ The core stays small; companion libraries apply it to specific domains.
 | [circuits-int](https://github.com/tonyday567/circuits-int) | Int construction and polynomial-functor sketches |
 | [circuits-io](https://github.com/tonyday567/circuits-io) | sockets, queues, servers, and concrete IO transports |
 | [circuits-llm](https://github.com/tonyday567/circuits-llm) | small transformer-style language-model experiments |
+| [circuits-machina](https://github.com/tonyday567/circuits-machina) | inward measurement, gap diagnosis, and machine observation |
 | [circuits-mat](https://github.com/tonyday567/circuits-mat) | matrices over a semiring as a traced monoidal category |
 | [circuits-meter](https://github.com/tonyday567/circuits-meter) | one-line performance metering and stopwatch pipelines |
 | [circuits-parser](https://github.com/tonyday567/circuits-parser) | parser combinators over a coinductive stream decomposition |
@@ -193,7 +216,7 @@ The core stays small; companion libraries apply it to specific domains.
 ## install
 
 Add `circuits` to your `build-depends`. GHC 9.10+ (tested with 9.14).
-Dependencies beyond base: `profunctors` and `stm`.
+Dependencies beyond base: `these`.
 
 ## examples
 
@@ -206,6 +229,13 @@ Cards are not a secondary dump for outdated material — they are the developmen
 surface of the library. Stable cards document supported API; experimental cards
 grow ideas that are not yet in the API. When a card matures, it gets promoted
 into `src/` and the public API.
+
+## ephemeral
+
+Local sibling-package paths (e.g. when building `circuits-machina` against a
+local `circuits-tools`) belong in `cabal.project.local`, which overrides
+`cabal.project`. Do not commit `cabal.project` with ad-hoc local package links;
+keep them in the ephemeral `.local` file.
 
 ## thanks
 

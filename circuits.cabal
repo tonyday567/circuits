@@ -82,5 +82,5 @@ executable circuits-axioma
   build-depends:
     base >=4.20 && <5,
     circuits,
-    circuits-tools,
+    circuits-tools >=0.1 && <0.2,
     these >=1.1 && <1.3,

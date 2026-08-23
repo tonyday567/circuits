@@ -19,7 +19,7 @@
 --
 -- * __@t@ — tensor__: the bifunctor that pairs a channel with a payload.
 --   Common choices are @(,)@ for simultaneous sharing, 'Either' for sequential
---   iteration, and 'These' for scheduled interleaving.
+--   iteration, and 'Data.These.These' for scheduled interleaving.
 --
 -- * __@ch@ — channel__: the value threaded alongside the payload.  It may be
 --   state, residual, a stream, or a feedback wire.

@@ -154,7 +154,7 @@ type family Dir (p :: Poly) :: Type where
 -- | Values of a polynomial functor @p@ evaluated at @x@.
 --
 -- The constructors mirror the polynomial grammar.  'EP' and 'ES' wrap the
--- standard product and coproduct of Haskell ('(,)' and 'Either'); they are
+-- standard product and coproduct of Haskell (@(,)@ and 'Either'); they are
 -- not reimplemented, only tagged so that the polynomial shape remains
 -- inspectable.
 --

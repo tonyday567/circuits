@@ -14,7 +14,7 @@
 -- natural numbers (encoded as 'FinObj'), morphisms are GF(2)-linear relations
 -- presented as the row space of a matrix with @(n+m)@ columns.
 --
--- Values are 'Bool', addition is 'xor', multiplication is '&&'.  The category
+-- Values are 'Bool', addition is @xor@, multiplication is '&&'.  The category
 -- carries the cartesian monoidal structure @(,)@, is traced, and supports the
 -- copy/discard/plus/zero generators that 'Circuit.Net' uses for wiring.
 --

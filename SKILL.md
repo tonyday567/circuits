@@ -1,73 +1,71 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Loop GADT (Lift/Knot normal form), Hyper (final encoding), Net (inspectable wiring), and the Layer tower. For reading, building, extending, and debugging.
+description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), Body (knot-body category), and the Layer tower, plus Process/System/Poles/Shared polynomial machinery.
 ---
 
 # circuits — field guide
 
-A free traced monoidal category over any base arrow. Two canonical
-representations: `Loop` (initial, inspectable GADT) and `Hyper` (final,
-coinductive). `Net` keeps wiring inspectable with monoidal and bimonoid
-rows. `Circuit.Layer` unifies the folds out of each layer.
+A free traced monoidal category over any base arrow. The library has one
+common shape and three views of it:
+
+- `Body t ch arr a b = arr (t ch a) (t ch b)` — a morphism that threads an
+  ambient channel `ch` alongside a payload, under a tensor `t`, in a base
+  arrow `arr`. Loops, processes, systems, and poles are all specialisations
+  or wrappers of this shape.
+- `Trace t arr a b` — the inspectable initial/free syntax for traced
+  monoidal categories (`base` + `yank`).
+- `Hyper` / `HyperA arr` — the final coinductive encoding over `(->)` and
+  `K m`.
+- `Net w arr a b` — inspectable wiring with bimonoid rows; `melt` forgets
+  it into `Trace`.
 
 ## module map
 
 Recommended reading order for the source (core concepts first):
 
 ```
-Circuit.Category    — Local 'Category' class with 'Ob' object constraints,
-                      'ObC' (class wrapper for quantified closure),
-                      'Discrete', and composition helpers (.>), (|>), (<|).
-Circuit.Channel     — Structural semantics chain: Channel, Strength,
-                      Traced, plus all base instances for (->) and
-                      Kleisli m (lazy knot, Either iteration, Kleisli IO
-                      via delimited continuations). Channel carries tensor
-                      closure as a quantified superclass, so nested tensor
-                      objects no longer need explicit ObDict plumbing.
-Circuit.Loop        — Loop GADT (Lift, Knot) in normal form, its
-                      Category/Channel/Strength/Traced instances, and the
-                      Layer witness.
-Circuit.Tensor      — Braided, Cartesian and Cocartesian structure over
-                      the standard tensors, plus ambient / ambientBy state
-                      threading and the Tensor/Action classes.
-Circuit.Hyper       — Hyper a b (final encoding), invoke, runHyper, lift,
-                      observe, base, push, encode, encodeEither, runEither,
-                      flatten, plus bridges from Loop and Free.
-Circuit.Net         — Net GADT: Lift, Compose, Par, Swap, Copy, Discard,
-                      Plus, Zero, Knot. enrich, melt, transpose. Also hosts
-                      the free symmetric monoidal category SMC.
-Circuit.Layer       — Layer tower. unit, run, bind, lower; (:~>). Also hosts
-                      the free category Free and freeze.
-Circuit.Dagger      — CopyDiscard, MergeZero, Bimonoid, Dagger, transpose.
-Circuit.Ends        — Channel ends (Out, In, Ends), boxes, queues, and the
-                      Chu construction.
+Circuit.Category    — Local 'Category' class, 'K' Kleisli newtype, and
+                      composition/application helpers (.>), (|>), (<|).
+Circuit.Channel     — Structural class ladder: Channel, Strength, Traced.
+                      Instances for (->) and K m; (,), Either, These tensors.
+                      Left = feedback/continue, Right = exit for Either trace.
+Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
+                      plumbing, and superpose (fused parallel composition).
+Circuit.Body        — The knot-body category: Body t ch arr a b and SomeBody.
+Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank).
+Circuit.SMC         — Free symmetric monoidal category over a wiring tensor.
+Circuit.Net         — Free SMC with bimonoid rows (Copy/Discard/Plus/Zero);
+                      melt, mirror, widen, sift.
+Circuit.Layer       — Layer tower: unit, run, bind, lower; Free and freeze.
+Circuit.Syntax      — Generic à-la-carte substrate: Syntax, (:+:), eval.
+Circuit.Hyper       — Hyperfunctions: final encoding, encode, observe, runHyper.
+Circuit.Dagger      — Dagger category, transpose, bimonoid interlock.
+Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules.
+Circuit.Par         — Multiplicative disjunction ⅋, Bot, linear distributors.
+Circuit.Linear      — Linear-logic connectives: Lolli, Exponential (!/?).
+Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
+Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
+                      delay/register, Body conversions.
+Circuit.System      — SystemT / System: dynamical systems over polynomials.
+Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
+Circuit.Poly.Channel — Poly-indexed Moore channels.
+Circuit.Poles       — Bi-polar channel ends (Out/In), boxes, copycat, race.
+Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
+Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
+Circuit.Stamped     — Occurrence-token values.
+Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
-                      (`import Circuit`) for almost all use. Submodules are
-                      available when you need to be very precise about scope.
-Circuit.Channel     — Structural semantics chain: Channel, Strength, Traced,
-                      plus all base instances for (->) and Kleisli m, and the
-                      discrete discharge kit: compD, assocD, assocD', braidD,
-                      strengthD, traceD.
+                      (`import Circuit`) for almost all use.
 ```
-
-## diagrams
-
-The API structure is drawn in `other/circuits-dag.md` and as standalone HTML
-charts in `other/circuits-class.html` and `other/circuits-module.html`.
-
-- **Class relationships** — `other/circuits-class.html`
-- **Module view** — `other/circuits-module.html`
-
-Solid arrows are enrichment; thick magenta dashed arrows are the `Layer`
-`Law` constraints; other dashed arrows are free construction / consumption.
-`Ends`, `Hyper`, and `Dagger` are omitted from the core class diagram but
-appear in the module view.
 
 ## build and test
 
 ```bash
 # Build
-cd ~/haskell/circuits && cabal build
+cd ~/haskell/circuits && cabal build all
+
+# Axioma oracles
+cabal run circuits-axioma
 
 # Doctests (requires cabal-docspec)
 cabal-docspec
@@ -77,7 +75,7 @@ cabal-docspec -m Circuit.Hyper
 
 # Lint / format checks
 hlint .
-ormolu --mode check $(find src -name '*.hs')
+ormolu --mode check $(find src app -name '*.hs')
 ```
 
 CI runs `hlint`, `ormolu`, `cabal build all`, `cabal check`, and
@@ -85,7 +83,7 @@ CI runs `hlint`, `ormolu`, `cabal build all`, `cabal check`, and
 
 ## notation
 
-Unicode symbols are used in prose and the narrative cards as mathematical
+Unicode symbols are used in prose and narrative cards as mathematical
 notation — not Haskell identifiers. The canonical API uses lowercase names:
 `lift`, `observe`, `encode`, `push`, `run`, `runHyper`, `runEither`,
 `trace`, `strength`, `melt`, `enrich`, `lower`, etc.
@@ -105,11 +103,12 @@ type signatures, code — use names. This boundary prevents churn.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
 - **Use the right elimination form**:
-  - `run` interprets any `Layer` value into its base category. For example,
-    `run someLoop` folds a `Loop` into the underlying `arr`.
+  - `run` interprets any `Layer` value into its base or target category. For
+    example, `run someTrace` folds a `Trace` into the underlying `arr`, and
+    `run someNet` folds a `Net` via `melt` into `Trace` and then `run`.
   - `bind h` folds a free construction into a different target category,
     mapping base arrows with `h :: arr :~> arr'`.
-  - `encode :: Loop (,) (->) a b -> Hyper a b` is the common case of
+  - `encode :: Trace (,) (->) a b -> Hyper a b` is the common case of
     `bind lift`, folding functions into `Hyper`.
   - `runHyper :: Hyper a a -> a` ties the self-referential knot on `Hyper`.
   - `observe :: Hyper a b -> (a -> b)` extracts a plain function from `Hyper`.
@@ -118,16 +117,16 @@ type signatures, code — use names. This boundary prevents churn.
 
 ## gotchas
 
-### run vs runHyper vs run on Net
+### run vs runHyper vs observe
 
-`run` is overloaded by the `Layer` class. `run someLoop` folds a `Loop` into
-any `Traced t arr`; `run someNet` folds a `Net` via `melt` into `Loop` and
+`run` is overloaded by the `Layer` class. `run someTrace` folds a `Trace` into
+any `Traced t arr`; `run someNet` folds a `Net` via `melt` into `Trace` and
 then `run`.
 
 `runHyper` takes a `Hyper a a`. `observe` extracts `Hyper a b -> (a -> b)`.
 They are different elimination forms on different types. If an example calls
 `run` on something built with `Hyper`, it needs `runHyper` or `observe` (or
-`run` if the value is already `Loop (,) Hyper`).
+`run` if the value is already a `Trace` containing `Hyper` arrows).
 
 ### .md cards cannot be loaded directly in cabal repl
 
@@ -146,24 +145,19 @@ User-facing code often uses the opposite convention — `Left` = result
 (done), `Right` = continue (next state). See `while.md` in
 `circuits-examples` for an `Either` iteration type and the `swapRL` bridge.
 
-When a `Loop` body behaves strangely — exiting immediately when it should
+When a `Trace` body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
 returning. The convention is fixed by the class, not configurable.
 
 ### wrong tensor
 
-`Loop` is parametric in the tensor `t`. `(,)` and `Either` have different
+`Trace` is parametric in the tensor `t`. `(,)` and `Either` have different
 loop semantics but identical GADT constructors. The compiler won't stop you
 from using the wrong one — you'll get a puzzling type error deep inside a
-`Loop` or `run`.
-
-| if you wanted | but wrote | symptom |
-|-------------|----------|---------|
-| iteration loop | `Traced (,) (->)` | `Left`/`Right` not in scope inside Loop body |
-| lazy knot | `Traced Either (->)` | lazy knot needs pair pattern `(a, b)`, got `Either` |
+`Trace` or `run`.
 
 Pin the tensor explicitly with a type annotation:
-`:: Loop (,) (->) Int Int` or `:: Loop Either (->) Int Int`.
+`:: Trace (,) (->) Int Int` or `:: Trace Either (->) Int Int`.
 The annotation also resolves overlapping `Traced` instances for `(->)`.
 
 ### extra dependencies for example cards
@@ -194,10 +188,11 @@ Solid examples to learn from: `parser.md`, `while.md`, `pipes.md`.
 
 ## sibling libraries
 
-- **circuits-parser** — `Loop Either (->)` with `These` output for
+- **circuits-parser** — `Trace Either (->)` with `These` output for
   backtracking parsers.
-- **circuits-io** — `Loop (Kleisli IO) Either` with delimited continuations
+- **circuits-io** — `Trace (Kleisli IO) Either` with delimited continuations
   for resource-bracketed IO loops, producer/consumer channels, and the
   circuits-io frontier.
 - **circuits-meter** — one-line performance metering.
 - **circuits-ad** — backpropagation as transpose.
+

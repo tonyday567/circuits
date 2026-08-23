@@ -22,11 +22,11 @@
 --
 -- For a generic wiring tensor @t@ the tensor-generic classes 'CopyT',
 -- 'DiscardT', 'MergeT' and 'ZeroT' play the same role.  The cartesian classes
--- are the special case @t = (,)@, recovered via the 'OVERLAPPABLE' default
+-- are the special case @t = (,)@, recovered via the @OVERLAPPABLE@ default
 -- instances at the bottom of this module.
 --
 -- The free dagger category itself (pairing a forward arrow with a backward
--- arrow and swapping them with 'transpose') lives in "Circuit.Dagger"; this
+-- arrow and swapping them with 'Circuit.Dagger.transpose') lives in "Circuit.Dagger"; this
 -- module is only the structural rules.
 module Circuit.Bimonoid
   ( -- * Copy

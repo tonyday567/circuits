@@ -125,8 +125,8 @@ instance (Traced t arr, Action w arr) => Traced t (SMC w arr) where
 
 -- | Mirror an 'SMC' built over 'Dg.Dagger'.
 --
--- Reverses composition, transposes each lifted arrow, and leaves 'tensor'
--- and 'braid' self-dual. This is the structural transpose of the SMC
+-- Reverses composition, transposes each lifted arrow, and leaves 'Circuit.Tensor.tensor'
+-- and 'Circuit.Tensor.braid' self-dual. This is the structural transpose of the SMC
 -- layer that 'Circuit.Net.mirror' delegates to.
 mirror ::
   forall w arr a b.

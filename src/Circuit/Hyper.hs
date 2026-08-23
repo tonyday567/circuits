@@ -216,7 +216,7 @@ instance (MonadFix m) => Traced (,) (HyperA (K m)) where
 
 -- | Encode an Either-loop as a self-referential 'Hyper'.
 --
--- Whereas 'encode' handles the @(,)@ tensor using 'Hyper''s own 'Traced'
+-- Whereas 'encode' handles the @(,)@ tensor using @Hyper@'s own 'Traced'
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
@@ -270,10 +270,10 @@ runEither f b = runHyper (encodeEither f) (Right b)
 --
 -- This is the unique traced functor from the initial syntax ('Trace')
 -- to the final object ('Hyper'), satisfying the commuting triangle
--- @'observe' . 'encode' = 'eval'@.
+-- @'observe' . 'encode' = 'Circuit.Syntax.eval'@.
 --
--- 'base' constructors embed directly via 'lift'; 'yank' constructors
--- become 'trace' over a hyperfunction.
+-- 'base' constructors embed directly via 'lift'; 'Circuit.Trace.yank'
+-- constructors become 'trace' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace
 -- >>> observe (encode (Trace.base (+1) :: Trace.Trace (,) (->) Int Int)) 5

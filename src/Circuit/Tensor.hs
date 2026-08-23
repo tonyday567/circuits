@@ -17,7 +17,7 @@
 -- This module collects the cartesian and cocartesian structure over the
 -- standard tensors @(,)@ and 'Either', plus the tensor action on morphisms.
 --
--- The goal is to keep the core 'Trace' syntax and 'eval' fold
+-- The goal is to keep the core 'Trace' syntax and 'Circuit.Syntax.eval' fold
 -- independent of these structural details.
 --
 -- Note: the monomorphic 'assocL' and 'assocR' helpers below reassociate
@@ -388,9 +388,10 @@ instance (Monad m) => Action These (K m) where
 -- | Lift 'Tensor'/'Action' through 'Trace'.
 --
 -- This is the single lawful instance: it evaluates each 'Trace' branch
--- independently with 'eval' and combines the results using the base arrow's
--- tensor. It is correct and black-hole-free, but does not fuse feedback
--- loops. For the fused superposition of two 'yank's, use 'superpose'.
+-- independently with 'Circuit.Syntax.eval' and combines the results using the
+-- base arrow's tensor. It is correct and black-hole-free, but does not fuse
+-- feedback loops. For the fused superposition of two 'Circuit.Trace.yank's,
+-- use 'superpose'.
 instance (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
   tensor f g = base (tensor (eval f) (eval g))
   unitl = base unitl
@@ -403,7 +404,7 @@ instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.
 --
--- Two 'yank's in parallel superpose into one 'yank' over a paired channel,
+-- Two 'Circuit.Trace.yank's in parallel superpose into one 'Circuit.Trace.yank' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
 --
 -- @superpose (trace f) (trace g) = trace (pre . tensor f g . post)@

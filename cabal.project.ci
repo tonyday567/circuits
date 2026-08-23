@@ -6,4 +6,3 @@ source-repository-package
   location: https://github.com/tonyday567/circuits-tools.git
   tag: main
 
-write-ghc-environment-files: always
