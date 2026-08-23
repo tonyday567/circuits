@@ -71,7 +71,6 @@ runSomeBody (SomeBody ch0 (Body f)) xs =
   let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
 
-
 -- ---------------------------------------------------------------------------
 -- HasDual instances for Body
 -- ---------------------------------------------------------------------------
