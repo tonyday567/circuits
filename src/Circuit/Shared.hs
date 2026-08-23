@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- | Shared-medium fusion: two bodies interleaved on one feedback channel.
 --
@@ -26,12 +28,27 @@ module Circuit.Shared
 
     -- * Shared fusion class
     Shared (..),
+
+    -- * Shared-medium fusion signature
+    SigShared (..),
+
+    -- * Free traced category with shared-medium fusion
+    AlgShared,
   )
 where
 
 import Circuit.Category (Category (..), K (..))
+import Circuit.Channel (Channel (..))
+import Circuit.Syntax
+  ( Algebra (..),
+    SigCompose,
+    Syntax,
+    (:+:),
+  )
 import Circuit.Tensor (Bias (..), Tensor (..))
+import Circuit.Trace (SigYank)
 import Control.Monad (Monad)
+import Data.Kind (Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
@@ -125,3 +142,25 @@ instance (Monad m) => Shared (,) (K m) where
           (s''', b) <- f (s'', a)
           pure (s''', These b d)
   {-# INLINE sharedBy #-}
+
+-- ---------------------------------------------------------------------------
+-- Shared-medium fusion signature
+
+-- | Shared-medium fusion (the tensor product ⅋), parameterised by a schedule.
+--
+-- The constructor takes two bodies that already share a feedback type @s@ and
+-- produces the untraced shared body.  The surrounding 'SigYank' closes the
+-- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
+data SigShared (t :: Type -> Type -> Type) arr rec i o where
+  SigShared ::
+    Schedule s ->
+    rec (t s a) (t s b) ->
+    rec (t s c) (t s d) ->
+    SigShared t arr rec (t s (t a c)) (t s (These b d))
+
+instance (Shared t arr') => Algebra (SigShared t) arr arr' where
+  type Ctx (SigShared t) arr arr' = Shared t arr'
+  alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
+
+-- | Free traced category with shared-medium fusion (the ⅋ connective).
+type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr

@@ -40,10 +40,10 @@
 -- * @SigCompose@ — sequential composition
 -- * @SigYank@    — feedback / trace over a tensor @t@
 -- * @SigPar@     — parallel composition (the tensor product ⊗)
--- * @SigShared@  — shared-medium fusion (the tensor product ⅋), parameterised by a schedule
+-- * @SigShared@  — shared-medium fusion (the tensor product ⅋), parameterised by a schedule (re-exported from "Circuit.Shared")
 -- * @SigSwap@    — symmetric braiding
--- * @SigCopyDiscard@ — copy, discard
--- * @SigMergeZero@   — plus, zero
+-- * @SigCopyDiscard@ — copy, discard (re-exported from "Circuit.Bimonoid")
+-- * @SigMergeZero@   — plus, zero (re-exported from "Circuit.Bimonoid")
 --
 -- Examples:
 --
@@ -103,7 +103,7 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.SMC (SMC, SigPar (..), SigSwap (..))
-import Circuit.Shared (Bias (..), Pick, Schedule (..), Shared (..), sharedBy)
+import Circuit.Shared (AlgShared, SigShared (..))
 import Circuit.Syntax
   ( AlgCat,
     Algebra (..),
@@ -121,29 +121,7 @@ import Data.These (These (..))
 import Prelude hiding (id, (.))
 
 -- ---------------------------------------------------------------------------
--- Individual signatures
-
--- | Shared-medium fusion (the tensor product ⅋), parameterised by a schedule.
---
--- The constructor takes two bodies that already share a feedback type @s@ and
--- produces the untraced shared body.  The surrounding 'SigYank' closes the
--- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
-data SigShared (t :: Type -> Type -> Type) arr rec i o where
-  SigShared ::
-    Schedule s ->
-    rec (t s a) (t s b) ->
-    rec (t s c) (t s d) ->
-    SigShared t arr rec (t s (t a c)) (t s (These b d))
-
-instance (Shared t arr') => Algebra (SigShared t) arr arr' where
-  type Ctx (SigShared t) arr arr' = Shared t arr'
-  alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
-
--- ---------------------------------------------------------------------------
 -- Common syntax combinations
-
--- | Free traced category with shared-medium fusion (the ⅋ connective).
-type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr
 
 -- | Free relevant symmetric monoidal category over wiring tensor @w@.
 --
