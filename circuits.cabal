@@ -50,23 +50,23 @@ library
     Circuit.Category
     Circuit.Channel
     Circuit.Dagger
-    Circuit.Poles
     Circuit.FinRel
     Circuit.Hyper
     Circuit.Layer
     Circuit.Linear
     Circuit.Net
     Circuit.Par
+    Circuit.Poles
     Circuit.Poly
     Circuit.Poly.Channel
     Circuit.Process
     Circuit.Pullback
-    Circuit.SMC
     Circuit.Shared
+    Circuit.SMC
     Circuit.Stamped
-    Circuit.System
     Circuit.Stream
     Circuit.Syntax
+    Circuit.System
     Circuit.Tensor
     Circuit.Trace
 
@@ -84,4 +84,3 @@ executable circuits-axioma
     circuits,
     circuits-tools,
     these >=1.1 && <1.3,
-
