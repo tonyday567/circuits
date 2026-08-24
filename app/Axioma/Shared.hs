@@ -9,7 +9,9 @@ module Axioma.Shared
 where
 
 import Axioma.Common
-  ( checkIO,
+  ( Verbosity (..),
+    checkIOV,
+    checkV,
     sharedAddP,
     sharedDoubleP,
   )
@@ -21,8 +23,8 @@ import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Tensor (..), superpose)
-import Circuit.Tools.Test (check)
 import Circuit.Trace (SigYank (..), Trace, base, yank)
+import Control.Monad (when)
 import Data.List (sort)
 import Data.These (These (..), these)
 import Prelude hiding (curry, id, uncurry, (.))
@@ -134,12 +136,12 @@ liftBody f (s, a) = (s, f a)
 sharedAddFPair :: (Int, (Int, Int)) -> (Int, (Int, Int))
 sharedAddFPair (s, (a, b)) = let s' = s + a + b in (s', (s', s'))
 
-sharedTopic :: IO [Bool]
-sharedTopic = do
-  putStrLn "Shared-medium, centrality, and Channel These oracles"
+sharedTopic :: Verbosity -> IO [Bool]
+sharedTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "Shared-medium, centrality, and Channel These oracles"
   sequence
     [ -- Channel These presence-preserving slide
-      check "Channel These slide preserves presence on all 7 cases" $
+      checkV verbosity "Channel These slide preserves presence on all 7 cases" $
         let presenceInput :: These Char (These Char Char) -> (Bool, Bool, Bool)
             presenceInput = \case
               This _ -> (True, False, False)
@@ -169,7 +171,7 @@ sharedTopic = do
                 These 'a' (These 'b' 'c')
               ]
          in all (\x -> presenceInput x == presenceOutput (slide x)) cases,
-      check "Channel These slide . slide == id where types permit" $
+      checkV verbosity "Channel These slide . slide == id where types permit" $
         let x = These 'a' (These 'b' 'c' :: These Char Char)
          in (slide . slide) x == (x :: These Char (These Char Char)),
       -- Traced These falsifier: the both-branch forces a discard.
@@ -178,7 +180,7 @@ sharedTopic = do
       -- whether to emit c (discarding a) or loop on a (discarding c).
       -- Two equally natural biased traces disagree, so no canonical trace
       -- exists; any fixed bias breaks sliding/dinaturality under composition.
-      check "Traced These is impossible: biased traces disagree in the both-branch" $
+      checkV verbosity "Traced These is impossible: biased traces disagree in the both-branch" $
         let traceTheseEmit f b = go (f (That b))
               where
                 go (That c) = c
@@ -196,12 +198,12 @@ sharedTopic = do
             step (These m n) = These (m + 1) n
          in traceTheseEmit step 5 /= traceTheseLoop step 5,
       -- tensor/par probe: sharedBy vs superpose
-      check "pure order braid is invisible at the shared channel (sliding axiom)" $
+      checkV verbosity "pure order braid is invisible at the shared channel (sliding axiom)" $
         let k1 = markerBody 1
             k2 = markerBody 2
          in Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ())
               == Syn.eval (yank (base (sharedBy pureRight k1 k2))) ((), ()),
-      check "sharedBy differs from superpose (shared vs independent feedback)" $
+      checkV verbosity "sharedBy differs from superpose (shared vs independent feedback)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             theseToPair (This a) = (a, [])
@@ -209,41 +211,41 @@ sharedTopic = do
             theseToPair (These a b) = (a, b)
          in Syn.eval (superpose (yank (base k1)) (yank (base k2))) ((), ())
               /= theseToPair (Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())),
-      check "sharedBy schedule changes observable interleaving" $
+      checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2
          in Syn.eval (yank (base (sharedBy rightFirst k1 k2))) ((), ())
               /= Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ()),
-      check "sharedBy Both LeftFirst equals premonoidal left-first product" $
+      checkV verbosity "sharedBy Both LeftFirst equals premonoidal left-first product" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
          in sharedBy (Schedule (,Both Shared.LeftFirst) :: Schedule [Int]) k1 k2 input == bodyParL k1 k2 input,
-      check "sharedBy Both RightFirst equals premonoidal right-first product" $
+      checkV verbosity "sharedBy Both RightFirst equals premonoidal right-first product" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
          in sharedBy (Schedule (,Both Shared.RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
       -- Gate: Bias = f⋉g / f⋊g means the hand-written products agree with
       -- sharedBy under the constant schedules pureLeft / pureRight.
-      check "bodyParL equals sharedBy under pureLeft" $
+      checkV verbosity "bodyParL equals sharedBy under pureLeft" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
          in bodyParL k1 k2 input == sharedBy pureLeft k1 k2 input,
-      check "bodyParR equals sharedBy under pureRight" $
+      checkV verbosity "bodyParR equals sharedBy under pureRight" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
          in bodyParR k1 k2 input == sharedBy pureRight k1 k2 input,
       -- Gate: Bias is the premonoidal ordering iff the whiskerings agree.
-      check "left-first whiskering equals bodyParL" $
+      checkV verbosity "left-first whiskering equals bodyParL" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
             (s, (b, d)) = whiskerL k1 k2 input
          in (s, These b d) == bodyParL k1 k2 input,
-      check "right-first whiskering equals bodyParR" $
+      checkV verbosity "right-first whiskering equals bodyParR" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
@@ -252,10 +254,10 @@ sharedTopic = do
       -- Centrality oracles: the tensor/par distinction is exactly premonoidal centrality
       -- Centrality witnesses: bodyCentral is a predicate at one input against
       -- one partner. These are existence witnesses, not proofs of ∀g.
-      check "state-agnostic bodies witness centrality at a point" $
+      checkV verbosity "state-agnostic bodies witness centrality at a point" $
         let input = (0, (1, 2)) :: (Int, (Int, Int))
          in bodyCentral bodyIdF bodyIncF input,
-      check "state-touching bodies witness non-centrality at a point" $
+      checkV verbosity "state-touching bodies witness non-centrality at a point" $
         let input = (1, (2, 3)) :: (Int, (Int, Int))
          in not (bodyCentral sharedAddF sharedDoubleF input),
       -- markerBody writes to the shared state, so these bodies are NOT central.
@@ -263,39 +265,39 @@ sharedTopic = do
       -- orders produce the same observable output (here, the same rotation of
       -- markers). This is a coincidence of the example, not Benton–Hyland
       -- centrality and not Centre Preservation (Def 3.2 runs the other way).
-      check "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
+      checkV verbosity "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
         let k1 = markerBody 1
             k2 = markerBody 2
          in Syn.eval (yank (base (bodyParL k1 k2))) ((), ())
               == Syn.eval (yank (base (bodyParR k1 k2))) ((), ()),
       -- Structural maps are central: they do not touch the shared state,
       -- so order of threading is invisible (Benton–Hyland centrality).
-      check "copy witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "copy witnesses centrality wrt state-touching body at a point" $
         let input = (0, (1, 2)) :: (Int, (Int, Int))
          in bodyCentral (liftBody (\x -> (x, x))) sharedAddF input,
-      check "discard witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "discard witnesses centrality wrt state-touching body at a point" $
         let input = (0, (1, 2)) :: (Int, (Int, Int))
          in bodyCentral (liftBody (const ())) sharedAddF input,
-      check "plus witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "plus witnesses centrality wrt state-touching body at a point" $
         let input = (0, ((1, 2), 3)) :: (Int, ((Int, Int), Int))
          in bodyCentral (liftBody (Pre.uncurry (+))) sharedAddF input,
-      check "zero witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "zero witnesses centrality wrt state-touching body at a point" $
         let input = (0, ((), 3)) :: (Int, ((), Int))
          in bodyCentral (liftBody (const (0 :: Int))) sharedAddF input,
-      check "braid witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "braid witnesses centrality wrt state-touching body at a point" $
         let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
          in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
-      check "sharedBy L gates right body (output is This only)" $
+      checkV verbosity "sharedBy L gates right body (output is This only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             leftOnly = Schedule (,Shared.L) :: Schedule [Int]
          in Syn.eval (yank (base (sharedBy leftOnly k1 k2))) ((), ()) == This [1, 1, 1],
-      check "sharedBy R gates left body (output is That only)" $
+      checkV verbosity "sharedBy R gates left body (output is That only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             rightOnly = Schedule (,Shared.R) :: Schedule [Int]
          in Syn.eval (yank (base (sharedBy rightOnly k1 k2))) ((), ()) == That [2, 2, 2],
-      check "sharedBy left-first and right-first both agree on body sets" $
+      checkV verbosity "sharedBy left-first and right-first both agree on body sets" $
         let k1 = markerBody 1
             k2 = markerBody 2
             leftResult = Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())
@@ -304,7 +306,7 @@ sharedTopic = do
          in bodySet leftResult == [0, 0, 1, 1, 2, 2]
               && bodySet rightResult == [0, 0, 1, 1, 2, 2],
       -- Free-syntax bridge: AlgShared is the algebraic par connective
-      check "AlgShared Syn.eval agrees with sharedBy" $
+      checkV verbosity "AlgShared Syn.eval agrees with sharedBy" $
         let k1 = markerBody 1
             k2 = markerBody 2
             term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
@@ -322,7 +324,7 @@ sharedTopic = do
                     )
                 )
          in eval term ((), ()) == Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ()),
-      check "AlgShared L schedule gates right body" $
+      checkV verbosity "AlgShared L schedule gates right body" $
         let k1 = markerBody 1
             k2 = markerBody 2
             leftOnly = Schedule (,Shared.L) :: Schedule [Int]
@@ -341,7 +343,7 @@ sharedTopic = do
                     )
                 )
          in eval term ((), ()) == This [1, 1, 1],
-      check "AlgShared R schedule gates left body" $
+      checkV verbosity "AlgShared R schedule gates left body" $
         let k1 = markerBody 1
             k2 = markerBody 2
             rightOnly = Schedule (,Shared.R) :: Schedule [Int]

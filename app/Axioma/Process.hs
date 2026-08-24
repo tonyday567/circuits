@@ -7,7 +7,9 @@ module Axioma.Process
 where
 
 import Axioma.Common
-  ( ewma,
+  ( Verbosity (..),
+    checkV,
+    ewma,
     ewmaBody,
     sharedAddP,
     sharedDoubleP,
@@ -30,8 +32,8 @@ import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.System (System, mooreSystem)
 import Circuit.Tensor (tensor)
-import Circuit.Tools.Test (check)
 import Circuit.Trace (Trace, base, yank)
+import Control.Monad (when)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))
 import Data.Tuple qualified as Tuple
@@ -56,31 +58,31 @@ pairSumP = mealy Empty $ \s x -> case s of
 countP :: Process () (Maybe Int)
 countP = mealy 0 (\n _ -> let n' = n + 1 in (n', Just n'))
 
-processTopic :: IO [Bool]
-processTopic = do
-  putStrLn "Process, Body, Trace, Net, and Mealy oracles"
+processTopic :: Verbosity -> IO [Bool]
+processTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "Process, Body, Trace, Net, and Mealy oracles"
   sequence
     [ -- Para laws promoted to circuits-learn-axioma (11 Aug 2026).
       -- The L1/L2 constant-state trace checks now live there alongside
       -- the full Category associativity and identity oracles for Para.
       -- Circuit.Process oracles
-      check "Process seed emits first output" $
+      checkV verbosity "Process seed emits first output" $
         scan sumP [5] == [5],
-      check "Process scan semantics" $
+      checkV verbosity "Process scan semantics" $
         scan sumP [1, 2, 3] == [1, 3, 6],
-      check "Process fold semantics" $
+      checkV verbosity "Process fold semantics" $
         fold sumP [1, 2, 3] == Just 6,
-      check "Process fold empty" $
+      checkV verbosity "Process fold empty" $
         isNothing (fold sumP []),
-      check "Process scan == run . encode" $
+      checkV verbosity "Process scan == run . encode" $
         Syn.eval (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
-      check "Process Traced (,) yanking" $
+      checkV verbosity "Process Traced (,) yanking" $
         scan (trace swapPairP) [1, 2, 3] == [1, 2, 3],
-      check "Process Traced Either yanking" $
+      checkV verbosity "Process Traced Either yanking" $
         scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
-      check "Process register (EWMA)" $
+      checkV verbosity "Process register (EWMA)" $
         scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
-      check "Process register == trace . strength . delay (EWMA)" $
+      checkV verbosity "Process register == trace . strength . delay (EWMA)" $
         let body = ewmaBody 0.5
             s0 = 0.0
             xs = [1.0, 1.0, 1.0]
@@ -89,45 +91,45 @@ processTopic = do
          in scan (register s0 body) xs
               == scan (trace (swapP (body . strength (delay s0)))) xs,
       -- Process / Body equivalence
-      check "processToSomeBody sumP agrees with scan" $
+      checkV verbosity "processToSomeBody sumP agrees with scan" $
         runSomeBody (Process.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
-      check "processToSomeBody swapPairP agrees with scan" $
+      checkV verbosity "processToSomeBody swapPairP agrees with scan" $
         runSomeBody (Process.processToSomeBody swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
-      check "processToSomeBody ewma agrees with scan" $
+      checkV verbosity "processToSomeBody ewma agrees with scan" $
         runSomeBody (Process.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
       -- Process / Trace Either round-trip factors through Body Either ch (->)
-      check "Process encode factors through Body Either ch (->)" $
+      checkV verbosity "Process encode factors through Body Either ch (->)" $
         let viaBody p = case Process.processToBody p of SomeBody _ (Body.Body f) -> yank (base f)
          in scan sumP [1, 2, 3] == Syn.eval (viaBody sumP) [1, 2, 3]
               && scan swapPairP [(1, 2), (3, 4), (5, 6)] == Syn.eval (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
               && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == Syn.eval (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
       -- Process as a base arrow for Trace / Net / Shared
-      check "Process lifts into Trace (,) Process" $
+      checkV verbosity "Process lifts into Trace (,) Process" $
         scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]
           == scan sumP [1, 2, 3],
-      check "Net (,) Process copy uses Process.copy" $
+      checkV verbosity "Net (,) Process copy uses Process.copy" $
         let p = run (Net.lift (copy :: Process Int (Int, Int)) :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
          in scan p [5] == [(5, 5)],
-      check "Net (,) Process plus uses Process.plus" $
+      checkV verbosity "Net (,) Process plus uses Process.plus" $
         let p = run (Net.lift (plus :: Process (Int, Int) Int) :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
          in scan p [(2, 3)] == [5],
-      check "Shared (,) Process LR order differs from RL" $
+      checkV verbosity "Shared (,) Process LR order differs from RL" $
         let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP
             rl = sharedBy (Schedule (,Both RightFirst) :: Schedule Int) sharedAddP sharedDoubleP
          in scan lr [(1, (2, 3))] == [(6, These 3 6)]
               && scan rl [(1, (2, 3))] == [(4, These 4 2)],
       -- Mealy process oracles
-      check "mealy linear forwards every input" $
+      checkV verbosity "mealy linear forwards every input" $
         runMealy linearP [1, 2, 3 :: Int] == [1, 2, 3],
-      check "mealy pairSum buffers and sums pairs" $
+      checkV verbosity "mealy pairSum buffers and sums pairs" $
         runMealy pairSumP [1, 2, 3, 4 :: Int] == [3, 7],
-      check "mealy pairSum leaves one input unemitted" $
+      checkV verbosity "mealy pairSum leaves one input unemitted" $
         runMealy pairSumP [1, 2, 3 :: Int] == [3],
-      check "mealy count emits accumulating count" $
+      checkV verbosity "mealy count emits accumulating count" $
         runMealy countP [(), (), ()] == [1, 2, 3],
-      check "mealy scan matches runMealy" $
+      checkV verbosity "mealy scan matches runMealy" $
         catMaybes (scan pairSumP [1, 2, 3, 4 :: Int]) == runMealy pairSumP [1, 2, 3, 4],
-      check "mealy process encodes to Trace Either" $
+      checkV verbosity "mealy process encodes to Trace Either" $
         Syn.eval (encode pairSumP) [1, 2, 3, 4 :: Int]
           == scan pairSumP [1, 2, 3, 4]
     ]

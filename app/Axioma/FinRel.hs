@@ -8,11 +8,12 @@ module Axioma.FinRel
   )
 where
 
+import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (id)
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.FinRel
-import Circuit.Tools.Test (check)
+import Control.Monad (when)
 import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, natVal)
 import Prelude hiding (id, (.))
@@ -102,83 +103,83 @@ daggerCopy1 = copy
 daggerDiscard1 :: Dagger FinRel N1 ()
 daggerDiscard1 = discard
 
-finRelTopic :: IO [Bool]
-finRelTopic = do
-  putStrLn "FinRel bimonoid, dagger, and trace oracles"
+finRelTopic :: Verbosity -> IO [Bool]
+finRelTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "FinRel bimonoid, dagger, and trace oracles"
   sequence
     [ -- copy/discard comonoid laws
-      check "copy coassociative (n=1)" $
+      checkV verbosity "copy coassociative (n=1)" $
         parFinRel copy1 id1 `compFinRel` copy1 == assoc'FinRel `compFinRel` parFinRel id1 copy1 `compFinRel` copy1,
-      check "copy coassociative (n=2)" $
+      checkV verbosity "copy coassociative (n=2)" $
         parFinRel copy2 id2 `compFinRel` copy2 == assoc'FinRel `compFinRel` parFinRel id2 copy2 `compFinRel` copy2,
-      check "copy left counit (n=1)" $
+      checkV verbosity "copy left counit (n=1)" $
         parFinRel discard1 id1 `compFinRel` copy1 == unitl1',
-      check "copy left counit (n=2)" $
+      checkV verbosity "copy left counit (n=2)" $
         parFinRel discard2 id2 `compFinRel` copy2 == unitl2',
-      check "copy right counit (n=1)" $
+      checkV verbosity "copy right counit (n=1)" $
         parFinRel id1 discard1 `compFinRel` copy1 == unitr1',
-      check "copy right counit (n=2)" $
+      checkV verbosity "copy right counit (n=2)" $
         parFinRel id2 discard2 `compFinRel` copy2 == unitr2',
-      check "copy cocommutative (n=1)" $
+      checkV verbosity "copy cocommutative (n=1)" $
         swapFinRel `compFinRel` copy1 == copy1,
-      check "copy cocommutative (n=2)" $
+      checkV verbosity "copy cocommutative (n=2)" $
         swapFinRel `compFinRel` copy2 == copy2,
       -- plus/zero monoid laws
-      check "plus associative (n=1)" $
+      checkV verbosity "plus associative (n=1)" $
         plus1 `compFinRel` parFinRel plus1 id1 == plus1 `compFinRel` parFinRel id1 plus1 `compFinRel` assocFinRel,
-      check "plus associative (n=2)" $
+      checkV verbosity "plus associative (n=2)" $
         plus2 `compFinRel` parFinRel plus2 id2 == plus2 `compFinRel` parFinRel id2 plus2 `compFinRel` assocFinRel,
-      check "plus left unit (n=1)" $
+      checkV verbosity "plus left unit (n=1)" $
         plus1 `compFinRel` parFinRel zero1 id1 `compFinRel` unitl1' == id1,
-      check "plus left unit (n=2)" $
+      checkV verbosity "plus left unit (n=2)" $
         plus2 `compFinRel` parFinRel zero2 id2 `compFinRel` unitl2' == id2,
-      check "plus right unit (n=1)" $
+      checkV verbosity "plus right unit (n=1)" $
         plus1 `compFinRel` parFinRel id1 zero1 `compFinRel` unitr1' == id1,
-      check "plus right unit (n=2)" $
+      checkV verbosity "plus right unit (n=2)" $
         plus2 `compFinRel` parFinRel id2 zero2 `compFinRel` unitr2' == id2,
-      check "plus commutative (n=1)" $
+      checkV verbosity "plus commutative (n=1)" $
         plus1 `compFinRel` swapFinRel == plus1,
-      check "plus commutative (n=2)" $
+      checkV verbosity "plus commutative (n=2)" $
         plus2 `compFinRel` swapFinRel == plus2,
       -- bialgebra laws
-      check "bialgebra copy-plus (n=1)" $
+      checkV verbosity "bialgebra copy-plus (n=1)" $
         copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` swapMiddle `compFinRel` parFinRel copy1 copy1,
-      check "bialgebra copy-plus (n=2)" $
+      checkV verbosity "bialgebra copy-plus (n=2)" $
         copy2 `compFinRel` plus2 == parFinRel plus2 plus2 `compFinRel` swapMiddle2 `compFinRel` parFinRel copy2 copy2,
-      check "bialgebra discard-plus (n=1)" $
+      checkV verbosity "bialgebra discard-plus (n=1)" $
         discard1 `compFinRel` plus1 == unitr0 `compFinRel` parFinRel discard1 discard1,
-      check "bialgebra discard-plus (n=2)" $
+      checkV verbosity "bialgebra discard-plus (n=2)" $
         discard2 `compFinRel` plus2 == unitr0 `compFinRel` parFinRel discard2 discard2,
-      check "bialgebra zero-copy (n=1)" $
+      checkV verbosity "bialgebra zero-copy (n=1)" $
         copy1 `compFinRel` zero1 == parFinRel zero1 zero1 `compFinRel` unitr'FinRel,
-      check "bialgebra zero-copy (n=2)" $
+      checkV verbosity "bialgebra zero-copy (n=2)" $
         copy2 `compFinRel` zero2 == parFinRel zero2 zero2 `compFinRel` unitr'FinRel,
-      check "bialgebra discard-zero" $
+      checkV verbosity "bialgebra discard-zero" $
         compFinRel discard0 zero0 == (finId :: FinRel () ()),
       -- scalar arithmetic over GF(2)
-      check "scalar True is identity" $
+      checkV verbosity "scalar True is identity" $
         finScalar True == id1,
-      check "scalar False is idempotent" $
+      checkV verbosity "scalar False is idempotent" $
         compFinRel (finScalar False :: FinRel N1 N1) (finScalar False) == finScalar False,
-      check "scalar False absorbs scalar True" $
+      checkV verbosity "scalar False absorbs scalar True" $
         compFinRel (finScalar False :: FinRel N1 N1) (finScalar True) == finScalar False,
-      check "scalar True after scalar False" $
+      checkV verbosity "scalar True after scalar False" $
         compFinRel (finScalar True :: FinRel N1 N1) (finScalar False) == finScalar False,
       -- Dagger(FinRel k) collapse: the dagger instances interlock the
       -- tensor-comonoid and the par-monoid in a single construction.
-      check "Dagger(FinRel) copy front is FinRel copy" $
+      checkV verbosity "Dagger(FinRel) copy front is FinRel copy" $
         front daggerCopy1 == copy1,
-      check "Dagger(FinRel) copy back is FinRel plus" $
+      checkV verbosity "Dagger(FinRel) copy back is FinRel plus" $
         back daggerCopy1 == plus1,
-      check "Dagger(FinRel) discard front is FinRel discard" $
+      checkV verbosity "Dagger(FinRel) discard front is FinRel discard" $
         front daggerDiscard1 == discard1,
-      check "Dagger(FinRel) discard back is FinRel zero" $
+      checkV verbosity "Dagger(FinRel) discard back is FinRel zero" $
         back daggerDiscard1 == zero1,
-      check "Dagger(FinRel) transpose copy has plus in front" $
+      checkV verbosity "Dagger(FinRel) transpose copy has plus in front" $
         front (transpose daggerCopy1) == plus1,
       -- traced structure
-      check "trace yanking (n=1)" $
+      checkV verbosity "trace yanking (n=1)" $
         traceFinRel (swapFinRel :: FinRel (N1, N1) (N1, N1)) == id1,
-      check "trace of identity pair" $
+      checkV verbosity "trace of identity pair" $
         traceFinRel (parFinRel id1 id1 :: FinRel (N1, N1) (N1, N1)) == id1
     ]

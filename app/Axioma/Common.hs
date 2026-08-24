@@ -5,8 +5,10 @@
 -- These are small process bodies and assertion utilities that are used by
 -- more than one topic.  Topic-specific helpers live in their own module.
 module Axioma.Common
-  ( -- * IO assertions
-    checkIO,
+  ( -- * Verbosity
+    Verbosity (..),
+    checkV,
+    checkIOV,
 
     -- * Simple additive processes
     sumP,
@@ -25,18 +27,34 @@ where
 
 import Circuit.Category (id)
 import Circuit.Process (Process (..), delay, register)
+import Circuit.Tools.Test (check)
 import Data.Tuple qualified as Tuple
-import Data.Void (Void, absurd)
 import GHC.TypeNats (KnownNat, natVal)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 
--- | 'check' for assertions that live in 'IO'.
-checkIO :: String -> IO Bool -> IO Bool
-checkIO name act = do
+-- | Output granularity for the axioma runner.
+data Verbosity
+  = -- | One symbol for the whole run.
+    Package
+  | -- | One symbol per topic.
+    Topic
+  | -- | One symbol per axiom (the default).
+    Axioms
+  deriving (Show, Eq)
+
+-- | Print a PASS/FAIL line only when verbosity is 'Axioms'.
+checkV :: Verbosity -> String -> Bool -> IO Bool
+checkV Axioms name ok = check name ok
+checkV _ _ ok = pure ok
+
+-- | Print a PASS/FAIL line for an IO assertion only when verbosity is 'Axioms'.
+checkIOV :: Verbosity -> String -> IO Bool -> IO Bool
+checkIOV Axioms name act = do
   ok <- act
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
   pure ok
+checkIOV _ _ act = act
 
 -- | Simple additive process for oracles.
 sumP :: Process Int Int

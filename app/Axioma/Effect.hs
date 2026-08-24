@@ -8,7 +8,7 @@ module Axioma.Effect
   )
 where
 
-import Axioma.Common (checkIO)
+import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, runK, (.))
@@ -17,16 +17,17 @@ import Circuit.Process (Process (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
 import Circuit.Trace (Trace, base, yank)
+import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Prelude hiding (curry, id, uncurry, (.))
 
-effectTopic :: IO [Bool]
-effectTopic = do
-  putStrLn "Effectful K IO and Trace (,) (K IO) oracles"
+effectTopic :: Verbosity -> IO [Bool]
+effectTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "Effectful K IO and Trace (,) (K IO) oracles"
   sequence
     [ -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
       -- effectful morphisms. The witness uses two IO actions on a shared ref.
-      checkIO "unrestricted sliding fails for non-central K IO" $
+      checkIOV verbosity "unrestricted sliding fails for non-central K IO" $
         do
           ref <- newIORef (1 :: Int)
           let f = K $ \ ~((), ()) -> do
@@ -44,7 +45,7 @@ effectTopic = do
       -- edge of parameterising Body over arr; Z2's Trace-level witness stands
       -- on it. The bodies touch a shared IORef to confirm composition threads
       -- state through the K base, not just the function base.
-      checkIO "Body (,) (K IO) composes as a category" $
+      checkIOV verbosity "Body (,) (K IO) composes as a category" $
         do
           ref <- newIORef (0 :: Int)
           let f = Body.Body $ K $ \((s, a) :: (Int, Int)) -> do
@@ -61,7 +62,7 @@ effectTopic = do
       -- morphism g slid past f give a different result depending on order.
       -- Trace's 'trace' discharges into the base 'trace', so the same witness
       -- that fails for K IO directly also fails for Trace (,) (K IO).
-      checkIO "Trace trace requires centrality over K IO (Central Sliding)" $
+      checkIOV verbosity "Trace trace requires centrality over K IO (Central Sliding)" $
         do
           ref <- newIORef 1
           let f = K $ \ ~((), ()) -> do
@@ -81,7 +82,7 @@ effectTopic = do
       -- an effectful base. This is not a centrality claim; it just checks
       -- that Trace's normal form agrees with a hand-built body that threads
       -- state in the same order.
-      checkIO "Trace (.) preserves semantic order of composed yank bodies" $
+      checkIOV verbosity "Trace (.) preserves semantic order of composed yank bodies" $
         do
           ref <- newIORef 1
           let g = K $ \ ~(s, a) -> do
