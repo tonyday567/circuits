@@ -201,9 +201,7 @@ instance Strength These (->) where
 -- Dually, /Centre Preservation/ says @trace f@ is central whenever @f@ is.
 -- This class does not enforce the side-conditions at the type level; lawful
 -- instances must guarantee them by construction. See the @circuits-axioma@
--- oracles "unrestricted sliding fails for non-central K IO" and
--- "Loop trace requires centrality over K IO" for witnesses that the
--- side-condition is not vacuous.
+-- sliding oracles for witnesses that the side-condition is not vacuous.
 class (Strength t arr) => Traced t arr where
   trace ::
     arr (t a b) (t a c) ->

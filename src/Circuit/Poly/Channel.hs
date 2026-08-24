@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Poly-indexed channel type for Track B.
+-- | Poly-indexed channel type.
 --
 -- A channel is indexed by a polynomial interface @p :: Poly@. The polynomial
 -- describes both the observable position (output) and the direction space

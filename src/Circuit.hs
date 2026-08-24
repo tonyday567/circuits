@@ -88,7 +88,7 @@ module Circuit
     -- | Open a feedback loop. See "Circuit.Channel".
     strength,
 
-    -- * Polynomial channels (successor to pure @(->)@ Ends)
+    -- * Polynomial channels
     Channel (..),
     emitChannel,
     commitChannel,
