@@ -87,6 +87,7 @@ executable circuits-axioma
     Axioma.Poles
     Axioma.Process
     Axioma.Shared
+
   build-depends:
     base >=4.20 && <5,
     circuits,
