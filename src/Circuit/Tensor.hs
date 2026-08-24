@@ -70,9 +70,7 @@ import Prelude hiding (id, (.))
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
 
--- ===========================================================================
--- SCHEDULE BIAS
--- ===========================================================================
+-- * Schedule bias
 
 -- | Bias for ordered choice in scheduling and additive disjunction.
 --
@@ -81,9 +79,7 @@ import Prelude hiding (id, (.))
 data Bias = LeftFirst | RightFirst
   deriving (Eq, Show)
 
--- ===========================================================================
--- CARTESIAN STRUCTURE ((,))
--- ===========================================================================
+-- * Cartesian structure ((,))
 
 -- | Leftward associator: @(a, (b, c)) -> ((a, b), c)@.
 assocL :: (a, (b, c)) -> ((a, b), c)
@@ -93,25 +89,23 @@ assocL ~(a, ~(b, c)) = ((a, b), c)
 assocR :: ((a, b), c) -> (a, (b, c))
 assocR ~(~(a, b), c) = (a, (b, c))
 
--- | Introduce a state wire alongside a payload.
+-- Introduce a channel wire alongside a payload.
 seed :: s -> a -> (s, a)
 seed s a = (s, a)
 
--- | Move a value from the payload into the state wire.
+-- Move a value from the payload into the channel wire.
 --
--- @absorb f = first (uncurry f) . assocL@
+-- absorb f = first (uncurry f) . assocL
 absorb :: (t -> s -> s') -> (s, (t, b)) -> (s', b)
 absorb f (s, (t, b)) = (f t s, b)
 
--- | Move a value from the state wire into the payload.
+-- Move a value from the channel wire into the payload.
 --
--- @release f = assocR . first f@
+-- release f = assocR . first f
 release :: (s -> (s', t)) -> (s, b) -> (s', (t, b))
 release f (s, b) = let (s', t) = f s in (s', (t, b))
 
--- ===========================================================================
--- COCARTESIAN STRUCTURE (Either)
--- ===========================================================================
+-- * Cocartesian structure (Either)
 
 -- | Coassociator for sums.
 --
@@ -131,14 +125,14 @@ coassoc' (Left (Left a)) = Left a
 coassoc' (Left (Right b)) = Right (Left b)
 coassoc' (Right c) = Right (Right c)
 
--- | Tag a state value onto whichever branch of the sum is active.
+-- | Tag a channel value onto whichever branch of the sum is active.
 --
 -- >>> coseed "st" (Left 42 :: Either Int Char)
 -- Left ("st",42)
 coseed :: s -> Either a b -> Either (s, a) (s, b)
 coseed s = bimap (s,) (s,)
 
--- | If the left branch is taken, move a value from the payload into the state wire.
+-- | If the left branch is taken, move a value from the payload into the channel wire.
 --
 -- >>> coabsorbL (+) (Left (10, (3, 7)) :: Either (Int, (Int, Int)) Bool)
 -- Left (13,7)
@@ -146,7 +140,7 @@ coabsorbL :: (t -> s -> s') -> Either (s, (t, a)) b -> Either (s', a) b
 coabsorbL f (Left (s, (t, a))) = Left (f t s, a)
 coabsorbL _ (Right b) = Right b
 
--- | If the right branch is taken, move a value from the payload into the state wire.
+-- | If the right branch is taken, move a value from the payload into the channel wire.
 --
 -- >>> coabsorbR (+) (Right (10, (3, 7)) :: Either Bool (Int, (Int, Int)))
 -- Right (13,7)
@@ -154,7 +148,7 @@ coabsorbR :: (t -> s -> s') -> Either a (s, (t, b)) -> Either a (s', b)
 coabsorbR f (Right (s, (t, b))) = Right (f t s, b)
 coabsorbR _ (Left a) = Left a
 
--- | If the left branch is taken, move a value from the state wire into the payload.
+-- | If the left branch is taken, move a value from the channel wire into the payload.
 --
 -- >>> coreleaseL (\s -> (s+1, s*2)) (Left (5, 99) :: Either (Int, Int) Char)
 -- Left (6,(10,99))
@@ -162,7 +156,7 @@ coreleaseL :: (s -> (s', t)) -> Either (s, a) b -> Either (s', (t, a)) b
 coreleaseL f (Left (s, a)) = let (s', t) = f s in Left (s', (t, a))
 coreleaseL _ (Right b) = Right b
 
--- | If the right branch is taken, move a value from the state wire into the payload.
+-- | If the right branch is taken, move a value from the channel wire into the payload.
 --
 -- >>> coreleaseR (\s -> (s+1, s*2)) (Right (5, 99) :: Either Char (Int, Int))
 -- Right (6,(10,99))
@@ -170,9 +164,7 @@ coreleaseR :: (s -> (s', t)) -> Either a (s, b) -> Either a (s', (t, b))
 coreleaseR f (Right (s, b)) = let (s', t) = f s in Right (s', (t, b))
 coreleaseR _ (Left a) = Left a
 
--- ===========================================================================
--- Tensor / Action — tensor action on morphisms
--- ===========================================================================
+-- * Tensor / Action — tensor action on morphisms
 
 -- | The unit object for a tensor @t@.
 --

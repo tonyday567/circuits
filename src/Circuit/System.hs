@@ -84,7 +84,7 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Poly (Mono, Morphism, lens, applyLens)
+-- >>> import Circuit.Poly (Eval (..), Mono, Morphism, lens, applyLens)
 -- >>> import Circuit.System (System, system, runSystem, mooreSystem, SystemEval (..), toEvalSystem, fromEvalSystem, monoDir, monoIn, parWiring)
 
 -- | A dynamical system with interface @p@, carrier @s@, over base arrow @arr@,
@@ -212,7 +212,8 @@ offFibre = error "off-fibre direction"
 -- | Place two Moore systems side by side: interface @p ⊗ q@, state @(s, t)@.
 --
 -- This is the entry point for acyclic wiring over the Dirichlet tensor —
--- boxes in parallel, pins assigned jointly.
+-- boxes in parallel, pins assigned jointly.  The wired interface can be
+-- mapped with 'parT' (wire-then-map).
 parWiring :: System (->) s p -> System (->) t q -> System (->) (s, t) (Tensor p q)
 parWiring sp sq =
   system $ \((s, t), (dp, dq)) ->
@@ -220,24 +221,7 @@ parWiring sp sq =
         (t', posQ) = runSystem sq (t, dq)
      in ((s', t'), (posP, posQ))
 
---
--- 'parWiring' places two monomial systems side by side; 'parT' maps the
--- wired interface (wire-then-map).
---
--- >>> let sysN = mooreSystem (\s a -> s + a) (\s -> s + 1) :: System (->) Int (Mono Int Int)
--- >>> let sysB = mooreSystem (\b a -> b && a) (\b -> b) :: System (->) Bool (Mono Bool Bool)
--- >>> case toEvalSystem (parWiring sysN sysB) (3, True) of ET ((n, ()), (c, ())) f -> (n, c, f (Right 2, Right False))
--- (4,True,(5,False))
---
--- >>> let m1 = lens show (\n dn -> n + dn) :: Morphism (Mono Int Int) (Mono Int String)
--- >>> let m2 = lens (\b -> if b then 1 else 0 :: Int) (\b db -> b && db) :: Morphism (Mono Bool Bool) (Mono Bool Int)
--- >>> let wired = toEvalSystem (parWiring sysN sysB) (5, True)
--- >>> case parT m1 m2 wired of ET ((_, ()), (_, ())) f -> f (Right 3, Right True)
--- (14,True)
-
--- ---------------------------------------------------------------------------
--- Channel-pole view of systems
--- ---------------------------------------------------------------------------
+-- * Channel-pole view of systems
 
 -- | An existentially-quantified pair of channel poles, carrying its seed.
 data SomePoles a b where

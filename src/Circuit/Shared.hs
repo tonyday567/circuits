@@ -6,12 +6,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
--- | Shared-medium fusion: two bodies interleaved on one feedback channel.
+-- | Shared-medium fusion: two bodies interleaved on one shared channel.
 --
 -- The connective here is the multiplicative disjunction @⅋@ in operational
--- form: two sub-loops share a single feedback channel, and a 'Schedule'
--- resolves the interleaving.  This is the mixed-mode counterpart to
--- 'Circuit.Tensor.superpose', which keeps feedback channels independent
+-- form: two sub-loops share a single channel, and a 'Schedule' resolves the
+-- interleaving.  This is the mixed-mode counterpart to
+-- 'Circuit.Tensor.superpose', which keeps channels independent
 -- (the @⊗@ product).
 --
 -- 'Bias' is re-exported from "Circuit.Tensor" because it is also used for
@@ -52,7 +52,7 @@ import Data.Kind (Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
 
--- | A schedule decision: which poles advance on a shared feedback channel.
+-- | A schedule decision: which poles advance on a shared channel.
 --
 -- * @L@ — advance the left body only; the right input is not consumed
 --   (corresponds to 'This').
@@ -63,25 +63,24 @@ import Prelude hiding (id, (.))
 data Pick = L | R | Both Bias
   deriving (Eq, Show)
 
--- | A schedule drives shared-feedback fusion.
+-- | A schedule drives shared-medium fusion.
 --
--- The state @s@ is the shared feedback channel.  At each step the schedule
--- looks at the state and chooses which poles advance, returning the updated
--- schedule state.
+-- The state @s@ is threaded through the fusion; in typical use it is the
+-- shared channel.  At each step the schedule looks at the state and chooses
+-- which poles advance, returning the updated schedule state.
 newtype Schedule s = Schedule
   { -- | Given the current shared state, return the updated state and a 'Pick'
     -- value describing which poles advance and in what order.
     chooseS :: s -> (s, Pick)
   }
 
--- | Tensors that support shared-feedback fusion of two knot bodies.
+-- | Tensors that support shared-medium fusion of two knot bodies.
 --
 -- This is the operational content of the multiplicative disjunction: two
--- sub-loops share one feedback channel, and a 'Schedule' resolves the
--- interleaving.  Contrast 'Circuit.Tensor.superpose', which keeps the feedback
--- channels independent (⊗).
+-- sub-loops share one channel, and a 'Schedule' resolves the interleaving.
+-- Contrast 'Circuit.Tensor.superpose', which keeps the channels independent (⊗).
 class (Tensor t arr) => Shared t arr where
-  -- | Fuse two feedback bodies over a shared channel.
+  -- | Fuse two knot bodies over a shared channel.
   --
   -- The combined body has type @arr (t s (t a c)) (t s (These b d))@: one
   -- shared state @s@, paired inputs @a@ and @c@, and a partial output.  At
@@ -143,7 +142,6 @@ instance (Monad m) => Shared (,) (K m) where
           pure (s''', These b d)
   {-# INLINE sharedBy #-}
 
--- ---------------------------------------------------------------------------
 -- Shared-medium fusion signature
 
 -- | Shared-medium fusion (the tensor product ⅋), parameterised by a schedule.

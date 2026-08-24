@@ -60,7 +60,6 @@ import Circuit.Tensor qualified as T
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
--- ---------------------------------------------------------------------------
 -- Signatures
 
 -- | Parallel composition over the wiring tensor @w@.
@@ -82,7 +81,6 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
   type Ctx (SigSwap w) arr arr' = Action w arr'
   alg _ _ SigSwap = T.braid
 
--- ---------------------------------------------------------------------------
 -- Free symmetric monoidal category
 
 -- | Free symmetric monoidal category over wiring tensor @w@.
@@ -92,7 +90,6 @@ type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 lift :: arr a b -> SMC w arr a b
 lift = Lift
 
--- ---------------------------------------------------------------------------
 -- Instances for the free symmetric monoidal category
 
 instance (Category arr) => Category (SMC w arr) where
@@ -120,7 +117,6 @@ instance (Strength t arr, Action w arr) => Strength t (SMC w arr) where
 instance (Traced t arr, Action w arr) => Traced t (SMC w arr) where
   trace body = lift (trace (eval body))
 
--- ---------------------------------------------------------------------------
 -- Dagger mirror
 
 -- | Mirror an 'SMC' built over 'Dg.Dagger'.
@@ -138,7 +134,6 @@ mirror (Op op) = case op of
   R (L (SigPar f g)) -> Op (R (L (SigPar (mirror f) (mirror g))))
   R (R SigSwap) -> Op (R (R SigSwap))
 
--- ---------------------------------------------------------------------------
 -- Constraint synonym used by Net's Layer law
 
 -- | Free 'SMC' folds target any category with @w@-monoidal action.

@@ -84,9 +84,7 @@ instance (Monad m) => Par Either (K m) where
   unitrP' = K $ pure . Left
   {-# INLINE unitrP' #-}
 
--- ---------------------------------------------------------------------------
--- Linear distributors and mix
--- ---------------------------------------------------------------------------
+-- * Linear distributors and mix
 
 -- | Left linear distributor: @A ⊗ (B ⅋ C) -> (A ⊗ B) ⅋ C@.
 --

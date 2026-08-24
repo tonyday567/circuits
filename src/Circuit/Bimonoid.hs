@@ -28,6 +28,8 @@
 -- The free dagger category itself (pairing a forward arrow with a backward
 -- arrow and swapping them with 'Circuit.Dagger.transpose') lives in "Circuit.Dagger"; this
 -- module is only the structural rules.
+--
+-- Design note: $copy-discard-design.
 module Circuit.Bimonoid
   ( -- * Copy
     Copy (..),
@@ -82,15 +84,12 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
--- ---------------------------------------------------------------------------
--- Merge / Zero: monoid structure on channel objects
--- ---------------------------------------------------------------------------
+-- * Merge / Zero: monoid structure on channel objects
 
 -- | Combine two values of the channel type.
 --
--- Not the same as arithmetic '+'; this is the operation by which parallel
--- contributions to the same wire combine.  Fan-out on the forward pass
--- becomes fan-in (summation) on the backward pass.
+-- Not the same as arithmetic '+'; this is the monoid operation by which
+-- parallel contributions to the same wire combine.
 class Merge arr a where
   plus :: arr (a, a) a
 
@@ -207,9 +206,7 @@ instance Zero (->) [a] where
   zero _ = []
   {-# INLINE zero #-}
 
--- ---------------------------------------------------------------------------
--- Copy / Discard: comonoid structure on channel objects
--- ---------------------------------------------------------------------------
+-- * Copy / Discard: comonoid structure on channel objects
 
 -- | Copy a value into a pair.
 --
@@ -246,16 +243,13 @@ class (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => Bimono
 
 instance (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
 
--- ---------------------------------------------------------------------------
--- Tensor-generic capabilities
--- ---------------------------------------------------------------------------
+-- * Tensor-generic capabilities
 
 -- | Copy a value into the tensor product with itself.
 --
 -- This is the tensor-generic form of 'Copy'.  For the cartesian tensor
 -- @(,)@ it reduces to @arr a (a, a)@ and the existing 'Copy' class is
--- recovered.  Other tensors (e.g. 'Circuit.Chu.ChuOTensor') get their own
--- instances, which is exactly what the Chu capability level needs.
+-- recovered.  Other wiring tensors may supply their own instances.
 class (Tensor t arr) => CopyT t arr a where
   copyT :: arr a (t a a)
 
@@ -267,8 +261,7 @@ class (Tensor t arr) => DiscardT t arr a where
 --
 -- This is the tensor-generic form of 'Merge'. For the cartesian tensor
 -- @(,)@ it reduces to @arr (a, a) a@ and the existing 'Merge' class is
--- recovered. Other tensors (e.g. 'Circuit.Chu.ChuOTensor') get their own
--- instances.
+-- recovered. Other wiring tensors may supply their own instances.
 class (Tensor t arr) => MergeT t arr a where
   plusT :: arr (t a a) a
 
@@ -276,15 +269,12 @@ class (Tensor t arr) => MergeT t arr a where
 class (Tensor t arr) => ZeroT t arr a where
   zeroT :: arr (Unit t) a
 
--- ---------------------------------------------------------------------------
--- The substructural square
--- ---------------------------------------------------------------------------
+-- * The substructural square
 
 -- | Weakening without contraction: discard is available, copy is not.
 --
 -- One corner of the substructural square.  An 'Affine' base is one where a
--- morphism may silently drop its input; 'Circuit.Markov.discardNatural' is
--- the oracle for it.
+-- morphism may silently drop its input.
 type Affine arr a = Discard arr a
 
 -- | Contraction without weakening: copy is available, discard is not.
@@ -305,13 +295,15 @@ type CoAffine arr a = Zero arr a
 -- 'MergeZero'.
 type CoRelevant arr a = Merge arr a
 
--- | Copy/discard is no longer an ambient assumption on @(->)@.  The
--- exponential slice makes copying an explicit capability: a value of type
--- @!A@ carries a witness, and unmarked @A@ cannot be copied silently.
+-- $copy-discard-design
+--
+-- Copy/discard is not an ambient assumption on @(->)@.  The exponential
+-- slice makes copying an explicit capability: a value of type @!A@ carries
+-- a witness, and unmarked @A@ cannot be copied silently.
 --
 -- The instances below are the concrete copyable types used in the repo and
 -- tests.  Adding a new copyable type requires an explicit instance rather
--- than relying on Fox's theorem.
+-- than a default structural rule.
 
 -- | Unit trivially copies and discards.
 --
@@ -406,9 +398,7 @@ instance Discard (->) (Maybe a) where
   discard _ = ()
   {-# INLINE discard #-}
 
--- ---------------------------------------------------------------------------
--- Free-syntax signatures for the bimonoid generators
--- ---------------------------------------------------------------------------
+-- * Free-syntax signatures for the bimonoid generators
 
 -- | Copy: the contraction half of the comonoid.
 --
@@ -468,9 +458,7 @@ instance Algebra (SigZero w) arr arr' where
 -- | Monoid operations: plus and zero.
 type SigMergeZero w = SigPlus w :+: SigZero w
 
--- ---------------------------------------------------------------------------
--- Default tensor-generic instances for the cartesian tensor
--- ---------------------------------------------------------------------------
+-- * Default tensor-generic instances for the cartesian tensor
 
 -- | Every 'Copy' instance gives a 'CopyT' instance for the cartesian tensor.
 instance {-# OVERLAPPABLE #-} (Copy arr a, Tensor (,) arr) => CopyT (,) arr a where

@@ -9,6 +9,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- \$composition-product, $tensor-wiring.
+
 -- | Sketch: the category Poly.
 --
 -- Polynomial objects are syntactic expressions, promoted to a kind:
@@ -43,6 +45,8 @@
 -- 'Pos' and 'Dir' type families because a value of @(p ⊗ q)(x)@ is a pair of
 -- positions together with a single function out of the product of direction
 -- sets — not derivable from a pair of ordinary 'Eval' values.
+--
+-- Worked examples: $netlist-view, $netlist-roundtrip, $dirichlet-tensor,
 module Circuit.Poly
   ( -- * Polynomial expressions
     Poly (..),
@@ -141,7 +145,7 @@ type family Pos (p :: Poly) :: Type where
 -- For 'Comp', @'Dir' ('Comp p q) = ('Dir p, 'Dir q)@ is the same flat
 -- approximation: the @q@-position (hence its honest pin set) depends on which
 -- @p@-direction was taken.  Exact for Sum-free factors with uniform
--- directions — the monomial fragment.  See 'loom/circuits-monomial.md'.
+-- directions — the monomial fragment.
 type family Dir (p :: Poly) :: Type where
   Dir 'Y = ()
   Dir ('Const a) = Void
@@ -186,9 +190,9 @@ instance Functor (Eval p) where
     ET pos g -> ET pos (f . g)
     EC pos g -> EC pos (f . g)
 
--- ** Netlist view
-
--- | Polynomials that admit a netlist view: every value is a chosen position
+-- $netlist-view
+--
+-- Polynomials that admit a netlist view: every value is a chosen position
 -- together with an assignment of that position's pins (directions) into @x@.
 --
 -- The view is defined structurally over the promoted grammar. It is the
@@ -199,8 +203,8 @@ instance Functor (Eval p) where
 -- 'Sum' is deliberately /not/ an instance. A sum value stores its pin set
 -- in the branch constructor ('ES'), so there is no single flat direction
 -- set 'Dir' can assign to it. That is the honest boundary of the view;
--- handling sums position-dependently needs the full position-indexed
--- representation fork (see the 'Dir' haddock and 'loom/circuits-monomial.md').
+-- handling sums position-dependently needs a position-indexed representation.
+
 class Netlist (p :: Poly) where
   -- | Extract the position and pin assignment from a polynomial value.
   toNet :: Eval p x -> (Pos p, Dir p -> x)
@@ -576,9 +580,9 @@ runMorphism = \case
       Left a -> ES (Left (EP (EK a, EE (k . build))))
       Right s' -> ES (Right (EP (EK s', EE k)))
 
--- ** Dirichlet tensor
-
--- | The Dirichlet tensor @p ⊗ q@ pairs positions and multiplies directions.
+-- $dirichlet-tensor
+--
+-- The Dirichlet tensor @p ⊗ q@ pairs positions and multiplies directions.
 -- A value is a position pair together with one function out of the product of
 -- direction sets — not two separate functions.
 --
@@ -632,8 +636,7 @@ runMorphism = \case
 -- >>> case parT m n v of ET ((), ()) g -> g (3, True)
 -- -13
 
--- ** Composition product
-
+-- $composition-product
 --
 -- Correctness iso @'Eval' ('Comp' p q) x ≅ 'Eval' p ('Eval' q x)@.  The
 -- @hang@ map must depend on the outer @p@-direction — a constant hang fails.
@@ -654,8 +657,7 @@ runMorphism = \case
 -- >>> case compToNested (nestedToComp dyn) of EE f -> case f 10 of EE g -> g 20
 -- 30
 
--- ** Tensor wiring
-
+-- $tensor-wiring
 --
 -- 'tensorEval' pairs factors; both pin maps must contribute (not just the
 -- left factor).

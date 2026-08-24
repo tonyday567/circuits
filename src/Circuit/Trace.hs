@@ -50,7 +50,6 @@ import Circuit.Syntax
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
--- ---------------------------------------------------------------------------
 -- Trace signature
 
 -- | Feedback loop / trace over tensor @t@.
@@ -69,7 +68,6 @@ instance (Traced t arr') => Algebra (SigYank t) arr arr' where
     arr' b c
   alg _ rec (Yank @_ @_ @_ @_ @_ @_ f) = trace (rec f)
 
--- ---------------------------------------------------------------------------
 -- Free traced monoidal category over tensor @t@
 
 -- | Free traced monoidal category over tensor @t@.
@@ -83,7 +81,6 @@ base = Lift
 yank :: Trace t arr (t s a) (t s b) -> Trace t arr a b
 yank body = Op (R (Yank body))
 
--- ---------------------------------------------------------------------------
 -- Instances for the free traced category
 
 instance (Category arr) => Category (Trace t arr) where

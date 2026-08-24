@@ -6,11 +6,6 @@
 
 -- | A morphism across a tensored channel.
 --
--- There is nothing more useless than an organ.
--- When you will have made him a body without organs,
--- then you will have delivered him from all his automatic reactions
--- and restored him to his true freedom.
---
 -- @
 --   Body t ch arr a b  =  arr (t ch a) (t ch b)
 -- @
@@ -66,14 +61,14 @@ data SomeBody t arr a b where
   SomeBody :: ch -> Body t ch arr a b -> SomeBody t arr a b
 
 -- | Run an existentially-packed cartesian body over a list of inputs.
+--
+-- This is the @(,)@ / list specialisation of 'SomeBody'.
 runSomeBody :: SomeBody (,) (->) a b -> [a] -> [b]
 runSomeBody (SomeBody ch0 (Body f)) xs =
   let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
 
--- ---------------------------------------------------------------------------
--- HasDual instances for Body
--- ---------------------------------------------------------------------------
+-- * HasDual instances for Body
 
 -- | Unit poles for @Body (,) s (->)@ at the unit object @()@.
 --

@@ -95,9 +95,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Process
 -- >>> import Prelude hiding (id, (.))
 
--- ---------------------------------------------------------------------------
--- Boundary tokens (K + payload)
--- ---------------------------------------------------------------------------
+-- * Boundary tokens (K + payload)
 
 -- | The free boundary @K + payload@.
 --
@@ -214,9 +212,7 @@ markSystem isHalt ex sys =
         Right _ -> Nothing
     )
 
--- ---------------------------------------------------------------------------
--- Category
--- ---------------------------------------------------------------------------
+-- * Category
 
 instance Category Process where
   id :: Process a a
@@ -235,7 +231,6 @@ instance Category Process where
       (\(_, s2) -> ex2 s2)
   {-# INLINE (.) #-}
 
--- ---------------------------------------------------------------------------
 -- Channel / Strength / Traced for (,)
 --
 -- These instances make Process a traced monoidal category under the cartesian
@@ -243,7 +238,6 @@ instance Category Process where
 -- when the body is non-strict in the feedback channel. Strict accumulators
 -- (e.g. moving averages) diverge under the (,) trace; use Either-trace 'run'
 -- or the 'register' combinator for those.
--- ---------------------------------------------------------------------------
 
 instance Channel (,) Process where
   assoc = Process id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
@@ -269,13 +263,11 @@ instance Traced (,) Process where
     where
       fix f = let x = f x in x
 
--- ---------------------------------------------------------------------------
 -- Tensor / Action / Shared for (,)
 --
 -- These instances make @Process@ a cartesian monoidal category in its own
 -- right, so it can serve as a base category for shared-medium fusion and
 -- for @Trace (,) Process@.
--- ---------------------------------------------------------------------------
 
 instance Tensor (,) Process where
   tensor (Process i1 st1 ex1) (Process i2 st2 ex2) =
@@ -367,14 +359,12 @@ instance Shared (,) Process where
            in (Just sL', Just sR', s''', These b d)
   {-# INLINE sharedBy #-}
 
--- ---------------------------------------------------------------------------
 -- Channel / Strength / Traced for Either
 --
 -- These instances make Process a traced monoidal category under the Either
 -- tensor. The trace is per-tick Conway/Elgot settle: Right injects a value,
 -- Left feeds intermediate state back within the same tick until Right exits.
 -- This is the instance required by 'Net Either Process' knot bodies.
--- ---------------------------------------------------------------------------
 
 instance Channel Either Process where
   assoc = Process id (\_ x -> x) assocEither
@@ -418,9 +408,7 @@ instance Traced Either Process where
         Right b -> b
         Left _ -> error "Circuit.Process.Traced Either: unsettled state"
 
--- ---------------------------------------------------------------------------
--- Bimonoid instances (pointwise lift)
--- ---------------------------------------------------------------------------
+-- * Bimonoid instances (pointwise lift)
 
 instance (Copy (->) a) => Copy Process a where
   copy = Process id (\_ x -> x) Bm.copy
@@ -434,9 +422,7 @@ instance (Merge (->) a) => Merge Process a where
 instance (Zero (->) a) => Zero Process a where
   zero = Process id (\_ x -> x) Bm.zero
 
--- ---------------------------------------------------------------------------
--- Runners
--- ---------------------------------------------------------------------------
+-- * Runners
 
 -- | Run a process over any stream with an 'Uncons' coalgebra and build the
 -- output with a 'Cons' algebra.
@@ -501,9 +487,7 @@ encode :: Process a b -> Trace Either (->) [a] [b]
 encode = encodeStream
 {-# INLINE encode #-}
 
--- ---------------------------------------------------------------------------
--- Mealy-style processes
--- ---------------------------------------------------------------------------
+-- * Mealy-style processes
 
 -- | Build a 'Process' from a Mealy-style step.
 --
@@ -550,9 +534,7 @@ runMealy :: Process a (Maybe b) -> [a] -> [b]
 runMealy = runMealyStream
 {-# INLINEABLE runMealy #-}
 
--- ---------------------------------------------------------------------------
--- Cross-tick feedback
--- ---------------------------------------------------------------------------
+-- * Cross-tick feedback
 
 -- | One-tick delay with an initial value.
 --
@@ -585,9 +567,7 @@ register s0 (Process i st ex) = Process i' st' ex'
     st' s a = st s (a, snd (ex s))
     ex' s = fst (ex s)
 
--- ---------------------------------------------------------------------------
--- Body conversions
--- ---------------------------------------------------------------------------
+-- * Body conversions
 
 -- | View a 'Process' as a knot body over the 'Either' tensor, for any
 -- 'Uncons' input and 'Cons' output stream.

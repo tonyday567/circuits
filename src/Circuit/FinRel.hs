@@ -61,9 +61,7 @@ import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, Nat, natVal)
 import Prelude hiding (id, (.))
 
--- ===========================================================================
--- GF(2) arithmetic
--- ===========================================================================
+-- * GF(2) arithmetic
 
 -- | Addition in GF(2) is exclusive-or.
 gf2add :: Bool -> Bool -> Bool
@@ -89,9 +87,7 @@ gf2neg = id
 gf2inv :: Bool -> Bool
 gf2inv = id
 
--- ===========================================================================
--- Objects
--- ===========================================================================
+-- * Objects
 
 -- | Object token for a finite-dimensional space of dimension @n@.
 data FinObj (n :: Nat) = FinObj
@@ -112,9 +108,7 @@ instance (KnownNat n) => KnownDim (FinObj n) where
 instance (KnownDim a, KnownDim b) => KnownDim (a, b) where
   dimVal _ = dimVal (Proxy @a) + dimVal (Proxy @b)
 
--- ===========================================================================
--- Morphisms
--- ===========================================================================
+-- * Morphisms
 
 -- | A GF(2)-linear relation @n -> m@.
 --
@@ -136,9 +130,7 @@ data FinRel (n :: Type) (m :: Type) = FinRel
 instance Eq (FinRel n m) where
   FinRel _ _ m1 == FinRel _ _ m2 = rref m1 == rref m2
 
--- ===========================================================================
--- Matrix primitives over GF(2)
--- ===========================================================================
+-- * Matrix primitives over GF(2)
 
 zeros :: Int -> [Bool]
 zeros n = replicate n gf2zero
@@ -210,9 +202,7 @@ nullspace width rows =
         ]
    in basis
 
--- ===========================================================================
--- Wiring and generators
--- ===========================================================================
+-- * Wiring and generators
 
 -- | Build a wiring isomorphism from explicit dimensions and a permutation.
 mkWiring ::
@@ -320,13 +310,12 @@ finScalar c =
         ]
    in FinRel n n (rref rows)
 
--- ===========================================================================
--- Category structure (named constrained combinators)
+-- * Category structure (named constrained combinators)
+
 --
--- The unconstrained class tower no longer carries object evidence, so 'FinRel'
+-- The unconstrained class tower does not carry object evidence, so 'FinRel'
 -- provides its structure as named combinators with explicit 'KnownDim'
 -- constraints rather than as 'Category'/'Tensor'/'Traced' instances.
--- ===========================================================================
 
 compFinRel ::
   forall a b c.
@@ -355,9 +344,7 @@ compFinRel (FinRel pOut m rowsB) (FinRel n pIn rowsA) =
             ]
        in FinRel n m (rref rows)
 
--- ===========================================================================
--- Monoidal / traced structure
--- ===========================================================================
+-- * Monoidal / traced structure
 
 unitlFinRel ::
   forall a.
@@ -479,9 +466,7 @@ traceFinRel (FinRel inDim _ rows) =
         ]
    in FinRel bDim cDim (rref bcRows)
 
--- ===========================================================================
--- Bimonoid generators
--- ===========================================================================
+-- * Bimonoid generators
 
 instance (KnownNat n) => Copy FinRel (FinObj n) where
   copy = finCopy

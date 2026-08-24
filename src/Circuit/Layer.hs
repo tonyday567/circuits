@@ -115,9 +115,7 @@ class Layer (f :: Cat2 -> Cat2) where
 lower :: (Layer f, Category arr) => (f arr :~> arr') -> (arr :~> arr')
 lower g = g . unit
 
--- ===========================================================================
--- Free category
--- ===========================================================================
+-- * Free category
 
 -- | The free category over a base arrow.
 --

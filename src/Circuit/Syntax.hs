@@ -54,7 +54,6 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
--- ---------------------------------------------------------------------------
 -- Signature functors
 
 -- | A signature describes a set of constructors for a profunctor.
@@ -71,7 +70,6 @@ data (sig1 :+: sig2) arr rec a b where
 
 infixr 6 :+:
 
--- ---------------------------------------------------------------------------
 -- Free construction over a signature
 
 -- | The free construction over a signature.
@@ -119,7 +117,6 @@ eval ::
   arr a b
 eval = evalInto id
 
--- ---------------------------------------------------------------------------
 -- Sequential composition
 
 -- | Sequential composition.
@@ -137,13 +134,11 @@ instance Algebra SigCompose arr arr' where
     arr' a c
   alg _ rec (SigCompose @_ @_ @_ @_ @_ g f) = rec g . rec f
 
--- ---------------------------------------------------------------------------
 -- Common syntax combinations
 
 -- | Free category.
 type AlgCat arr = Syntax SigCompose arr
 
--- ---------------------------------------------------------------------------
 -- Instances for the free category
 
 instance (Category arr) => Category (AlgCat arr) where

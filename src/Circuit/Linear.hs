@@ -34,9 +34,7 @@ import Data.Kind (Type)
 import Data.Void (Void, absurd)
 import Prelude hiding (curry, id, uncurry, (.))
 
--- ===========================================================================
--- Linear implication (internal hom)
--- ===========================================================================
+-- * Linear implication (internal hom)
 
 -- | Closed monoidal structure: @A ⊸ B@ is the right adjoint of tensor.
 --
@@ -87,9 +85,7 @@ instance Lolli (,) (->) where
   uncurry g (a, b) = g a b
   {-# INLINE uncurry #-}
 
--- ===========================================================================
--- Exponentials (! and ?)
--- ===========================================================================
+-- * Exponentials (! and ?)
 
 -- | Exponential modality: object-level types for @!A@ and @?A@.
 --
@@ -103,9 +99,7 @@ instance Lolli (,) (->) where
 -- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
 --   multiplication on @?A@ (@WhyNotMerge@) is missing. In the vocabulary of
 --   'Circuit.Dagger', @?A@ is currently 'Circuit.Bimonoid.CoAffine'-only (the unit @Zero@)
---   and the missing half is 'Circuit.Bimonoid.CoRelevant' (the merge @Merge@). That hole is
---   the first observable thing the Exponential split made visible; wiring it
---   is part of the chu-depth class dig.
+--   and the missing half is 'Circuit.Bimonoid.CoRelevant' (the merge @Merge@).
 class (Tensor t arr) => Exponential t arr where
   type Bang t arr a :: Type
   type WhyNot t arr a = result | result -> a

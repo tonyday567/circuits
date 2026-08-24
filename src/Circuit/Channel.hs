@@ -49,9 +49,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Void (Void)
 
--- ===========================================================================
--- Channel
--- ===========================================================================
+-- * Channel
 
 -- | A monoidal structure on the tensor @t@ internal to the category @arr@.
 --
@@ -145,15 +143,13 @@ instance Channel These (->) where
   slide (These a (That c)) = That (These a c)
   slide (These a (These b c)) = These b (These a c)
 
--- ===========================================================================
--- Strength
--- ===========================================================================
+-- * Strength
 
 -- | Tensorial strength for a tensor @t@ inside a category @arr@.
 --
--- 'strength' opens a feedback loop, tensoring a plain morphism with the
--- feedback channel. It is /not/ a syntactic inverse of 'trace'; it is the
--- strength ("tensorial strength") of the tensor @t@ acting on morphisms.
+-- 'strength' tensors a plain morphism with the ambient channel. It is
+-- /not/ a syntactic inverse of 'trace'; it is the strength
+-- ("tensorial strength") of the tensor @t@ acting on morphisms.
 class (Channel t arr) => Strength t arr where
   strength ::
     arr b c ->
@@ -186,9 +182,7 @@ instance Strength These (->) where
   strength f (That b) = That (f b)
   strength f (These a b) = These a (f b)
 
--- ===========================================================================
--- Traced
--- ===========================================================================
+-- * Traced
 
 -- | A trace over a morphism @arr@ and tensor @t@.
 --
@@ -350,9 +344,7 @@ instance Traced Either (->) where
         Right c -> c
         Left a -> go (Left a)
 
--- ===========================================================================
--- K m — monoidal structure
--- ===========================================================================
+-- * K m — monoidal structure
 
 -- | Cartesian monoidal structure for @K m@ with @(,)@.
 instance (Monad m) => Channel (,) (K m) where

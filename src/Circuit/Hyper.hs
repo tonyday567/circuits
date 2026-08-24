@@ -78,9 +78,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Hyper (observe, lift, runHyper, Hyper (..))
 -- >>> let h = lift (+1) :: Hyper Int Int
 
--- ---------------------------------------------------------------------------
--- Hyperfunctions
--- ---------------------------------------------------------------------------
+-- * Hyperfunctions
 
 -- | A hyperfunction from @a@ to @b@ over the base category @arr@.
 newtype HyperA arr a b = HyperA
@@ -97,9 +95,7 @@ pattern Hyper f = HyperA f
 
 {-# COMPLETE Hyper :: Hyper #-}
 
--- ---------------------------------------------------------------------------
--- Function-category hyperfunctions
--- ---------------------------------------------------------------------------
+-- * Function-category hyperfunctions
 
 -- | Embed a plain function into a hyperfunction.
 --
@@ -136,9 +132,7 @@ push f h = HyperA $ \k -> f (invoke k h)
 runHyper :: Hyper a a -> a
 runHyper h = let a = invoke h (base a) in a
 
--- ---------------------------------------------------------------------------
--- Kleisli hyperfunctions
--- ---------------------------------------------------------------------------
+-- * Kleisli hyperfunctions
 
 -- | Embed a Kleisli arrow into a hyperfunction.
 liftK :: (Monad m) => K m a b -> HyperA (K m) a b
@@ -162,9 +156,7 @@ pushK f h = HyperA $ K $ \k -> do
 runHyperK :: (MonadFix m) => HyperA (K m) a a -> m a
 runHyperK h = mfix $ \a -> runK (invoke h) (baseK a)
 
--- ---------------------------------------------------------------------------
--- Function-category instances
--- ---------------------------------------------------------------------------
+-- * Function-category instances
 
 instance Category Hyper where
   id = lift id
@@ -184,9 +176,7 @@ instance Traced (,) Hyper where
         cont = HyperA $ \_ -> (fst pair, observe k (snd pair))
      in snd pair
 
--- ---------------------------------------------------------------------------
--- Kleisli instances
--- ---------------------------------------------------------------------------
+-- * Kleisli instances
 
 instance (Monad m) => Category (HyperA (K m)) where
   id = liftK id
@@ -210,9 +200,7 @@ instance (MonadFix m) => Traced (,) (HyperA (K m)) where
       runK (invoke body) cont
     pure (snd pair)
 
--- ---------------------------------------------------------------------------
--- Either-loop state machine
--- ---------------------------------------------------------------------------
+-- * Either-loop state machine
 
 -- | Encode an Either-loop as a self-referential 'Hyper'.
 --
@@ -252,19 +240,16 @@ encodeEither f = h
 -- let step = \case
 --       Right n | n < 3 -> Left (n + 1)
 --       Right n         -> Right n
---       Left n  | n < 3 -> Left (n - 1)
+--       Left n  | n < 3 -> Left (n + 1)
 --       Left n          -> Right n
 -- :}
 --
--- FIXME: the doctest for @runEither step (0 :: Int)@ used to hang forever
--- because the step function above loops between Left 0 and Left 1.
--- It has been removed until the example is fixed.
+-- >>> runEither step (0 :: Int)
+-- 3
 runEither :: (Either a b -> Either a c) -> b -> c
 runEither f b = runHyper (encodeEither f) (Right b)
 
--- ---------------------------------------------------------------------------
--- Bridges from initial syntax
--- ---------------------------------------------------------------------------
+-- * Bridges from initial syntax
 
 -- | Encode a function-category 'Trace' into a 'Hyper'.
 --

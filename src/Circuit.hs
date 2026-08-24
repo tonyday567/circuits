@@ -127,7 +127,7 @@ module Circuit
 
     -- * Channel poles (bi-polar effectful/process API; still the right tool for
 
-    -- Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
+    --   Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
     Out (..),
     In (..),
     Poles (..),

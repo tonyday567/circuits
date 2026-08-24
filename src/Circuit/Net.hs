@@ -144,10 +144,9 @@ braid = Op (R (R (L SigSwap)))
 
 -- | Include an 'SMC' circuit into 'Net'.
 --
--- 'Net' no longer duplicates the SMC constructors; the injection recurses
--- through the SMC signature sum and rebuilds each node in the larger
--- 'Net' signature sum.  This gives the adjunction between 'SMC' and 'Net'
--- together with 'sift'.
+-- The injection recurses through the SMC signature sum and rebuilds each node
+-- in the larger 'Net' signature sum.  This gives the adjunction between 'SMC'
+-- and 'Net' together with 'sift'.
 --
 -- >>> let m = SMC.lift (+1) . SMC.lift (*2) :: SMC (,) (->) Int Int
 -- >>> run (widen m :: Net (,) (->) Int Int) 5

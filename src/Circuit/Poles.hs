@@ -106,9 +106,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (K(..), runK)
 -- >>> import Data.Maybe (isNothing)
 
--- ---------------------------------------------------------------------------
--- Channel poles — the companion and conjoint of the identity functor.
--- ---------------------------------------------------------------------------
+-- * Channel poles — the companion and conjoint of the identity functor.
 
 -- | @Out@ is the companion of the identity functor.  Covariant in @a@
 -- (sits in the output position).
@@ -185,13 +183,11 @@ prefixIn f i = In $ \(o :: Out arr x) -> f .> commit i o
 suffixOut :: forall arr a b. (Category arr) => Out arr a -> arr a b -> Out arr b
 suffixOut o g = Out $ \(i :: In arr x) -> emit o i .> g
 
--- ---------------------------------------------------------------------------
--- Dualising object / unit poles
--- ---------------------------------------------------------------------------
+-- * Dualising object / unit poles
 
 -- | Arrows that have channel poles for a given dualising object @bot@.
 --
--- The dualising object is the target of the Chu pairing and the object
+-- The dualising object is the target of the polar pairing and the object
 -- through which the two poles of a 'Poles' are plugged together.  In the
 -- cartesian case it is the monoidal unit @()@; for halt-mark / delivery
 -- pairings it can be 'Bool'.
@@ -312,9 +308,7 @@ splay0 ::
 splay0 = splay @_ @_ @_ @()
 {-# INLINE splay0 #-}
 
--- ---------------------------------------------------------------------------
--- Composition
--- ---------------------------------------------------------------------------
+-- * Composition
 
 -- | Sequential composition of @Poles@.
 --
@@ -445,20 +439,15 @@ instance (Monad m) => HasDual () (K m) where
       outU = Out $ \_ -> K $ \_ -> pure ()
       inU = In $ \o -> emit o inU
 
--- === Notes on the dualising object
+-- $dualising-object
 --
 -- The class parameter @bot@ is the object through which the two poles of a
 -- 'Poles' are plugged.  For the cartesian @(,)@ tensor this is the monoidal
 -- unit @()@, which is terminal.  'copycat' yanks to the identity on @bot@
 -- exactly when @bot@ is terminal; for non-terminal objects such as 'Bool'
 -- the same 'open' still typechecks but 'copycat' becomes a constant
--- endomorphism rather than the identity.
---
--- The unification with halt-mark / delivery 'Bool' pairings therefore lives
--- partly in the Chu construction: a 'Bool'-valued pairing @arr (a, b) Bool@
--- can be supplied to 'polesAsChu' as the dualising object, while 'HasDual'
--- governs the object used for unit plumbing.  The 'Bool' instances below
--- make that plumbing explicit.
+-- endomorphism rather than the identity.  The 'Bool' instances below make
+-- that plumbing explicit.
 
 -- | Dualising object 'Bool' for @(->)@.
 --
@@ -481,21 +470,13 @@ instance (Monad m) => HasDual Bool (K m) where
       outU = Out $ \_ -> K $ \_ -> pure False
       inU = In $ \o -> emit o inU
 
--- ---------------------------------------------------------------------------
--- Boxes
--- ---------------------------------------------------------------------------
-
--- | String-diagram boxes from channel poles.
---
--- A matched pair of free poles (@Poles@) is a box with one input wire and
--- one output wire.  The helpers below embed that box into a traced
--- monoidal category by unit-plugging the remaining two slots.
-
 -- | Close a @Poles@ to a plain base-arrow morphism.
 --
--- Connects the two channel poles through the unit object, giving a plain
--- @arr a b@. This is the version most users expect: input on the left,
--- output on the right, with the unit plumbing hidden.
+-- A matched pair of free poles (@Poles@) is a box with one input wire and
+-- one output wire.  This helper embeds that box into a traced monoidal
+-- category by unit-plugging the remaining two slots, giving a plain
+-- @arr a b@: input on the left, output on the right, with the unit plumbing
+-- hidden.
 --
 -- >>> let p = poles0 (const ()) (const 42) :: Poles (->) () Int
 -- >>> box @() p ()
@@ -528,9 +509,7 @@ boxAsymmetric p =
     (commit (conjoint p) (companion open))
     (emit (companion p) (conjoint open))
 
--- ---------------------------------------------------------------------------
--- Additive connectives
--- ---------------------------------------------------------------------------
+-- * Additive connectives
 
 -- $setup
 -- >>> import Circuit.Poles
