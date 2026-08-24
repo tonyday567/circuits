@@ -77,10 +77,19 @@ library
 executable circuits-axioma
   import: ghc-options-stanza
   default-language: GHC2024
-  main-is: axioma.hs
+  main-is: circuits-axioma.hs
   hs-source-dirs: app
+  other-modules:
+    Axioma.Channel
+    Axioma.Common
+    Axioma.Effect
+    Axioma.FinRel
+    Axioma.Poles
+    Axioma.Process
+    Axioma.Shared
   build-depends:
     base >=4.20 && <5,
     circuits,
     circuits-tools >=0.1 && <0.2,
+    optparse-applicative >=0.17 && <0.20,
     these >=1.1 && <1.3,
