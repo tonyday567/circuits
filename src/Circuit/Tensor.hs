@@ -38,7 +38,6 @@ module Circuit.Tensor
     Action (..),
 
     -- * Distributivity of two tensors (multiplicative over additive)
-    Pointed (..),
     Distributive (..),
 
     -- * Cartesian / cocartesian associators
@@ -217,35 +216,6 @@ class (Tensor t arr) => Action t arr where
   braid :: arr (t a b) (t b a)
 
 -- * Distributivity
-
--- | A pointed object: an object with a distinguished element.
---
--- This is the structural requirement for the coproduct unit poles of
--- 'Body Either': on a payload input the companion must produce a carrier
--- value, and there is no ambient state to use.  'Monoid' is over-strong for
--- this — only the identity element is needed.
-class Pointed a where
-  point :: a
-
--- | The singleton type is pointed.
-instance Pointed () where
-  point = ()
-  {-# INLINE point #-}
-
--- | 'Bool' is pointed at 'False'.  The choice is arbitrary but stable.
-instance Pointed Bool where
-  point = False
-  {-# INLINE point #-}
-
--- | 'Maybe' is pointed at 'Nothing'.
-instance Pointed (Maybe a) where
-  point = Nothing
-  {-# INLINE point #-}
-
--- | Lists are pointed at the empty list.
-instance Pointed [a] where
-  point = []
-  {-# INLINE point #-}
 
 -- | Distributivity of a multiplicative tensor @d@ over an additive tensor @t@.
 --

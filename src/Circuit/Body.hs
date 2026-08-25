@@ -40,9 +40,8 @@ module Circuit.Body
   )
 where
 
-import Circuit.Category (Category (..), K (..), (.>))
+import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
-import Circuit.Tensor (Pointed (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 

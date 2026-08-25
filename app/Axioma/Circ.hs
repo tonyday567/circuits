@@ -664,32 +664,34 @@ runVoidBody b a = case morphism b (Right a) of
   Left v -> absurd v
 
 -- | Uniformity: a non-injective intertwiner makes feedback invariant under a
--- quotient of the feedback wire.  The source feedback wire is 'Bool' (two
--- states); the target is @()@ (one state).  Both open bodies perform one
--- internal tick and then halt with output @0@.
+-- genuine quotient of the feedback wire.  The source feedback wire is 'Int';
+-- the target is 'Bool' via @odd :: Int -> Bool@.  Both wires carry two
+-- reachable values, and the halt value depends on which wire state the loop
+-- halts from, so the test distinguishes "invariant under quotient" from
+-- "invariant under collapse to a point".
 --
 -- The bodies are /open/: the feedback wire appears in the payload, so they
 -- can be passed to 'feedback'.  After feedback the hidden carrier is
 -- @Either Void (Either s a) ≅ Either s a@.
-uniformitySourceOpen :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+uniformitySourceOpen :: Body Either Void (->) (Either Int Int) (Either Int Int)
 uniformitySourceOpen =
   Body $ \case
-    Right (Right _) -> Right (Left True)
-    Right (Left _) -> Right (Right 0)
+    Right (Right a) -> Right (Left a)
+    Right (Left n) -> Right (Right (if odd n then 7 else 9))
     Left v -> absurd v
 
-uniformityTargetOpen :: Body Either Void (->) (Either () Int) (Either () Int)
+uniformityTargetOpen :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
 uniformityTargetOpen =
   Body $ \case
-    Right (Right _) -> Right (Left ())
-    Right (Left ()) -> Right (Right 0)
+    Right (Right a) -> Right (Left (odd a))
+    Right (Left b) -> Right (Right (if b then 7 else 9))
     Left v -> absurd v
 
 -- | Uniformity hypothesis on the open bodies: quotienting the feedback wire
--- with @const ()@ commutes with the two bodies.
+-- with @odd@ commutes with the two bodies.
 eitherUniformityHypothesisOk :: Bool
 eitherUniformityHypothesisOk =
-  let h = const () :: Bool -> ()
+  let h = odd :: Int -> Bool
       srcFun = runVoidBody uniformitySourceOpen
       tgtFun = runVoidBody uniformityTargetOpen
    in all
@@ -697,7 +699,7 @@ eitherUniformityHypothesisOk =
             first h (srcFun x)
               == tgtFun (first h x)
         )
-        [Right 0, Right 1, Left False, Left True]
+        [Right 0, Right 1, Right 2, Left 0, Left 1, Left 2]
 
 -- | Uniformity conclusion: feedback of the two open bodies has the same trace.
 eitherUniformityOk :: Bool
@@ -710,21 +712,36 @@ eitherUniformityOk =
           [0, 1, 2, 3]
    in eitherUniformityHypothesisOk && traceOk
 
--- | Sliding (dinaturality) for an isomorphism on the feedback wire.  @not@ is
--- a self-inverse on 'Bool'; the two sides of the sliding equation differ in
--- whether the isomorphism is applied before or after the open body.
+-- | A three-element cyclic group for the sliding witness.  We need an
+-- isomorphism that is not self-inverse; 'Bool' has only identity, negation,
+-- and constants, so it cannot carry a non-involutive iso.
+data Z3 = Z0 | Z1 | Z2 deriving (Eq, Show)
+
+-- | Cyclic shift on 'Z3'.
+nextZ3 :: Z3 -> Z3
+nextZ3 Z0 = Z1
+nextZ3 Z1 = Z2
+nextZ3 Z2 = Z0
+
+-- | Sliding (dinaturality) for an isomorphism on the feedback wire.  The body
+-- steps through 'Z3' and halts with a value depending on the wire state, so
+-- the wire is genuinely observed.  @nextZ3@ is a three-cycle, not an
+-- involution, so applying it on the wrong side of the trace is observable.
 eitherSlidingOk :: Bool
 eitherSlidingOk =
-  let f :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+  let f :: Body Either Void (->) (Either Z3 Int) (Either Z3 Int)
       f =
         Body $ \case
-          Right (Right _) -> Right (Left True)
-          Right (Left _) -> Right (Right 0)
+          Right (Right a) | even a -> Right (Left Z0)
+          Right (Right _) -> Right (Left Z1)
+          Right (Left Z0) -> Right (Right 10)
+          Right (Left Z1) -> Right (Right 20)
+          Right (Left Z2) -> Right (Right 30)
           Left v -> absurd v
-      h :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+      h :: Body Either Void (->) (Either Z3 Int) (Either Z3 Int)
       h =
         Body $ \case
-          Right (Left b) -> Right (Left (not b))
+          Right (Left z) -> Right (Left (nextZ3 z))
           Right (Right a) -> Right (Right a)
           Left v -> absurd v
       lhsOpen = Body $ morphism h .> morphism f
