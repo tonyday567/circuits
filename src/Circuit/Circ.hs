@@ -54,7 +54,13 @@ module Circuit.Circ
 
     -- * Carrier-tensoring composition
     cascade,
+    cascadeBody,
     cascadeSome,
+
+    -- * Horizontal 2-cell algebra
+    rightWhisker,
+    leftWhisker,
+    hcompose,
   )
 where
 
@@ -195,6 +201,62 @@ cascadeSome (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
     let (s1'', b) = f (s1', a)
         (s2'', c) = g (s2', b)
      in ((s1'', s2''), c)
+
+-- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
+-- @t ch ch'@.  This is the body-level building block of 'cascade' and of
+-- horizontal 2-cell algebra.
+cascadeBody ::
+  (Strength t arr) =>
+  Body t ch' arr b c ->
+  Body t ch arr a b ->
+  Body t (t ch ch') arr a c
+cascadeBody g f =
+  Body
+    ( assoc
+        .> slide
+        .> strength (morphism f)
+        .> slide
+        .> strength (morphism g)
+        .> assoc'
+    )
+
+-- | Right whisker: tensor a square with an identity-on-boundaries 1-cell on
+-- the right.
+rightWhisker ::
+  (Tensor t arr, Strength t arr) =>
+  Sq t arr ch ch' a b ->
+  Body t d arr b c ->
+  Sq t arr (t ch d) (t ch' d) a c
+rightWhisker sq r =
+  Sq
+    (tensor (carrierMap sq) id)
+    (cascadeBody r (sqSrc sq))
+    (cascadeBody r (sqTgt sq))
+
+-- | Left whisker: tensor an identity-on-boundaries 1-cell on the left of a
+-- square.
+leftWhisker ::
+  (Tensor t arr, Strength t arr) =>
+  Body t d arr a' a ->
+  Sq t arr ch ch' a b ->
+  Sq t arr (t d ch) (t d ch') a' b
+leftWhisker l sq =
+  Sq
+    (tensor id (carrierMap sq))
+    (cascadeBody (sqSrc sq) l)
+    (cascadeBody (sqTgt sq) l)
+
+-- | Horizontal composition of two squares.
+hcompose ::
+  (Tensor t arr, Strength t arr) =>
+  Sq t arr ch2 ch2' b c ->
+  Sq t arr ch1 ch1' a b ->
+  Sq t arr (t ch1 ch2) (t ch1' ch2') a c
+hcompose sq2 sq1 =
+  Sq
+    (tensor (carrierMap sq1) (carrierMap sq2))
+    (cascadeBody (sqSrc sq2) (sqSrc sq1))
+    (cascadeBody (sqTgt sq2) (sqTgt sq1))
 
 -- | 'Category' instance for 'Circ'.
 --

@@ -6,8 +6,17 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), runSomeBody)
-import Circuit.Circ (Sq (..), acrossThenDown, cascadeSome, downThenAcross)
+import Circuit.Circ
+  ( Sq (..),
+    acrossThenDown,
+    cascadeSome,
+    downThenAcross,
+    hcompose,
+    leftWhisker,
+    rightWhisker,
+  )
 import Control.Monad (when)
+import Data.Bifunctor (first)
 
 -- | Exact-oracle range for the intertwiner checks.
 carrierRange :: [Int]
@@ -72,6 +81,25 @@ cascadeAssocOk xs =
    in runSomeBody (cascadeSome h (cascadeSome g f)) xs
         == runSomeBody (cascadeSome (cascadeSome h g) f) xs
 
+-- | Bodies for the horizontal 2-cell tests.  They thread a secondary state
+-- while leaving the payload alone.
+rightBody :: Body (,) Int (->) Char Char
+rightBody = Body $ \(s, x) -> (s + 1, x)
+
+leftBody :: Body (,) Int (->) Char Bool
+leftBody = Body $ \(s, x) -> (s + 1, x == 'x')
+
+-- | A second commuting square, payload 'Char' throughout, used for horizontal
+-- composition.
+flipEchoBody :: Body (,) Int (->) Char Char
+flipEchoBody = Body $ \(n, x) -> (n + 1, x)
+
+flipParityEchoBody :: Body (,) Bool (->) Char Char
+flipParityEchoBody = Body $ first not
+
+flipEchoSq :: Sq (,) (->) Int Bool Char Char
+flipEchoSq = Sq odd flipEchoBody flipParityEchoBody
+
 -- | Exact oracle over a bounded input space.
 --
 -- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
@@ -94,5 +122,29 @@ circTopic verbosity = do
       checkV verbosity "pointed cascade agrees with stream composition" $
         cascadeStreamOk [1, 2, 3, 4, 5],
       checkV verbosity "pointed cascade is associative on input lists" $
-        cascadeAssocOk [1, 2, 3, 4, 5]
+        cascadeAssocOk [1, 2, 3, 4, 5],
+      checkV verbosity "right whisker preserves the square" $
+        let sq = rightWhisker counterToParitySq rightBody
+         in and
+              [ downThenAcross sq ((n, s), r) == acrossThenDown sq ((n, s), r)
+              | n <- carrierRange,
+                s <- carrierRange,
+                r <- [False, True]
+              ],
+      checkV verbosity "left whisker preserves the square" $
+        let sq = leftWhisker leftBody counterToParitySq
+         in and
+              [ downThenAcross sq ((s, n), x) == acrossThenDown sq ((s, n), x)
+              | n <- carrierRange,
+                s <- carrierRange,
+                x <- ['x', 'y']
+              ],
+      checkV verbosity "horizontal composition preserves the square" $
+        let sq = hcompose flipEchoSq counterToParitySq
+         in and
+              [ downThenAcross sq ((n, s), r) == acrossThenDown sq ((n, s), r)
+              | n <- carrierRange,
+                s <- carrierRange,
+                r <- [False, True]
+              ]
     ]

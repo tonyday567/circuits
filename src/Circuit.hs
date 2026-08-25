@@ -111,7 +111,11 @@ module Circuit
     downThenAcross,
     acrossThenDown,
     cascade,
+    cascadeBody,
     cascadeSome,
+    rightWhisker,
+    leftWhisker,
+    hcompose,
 
     -- * Polynomial interfaces
     System,
@@ -281,10 +285,14 @@ import Circuit.Circ
     Sq (..),
     acrossThenDown,
     cascade,
+    cascadeBody,
     cascadeSome,
     downThenAcross,
+    hcompose,
     idCirc,
     idSq,
+    leftWhisker,
+    rightWhisker,
     vcomp,
   )
 import Circuit.Dagger
