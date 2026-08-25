@@ -42,6 +42,7 @@ where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
+import Circuit.Tensor (Pointed (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -123,24 +124,25 @@ instance (Monad m) => HasDual () (Body (,) s (K m)) where
 --
 -- The coproduct case needs a distinguished element of the carrier @s@: on a
 -- @Right x@ input the companion must return @Left s@ for some @s@, and there
--- is no ambient state to use.  Hence the @Monoid s@ constraint.  This is the
--- structural pointedness requirement that makes @Either@ differ from @(,)@.
-instance (Monoid s) => HasDual Void (Body Either s (->)) where
+-- is no ambient state to use.  'Pointed' captures exactly that, which is
+-- weaker than 'Monoid'.  This is the structural pointedness requirement that
+-- makes @Either@ differ from @(,)@.
+instance (Pointed s) => HasDual Void (Body Either s (->)) where
   open =
     let outU = Out $ \_ -> Body $ \case
           Left s -> Left s
-          Right _ -> Left mempty
+          Right _ -> Left point
         inU = In $ \_ -> Body $ \case
           Left s -> Left s
           Right v -> absurd v
      in Poles inU outU
 
 -- | Unit poles for @Body Either s (K m)@ at @Void@.
-instance (Monad m, Monoid s) => HasDual Void (Body Either s (K m)) where
+instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
   open =
     let outU = Out $ \_ -> Body $ K $ \case
           Left s -> pure (Left s)
-          Right _ -> pure (Left mempty)
+          Right _ -> pure (Left point)
         inU = In $ \_ -> Body $ K $ \case
           Left s -> pure (Left s)
           Right v -> absurd v

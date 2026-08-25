@@ -37,6 +37,10 @@ module Circuit.Tensor
     Tensor (..),
     Action (..),
 
+    -- * Distributivity of two tensors (multiplicative over additive)
+    Pointed (..),
+    Distributive (..),
+
     -- * Cartesian / cocartesian associators
     assocL,
     assocR,
@@ -212,6 +216,64 @@ class (Tensor t arr) => Action t arr where
   -- (4,3)
   braid :: arr (t a b) (t b a)
 
+-- * Distributivity
+
+-- | A pointed object: an object with a distinguished element.
+--
+-- This is the structural requirement for the coproduct unit poles of
+-- 'Body Either': on a payload input the companion must produce a carrier
+-- value, and there is no ambient state to use.  'Monoid' is over-strong for
+-- this — only the identity element is needed.
+class Pointed a where
+  point :: a
+
+-- | The singleton type is pointed.
+instance Pointed () where
+  point = ()
+  {-# INLINE point #-}
+
+-- | 'Bool' is pointed at 'False'.  The choice is arbitrary but stable.
+instance Pointed Bool where
+  point = False
+  {-# INLINE point #-}
+
+-- | 'Maybe' is pointed at 'Nothing'.
+instance Pointed (Maybe a) where
+  point = Nothing
+  {-# INLINE point #-}
+
+-- | Lists are pointed at the empty list.
+instance Pointed [a] where
+  point = []
+  {-# INLINE point #-}
+
+-- | Distributivity of a multiplicative tensor @d@ over an additive tensor @t@.
+--
+-- In a distributive monoidal category the product distributes over the sum:
+-- @d a (t b c) ≅ t (d a b) (d a c)@ and @d (t a b) c ≅ t (d a c) (d b c)@,
+-- and the additive unit is annihilated: @d a (Unit t) ≅ Unit t@.
+--
+-- For @d = (,)@ and @t = Either@ this is the ordinary distributivity of
+-- cartesian product over coproduct, with @(a, Void) ≅ Void@.
+class (Tensor d arr, Tensor t arr) => Distributive d t arr where
+  -- | Left distributor: @d a (t b c) -> t (d a b) (d a c)@.
+  distl :: arr (d a (t b c)) (t (d a b) (d a c))
+
+  -- | Inverse left distributor.
+  distl' :: arr (t (d a b) (d a c)) (d a (t b c))
+
+  -- | Right distributor: @d (t a b) c -> t (d a c) (d b c)@.
+  distr :: arr (d (t a b) c) (t (d a c) (d b c))
+
+  -- | Inverse right distributor.
+  distr' :: arr (t (d a c) (d b c)) (d (t a b) c)
+
+  -- | Left annihilator: @d a (Unit t) -> Unit t@.
+  annih :: arr (d a (Unit t)) (Unit t)
+
+  -- | Inverse left annihilator.
+  annih' :: arr (Unit t) (d a (Unit t))
+
 type instance Unit (,) = ()
 
 -- | Cartesian tensor action on functions.
@@ -234,6 +296,33 @@ instance Action (,) (->) where
   braid (a, b) = (b, a)
   {-# INLINE braid #-}
 
+-- | Distributivity of @(,)@ over 'Either' on functions.
+--
+-- >>> distl ('x', Left 1 :: Either Int Bool) :: Either (Char, Int) (Char, Bool)
+-- Left ('x',1)
+--
+-- >>> distl ('x', Right True) :: Either (Char, Int) (Char, Bool)
+-- Right ('x',True)
+instance Distributive (,) Either (->) where
+  distl (a, Left b) = Left (a, b)
+  distl (a, Right c) = Right (a, c)
+  {-# INLINE distl #-}
+  distl' = \case
+    Left (a, b) -> (a, Left b)
+    Right (a, c) -> (a, Right c)
+  {-# INLINE distl' #-}
+  distr (Left a, c) = Left (a, c)
+  distr (Right b, c) = Right (b, c)
+  {-# INLINE distr #-}
+  distr' = \case
+    Left (a, c) -> (Left a, c)
+    Right (b, c) -> (Right b, c)
+  {-# INLINE distr' #-}
+  annih = absurd . snd
+  {-# INLINE annih #-}
+  annih' = absurd
+  {-# INLINE annih' #-}
+
 -- | Cartesian tensor on @K@ (effectful sequential product).
 instance (Monad m) => Tensor (,) (K m) where
   tensor (K f) (K g) =
@@ -254,6 +343,37 @@ instance (Monad m) => Tensor (,) (K m) where
 instance (Monad m) => Action (,) (K m) where
   braid = K $ \(a, b) -> pure (b, a)
   {-# INLINE braid #-}
+
+-- | Distributivity of @(,)@ over 'Either' on @K m@.
+instance (Monad m) => Distributive (,) Either (K m) where
+  distl =
+    K $
+      pure . \case
+        (a, Left b) -> Left (a, b)
+        (a, Right c) -> Right (a, c)
+  {-# INLINE distl #-}
+  distl' =
+    K $
+      pure . \case
+        Left (a, b) -> (a, Left b)
+        Right (a, c) -> (a, Right c)
+  {-# INLINE distl' #-}
+  distr =
+    K $
+      pure . \case
+        (Left a, c) -> Left (a, c)
+        (Right b, c) -> Right (b, c)
+  {-# INLINE distr #-}
+  distr' =
+    K $
+      pure . \case
+        Left (a, c) -> (Left a, c)
+        Right (b, c) -> (Right b, c)
+  {-# INLINE distr' #-}
+  annih = K $ pure . absurd . snd
+  {-# INLINE annih #-}
+  annih' = K $ pure . absurd
+  {-# INLINE annih' #-}
 
 type instance Unit Either = Void
 
