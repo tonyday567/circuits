@@ -61,6 +61,7 @@ module Circuit.Circ
     rightWhisker,
     leftWhisker,
     hcompose,
+    whiskerSq,
   )
 where
 
@@ -257,6 +258,21 @@ hcompose sq2 sq1 =
     (tensor (carrierMap sq1) (carrierMap sq2))
     (cascadeBody (sqSrc sq2) (sqSrc sq1))
     (cascadeBody (sqTgt sq2) (sqTgt sq1))
+
+-- | Boundary whisker: apply tight maps to the input and output boundaries of a
+-- square.  This is the `Sq` side of the interchange law; the `Poles` side is
+-- `iomap` on the Moore-split representation.
+whiskerSq ::
+  (Tensor t arr) =>
+  arr a' a ->
+  arr b b' ->
+  Sq t arr ch ch' a b ->
+  Sq t arr ch ch' a' b'
+whiskerSq f g sq =
+  Sq
+    (carrierMap sq)
+    (Body $ tensor id f .> morphism (sqSrc sq) .> tensor id g)
+    (Body $ tensor id f .> morphism (sqTgt sq) .> tensor id g)
 
 -- | 'Category' instance for 'Circ'.
 --

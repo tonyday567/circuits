@@ -116,6 +116,7 @@ module Circuit
     rightWhisker,
     leftWhisker,
     hcompose,
+    whiskerSq,
 
     -- * Polynomial interfaces
     System,
@@ -294,6 +295,7 @@ import Circuit.Circ
     leftWhisker,
     rightWhisker,
     vcomp,
+    whiskerSq,
   )
 import Circuit.Dagger
   ( Dagger (..),
