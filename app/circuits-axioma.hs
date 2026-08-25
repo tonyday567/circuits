@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Axioma.Channel (channelTopic)
+import Axioma.Circ (circTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Effect (effectTopic)
 import Axioma.FinRel (finRelTopic)
@@ -13,31 +14,34 @@ import Prelude hiding (id, (.))
 
 data Topic
   = All
-  | FinRel
-  | Process
-  | Poles
-  | Shared
-  | Effect
   | Channel
+  | Circ
+  | Effect
+  | FinRel
+  | Poles
+  | Process
+  | Shared
   deriving (Show, Eq, Bounded, Enum)
 
 topicName :: Topic -> String
 topicName All = "all"
-topicName FinRel = "finrel"
-topicName Process = "process"
-topicName Poles = "poles"
-topicName Shared = "shared"
-topicName Effect = "effect"
 topicName Channel = "channel"
+topicName Circ = "circ"
+topicName Effect = "effect"
+topicName FinRel = "finrel"
+topicName Poles = "poles"
+topicName Process = "process"
+topicName Shared = "shared"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
-topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
-topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
-topicDesc Poles = "Poles, Stamped, Boundary, and markSystem oracles"
-topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
-topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc Channel = "Par / linear distributivity and Poly.Channel oracles"
+topicDesc Circ = "Circ bicategory and intertwiner oracles"
+topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
+topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
+topicDesc Poles = "Poles, Stamped, Boundary, and markSystem oracles"
+topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
+topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
 
 topicParser :: Parser Topic
 topicParser =
@@ -87,16 +91,17 @@ opts =
     )
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
-runTopic FinRel = finRelTopic
-runTopic Process = processTopic
-runTopic Poles = polesTopic
-runTopic Shared = sharedTopic
-runTopic Effect = effectTopic
 runTopic Channel = channelTopic
+runTopic Circ = circTopic
+runTopic Effect = effectTopic
+runTopic FinRel = finRelTopic
+runTopic Poles = polesTopic
+runTopic Process = processTopic
+runTopic Shared = sharedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [FinRel, Process, Poles, Shared, Effect, Channel]
+allTopics = [Channel, Circ, Effect, FinRel, Poles, Process, Shared]
 
 greenCircle :: String
 greenCircle = "🟢"

@@ -49,6 +49,7 @@ library
     Circuit.Body
     Circuit.Category
     Circuit.Channel
+    Circuit.Circ
     Circuit.Dagger
     Circuit.FinRel
     Circuit.Hyper
@@ -81,6 +82,7 @@ executable circuits-axioma
   hs-source-dirs: app
   other-modules:
     Axioma.Channel
+    Axioma.Circ
     Axioma.Common
     Axioma.Effect
     Axioma.FinRel

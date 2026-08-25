@@ -3,12 +3,50 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Dynamical systems over polynomial interfaces.
+-- | A Moore machine fibered over a polynomial interface @p@.
 --
--- A 'System' is a Moore machine whose interface is a polynomial @p :: Poly@:
--- a state @s@ together with a body @arr (s, Dir p) (s, Pos p)@.  This module
--- defines the system type, conversions between eval and arrow forms, wiring
--- combinators, and higher-level execution combinators.
+-- @
+--   newtype SystemT t arr s p = SystemT (Body t s arr (Dir p) (Pos p))
+-- @
+--
+-- * The base is the state @s@.
+-- * The fiber/interface is the polynomial @p@, with positions 'Pos' p and
+--   directions 'Dir' p.
+-- * The span shape is @s <- (s, Dir p) -> Pos p@.
+-- * "Moore" because the observable output 'Pos' p depends on the state @s@,
+--   not directly on the current input direction. The direction is consumed to
+--   compute the next state; then the position is read from that state.
+--
+-- For a monomial @Mono i o@:
+--
+-- @
+--   Dir (Mono i o) = i
+--   Pos (Mono i o) = o
+-- @
+--
+-- so @System (->) s (Mono i o)@ collapses to the ordinary Moore body
+-- @(s, i) -> (s, o)@. The 'mooreSystem' constructor makes this explicit:
+-- it takes a transition @s -> a -> s@ and an observation @s -> b@, then
+-- packages them as a 'Circuit.Body.Body'.
+--
+-- For a general polynomial @p@, 'Pos' p and 'Dir' p can be branching: the
+-- polynomial layer handles sums and products of interfaces, so 'System' is a
+-- Moore machine that can branch, offer choices, or run parallel interfaces,
+-- all while 'Circuit.Body.Body' handles the state transition.
+--
+-- In the BLLL picture (Katis–Sabadini–Walters), an F-Moore machine is an
+-- F-algebra @F E -> E@ plus an output @E -> O@. 'System' fits this with
+-- state object @E = s@, endofunctor @F = (-) ⊗ Dir p@, transition
+-- @d : s ⊗ Dir p -> s@, and output @obs : s -> Pos p@ bundled with the
+-- transition in the 'Circuit.Body.Body'.
+--
+-- 'Circuit.Process.Process' is the pointed monomial special case: where
+-- @Process@ is the existential form @∃s. (s, s -> a -> s, s -> b)@, 'System'
+-- is the polynomial-lens form of the same idea, with @p@ describing the
+-- interactive interface.
+--
+-- This module defines the system type, conversions between eval and arrow
+-- forms, wiring combinators, and higher-level execution combinators.
 module Circuit.System
   ( -- * Systems
     SystemT (..),
@@ -33,7 +71,7 @@ module Circuit.System
     -- * Channel-pole view of systems
     SomePoles (..),
     runSomePoles,
-    systemToPoles,
+    systemToPolesWithProbe,
     systemWithSeedToPoles,
 
     -- * Running monomial systems
@@ -223,28 +261,38 @@ parWiring sp sq =
 
 -- * Channel-pole view of systems
 
--- | An existentially-quantified pair of channel poles, carrying its seed.
-data SomePoles a b where
-  SomePoles :: s -> Poles (Body (,) s (->)) a b -> SomePoles a b
+-- | An existentially-quantified pair of channel poles over a body, carrying
+-- its seed. The shape mirrors 'Circuit.Body.SomeBody'.
+data SomePoles t arr a b where
+  SomePoles :: s -> Poles (Body t s arr) a b -> SomePoles t arr a b
 
 -- | Run an existentially-packed pair of poles over a list of inputs.
-runSomePoles :: SomePoles a b -> [a] -> [b]
+--
+-- This is the @(,)@ / @(->)@ specialisation; 'SomePoles' is parametric in the
+-- tensor and arrow so that other shapes can reuse the existential packaging.
+runSomePoles :: SomePoles (,) (->) a b -> [a] -> [b]
 runSomePoles (SomePoles s0 p) xs =
   let (write, receive) = Poles.splay0 p
       Body f = write .> receive
       (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
    in reverse bs
 
+-- | Shared write pole for a @(->)@ system over @(,)@: run the step and discard
+-- the output position.
+systemWriteBody :: System (->) s p -> Body (,) s (->) (Dir p) ()
+systemWriteBody sys = Body $ \(s, d) -> (fst (runSystem sys (s, d)), ())
+
 -- | Convert a @(->)@ 'System' into companion/conjoint channel poles over @Body@.
 --
 -- The write pole runs the step and discards the output position; the read pole
--- runs the step with the supplied probe direction and returns the position.
--- This is a lower-level split than a pointed Moore machine: it does not assume
--- a separate observation map.
-systemToPoles :: Dir p -> System (->) s p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
-systemToPoles probe sys =
+-- fabricates an observation by re-stepping the system with the supplied probe
+-- direction. This works only when the read can be reasonably approximated by a
+-- single probe direction; for an honest Moore observation prefer
+-- 'systemWithSeedToPoles'.
+systemToPolesWithProbe :: Dir p -> System (->) s p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
+systemToPolesWithProbe probe sys =
   Poles.poles0
-    (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+    (systemWriteBody sys)
     (Body $ \(s, ()) -> runSystem sys (s, probe))
 
 -- | Convert a pointed 'System' into companion/conjoint channel poles over @Body@.
@@ -253,11 +301,11 @@ systemToPoles probe sys =
 -- 'SomePoles'.  The write pole steps with the supplied direction; the read pole
 -- observes the current state without stepping, using the supplied observation
 -- function.
-systemWithSeedToPoles :: s -> (s -> Pos p) -> System (->) s p -> SomePoles (Dir p) (Pos p)
+systemWithSeedToPoles :: s -> (s -> Pos p) -> System (->) s p -> SomePoles (,) (->) (Dir p) (Pos p)
 systemWithSeedToPoles s0 ex sys =
   SomePoles s0 $
     Poles.poles0
-      (Body $ \(s, d) -> (fst (runSystem sys (s, d)), ()))
+      (systemWriteBody sys)
       (Body $ \(s, ()) -> (s, ex s))
 
 -- | Run a monomial @(->)@ system at a state, exposing the output position and

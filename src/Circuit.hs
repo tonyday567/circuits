@@ -101,6 +101,14 @@ module Circuit
     SomeBody (..),
     runSomeBody,
 
+    -- * Circ (loose bicategory of bodies with varying carriers)
+    Circ (..),
+    Sq (..),
+    Intertwiner (..),
+    downThenAcross,
+    acrossThenDown,
+    cascade,
+
     -- * Polynomial interfaces
     System,
     system,
@@ -263,6 +271,14 @@ import Circuit.Channel
     trace,
   )
 import Circuit.Channel qualified as Channel
+import Circuit.Circ
+  ( Circ (..),
+    Intertwiner (..),
+    Sq (..),
+    acrossThenDown,
+    cascade,
+    downThenAcross,
+  )
 import Circuit.Dagger
   ( Dagger (..),
     transpose,
