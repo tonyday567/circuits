@@ -11,11 +11,14 @@ import Circuit.Circ
   ( Sq (..),
     acrossThenDown,
     associatorSq,
+    bisimilarStates,
     cascadeBody,
     cascadeSome,
     downThenAcross,
     hcompose,
+    isBisimulation,
     leftWhisker,
+    maxBisimulation,
     rightWhisker,
     unitorLeftSq,
     unitorRightSq,
@@ -26,6 +29,7 @@ import Circuit.Poles (Poles (..), box, iomap, poles0)
 import Circuit.Tensor (Tensor (..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
+import Data.List (sort)
 
 -- | Exact-oracle range for the intertwiner checks.
 carrierRange :: [Int]
@@ -498,6 +502,87 @@ yankingFailsOk =
    in runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] /= [1, 2, 3]
         && runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] == [0, 1, 2]
 
+-- * Bisimulation oracles
+
+-- | Three-state body for the bisimulation witness.  States @1@ and @2@ are
+-- behaviourally equivalent.
+bisim3Body :: Body (,) Int (->) Bool Char
+bisim3Body = Body $ \(s, r) ->
+  case (s, r) of
+    (0, False) -> (1, 'y')
+    (0, True) -> (0, 'x')
+    (1, False) -> (2, 'x')
+    (1, True) -> (0, 'x')
+    (2, False) -> (2, 'x')
+    (2, True) -> (0, 'x')
+    _ -> (0, 'x')
+
+-- | Two-state body: the minimisation of 'bisim3Body'.  State @1@ corresponds
+-- to both states @1@ and @2@ of the three-state machine.
+bisim2Body :: Body (,) Int (->) Bool Char
+bisim2Body = Body $ \(s, r) ->
+  case (s, r) of
+    (0, False) -> (1, 'y')
+    (0, True) -> (0, 'x')
+    (1, False) -> (1, 'x')
+    (1, True) -> (0, 'x')
+    _ -> (0, 'x')
+
+-- | Bounded input alphabet for the finite-state bisimulation checks.
+bisimInputs :: [Bool]
+bisimInputs = [False, True]
+
+-- | The maximal bisimulation between the three-state and two-state machines.
+-- States @1@ and @2@ of the larger machine both collapse to state @1@ of the
+-- smaller one.
+bisimMaxOk :: Bool
+bisimMaxOk =
+  sort (maxBisimulation bisimInputs [0, 1, 2] [0, 1] bisim3Body bisim2Body)
+    == sort [(0, 0), (1, 1), (2, 1)]
+
+-- | The expected relation is itself a bisimulation.
+bisimRelationOk :: Bool
+bisimRelationOk =
+  isBisimulation bisimInputs bisim3Body bisim2Body [(0, 0), (1, 1), (2, 1)]
+
+-- | Initial states @0@ of the two machines are bisimilar.
+bisimInitialStatesOk :: Bool
+bisimInitialStatesOk =
+  bisimilarStates bisimInputs [0, 1, 2] [0, 1] bisim3Body bisim2Body 0 0
+
+-- | State @1@ of the three-state machine is not bisimilar to state @0@ of the
+-- two-state machine (their outputs disagree on a non-reset step).
+bisimNonEquivalentOk :: Bool
+bisimNonEquivalentOk =
+  not (bisimilarStates bisimInputs [0, 1, 2] [0, 1] bisim3Body bisim2Body 1 0)
+
+-- | Behavioural agreement on an input stream: related initial states produce
+-- identical outputs.
+bisimStreamOk :: Bool
+bisimStreamOk =
+  runSomeBody (SomeBody 0 bisim3Body) [False, True, False, False, True]
+    == runSomeBody (SomeBody 0 bisim2Body) [False, True, False, False, True]
+
+-- | Carrier-isomorphism implies bisimulation, but not conversely.  Two
+-- isomorphic two-state machines (states relabelled @10,11@ vs @0,1@) are
+-- bisimilar via the renaming relation.
+bisimCarrierIsoFinerOk :: Bool
+bisimCarrierIsoFinerOk =
+  let bodyA = bisim2Body
+      bodyB :: Body (,) Int (->) Bool Char
+      bodyB =
+        Body $ \(s, r) ->
+          case (s, r) of
+            (10, False) -> (11, 'y')
+            (10, True) -> (10, 'x')
+            (11, False) -> (11, 'x')
+            (11, True) -> (10, 'x')
+            _ -> (10, 'x')
+      rel :: [(Int, Int)]
+      rel = [(0, 10), (1, 11)]
+   in isBisimulation bisimInputs bodyA bodyB rel
+        && bisimilarStates bisimInputs [0, 1] [10, 11] bodyA bodyB 0 10
+
 -- | Exact oracle over a bounded input space.
 --
 -- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
@@ -551,5 +636,11 @@ circTopic verbosity = do
       checkV verbosity "feedback joining (A3)" joiningOk,
       checkV verbosity "feedback superposing (A4)" superposingOk,
       checkV verbosity "feedback sliding (A5)" slidingOk,
-      checkV verbosity "feedback yanking fails" yankingFailsOk
+      checkV verbosity "feedback yanking fails" yankingFailsOk,
+      checkV verbosity "bisimulation max relation (3-state vs 2-state)" bisimMaxOk,
+      checkV verbosity "bisimulation relation check" bisimRelationOk,
+      checkV verbosity "bisimilar initial states" bisimInitialStatesOk,
+      checkV verbosity "non-bisimilar states are not related" bisimNonEquivalentOk,
+      checkV verbosity "bisimilar machines agree on streams" bisimStreamOk,
+      checkV verbosity "carrier-iso implies bisimulation" bisimCarrierIsoFinerOk
     ]
