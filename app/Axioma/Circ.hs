@@ -350,6 +350,154 @@ whiskerSqSquareOk =
         (\(n, r) -> downThenAcross sq (n, r) == acrossThenDown sq (n, r))
         [(n, r) | n <- carrierRange, r <- [0, 1, 2, 3]]
 
+-- * Feedback-category law oracles
+
+--
+-- These check the guarded feedback operator from "Circuit.Circ" against the
+-- feedback-category axioms of Di Lavore et al., "Span(Graph): a Canonical
+-- Feedback Algebra of Open Transition Systems" (arXiv:2010.10069), §3.1:
+-- A1 tightening, A2 vanishing, A3 joining, A4 strength/superposing, A5 sliding
+-- (isomorphisms only).  Yanking is /not/ an axiom; we assert that it fails.
+
+-- | The body-level action of 'feedback': reassociate so the feedback wire
+-- becomes part of the hidden carrier.
+feedbackBody :: Body (,) ch (->) (s, a) (s, b) -> Body (,) (ch, s) (->) a b
+feedbackBody (Body f) =
+  Body $ \((ch, s), a) ->
+    let (ch', (s', b)) = f (ch, (s, a))
+     in ((ch', s'), b)
+
+-- | Parallel (tensor) composition of two bodies at the body level.  This is
+-- the pointed counterpart to the tensor of loose 1-cells used in the
+-- superposing and tightening laws.
+tensorBody ::
+  Body (,) ch1 (->) a b ->
+  Body (,) ch2 (->) c d ->
+  Body (,) (ch1, ch2) (->) (a, c) (b, d)
+tensorBody (Body f) (Body g) =
+  Body $ \((ch1, ch2), (a, c)) ->
+    let (ch1', b) = f (ch1, a)
+        (ch2', d) = g (ch2, c)
+     in ((ch1', ch2'), (b, d))
+
+-- | Identity body at the unit carrier.
+idBody :: Body (,) () (->) a a
+idBody = Body $ \((), a) -> ((), a)
+
+-- | Running-sum body before feedback: state accumulates the input and the
+-- output is the new state.
+runningSumFB :: Body (,) () (->) (Int, Int) (Int, Int)
+runningSumFB = Body $ \((), (s, a)) -> let s' = s + a in ((), (s', s'))
+
+-- | Behaviour oracle: a running-sum feedback circuit produces the cumulative
+-- sums [1,3,6] on input [1,2,3].
+runningSumFeedbackOk :: Bool
+runningSumFeedbackOk =
+  runSomeBody (SomeBody ((), 0) (feedbackBody runningSumFB)) [1, 2, 3] == [1, 3, 6]
+
+-- | Body used in the vanishing law: increment the payload while carrying the
+-- unit feedback wire.
+vanishingFBody :: Body (,) () (->) ((), Int) ((), Int)
+vanishingFBody = Body $ \((), ((), a)) -> ((), ((), a + 1))
+
+-- | Direct implementation of the same map without feedback.
+vanishingDirectBody :: Body (,) () (->) Int Int
+vanishingDirectBody = Body $ \((), a) -> ((), a + 1)
+
+-- | A2 Vanishing: feedback over the unit object @()@ is the identity.
+vanishingOk :: Bool
+vanishingOk =
+  runSomeBody (SomeBody ((), ()) (feedbackBody vanishingFBody)) [1, 2, 3]
+    == runSomeBody (SomeBody () vanishingDirectBody) [1, 2, 3]
+
+-- | Post-feedback map used in the tightening law: add ten to the output.
+tighteningHBody :: Body (,) () (->) Int Int
+tighteningHBody = Body $ \((), x) -> ((), x + 10)
+
+-- | A1 Tightening: @feedback ((id_s \\otimes h) \\circ f) = h \\circ feedback f@.
+tighteningOk :: Bool
+tighteningOk =
+  let idS = idBody :: Body (,) () (->) Int Int
+      lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `cascadeBody` runningSumFB)
+      rhs = tighteningHBody `cascadeBody` feedbackBody runningSumFB
+   in runSomeBody (SomeBody (((), ((), ())), 0) lhs) [1, 2, 3]
+        == runSomeBody (SomeBody (((), 0), ()) rhs) [1, 2, 3]
+
+-- | Body used in the joining law: two accumulators @(s,t)@ with output @t'@.
+joiningFBody :: Body (,) () (->) ((Int, Int), Int) ((Int, Int), Int)
+joiningFBody = Body $ \((), ((s, t), a)) ->
+  let s' = s + a; t' = t + s' in ((), ((s', t'), t'))
+
+-- | Reassociate @((s, t), a)@ to @(s, (t, a))@ so that feedback can be applied
+-- over @s@ first, leaving @(t, a)@ as the payload for a second feedback.
+joiningReassocBody :: Body (,) () (->) (Int, (Int, Int)) (Int, (Int, Int))
+joiningReassocBody =
+  Body $ \((), (s, (t, a))) ->
+    let ((), ((s', t'), b)) = morphism joiningFBody ((), ((s, t), a))
+     in ((), (s', (t', b)))
+
+-- | A3 Joining: nested feedback over @(s, t)@ equals single feedback over the
+-- pair.  The two sides have carriers @((ch, s), t)@ and @(ch, (s, t))@, so the
+-- oracle compares observational outputs.
+joiningOk :: Bool
+joiningOk =
+  let joiningFBOnce :: Body (,) ((), Int) (->) (Int, Int) (Int, Int)
+      joiningFBOnce = feedbackBody joiningReassocBody
+      joiningFBTwice :: Body (,) (((), Int), Int) (->) Int Int
+      joiningFBTwice = feedbackBody joiningFBOnce
+   in runSomeBody (SomeBody (((), 0), 0) joiningFBTwice) [1, 2, 3]
+        == runSomeBody (SomeBody ((), (0, 0)) (feedbackBody joiningFBody)) [1, 2, 3]
+
+-- | Body used in the superposing law: add 100 to the parallel stream.
+superposingGBody :: Body (,) () (->) Int Int
+superposingGBody = Body $ \((), x) -> ((), x + 100)
+
+-- | Reassociate @((s, a), c)@ to @(s, (a, c))@ so that feedback over @s@ can
+-- be applied to the tensor @f \\otimes g@.
+superposingLhsBody :: Body (,) ((), ()) (->) (Int, (Int, Int)) (Int, (Int, Int))
+superposingLhsBody =
+  Body $ \(((), ()), (s, (a, c))) ->
+    let (((), ()), ((s', b), d)) = morphism (runningSumFB `tensorBody` superposingGBody) (((), ()), ((s, a), c))
+     in (((), ()), (s', (b, d)))
+
+-- | A4 Strength / superposing: @feedback f \\otimes g = feedback (f \\otimes g)@.
+superposingOk :: Bool
+superposingOk =
+  let lhs = feedbackBody superposingLhsBody
+      rhs = feedbackBody runningSumFB `tensorBody` superposingGBody
+   in runSomeBody (SomeBody (((), ()), 0) lhs) [(1, 10), (2, 20), (3, 30)]
+        == runSomeBody (SomeBody (((), 0), ()) rhs) [(1, 10), (2, 20), (3, 30)]
+
+-- | Isomorphism used in the sliding law: shift state by one.
+slidingHBody :: Body (,) () (->) Int Int
+slidingHBody = Body $ \((), s) -> ((), s + 1)
+
+-- | Body used in the sliding law: input state is @t@, output state is @t+a@.
+slidingFBody :: Body (,) () (->) (Int, Int) (Int, Int)
+slidingFBody = Body $ \((), (t, a)) -> let s' = t + a in ((), (s', s'))
+
+-- | A5 Sliding: for an isomorphism @h : s -> t@,
+-- @feedback_s (f \\circ (h \\otimes id)) = feedback_t ((h \\otimes id) \\circ f)@.
+slidingOk :: Bool
+slidingOk =
+  let hTensorId = slidingHBody `tensorBody` idBody
+      lhs = feedbackBody (slidingFBody `cascadeBody` hTensorId)
+      rhs = feedbackBody (hTensorId `cascadeBody` slidingFBody)
+   in runSomeBody (SomeBody ((((), ()), ()), 0) lhs) [1, 2, 3]
+        == runSomeBody (SomeBody (((), ((), ())), 1) rhs) [1, 2, 3]
+
+-- | Braid on @(s, s)@ used to show yanking fails.
+feedbackBraidBody :: Body (,) () (->) (Int, Int) (Int, Int)
+feedbackBraidBody = Body $ \((), (x, y)) -> ((), (y, x))
+
+-- | Yanking is /not/ required in a feedback category.  Feedback of the braid
+-- on @(s, s)@ yields a one-step delay, not the identity.
+yankingFailsOk :: Bool
+yankingFailsOk =
+  let fbBraid = feedbackBody feedbackBraidBody
+   in runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] /= [1, 2, 3]
+        && runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] == [0, 1, 2]
+
 -- | Exact oracle over a bounded input space.
 --
 -- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
@@ -396,5 +544,12 @@ circTopic verbosity = do
       checkV verbosity "interchange law (source)" $
         all interchangeSourceOk [(n, r) | n <- carrierRange, r <- [0, 1, 2, 3]],
       checkV verbosity "interchange law (target)" $
-        all interchangeTargetOk [(b, r) | b <- [False, True], r <- [0, 1, 2, 3]]
+        all interchangeTargetOk [(b, r) | b <- [False, True], r <- [0, 1, 2, 3]],
+      checkV verbosity "feedback running-sum behaviour" runningSumFeedbackOk,
+      checkV verbosity "feedback vanishing (A2)" vanishingOk,
+      checkV verbosity "feedback tightening (A1)" tighteningOk,
+      checkV verbosity "feedback joining (A3)" joiningOk,
+      checkV verbosity "feedback superposing (A4)" superposingOk,
+      checkV verbosity "feedback sliding (A5)" slidingOk,
+      checkV verbosity "feedback yanking fails" yankingFailsOk
     ]

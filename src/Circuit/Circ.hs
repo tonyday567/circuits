@@ -66,6 +66,9 @@ module Circuit.Circ
     associator,
     associatorSq,
 
+    -- * Feedback (closed loop over a carrier component)
+    feedback,
+
     -- * Horizontal 2-cell algebra
     rightWhisker,
     leftWhisker,
@@ -341,6 +344,26 @@ whiskerSq f g sq =
     (carrierMap sq)
     (Body $ tensor id f .> morphism (sqSrc sq) .> tensor id g)
     (Body $ tensor id f .> morphism (sqTgt sq) .> tensor id g)
+
+-- | Close a feedback loop over a component @s@ of the input/output object.
+--
+-- The 1-cell must be of the form @Circ t arr (t s a) (t s b)@: the feedback
+-- value @s@ appears as the first component of the tensor in both domain and
+-- codomain.  The result moves @s@ into the hidden carrier, turning it into
+-- state.  This is the guarded / state-bootstrapping feedback of KSW, not the
+-- immediate fixed-point trace: yanking fails here, which is the expected
+-- behaviour for a feedback category.
+--
+-- Implemented by reassociating so that @s@ becomes part of the carrier:
+--
+-- @
+--   feedback (Circ (Body f)) = Circ (Body (assoc .> f .> assoc'))
+-- @
+feedback ::
+  (Channel t arr) =>
+  Circ t arr (t s a) (t s b) ->
+  Circ t arr a b
+feedback (Circ (Body f)) = Circ $ Body $ assoc .> f .> assoc'
 
 -- | 'Category' instance for 'Circ'.
 --

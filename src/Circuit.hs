@@ -125,6 +125,9 @@ module Circuit
     hcompose,
     whiskerSq,
 
+    -- * Feedback on Circ
+    feedback,
+
     -- * Polynomial interfaces
     System,
     system,
@@ -298,6 +301,7 @@ import Circuit.Circ
     cascadeBody,
     cascadeSome,
     downThenAcross,
+    feedback,
     hcompose,
     idCirc,
     idSq,
