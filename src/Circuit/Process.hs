@@ -5,13 +5,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Stateful processes as a @Circuit@ base arrow.
---
--- A 'Process' is a Moore machine packaged as a category morphism:
+-- | A pointed Moore machine packaged as a @Circuit@ base arrow.
 --
 -- @
 -- data Process a b = forall s. Process (a -> s) (s -> a -> s) (s -> b)
 -- @
+--
+-- 'Process' is the monomial special case of 'Circuit.System.System': the
+-- interface is @Mono a b@ and the initial state is supplied by the first input.
+-- The underlying span-shaped carrier is 'Circuit.Body.Body'.
 --
 -- * @inject@ converts the first input into an initial state.
 -- * @step@ updates the state given the current input.

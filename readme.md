@@ -239,9 +239,8 @@ keep them in the ephemeral `.local` file.
 
 ## thanks
 
-Built on [Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9)
-and [Kidney & Wu (2026)](https://doi.org/10.1145/3776649). The `Hyper` type is
-theirs; the normal form that makes it inspectable is ours.
+The traced-monoidal axioms took their initial shape from
+[Launchbury, Krstic & Sauerwein (2013)](https://doi.org/10.4204/eptcs.129.9).
 
 LLMs and agents helped with category theory, coding, refactoring, and
 documentation.
