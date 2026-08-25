@@ -9,7 +9,8 @@ import Circuit.Body (Body (..), SomeBody (..), runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Circ
-  ( Sq (..),
+  ( Circ (..),
+    Sq (..),
     acrossThenDown,
     associatorSq,
     bisimilarStates,
@@ -17,6 +18,7 @@ import Circuit.Circ
     cascadeSome,
     downThenAcross,
     elgotFeedbackBody,
+    feedback,
     hcompose,
     isBisimulation,
     leftWhisker,
@@ -520,9 +522,9 @@ countdownBody = Body $ \case
 -- | Behaviour oracle: the countdown flowchart halts with the expected value.
 eitherBehaviourOk :: Bool
 eitherBehaviourOk =
-  runFlowchart (SomeBody 0 countdownBody) 20 5 == Just 0
-    && runFlowchart (SomeBody 0 countdownBody) 20 0 == Just 0
-    && isNothing (runFlowchart (SomeBody 0 countdownBody) 2 5)
+  fst (runFlowchart countdownBody 20 5) == Just 0
+    && fst (runFlowchart countdownBody 20 0) == Just 0
+    && isNothing (fst (runFlowchart countdownBody 2 5))
 
 -- | 'strength' for 'Either' is functorial action, which must agree with
 -- @tensor id@.
@@ -532,24 +534,29 @@ eitherStrengthCoherenceOk =
       space = [Left 'a', Right 0, Right 1, Left 'b']
    in all (\x -> strength f x == tensor id f x) space
 
+-- | Body for the 'Either' unitor witnesses.  Carrier is 'Bool', so the
+-- unitors are tested on inputs that actually carry a non-trivial state.
+eitherUnitorBody :: Body Either Bool (->) Int Int
+eitherUnitorBody = Body $ \case
+  Right n -> Right (n + 1)
+  Left b -> Left (not b)
+
 -- | Left-unitor witness for 'Either': composing with the identity at the
 -- unit carrier ('Void') is isomorphic to the original body.
 eitherUnitorLeftOk :: Bool
 eitherUnitorLeftOk =
-  let b = Body $ \case Right n -> Right (n + 1 :: Int); Left v -> absurd v
-      sq = unitorLeftSq b
+  let sq = unitorLeftSq eitherUnitorBody
    in all
         (\x -> downThenAcross sq x == acrossThenDown sq x)
-        [Right 0, Right 1, Right 2]
+        [Right 0, Right 1, Right 2, Left (Right True), Left (Right False)]
 
 -- | Right-unitor witness for 'Either'.
 eitherUnitorRightOk :: Bool
 eitherUnitorRightOk =
-  let b = Body $ \case Right n -> Right (n + 1 :: Int); Left v -> absurd v
-      sq = unitorRightSq b
+  let sq = unitorRightSq eitherUnitorBody
    in all
         (\x -> downThenAcross sq x == acrossThenDown sq x)
-        [Right 0, Right 1, Right 2]
+        [Right 0, Right 1, Right 2, Left (Left True), Left (Left False)]
 
 -- | Bodies for the 'Either' associativity oracle.  @eitherFBody@ can loop;
 -- @eitherGBody@ and @eitherHBody@ always halt.  The oracle checks that the
@@ -560,7 +567,7 @@ eitherFBody = Body $ \case
   Right 0 -> Left True
   Right n -> Right n
   Left True -> Right 0
-  Left False -> Right 0
+  Left False -> Right 1
 
 eitherGBody :: Body Either () (->) Int Int
 eitherGBody = Body $ \case
@@ -582,32 +589,37 @@ eitherCascadeAssocOk =
       rhs = cascadeBody (cascadeBody eitherHBody eitherGBody) eitherFBody
    in all
         ( \n ->
-            runFlowchart (SomeBody (Right () :: Either (Either Bool ()) ()) lhs) 30 n
-              == runFlowchart (SomeBody (Right (Right ()) :: Either Bool (Either () ())) rhs) 30 n
+            fst (runFlowchart lhs 30 n)
+              == fst (runFlowchart rhs 30 n)
         )
         [5, 0, -1]
 
 -- * Elgot dagger / feedback-at-Either oracles
 
 -- | Helper: run the Elgot dagger of @f :: a -> Either a b@ with a fuel bound.
-runElgot :: (a -> Either a b) -> Int -> a -> Maybe b
-runElgot f fuel a0 = runFlowchart (SomeBody (Right a0) (elgotFeedbackBody f)) fuel a0
-
--- | Reference implementation of the Elgot dagger for comparison.
-elgotReference :: (a -> Either a b) -> Int -> a -> Maybe b
-elgotReference _ 0 _ = Nothing
-elgotReference f n a = case f a of
-  Left s -> elgotReference f (n - 1) s
-  Right b -> Just b
+--
+-- A flowchart has no stored state, so the input @a0@ is the only initial value;
+-- there is no separate seed.
+runElgot :: (a -> Either a b) -> Int -> a -> (Maybe b, Int)
+runElgot f fuel a0 = runFlowchart (elgotFeedbackBody f) fuel a0
 
 -- | A1 Fixed point: @f^\\dagger(a) = [id, f^\\dagger](f(a))@.
+--
+-- The step count is not part of the law, so only the result @Maybe b@ is
+-- compared.
 elgotFixedPointOk :: Bool
 elgotFixedPointOk =
   let f :: Int -> Either Int Int
       f n = if n <= 0 then Right (n * 10) else Left (n - 1)
-   in all (\n -> runElgot f 20 n == elgotReference f 20 n) [0, 1, 2, 3, 4, 5]
+      eval a = case f a of
+        Left s -> fst (runElgot f 19 s)
+        Right b -> Just b
+   in all (\n -> fst (runElgot f 20 n) == eval n) [0, 1, 2, 3, 4, 5]
 
 -- | A2 Naturality: for @g :: b -> c@, @((id + g) \\circ f)^\\dagger = g \\circ f^\\dagger@.
+--
+-- Only the result @Maybe c@ is compared; the step counts differ because @g@ is
+-- applied after the iteration on the right-hand side.
 elgotNaturalityOk :: Bool
 elgotNaturalityOk =
   let f :: Int -> Either Int Int
@@ -616,11 +628,15 @@ elgotNaturalityOk =
       f' n = case f n of
         Left s -> Left s
         Right b -> Right (g b)
-   in all (\n -> runElgot f' 20 n == (g <$> runElgot f 20 n)) [0, 1, 2, 3, 4, 5]
+   in all (\n -> fst (runElgot f' 20 n) == (g <$> fst (runElgot f 20 n))) [0, 1, 2, 3, 4, 5]
 
 -- | Yanking at 'Either': feedback of the swap on @s + s@.  Unlike the
 -- product case, this halts with the input unchanged, so yanking holds for
 -- the coproduct symmetry.
+--
+-- The step count is part of the claim: the swap must take exactly two steps
+-- (round-trip through the loop), not one.  Deleting the swap and replacing it
+-- with the identity yields @(Just 5, 1)@ and fails this oracle.
 eitherYankOk :: Bool
 eitherYankOk =
   let swapBody :: Body Either Void (->) (Either Int Int) (Either Int Int)
@@ -630,8 +646,94 @@ eitherYankOk =
           Right (Right s) -> Right (Left s)
           Left v -> absurd v
       yankBody = Body $ assoc .> morphism swapBody .> assoc'
-   in runFlowchart (SomeBody (Right 0) yankBody) 10 5 == Just 5
-        && runFlowchart (SomeBody (Right 0) yankBody) 10 7 == Just 7
+   in runFlowchart yankBody 10 5 == (Just 5, 2)
+        && runFlowchart yankBody 10 7 == (Just 7, 2)
+
+-- * Uniformity / dinaturality oracles for Either feedback
+
+-- | Helper: run a 'Circ Either' morphism as a fuel-bounded flowchart.
+runCircFlowchart :: Circ Either (->) Int Int -> Int -> (Maybe Int, Int)
+runCircFlowchart c n = case c of Circ b -> runFlowchart b 10 n
+
+-- | Helper: extract the payload function of a body whose carrier is 'Void'.
+-- Such a body is essentially a function on its payload, because @Either Void x@
+-- is isomorphic to @x@.
+runVoidBody :: Body Either Void (->) a b -> a -> b
+runVoidBody b a = case morphism b (Right a) of
+  Right b' -> b'
+  Left v -> absurd v
+
+-- | Uniformity: a non-injective intertwiner makes feedback invariant under a
+-- quotient of the feedback wire.  The source feedback wire is 'Bool' (two
+-- states); the target is @()@ (one state).  Both open bodies perform one
+-- internal tick and then halt with output @0@.
+--
+-- The bodies are /open/: the feedback wire appears in the payload, so they
+-- can be passed to 'feedback'.  After feedback the hidden carrier is
+-- @Either Void (Either s a) ≅ Either s a@.
+uniformitySourceOpen :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+uniformitySourceOpen =
+  Body $ \case
+    Right (Right _) -> Right (Left True)
+    Right (Left _) -> Right (Right 0)
+    Left v -> absurd v
+
+uniformityTargetOpen :: Body Either Void (->) (Either () Int) (Either () Int)
+uniformityTargetOpen =
+  Body $ \case
+    Right (Right _) -> Right (Left ())
+    Right (Left ()) -> Right (Right 0)
+    Left v -> absurd v
+
+-- | Uniformity hypothesis on the open bodies: quotienting the feedback wire
+-- with @const ()@ commutes with the two bodies.
+eitherUniformityHypothesisOk :: Bool
+eitherUniformityHypothesisOk =
+  let h = const () :: Bool -> ()
+      srcFun = runVoidBody uniformitySourceOpen
+      tgtFun = runVoidBody uniformityTargetOpen
+   in all
+        ( \x ->
+            first h (srcFun x)
+              == tgtFun (first h x)
+        )
+        [Right 0, Right 1, Left False, Left True]
+
+-- | Uniformity conclusion: feedback of the two open bodies has the same trace.
+eitherUniformityOk :: Bool
+eitherUniformityOk =
+  let srcClosed = feedback (Circ uniformitySourceOpen)
+      tgtClosed = feedback (Circ uniformityTargetOpen)
+      traceOk =
+        all
+          (\n -> fst (runCircFlowchart srcClosed n) == fst (runCircFlowchart tgtClosed n))
+          [0, 1, 2, 3]
+   in eitherUniformityHypothesisOk && traceOk
+
+-- | Sliding (dinaturality) for an isomorphism on the feedback wire.  @not@ is
+-- a self-inverse on 'Bool'; the two sides of the sliding equation differ in
+-- whether the isomorphism is applied before or after the open body.
+eitherSlidingOk :: Bool
+eitherSlidingOk =
+  let f :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+      f =
+        Body $ \case
+          Right (Right _) -> Right (Left True)
+          Right (Left _) -> Right (Right 0)
+          Left v -> absurd v
+      h :: Body Either Void (->) (Either Bool Int) (Either Bool Int)
+      h =
+        Body $ \case
+          Right (Left b) -> Right (Left (not b))
+          Right (Right a) -> Right (Right a)
+          Left v -> absurd v
+      lhsOpen = Body $ morphism h .> morphism f
+      rhsOpen = Body $ morphism f .> morphism h
+      lhs = feedback (Circ lhsOpen)
+      rhs = feedback (Circ rhsOpen)
+   in all
+        (\n -> fst (runCircFlowchart lhs n) == fst (runCircFlowchart rhs n))
+        [0, 1, 2, 3]
 
 -- * These carrier oracles
 
@@ -868,7 +970,9 @@ circTopic verbosity = do
       checkV verbosity "Either cascade associativity" eitherCascadeAssocOk,
       checkV verbosity "Elgot fixed point" elgotFixedPointOk,
       checkV verbosity "Elgot naturality" elgotNaturalityOk,
-      checkV verbosity "Either yanking (swap) halts with identity" eitherYankOk,
+      checkV verbosity "Either yanking (swap) halts with identity in two steps" eitherYankOk,
+      checkV verbosity "Either uniformity: feedback respects non-injective intertwiner" eitherUniformityOk,
+      checkV verbosity "Either sliding (dinaturality) for isomorphism" eitherSlidingOk,
       checkV verbosity "These strength coherence (strength f == tensor id f)" theseStrengthCoherenceOk,
       checkV verbosity "These left unitor witness commutes" theseUnitorLeftOk,
       checkV verbosity "These right unitor witness commutes" theseUnitorRightOk,

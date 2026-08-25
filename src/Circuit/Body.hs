@@ -75,26 +75,27 @@ runSomeBody (SomeBody ch0 (Body f)) xs =
   let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
 
--- | Run an existentially-packed 'Either' body as a partial function @a -> b@
--- with a fuel bound.  Execution starts with the external input @a@; if the
--- body emits a label @ch@ the runner feeds @Left ch@ back in, decrementing
--- the fuel.  Returns 'Nothing' if the fuel is exhausted before a @Right b@
--- output is produced.
+-- | Run an 'Either' body as a partial function @a -> b@ with a fuel bound.
+-- Execution starts with the external input @a@; if the body emits a label
+-- @ch@ the runner feeds @Left ch@ back in, decrementing the fuel.
 --
--- This is the coproduct analogue of 'runSomeBody': where @(,)@ bodies run
--- as stream functions, 'Either' bodies run as halting computations.
-runFlowchart :: SomeBody Either (->) a b -> Int -> a -> Maybe b
-runFlowchart (SomeBody _ch0 (Body f)) fuel0 a0 = go fuel0 (Right a0)
+-- Returns the result (if any) and the number of steps taken.  A flowchart has
+-- no stored state — the input is the entire initial configuration — so there
+-- is no seed parameter.  This is the coproduct analogue of 'runSomeBody':
+-- where @(,)@ bodies run as stream functions, 'Either' bodies run as halting
+-- computations.
+runFlowchart :: Body Either ch (->) a b -> Int -> a -> (Maybe b, Int)
+runFlowchart (Body f) fuel0 a0 = go fuel0 0 (Right a0)
   where
-    go 0 _ = Nothing
-    go n (Left ch) =
+    go 0 steps _ = (Nothing, steps)
+    go n steps (Left ch) =
       case f (Left ch) of
-        Left ch' -> go (n - 1) (Left ch')
-        Right b -> Just b
-    go n (Right a) =
+        Left ch' -> go (n - 1) (steps + 1) (Left ch')
+        Right b -> (Just b, steps + 1)
+    go n steps (Right a) =
       case f (Right a) of
-        Left ch' -> go (n - 1) (Left ch')
-        Right b -> Just b
+        Left ch' -> go (n - 1) (steps + 1) (Left ch')
+        Right b -> (Just b, steps + 1)
 
 -- * HasDual instances for Body
 
