@@ -179,6 +179,15 @@ fromEvalSystem f = system $ \(s, d) ->
    in (next d, pos)
 
 -- | Convert an arrow-form @(->)@ system back into eval form.
+--
+-- This is a Moore observation: the position is read from the state alone, with
+-- the direction supplied only to compute the next state.  Correctness therefore
+-- requires that the system be Moore at the call site — the position must not
+-- depend on the direction.  Internally the direction is 'probeDir', which is
+-- lazily unused for the polynomial shapes where it is defined; any strict
+-- forcing of the direction (a bang pattern, 'seq', or a strict tuple in a
+-- user-written body) will turn 'toEvalSystem' into a runtime error rather than
+-- a wrong answer.
 toEvalSystem :: forall p s. (SystemEval p) => System (->) s p -> s -> Eval p s
 toEvalSystem sys s = evalFromSystem pos (\d -> fst (runSystem sys (s, d)))
   where

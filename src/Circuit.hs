@@ -103,11 +103,15 @@ module Circuit
 
     -- * Circ (loose bicategory of bodies with varying carriers)
     Circ (..),
+    idCirc,
     Sq (..),
+    idSq,
+    vcomp,
     Intertwiner (..),
     downThenAcross,
     acrossThenDown,
     cascade,
+    cascadeSome,
 
     -- * Polynomial interfaces
     System,
@@ -277,7 +281,11 @@ import Circuit.Circ
     Sq (..),
     acrossThenDown,
     cascade,
+    cascadeSome,
     downThenAcross,
+    idCirc,
+    idSq,
+    vcomp,
   )
 import Circuit.Dagger
   ( Dagger (..),
