@@ -6,7 +6,8 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), runFlowchart, runSomeBody)
-import Circuit.Channel (Strength (..))
+import Circuit.Category ((.>))
+import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Circ
   ( Sq (..),
     acrossThenDown,
@@ -15,6 +16,7 @@ import Circuit.Circ
     cascadeBody,
     cascadeSome,
     downThenAcross,
+    elgotFeedbackBody,
     hcompose,
     isBisimulation,
     leftWhisker,
@@ -31,7 +33,7 @@ import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.List (sort)
 import Data.Maybe (isNothing)
-import Data.Void (absurd)
+import Data.Void (Void, absurd)
 
 -- | Exact-oracle range for the intertwiner checks.
 carrierRange :: [Int]
@@ -584,6 +586,52 @@ eitherCascadeAssocOk =
         )
         [5, 0, -1]
 
+-- * Elgot dagger / feedback-at-Either oracles
+
+-- | Helper: run the Elgot dagger of @f :: a -> Either a b@ with a fuel bound.
+runElgot :: (a -> Either a b) -> Int -> a -> Maybe b
+runElgot f fuel a0 = runFlowchart (SomeBody (Right a0) (elgotFeedbackBody f)) fuel a0
+
+-- | Reference implementation of the Elgot dagger for comparison.
+elgotReference :: (a -> Either a b) -> Int -> a -> Maybe b
+elgotReference _ 0 _ = Nothing
+elgotReference f n a = case f a of
+  Left s -> elgotReference f (n - 1) s
+  Right b -> Just b
+
+-- | A1 Fixed point: @f^\\dagger(a) = [id, f^\\dagger](f(a))@.
+elgotFixedPointOk :: Bool
+elgotFixedPointOk =
+  let f :: Int -> Either Int Int
+      f n = if n <= 0 then Right (n * 10) else Left (n - 1)
+   in all (\n -> runElgot f 20 n == elgotReference f 20 n) [0, 1, 2, 3, 4, 5]
+
+-- | A2 Naturality: for @g :: b -> c@, @((id + g) \\circ f)^\\dagger = g \\circ f^\\dagger@.
+elgotNaturalityOk :: Bool
+elgotNaturalityOk =
+  let f :: Int -> Either Int Int
+      f n = if n <= 0 then Right (n * 10) else Left (n - 1)
+      g = (+ 100)
+      f' n = case f n of
+        Left s -> Left s
+        Right b -> Right (g b)
+   in all (\n -> runElgot f' 20 n == (g <$> runElgot f 20 n)) [0, 1, 2, 3, 4, 5]
+
+-- | Yanking at 'Either': feedback of the swap on @s + s@.  Unlike the
+-- product case, this halts with the input unchanged, so yanking holds for
+-- the coproduct symmetry.
+eitherYankOk :: Bool
+eitherYankOk =
+  let swapBody :: Body Either Void (->) (Either Int Int) (Either Int Int)
+      swapBody =
+        Body $ \case
+          Right (Left s) -> Right (Right s)
+          Right (Right s) -> Right (Left s)
+          Left v -> absurd v
+      yankBody = Body $ assoc .> morphism swapBody .> assoc'
+   in runFlowchart (SomeBody (Right 0) yankBody) 10 5 == Just 5
+        && runFlowchart (SomeBody (Right 0) yankBody) 10 7 == Just 7
+
 -- * Bisimulation oracles
 
 -- | Three-state body for the bisimulation witness.  States @1@ and @2@ are
@@ -724,6 +772,9 @@ circTopic verbosity = do
       checkV verbosity "Either left unitor witness commutes" eitherUnitorLeftOk,
       checkV verbosity "Either right unitor witness commutes" eitherUnitorRightOk,
       checkV verbosity "Either cascade associativity" eitherCascadeAssocOk,
+      checkV verbosity "Elgot fixed point" elgotFixedPointOk,
+      checkV verbosity "Elgot naturality" elgotNaturalityOk,
+      checkV verbosity "Either yanking (swap) halts with identity" eitherYankOk,
       checkV verbosity "bisimulation max relation (3-state vs 2-state)" bisimMaxOk,
       checkV verbosity "bisimulation relation check" bisimRelationOk,
       checkV verbosity "bisimilar initial states" bisimInitialStatesOk,

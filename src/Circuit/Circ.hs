@@ -69,6 +69,11 @@ module Circuit.Circ
     -- * Feedback (closed loop over a carrier component)
     feedback,
 
+    -- * Elgot dagger (feedback over 'Either' as iteration)
+    elgotBody,
+    elgotDagger,
+    elgotFeedbackBody,
+
     -- * Bisimulation (behavioural quotient of bodies)
     bisimilarStates,
     isBisimulation,
@@ -86,6 +91,7 @@ import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Tensor (Tensor (..), Unit, unitl, unitr)
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -369,6 +375,34 @@ feedback ::
   Circ t arr (t s a) (t s b) ->
   Circ t arr a b
 feedback (Circ (Body f)) = Circ $ Body $ assoc .> f .> assoc'
+
+-- * Elgot dagger
+
+-- | Build the Elgot coalgebra @[Left, f]@ from a loop body @f :: a -> Either a b@.
+--
+-- The resulting body has the 'Void' unit carrier and payload
+-- @Either a a -> Either a b@, so it can be passed to 'feedback'.  The dagger
+-- of @f@ is then a morphism @a -> b@ in 'Circ'.
+elgotBody :: (a -> Either a b) -> Body Either Void (->) (Either a a) (Either a b)
+elgotBody f =
+  Body $ \case
+    Right (Left s) -> wrap (f s)
+    Right (Right a) -> wrap (f a)
+    Left v -> absurd v
+  where
+    wrap (Left s) = Right (Left s)
+    wrap (Right b) = Right (Right b)
+
+-- | The feedback body of the Elgot dagger of @f :: a -> Either a b@.
+--
+-- Exposed so that callers can run it directly with a seed of type
+-- @Either Void a@, which is the hidden carrier produced by 'feedback'.
+elgotFeedbackBody :: (a -> Either a b) -> Body Either (Either Void a) (->) a b
+elgotFeedbackBody f = Body $ assoc .> morphism (elgotBody f) .> assoc'
+
+-- | Elgot dagger of @f :: a -> Either a b@ via 'feedback'.
+elgotDagger :: (a -> Either a b) -> Circ Either (->) a b
+elgotDagger f = Circ (elgotFeedbackBody f)
 
 -- * Bisimulation
 
