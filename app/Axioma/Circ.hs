@@ -6,23 +6,34 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), runSomeBody)
+import Circuit.Channel (Strength (..))
 import Circuit.Circ
   ( Sq (..),
     acrossThenDown,
+    associatorSq,
+    cascadeBody,
     cascadeSome,
     downThenAcross,
     hcompose,
     leftWhisker,
     rightWhisker,
+    unitorLeftSq,
+    vcomp,
     whiskerSq,
   )
 import Circuit.Poles (Poles (..), box, iomap, poles0)
+import Circuit.Tensor (Tensor (..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
 
 -- | Exact-oracle range for the intertwiner checks.
 carrierRange :: [Int]
 carrierRange = [-16 .. 16]
+
+-- | Smaller range for associator and strength-coherence oracles, where the
+-- state space is a product.
+smallRange :: [Int]
+smallRange = [-2 .. 2]
 
 -- | Counter with reset: state is an 'Int', payload is a reset flag.
 --
@@ -55,33 +66,57 @@ resetDriftBody = Body $ \(n, r) -> let n' = if r then 1 else n + 1 in (n', if od
 resetDriftSq :: Sq (,) (->) Int Bool Bool Char
 resetDriftSq = Sq odd resetDriftBody parityBody
 
+-- | Reference implementation of pointed cascade, kept as an independent
+-- specification against which 'cascadeSome' (which uses 'cascadeBody') is
+-- checked.  This inverts the previous arrangement where the reference lived in
+-- the library and the test used it.
+cascadeSomeReference ::
+  SomeBody (,) (->) b c ->
+  SomeBody (,) (->) a b ->
+  SomeBody (,) (->) a c
+cascadeSomeReference (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
+  SomeBody (s1, s2) $ Body $ \((s1', s2'), a) ->
+    let (s1'', b) = f (s1', a)
+        (s2'', c) = g (s2', b)
+     in ((s1'', s2''), c)
+
 -- | Bodies for the observational cascade tests.  They are intentionally
--- non-commuting so that composition order is observable.
+-- non-commuting and time-varying so that composition order is observable.
+sumBody :: Body (,) Int (->) Int Int
+sumBody = Body $ \(s, a) -> (s + a, s + a)
+
+maxBody :: Body (,) Int (->) Int Int
+maxBody = Body $ \(s, a) -> let s' = max s a in (s', s')
+
 delayBody :: Body (,) Int (->) Int Int
 delayBody = Body $ \(s, a) -> (a, s)
 
-summerBody :: Body (,) Int (->) Int Int
-summerBody = Body $ \(s, a) -> (s + a, s + a)
-
-doublerBody :: Body (,) Int (->) Int Int
-doublerBody = Body $ \(s, _) -> (s * 2, s * 2)
-
 -- | Stream-composition oracle: pointed cascade agrees with running the two
--- bodies in sequence on the input list.
+-- bodies in sequence on the input list.  @sumBody@ and @maxBody@ do not
+-- commute, so a reversed composition order is caught.
 cascadeStreamOk :: [Int] -> Bool
 cascadeStreamOk xs =
-  let f = SomeBody 0 delayBody
-      g = SomeBody 0 summerBody
+  let f = SomeBody 0 sumBody
+      g = SomeBody 0 maxBody
    in runSomeBody (cascadeSome g f) xs == runSomeBody g (runSomeBody f xs)
 
--- | Associativity oracle: pointed cascade is associative on input lists.
+-- | Associativity oracle: pointed cascade is associative on input lists.  All
+-- three bodies are input- and state-sensitive; @doublerBody@ was removed
+-- because it discarded its input and made the test vacuous.
 cascadeAssocOk :: [Int] -> Bool
 cascadeAssocOk xs =
   let f = SomeBody 0 delayBody
-      g = SomeBody 0 summerBody
-      h = SomeBody 1 doublerBody
+      g = SomeBody 0 sumBody
+      h = SomeBody 0 maxBody
    in runSomeBody (cascadeSome h (cascadeSome g f)) xs
         == runSomeBody (cascadeSome (cascadeSome h g) f) xs
+
+-- | 'cascadeSome' agrees with the independent reference implementation.
+cascadeAgreesWithReferenceOk :: [Int] -> Bool
+cascadeAgreesWithReferenceOk xs =
+  let f = SomeBody 0 sumBody
+      g = SomeBody 0 maxBody
+   in runSomeBody (cascadeSome g f) xs == runSomeBody (cascadeSomeReference g f) xs
 
 -- | Moore-split 'Poles' for the counter body.  The write pole updates state
 -- and discards the payload; the read pole observes state and emits a 'Char'.
@@ -98,75 +133,162 @@ parityPoles = poles0 write readBody
     write = Body $ \(b, r) -> (not r && not b, ())
     readBody = Body $ \(b, ()) -> (b, if b then 'x' else 'y')
 
--- | Plain boundary maps for the interchange test.  'boundaryF' precomposes the
--- input; 'boundaryG' postcomposes the output.
-boundaryF :: Bool -> Bool
-boundaryF = not
+-- | Plain boundary maps for the interchange test.  They are type-changing so
+-- that swapping them is a type error and applying them twice is not an
+-- involution.
+boundaryF :: Int -> Bool
+boundaryF = odd
 
-boundaryG :: Char -> Char
-boundaryG 'x' = 'y'
-boundaryG 'y' = 'x'
-boundaryG c = c
+boundaryG :: Char -> String
+boundaryG c = [c, c]
 
 -- | 'boundaryF' lifted to a 'Body' morphism.  State is threaded through
 -- unchanged; only the payload is mapped.
-bodyF :: Body (,) s (->) Bool Bool
+bodyF :: Body (,) s (->) Int Bool
 bodyF = Body $ \(s, a) -> (s, boundaryF a)
 
 -- | 'boundaryG' lifted to a 'Body' morphism.
-bodyG :: Body (,) s (->) Char Char
+bodyG :: Body (,) s (->) Char String
 bodyG = Body $ \(s, c) -> (s, boundaryG c)
 
--- | Bodies for the horizontal 2-cell tests.  They thread a secondary state
--- while leaving the payload alone.
-rightBody :: Body (,) Int (->) Char Char
-rightBody = Body $ \(s, x) -> (s + 1, x)
-
-leftBody :: Body (,) Int (->) Char Bool
-leftBody = Body $ \(s, x) -> (s + 1, x == 'x')
-
 -- | The Moore-split 'Poles' representations agree with the original Mealy
--- bodies at the chosen seeds.
+-- bodies over the full bounded state space.
 polesMatchBodyOk :: Bool
 polesMatchBodyOk =
   all
-    (\r -> morphism (box @() counterPoles) (0, r) == morphism counterBody (0, r))
-    [False, True]
+    (\(n, r) -> morphism (box @() counterPoles) (n, r) == morphism counterBody (n, r))
+    [(n, r) | n <- carrierRange, r <- [False, True]]
     && all
-      (\r -> morphism (box @() parityPoles) (False, r) == morphism parityBody (False, r))
-      [False, True]
+      (\(b, r) -> morphism (box @() parityPoles) (b, r) == morphism parityBody (b, r))
+      [(b, r) | b <- [False, True], r <- [False, True]]
 
 -- | Interchange law, source side: boundary whisker on 'Sq' equals 'iomap' on
 -- the 'Poles' representation.
-interchangeSourceOk :: Bool -> Bool
-interchangeSourceOk r =
+interchangeSourceOk :: (Int, Int) -> Bool
+interchangeSourceOk (n, r) =
   let polesSide = box @() (iomap bodyF bodyG counterPoles)
       bodySide = sqSrc (whiskerSq boundaryF boundaryG counterToParitySq)
-   in morphism polesSide (0, r) == morphism bodySide (0, r)
+   in morphism polesSide (n, r) == morphism bodySide (n, r)
 
 -- | Interchange law, target side.
-interchangeTargetOk :: Bool -> Bool
-interchangeTargetOk r =
+interchangeTargetOk :: (Bool, Int) -> Bool
+interchangeTargetOk (b, r) =
   let polesSide = box @() (iomap bodyF bodyG parityPoles)
       bodySide = sqTgt (whiskerSq boundaryF boundaryG counterToParitySq)
-   in morphism polesSide (False, r) == morphism bodySide (False, r)
+   in morphism polesSide (b, r) == morphism bodySide (b, r)
 
--- | A second commuting square, payload 'Char' throughout, used for horizontal
--- composition.
-flipEchoBody :: Body (,) Int (->) Char Char
-flipEchoBody = Body $ \(n, x) -> (n + 1, x)
+-- | Bodies for the horizontal 2-cell tests.  Each machine's output depends on
+-- its carrier, so dropped state threads are visible.
+echoBody :: Body (,) Int (->) Char Char
+echoBody = Body $ \(n, x) -> (n + 1, if odd n then x else 'z')
 
-flipParityEchoBody :: Body (,) Bool (->) Char Char
-flipParityEchoBody = Body $ first not
+echoParityBody :: Body (,) Bool (->) Char Char
+echoParityBody = Body $ \(b, x) -> (not b, if b then x else 'z')
 
-flipEchoSq :: Sq (,) (->) Int Bool Char Char
-flipEchoSq = Sq odd flipEchoBody flipParityEchoBody
+echoSq :: Sq (,) (->) Int Bool Char Char
+echoSq = Sq odd echoBody echoParityBody
+
+rightWhiskerBody :: Body (,) Int (->) Char Int
+rightWhiskerBody = Body $ \(s, x) -> (s + 1, if x == 'x' then s else negate s)
+
+leftWhiskerBody :: Body (,) Int (->) Int Bool
+leftWhiskerBody = Body $ \(s, a) -> (s + a, odd s)
+
+-- | Observational right-whisker oracle: running the whiskered source body must
+-- equal running the counter followed by the whisker body.
+rightWhiskerObservationalOk :: [Bool] -> Bool
+rightWhiskerObservationalOk rs =
+  let sq = rightWhisker counterToParitySq rightWhiskerBody
+      counterOuts = runSomeBody (SomeBody 0 counterBody) rs
+      hOuts = runSomeBody (SomeBody 0 rightWhiskerBody) counterOuts
+      sqOuts = runSomeBody (SomeBody (0, 0) (sqSrc sq)) rs
+   in sqOuts == hOuts
+
+-- | Observational left-whisker oracle.
+leftWhiskerObservationalOk :: [Int] -> Bool
+leftWhiskerObservationalOk xs =
+  let sq = leftWhisker leftWhiskerBody counterToParitySq
+      lOuts = runSomeBody (SomeBody 0 leftWhiskerBody) xs
+      counterOuts = runSomeBody (SomeBody 0 counterBody) lOuts
+      sqOuts = runSomeBody (SomeBody (0, 0) (sqSrc sq)) xs
+   in sqOuts == counterOuts
+
+-- | Observational horizontal-composition oracle.
+hcomposeObservationalOk :: [Bool] -> Bool
+hcomposeObservationalOk rs =
+  let sq = hcompose echoSq counterToParitySq
+      counterOuts = runSomeBody (SomeBody 0 counterBody) rs
+      echoOuts = runSomeBody (SomeBody 0 echoBody) counterOuts
+      sqOuts = runSomeBody (SomeBody (0, 0) (sqSrc sq)) rs
+   in sqOuts == echoOuts
+
+-- | Chain of two genuine quotients, Int -> Z4 -> Bool, for vertical
+-- composition.  @mod4Body@ keeps the carrier in @[0..3]@.
+mod4Body :: Body (,) Int (->) Bool Char
+mod4Body = Body $ \(n, r) -> let n' = (if r then 0 else n + 1) `mod` 4 in (n', if odd n' then 'x' else 'y')
+
+sqA :: Sq (,) (->) Int Int Bool Char
+sqA = Sq (`mod` 4) counterBody mod4Body
+
+sqB :: Sq (,) (->) Int Bool Bool Char
+sqB = Sq odd mod4Body parityBody
+
+-- | The middle body of the vertical composite matches on both sides of the
+-- shared carrier.  This turns the silent 'vcomp' precondition into a checked
+-- one at the call site.
+vcompSideConditionOk :: Bool
+vcompSideConditionOk =
+  all
+    (\(n, r) -> morphism (sqTgt sqA) (n, r) == morphism (sqSrc sqB) (n, r))
+    [(n, r) | n <- carrierRange, r <- [False, True]]
+
+-- | Vertical composition preserves commutation.
+vcompOk :: Bool
+vcompOk =
+  let sq = vcomp sqB sqA
+   in all
+        (\(n, r) -> downThenAcross sq (n, r) == acrossThenDown sq (n, r))
+        [(n, r) | n <- carrierRange, r <- [False, True]]
+
+-- | Left unitor proof witness: composing @counterBody@ with the identity at
+-- the unit carrier is isomorphic to @counterBody@ itself.
+unitorLeftOk :: Bool
+unitorLeftOk =
+  let sq = unitorLeftSq counterBody
+   in all
+        (\(n, r) -> downThenAcross sq (((), n), r) == acrossThenDown sq (((), n), r))
+        [(n, r) | n <- carrierRange, r <- [False, True]]
+
+-- | Associator proof witness: carrier bracketing of three composed bodies is
+-- isomorphic.  This also stress-tests 'cascadeBody' asymmetrically.
+associatorOk :: Bool
+associatorOk =
+  let sq = associatorSq maxBody sumBody delayBody
+   in all
+        ( \((xy, z), a) ->
+            let input = ((xy, z), a)
+             in downThenAcross sq input == acrossThenDown sq input
+        )
+        [(((s1, s2), s3), a) | s1 <- smallRange, s2 <- smallRange, s3 <- smallRange, a <- smallRange]
+
+-- | Cross-class coherence: for @(,)@ and @(->)@, 'strength' must agree with
+-- @tensor id@.  If this fails for an instance, the two halves of the module
+-- disagree about what whiskering means.
+strengthCoherenceOk :: Bool
+strengthCoherenceOk =
+  let f = (+ 1) :: Int -> Int
+   in and
+        [ strength f (s, x) == tensor id f (s, x)
+        | s <- smallRange,
+          x <- smallRange
+        ]
 
 -- | Exact oracle over a bounded input space.
 --
 -- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
 -- carrier map), with the second slot fed 'id'.  Coverage of 'tensor's payload
--- slot belongs in "Axioma.Channel".
+-- slot belongs in "Axioma.Channel"; 'hcomposeObservationalOk' also exercises
+-- the joint behaviour of 'tensor' through horizontal composition.
 circTopic :: Verbosity -> IO [Bool]
 circTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Circ / bicategory of bodies oracles"
@@ -182,43 +304,25 @@ circTopic verbosity = do
       checkV verbosity "reset drift disagrees at the named input (0, True)" $
         downThenAcross resetDriftSq (0, True) /= acrossThenDown resetDriftSq (0, True),
       checkV verbosity "pointed cascade agrees with stream composition" $
-        cascadeStreamOk [1, 2, 3, 4, 5],
+        cascadeStreamOk [3, 1, 4, 1, 5],
       checkV verbosity "pointed cascade is associative on input lists" $
-        cascadeAssocOk [1, 2, 3, 4, 5],
-      checkV verbosity "right whisker preserves the square" $
-        let sq = rightWhisker counterToParitySq rightBody
-         in and
-              [ downThenAcross sq ((n, s), r) == acrossThenDown sq ((n, s), r)
-              | n <- carrierRange,
-                s <- carrierRange,
-                r <- [False, True]
-              ],
-      checkV verbosity "left whisker preserves the square" $
-        let sq = leftWhisker leftBody counterToParitySq
-         in and
-              [ downThenAcross sq ((s, n), x) == acrossThenDown sq ((s, n), x)
-              | n <- carrierRange,
-                s <- carrierRange,
-                x <- ['x', 'y']
-              ],
-      checkV verbosity "horizontal composition preserves the square" $
-        let sq = hcompose flipEchoSq counterToParitySq
-         in and
-              [ downThenAcross sq ((n, s), r) == acrossThenDown sq ((n, s), r)
-              | n <- carrierRange,
-                s <- carrierRange,
-                r <- [False, True]
-              ],
+        cascadeAssocOk [3, 1, 4, 1, 5],
+      checkV verbosity "cascadeSome agrees with reference implementation" $
+        cascadeAgreesWithReferenceOk [3, 1, 4, 1, 5],
+      checkV verbosity "right whisker agrees with stream composition" $
+        rightWhiskerObservationalOk [False, True, True, False, True],
+      checkV verbosity "left whisker agrees with stream composition" $
+        leftWhiskerObservationalOk [1, 2, 3, 4, 5],
+      checkV verbosity "horizontal composition agrees with stream composition" $
+        hcomposeObservationalOk [False, True, True, False, True],
+      checkV verbosity "vcomp side condition holds over bounded inputs" vcompSideConditionOk,
+      checkV verbosity "vertical composition preserves commutation" vcompOk,
+      checkV verbosity "left unitor witness commutes" unitorLeftOk,
+      checkV verbosity "associator witness commutes" associatorOk,
+      checkV verbosity "strength coherence (strength f == tensor id f)" strengthCoherenceOk,
       checkV verbosity "Moore-split poles agree with the Mealy bodies" polesMatchBodyOk,
-      checkV verbosity "interchange law (source, False)" $ interchangeSourceOk False,
-      checkV verbosity "interchange law (source, True)" $ interchangeSourceOk True,
-      checkV verbosity "interchange law (target, False)" $ interchangeTargetOk False,
-      checkV verbosity "interchange law (target, True)" $ interchangeTargetOk True,
-      checkV verbosity "boundary whisker preserves the square" $
-        let sq = whiskerSq boundaryF boundaryG counterToParitySq
-         in and
-              [ downThenAcross sq (n, r) == acrossThenDown sq (n, r)
-              | n <- carrierRange,
-                r <- [False, True]
-              ]
+      checkV verbosity "interchange law (source)" $
+        all interchangeSourceOk [(n, r) | n <- carrierRange, r <- [0, 1, 2, 3]],
+      checkV verbosity "interchange law (target)" $
+        all interchangeTargetOk [(b, r) | b <- [False, True], r <- [0, 1, 2, 3]]
     ]

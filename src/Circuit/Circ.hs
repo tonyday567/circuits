@@ -47,6 +47,7 @@ module Circuit.Circ
 
     -- * Existential closure of Sq
     Intertwiner (..),
+    withIntertwiner,
 
     -- * The two paths whose equality is the square
     downThenAcross,
@@ -56,6 +57,14 @@ module Circuit.Circ
     cascade,
     cascadeBody,
     cascadeSome,
+
+    -- * Structural proof witnesses (unitors and associator)
+    unitorLeft,
+    unitorRight,
+    unitorLeftSq,
+    unitorRightSq,
+    associator,
+    associatorSq,
 
     -- * Horizontal 2-cell algebra
     rightWhisker,
@@ -68,7 +77,7 @@ where
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..))
-import Circuit.Tensor (Tensor (..), Unit)
+import Circuit.Tensor (Tensor (..), Unit, unitl, unitr)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -117,22 +126,30 @@ vcomp g f = Sq (carrierMap f .> carrierMap g) (sqSrc f) (sqTgt g)
 data Intertwiner t arr a b where
   Intertwiner :: Sq t arr ch ch' a b -> Intertwiner t arr a b
 
+-- | Eliminator for the existential carrier types of an 'Intertwiner'.
+withIntertwiner ::
+  Intertwiner t arr a b ->
+  (forall ch ch'. Sq t arr ch ch' a b -> r) ->
+  r
+withIntertwiner (Intertwiner sq) k = k sq
+
 -- | Go down (carrier map) then across (target body).
 --
 -- A nondegenerate intertwiner witness: counter state quotiented by parity.
--- These examples exercise both parities and both reset branches.  A paired
--- perturbation doctest on 'acrossThenDown' shows the equality can fail, so
--- these agreement cases are not vacuous.
+-- The payload is 'Char' so the carrier slot and payload slot are type-distinct;
+-- slot confusion is a type error.  These examples exercise both parities and
+-- both reset branches.  A paired perturbation doctest on 'acrossThenDown'
+-- shows the equality can fail, so these agreement cases are not vacuous.
 --
--- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', odd n')) :: Body (,) Int (->) Bool Bool
--- >>> let parity = (Body $ \(b, r) -> let b' = if r then False else not b in (b', b')) :: Body (,) Bool (->) Bool Bool
--- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Bool
+-- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if odd n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let parity = (Body $ \(b, r) -> let b' = not r && not b in (b', if b' then 'x' else 'y')) :: Body (,) Bool (->) Bool Char
+-- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Char
 -- >>> downThenAcross sq (4, False)
--- (True,True)
+-- (True,'x')
 -- >>> downThenAcross sq (4, True)
--- (False,False)
+-- (False,'y')
 -- >>> downThenAcross sq (5, False)
--- (False,False)
+-- (False,'y')
 downThenAcross ::
   (Tensor t arr) =>
   Sq t arr ch ch' a b ->
@@ -143,25 +160,25 @@ downThenAcross sq = tensor (carrierMap sq) id .> morphism (sqTgt sq)
 --
 -- Agreement cases for the same witness:
 --
--- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', odd n')) :: Body (,) Int (->) Bool Bool
--- >>> let parity = (Body $ \(b, r) -> let b' = if r then False else not b in (b', b')) :: Body (,) Bool (->) Bool Bool
--- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Bool
+-- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if odd n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let parity = (Body $ \(b, r) -> let b' = not r && not b in (b', if b' then 'x' else 'y')) :: Body (,) Bool (->) Bool Char
+-- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Char
 -- >>> acrossThenDown sq (4, False)
--- (True,True)
+-- (True,'x')
 -- >>> acrossThenDown sq (4, True)
--- (False,False)
+-- (False,'y')
 -- >>> acrossThenDown sq (5, False)
--- (False,False)
+-- (False,'y')
 --
 -- Perturbation: observe even-ness instead of odd-ness.  The two paths now
 -- disagree, which proves the agreement cases above are not vacuous.
 --
--- >>> let badCounter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', even n')) :: Body (,) Int (->) Bool Bool
--- >>> let bad = Sq odd badCounter parity :: Sq (,) (->) Int Bool Bool Bool
+-- >>> let badCounter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if even n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let bad = Sq odd badCounter parity :: Sq (,) (->) Int Bool Bool Char
 -- >>> downThenAcross bad (4, False)
--- (True,True)
+-- (True,'x')
 -- >>> acrossThenDown bad (4, False)
--- (True,False)
+-- (True,'y')
 acrossThenDown ::
   (Tensor t arr) =>
   Sq t arr ch ch' a b ->
@@ -192,16 +209,15 @@ cascade (Circ g) (Circ f) =
 --
 -- This is the specialisation used for observational testing: seeds pair under
 -- the tensor, and the composite can be run with 'Circuit.Body.runSomeBody'.
--- It is the pointed counterpart to the unpointed 'cascade'.
+-- It is the pointed counterpart to the unpointed 'cascade' and is implemented
+-- in terms of 'cascadeBody', so tests that exercise it also exercise the same
+-- engine used by 'cascade', whiskering, and horizontal composition.
 cascadeSome ::
   SomeBody (,) (->) b c ->
   SomeBody (,) (->) a b ->
   SomeBody (,) (->) a c
-cascadeSome (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
-  SomeBody (s1, s2) $ Body $ \((s1', s2'), a) ->
-    let (s1'', b) = f (s1', a)
-        (s2'', c) = g (s2', b)
-     in ((s1'', s2''), c)
+cascadeSome (SomeBody s2 g) (SomeBody s1 f) =
+  SomeBody (s1, s2) (cascadeBody g f)
 
 -- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
 -- @t ch ch'@.  This is the body-level building block of 'cascade' and of
@@ -220,6 +236,58 @@ cascadeBody g f =
         .> strength (morphism g)
         .> assoc'
     )
+
+-- | Indexed left unitor square.
+unitorLeftSq ::
+  (Tensor t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Sq t arr (t (Unit t) ch) ch a b
+unitorLeftSq b = Sq unitl (cascadeBody b (Body id)) b
+
+-- | Left unitor witness: composing a body with the identity at the unit carrier
+-- is isomorphic to the original body.
+unitorLeft ::
+  (Tensor t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Intertwiner t arr a b
+unitorLeft b = Intertwiner (unitorLeftSq b)
+
+-- | Indexed right unitor square.
+unitorRightSq ::
+  (Tensor t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Sq t arr (t ch (Unit t)) ch a b
+unitorRightSq b = Sq unitr (cascadeBody (Body id) b) b
+
+-- | Right unitor witness.
+unitorRight ::
+  (Tensor t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Intertwiner t arr a b
+unitorRight b = Intertwiner (unitorRightSq b)
+
+-- | Indexed associator square.
+associatorSq ::
+  (Strength t arr) =>
+  Body t ch3 arr c d ->
+  Body t ch2 arr b c ->
+  Body t ch1 arr a b ->
+  Sq t arr (t (t ch1 ch2) ch3) (t ch1 (t ch2 ch3)) a d
+associatorSq h g f =
+  Sq
+    assoc
+    (cascadeBody h (cascadeBody g f))
+    (cascadeBody (cascadeBody h g) f)
+
+-- | Associator witness: carrier bracketing of three composed bodies is
+-- isomorphic up to the associator of the tensor.
+associator ::
+  (Strength t arr) =>
+  Body t ch3 arr c d ->
+  Body t ch2 arr b c ->
+  Body t ch1 arr a b ->
+  Intertwiner t arr a d
+associator h g f = Intertwiner (associatorSq h g f)
 
 -- | Right whisker: tensor a square with an identity-on-boundaries 1-cell on
 -- the right.
