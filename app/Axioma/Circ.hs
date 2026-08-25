@@ -33,6 +33,7 @@ import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.List (sort)
 import Data.Maybe (isNothing)
+import Data.These (These (..))
 import Data.Void (Void, absurd)
 
 -- | Exact-oracle range for the intertwiner checks.
@@ -632,6 +633,99 @@ eitherYankOk =
    in runFlowchart (SomeBody (Right 0) yankBody) 10 5 == Just 5
         && runFlowchart (SomeBody (Right 0) yankBody) 10 7 == Just 7
 
+-- * These carrier oracles
+
+-- | 'strength' for 'These' is functorial action, which must agree with
+-- @tensor id@.
+theseStrengthCoherenceOk :: Bool
+theseStrengthCoherenceOk =
+  let f = (+ 1) :: Int -> Int
+      space =
+        [ This 'a',
+          That 0,
+          That 1,
+          These 'b' 2,
+          These 'c' (-1)
+        ]
+   in all (\x -> strength f x == tensor id f x) space
+
+-- | Body for the left-unitor witness.  Carrier is 'Bool', so the source carrier
+-- @These Void Bool@ has both payload-only and carrier-only shapes.
+theseLeftUnitorBody :: Body These Bool (->) Int Int
+theseLeftUnitorBody =
+  Body $ \case
+    This b -> This (not b)
+    That n -> These True (n + 1)
+    These b n -> These (not b) (n + 1)
+
+-- | Left-unitor witness for 'These': composing with the identity at the unit
+-- carrier ('Void') is isomorphic to the original body.
+theseUnitorLeftOk :: Bool
+theseUnitorLeftOk =
+  let sq = unitorLeftSq theseLeftUnitorBody
+      space = [That n | n <- [0, 1, 2]] ++ [This (That b) | b <- [False, True]]
+   in all
+        (\x -> downThenAcross sq x == acrossThenDown sq x)
+        space
+
+-- | Body for the right-unitor witness.  Carrier is @()@, so the source carrier
+-- @These () Void@ has only the 'This ()' shape.
+theseRightUnitorBody :: Body These () (->) Int Int
+theseRightUnitorBody =
+  Body $ \case
+    This () -> This ()
+    That n -> These () (n * 2)
+    These () n -> These () (n * 2)
+
+-- | Right-unitor witness for 'These'.
+theseUnitorRightOk :: Bool
+theseUnitorRightOk =
+  let sq = unitorRightSq theseRightUnitorBody
+      space = [That n | n <- [0, 1, 2]] ++ [This (This ())]
+   in all
+        (\x -> downThenAcross sq x == acrossThenDown sq x)
+        space
+
+-- | Bodies for the 'These' associativity oracle.  Each body touches both the
+-- carrier and the payload, so mis-threaded carrier components are visible.
+theseFBody :: Body These Bool (->) Int Int
+theseFBody = theseLeftUnitorBody
+
+theseGBody :: Body These () (->) Int Int
+theseGBody = theseRightUnitorBody
+
+theseHBody :: Body These Char (->) Int Int
+theseHBody =
+  Body $ \case
+    This c -> This c
+    That n -> These 'x' (n - 1)
+    These c n -> These c (n - 1)
+
+-- | Associativity oracle for 'These' cascade.  The two sides have carriers
+-- @These (These Bool ()) Char@ and @These Bool (These () Char)@, so the check
+-- is up to the 'These' associator.  The test space exercises all seven shapes
+-- of the inclusive tensor.
+theseCascadeAssocOk :: Bool
+theseCascadeAssocOk =
+  let sq = associatorSq theseHBody theseGBody theseFBody
+      -- Source carrier is @These (These Bool ()) Char@; full input type is
+      -- @These (These (These Bool ()) Char) Int@.  The eight shapes below
+      -- exercise every constructor combination.
+      shapes n b c =
+        [ That n,
+          This (That c),
+          This (This (This b)),
+          This (This (That ())),
+          This (This (These b ())),
+          This (These (This b) c),
+          This (These (That ()) c),
+          This (These (These b ()) c)
+        ]
+      space = concat [shapes n b c | n <- [-1, 0, 1], b <- [False, True], c <- ['x', 'y']]
+   in all
+        (\x -> downThenAcross sq x == acrossThenDown sq x)
+        space
+
 -- * Bisimulation oracles
 
 -- | Three-state body for the bisimulation witness.  States @1@ and @2@ are
@@ -775,6 +869,10 @@ circTopic verbosity = do
       checkV verbosity "Elgot fixed point" elgotFixedPointOk,
       checkV verbosity "Elgot naturality" elgotNaturalityOk,
       checkV verbosity "Either yanking (swap) halts with identity" eitherYankOk,
+      checkV verbosity "These strength coherence (strength f == tensor id f)" theseStrengthCoherenceOk,
+      checkV verbosity "These left unitor witness commutes" theseUnitorLeftOk,
+      checkV verbosity "These right unitor witness commutes" theseUnitorRightOk,
+      checkV verbosity "These cascade associativity" theseCascadeAssocOk,
       checkV verbosity "bisimulation max relation (3-state vs 2-state)" bisimMaxOk,
       checkV verbosity "bisimulation relation check" bisimRelationOk,
       checkV verbosity "bisimilar initial states" bisimInitialStatesOk,
