@@ -36,11 +36,13 @@ module Circuit.Body
     Body (..),
     SomeBody (..),
     runSomeBody,
+    runFlowchart,
   )
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- | A morphism across a tensored channel.
@@ -73,6 +75,27 @@ runSomeBody (SomeBody ch0 (Body f)) xs =
   let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
    in reverse bs
 
+-- | Run an existentially-packed 'Either' body as a partial function @a -> b@
+-- with a fuel bound.  Execution starts with the external input @a@; if the
+-- body emits a label @ch@ the runner feeds @Left ch@ back in, decrementing
+-- the fuel.  Returns 'Nothing' if the fuel is exhausted before a @Right b@
+-- output is produced.
+--
+-- This is the coproduct analogue of 'runSomeBody': where @(,)@ bodies run
+-- as stream functions, 'Either' bodies run as halting computations.
+runFlowchart :: SomeBody Either (->) a b -> Int -> a -> Maybe b
+runFlowchart (SomeBody _ch0 (Body f)) fuel0 a0 = go fuel0 (Right a0)
+  where
+    go 0 _ = Nothing
+    go n (Left ch) =
+      case f (Left ch) of
+        Left ch' -> go (n - 1) (Left ch')
+        Right b -> Just b
+    go n (Right a) =
+      case f (Right a) of
+        Left ch' -> go (n - 1) (Left ch')
+        Right b -> Just b
+
 -- * HasDual instances for Body
 
 -- | Unit poles for @Body (,) s (->)@ at the unit object @()@.
@@ -93,4 +116,31 @@ instance (Monad m) => HasDual () (Body (,) s (K m)) where
   open =
     let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
         inU = In $ \o -> emit o inU
+     in Poles inU outU
+
+-- | Unit poles for @Body Either s (->)@ at the unit object @Void@.
+--
+-- The coproduct case needs a distinguished element of the carrier @s@: on a
+-- @Right x@ input the companion must return @Left s@ for some @s@, and there
+-- is no ambient state to use.  Hence the @Monoid s@ constraint.  This is the
+-- structural pointedness requirement that makes @Either@ differ from @(,)@.
+instance (Monoid s) => HasDual Void (Body Either s (->)) where
+  open =
+    let outU = Out $ \_ -> Body $ \case
+          Left s -> Left s
+          Right _ -> Left mempty
+        inU = In $ \_ -> Body $ \case
+          Left s -> Left s
+          Right v -> absurd v
+     in Poles inU outU
+
+-- | Unit poles for @Body Either s (K m)@ at @Void@.
+instance (Monad m, Monoid s) => HasDual Void (Body Either s (K m)) where
+  open =
+    let outU = Out $ \_ -> Body $ K $ \case
+          Left s -> pure (Left s)
+          Right _ -> pure (Left mempty)
+        inU = In $ \_ -> Body $ K $ \case
+          Left s -> pure (Left s)
+          Right v -> absurd v
      in Poles inU outU

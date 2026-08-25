@@ -5,7 +5,7 @@ module Axioma.Circ
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), SomeBody (..), runSomeBody)
+import Circuit.Body (Body (..), SomeBody (..), runFlowchart, runSomeBody)
 import Circuit.Channel (Strength (..))
 import Circuit.Circ
   ( Sq (..),
@@ -30,6 +30,8 @@ import Circuit.Tensor (Tensor (..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.List (sort)
+import Data.Maybe (isNothing)
+import Data.Void (absurd)
 
 -- | Exact-oracle range for the intertwiner checks.
 carrierRange :: [Int]
@@ -502,6 +504,86 @@ yankingFailsOk =
    in runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] /= [1, 2, 3]
         && runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] == [0, 1, 2]
 
+-- * Either carrier oracles
+
+-- | A simple 'Either' body: a loop that counts down from @n@ to @0@ and
+-- returns @0@.  The carrier is 'Int': the current count.
+countdownBody :: Body Either Int (->) Int Int
+countdownBody = Body $ \case
+  Right n -> Left n
+  Left 0 -> Right 0
+  Left m -> Left (m - 1)
+
+-- | Behaviour oracle: the countdown flowchart halts with the expected value.
+eitherBehaviourOk :: Bool
+eitherBehaviourOk =
+  runFlowchart (SomeBody 0 countdownBody) 20 5 == Just 0
+    && runFlowchart (SomeBody 0 countdownBody) 20 0 == Just 0
+    && isNothing (runFlowchart (SomeBody 0 countdownBody) 2 5)
+
+-- | 'strength' for 'Either' is functorial action, which must agree with
+-- @tensor id@.
+eitherStrengthCoherenceOk :: Bool
+eitherStrengthCoherenceOk =
+  let f = (+ 1) :: Int -> Int
+      space = [Left 'a', Right 0, Right 1, Left 'b']
+   in all (\x -> strength f x == tensor id f x) space
+
+-- | Left-unitor witness for 'Either': composing with the identity at the
+-- unit carrier ('Void') is isomorphic to the original body.
+eitherUnitorLeftOk :: Bool
+eitherUnitorLeftOk =
+  let b = Body $ \case Right n -> Right (n + 1 :: Int); Left v -> absurd v
+      sq = unitorLeftSq b
+   in all
+        (\x -> downThenAcross sq x == acrossThenDown sq x)
+        [Right 0, Right 1, Right 2]
+
+-- | Right-unitor witness for 'Either'.
+eitherUnitorRightOk :: Bool
+eitherUnitorRightOk =
+  let b = Body $ \case Right n -> Right (n + 1 :: Int); Left v -> absurd v
+      sq = unitorRightSq b
+   in all
+        (\x -> downThenAcross sq x == acrossThenDown sq x)
+        [Right 0, Right 1, Right 2]
+
+-- | Bodies for the 'Either' associativity oracle.  @eitherFBody@ can loop;
+-- @eitherGBody@ and @eitherHBody@ always halt.  The oracle checks that the
+-- two carrier bracketings agree on inputs that exercise all three paths
+-- (straight through, f-loop, g-loop).
+eitherFBody :: Body Either Bool (->) Int Int
+eitherFBody = Body $ \case
+  Right 0 -> Left True
+  Right n -> Right n
+  Left True -> Right 0
+  Left False -> Right 0
+
+eitherGBody :: Body Either () (->) Int Int
+eitherGBody = Body $ \case
+  Right n | n < 0 -> Left ()
+  Right n -> Right (n + 10)
+  Left () -> Right 99
+
+eitherHBody :: Body Either () (->) Int Int
+eitherHBody = Body $ \case
+  Right n -> Right (n * 2)
+  Left () -> Right 999
+
+-- | Associativity oracle for 'Either' cascade, using observational halting
+-- equality.  The two sides have carriers @((ch1 + ch2) + ch3)@ and
+-- @(ch1 + (ch2 + ch3))@, so the check is up to carrier isomorphism.
+eitherCascadeAssocOk :: Bool
+eitherCascadeAssocOk =
+  let lhs = cascadeBody eitherHBody (cascadeBody eitherGBody eitherFBody)
+      rhs = cascadeBody (cascadeBody eitherHBody eitherGBody) eitherFBody
+   in all
+        ( \n ->
+            runFlowchart (SomeBody (Right () :: Either (Either Bool ()) ()) lhs) 30 n
+              == runFlowchart (SomeBody (Right (Right ()) :: Either Bool (Either () ())) rhs) 30 n
+        )
+        [5, 0, -1]
+
 -- * Bisimulation oracles
 
 -- | Three-state body for the bisimulation witness.  States @1@ and @2@ are
@@ -637,6 +719,11 @@ circTopic verbosity = do
       checkV verbosity "feedback superposing (A4)" superposingOk,
       checkV verbosity "feedback sliding (A5)" slidingOk,
       checkV verbosity "feedback yanking fails" yankingFailsOk,
+      checkV verbosity "Either flowchart behaviour" eitherBehaviourOk,
+      checkV verbosity "Either strength coherence (strength f == tensor id f)" eitherStrengthCoherenceOk,
+      checkV verbosity "Either left unitor witness commutes" eitherUnitorLeftOk,
+      checkV verbosity "Either right unitor witness commutes" eitherUnitorRightOk,
+      checkV verbosity "Either cascade associativity" eitherCascadeAssocOk,
       checkV verbosity "bisimulation max relation (3-state vs 2-state)" bisimMaxOk,
       checkV verbosity "bisimulation relation check" bisimRelationOk,
       checkV verbosity "bisimilar initial states" bisimInitialStatesOk,
