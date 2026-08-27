@@ -56,6 +56,7 @@ library
     Circuit.Layer
     Circuit.Linear
     Circuit.Net
+    Circuit.Optic
     Circuit.Par
     Circuit.Poles
     Circuit.Poly
@@ -87,6 +88,7 @@ executable circuits-axioma
     Axioma.Common
     Axioma.Effect
     Axioma.FinRel
+    Axioma.Optic
     Axioma.Poles
     Axioma.Process
     Axioma.Shared

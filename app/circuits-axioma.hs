@@ -5,6 +5,7 @@ import Axioma.Circ (circTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Effect (effectTopic)
 import Axioma.FinRel (finRelTopic)
+import Axioma.Optic (opticTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Process (processTopic)
 import Axioma.Shared (sharedTopic)
@@ -19,6 +20,7 @@ data Topic
   | Circ
   | Effect
   | FinRel
+  | Optic
   | Poles
   | Process
   | Shared
@@ -31,6 +33,7 @@ topicName Channel = "channel"
 topicName Circ = "circ"
 topicName Effect = "effect"
 topicName FinRel = "finrel"
+topicName Optic = "optic"
 topicName Poles = "poles"
 topicName Process = "process"
 topicName Shared = "shared"
@@ -42,6 +45,7 @@ topicDesc Channel = "Par / linear distributivity and Poly.Channel oracles"
 topicDesc Circ = "Circ bicategory and intertwiner oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
+topicDesc Optic = "Mixed equipment-optic oracles"
 topicDesc Poles = "Poles, Stamped, Boundary, and markSystem oracles"
 topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
@@ -99,6 +103,7 @@ runTopic Channel = channelTopic
 runTopic Circ = circTopic
 runTopic Effect = effectTopic
 runTopic FinRel = finRelTopic
+runTopic Optic = opticTopic
 runTopic Poles = polesTopic
 runTopic Process = processTopic
 runTopic Shared = sharedTopic
@@ -106,7 +111,7 @@ runTopic Span = spanTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Channel, Circ, Effect, FinRel, Poles, Process, Shared, Span]
+allTopics = [Channel, Circ, Effect, FinRel, Optic, Poles, Process, Shared, Span]
 
 greenCircle :: String
 greenCircle = "🟢"
