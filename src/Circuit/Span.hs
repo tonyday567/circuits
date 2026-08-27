@@ -14,11 +14,22 @@ module Circuit.Span
     composeS,
     identityS,
     presentS,
+
+    -- * 2-cells between spans
+    refinesS,
+
+    -- * Metric optics
+    spanDistance,
   )
 where
 
 import Control.Category (id, (.))
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Circuit.Span
+-- >>> import Control.Category (id)
+-- >>> import Prelude hiding (id, (.))
 
 -- | A finite span with apex @x@ hidden existentially.
 --
@@ -28,8 +39,11 @@ import Prelude hiding (id, (.))
 -- "residual remembered on the nose" rung of the ladder.
 data Span a b = forall x. (Eq x) => Span [x] (x -> a) (x -> b)
 
--- | View a span as its list of boundary pairs.  This forgets the apex; the
--- 'Eq' on the returned list is the relation-level view (the Rel rung).
+-- | View a span as its list of boundary pairs.
+--
+-- Note that this deliberately forgets the apex, so two spans that are not
+-- isomorphic can 'show' alike.  That is the Rel rung looking at a Span-rung
+-- value, not an accident.
 instance (Show a, Show b) => Show (Span a b) where
   show = show . pairs
 
@@ -66,3 +80,84 @@ identityS xs = companion xs id
 -- isomorphism, never up to quotient.
 presentS :: Span a b -> Span a b
 presentS (Span xs s t) = composeS (companion xs t) (conjoint xs s)
+
+-- | Does a span 2-cell from the first span to the second exist?
+--
+-- A 2-cell is an apex map @h@ with @a . h = s@ and @b . h = t@.  Over finite
+-- enumerations such an @h@ exists exactly when every boundary pair of the
+-- source occurs in the target, so existence is decidable from the 'pairs'
+-- view alone — no access to the apexes required.
+--
+-- This is the existence statement; checking a /given/ witness needs the
+-- apexes and lives with the caller that built them.  The gap between the two
+-- is the ladder: @refinesS@ is what the Rel rung can see, and it is strictly
+-- less than the Span rung, which distinguishes non-isomorphic apexes with the
+-- same pairs.
+--
+-- >>> let p = Span [1 :: Int, 2] id id :: Span Int Int
+-- >>> let q = Span [1 :: Int, 2, 3] id id :: Span Int Int
+-- >>> (refinesS p q, refinesS q p)
+-- (True,False)
+refinesS :: (Eq a, Eq b) => Span a b -> Span a b -> Bool
+refinesS p q = all (`elem` pairs q) (pairs p)
+
+-- | Directed Hausdorff distance between two spans over a common boundary:
+--
+-- @
+--   d((s,t),(a,b)) = sup_x inf_y [ d(s x, a y) + d(b y, t x) ]
+-- @
+--
+-- The @sup@ ranges over the /domain/ apex and the @inf@ over the /codomain/
+-- apex.  Those are not two spellings of the same thing: in
+-- @([0,∞], ≥)@-enrichment limits are suprema and colimits are infima, so the
+-- @sup@ is the end and the @inf@ is the coend.  This function is therefore
+-- the general @∫_x ∫^y@ shape made concrete, not merely a metric analogue of
+-- it — which is also why it cannot be written in a bare semiring: for the
+-- tropical scalar the @inf@ is the semiring addition but the @sup@ belongs to
+-- the dual semiring.
+--
+-- The two units are the degenerate cases and must be supplied:
+--
+-- * @bot@ is the value of a @sup@ over an empty domain apex (@0@ for a
+--   tropical scalar) — a span with no apex points is distance @bot@ from
+--   anything;
+-- * @top@ is the value of an @inf@ over an empty codomain apex (@+∞@) —
+--   nothing can be approximated by a span with no apex points.
+--
+-- Passing them explicitly is what keeps this total; folding with 'maximum'
+-- and 'minimum' would throw on either empty enumeration.
+--
+-- >>> let dist x y = abs (fromIntegral x - fromIntegral y) :: Double
+-- >>> let sA = Span [0 :: Int, 1] id id
+-- >>> let sB = Span [0 :: Int] id id
+-- >>> spanDistance 0 (1 / 0) (+) dist dist sA sA
+-- 0.0
+-- >>> spanDistance 0 (1 / 0) (+) dist dist sA sB
+-- 2.0
+--
+-- The empty codomain apex is total, not an exception:
+--
+-- >>> spanDistance 0 (1 / 0) (+) dist dist sA (Span ([] :: [Int]) id id)
+-- Infinity
+spanDistance ::
+  (Ord d) =>
+  -- | @bot@: the supremum over an empty domain apex.
+  d ->
+  -- | @top@: the infimum over an empty codomain apex.
+  d ->
+  -- | Addition of the forward and backward costs.
+  (d -> d -> d) ->
+  -- | Distance on the left boundary.
+  (a -> a -> d) ->
+  -- | Distance on the right boundary.
+  (b -> b -> d) ->
+  Span a b ->
+  Span a b ->
+  d
+spanDistance bot top add da db (Span xs s1 t1) (Span ys s2 t2) =
+  foldr
+    max
+    bot
+    [ foldr min top [add (da (s1 x) (s2 y)) (db (t2 y) (t1 x)) | y <- ys]
+    | x <- xs
+    ]
