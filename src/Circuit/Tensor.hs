@@ -34,6 +34,7 @@ module Circuit.Tensor
 
     -- * Channel product on base arrows
     Unit,
+    Unital (..),
     Tensor (..),
     Action (..),
     TensorSeed (..),
@@ -194,21 +195,19 @@ instance TensorSeed (,) where
   seedPair = (,)
   {-# INLINE seedPair #-}
 
--- | The tensor action of @t@ on a category @arr@, without braiding.
+-- | The unit object structure of a tensor @t@ on a category @arr@.
 --
--- 'tensor' is the tensor product of morphisms (parallel composition on
--- disjoint wires). 'unitl' and 'unitr' witness that the tensor has a unit
--- object. This is the planar fragment: 'Tensor' only provides the
--- associator and unitors, not a braiding.
+-- 'unitl' and 'unitr' witness that the tensor has a unit object. This is
+-- the planar fragment without the morphism-level tensor product: arrows
+-- that are merely unital can introduce and eliminate the unit, but cannot
+-- parallel-compose two arbitrary morphisms.
+--
+-- Splitting this out from 'Tensor' matters for premonoidal arrows such as
+-- @Circuit.Prob@: the unitors are deterministic and embed cleanly, while
+-- the general tensor product @tensor@ is not canonical.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
-class (Category arr) => Tensor t arr where
-  -- | Parallel composition: run two arrows on disjoint wires.
-  --
-  -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
-  -- (4,8)
-  tensor :: arr a b -> arr c d -> arr (t a c) (t b d)
-
+class (Category arr) => Unital t arr where
   -- | Left unitor: @I ⊗ a -> a@.
   unitl :: arr (t (Unit t) a) a
 
@@ -220,6 +219,19 @@ class (Category arr) => Tensor t arr where
 
   -- | Inverse right unitor: @a -> a ⊗ I@.
   unitr' :: arr a (t a (Unit t))
+
+-- | The tensor action of @t@ on a category @arr@, without braiding.
+--
+-- 'tensor' is the tensor product of morphisms (parallel composition on
+-- disjoint wires). The unitors live in the 'Unital' superclass.
+--
+-- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
+class (Unital t arr) => Tensor t arr where
+  -- | Parallel composition: run two arrows on disjoint wires.
+  --
+  -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
+  -- (4,8)
+  tensor :: arr a b -> arr c d -> arr (t a c) (t b d)
 
 -- | The action of a tensor @t@ on a category @arr@, extended with a
 -- symmetric braiding.
@@ -265,12 +277,10 @@ class (Tensor d arr, Tensor t arr) => Distributive d t arr where
 
 type instance Unit (,) = ()
 
--- | Cartesian tensor action on functions.
+-- | Cartesian unit structure on functions.
 --
 -- Laws: 'unitl' = 'snd', 'unitl'' = @((),)@, 'unitr' = 'fst', 'unitr'' = @(,) ()@.
-instance Tensor (,) (->) where
-  tensor f g (a, c) = (f a, g c)
-  {-# INLINE tensor #-}
+instance Unital (,) (->) where
   unitl ~((), a) = a
   {-# INLINE unitl #-}
   unitl' a = ((), a)
@@ -279,6 +289,11 @@ instance Tensor (,) (->) where
   {-# INLINE unitr #-}
   unitr' a = (a, ())
   {-# INLINE unitr' #-}
+
+-- | Cartesian tensor action on functions.
+instance Tensor (,) (->) where
+  tensor f g (a, c) = (f a, g c)
+  {-# INLINE tensor #-}
 
 -- | Cartesian symmetry on functions.
 instance Action (,) (->) where
@@ -312,14 +327,8 @@ instance Distributive (,) Either (->) where
   annih' = absurd
   {-# INLINE annih' #-}
 
--- | Cartesian tensor on @K@ (effectful sequential product).
-instance (Monad m) => Tensor (,) (K m) where
-  tensor (K f) (K g) =
-    K $ \(a, c) -> do
-      b <- f a
-      d <- g c
-      pure (b, d)
-  {-# INLINE tensor #-}
+-- | Cartesian unit structure on @K@ (effectful sequential product).
+instance (Monad m) => Unital (,) (K m) where
   unitl = K $ \((), a) -> pure a
   {-# INLINE unitl #-}
   unitl' = K $ \a -> pure ((), a)
@@ -328,6 +337,15 @@ instance (Monad m) => Tensor (,) (K m) where
   {-# INLINE unitr #-}
   unitr' = K $ \a -> pure (a, ())
   {-# INLINE unitr' #-}
+
+-- | Cartesian tensor on @K@ (effectful sequential product).
+instance (Monad m) => Tensor (,) (K m) where
+  tensor (K f) (K g) =
+    K $ \(a, c) -> do
+      b <- f a
+      d <- g c
+      pure (b, d)
+  {-# INLINE tensor #-}
 
 instance (Monad m) => Action (,) (K m) where
   braid = K $ \(a, b) -> pure (b, a)
@@ -366,6 +384,20 @@ instance (Monad m) => Distributive (,) Either (K m) where
 
 type instance Unit Either = Void
 
+-- | Coproduct unit structure on functions.
+--
+-- Laws: 'unitl' eliminates 'Left', 'unitl'' injects 'Right'; 'unitr'
+-- eliminates 'Right', 'unitr'' injects 'Left'.
+instance Unital Either (->) where
+  unitl = either absurd id
+  {-# INLINE unitl #-}
+  unitl' = Right
+  {-# INLINE unitl' #-}
+  unitr = either id absurd
+  {-# INLINE unitr #-}
+  unitr' = Left
+  {-# INLINE unitr' #-}
+
 -- | Coproduct tensor action on functions.
 --
 -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Left 3 :: Either Int Int)
@@ -376,14 +408,6 @@ type instance Unit Either = Void
 instance Tensor Either (->) where
   tensor = bimap
   {-# INLINE tensor #-}
-  unitl = either absurd id
-  {-# INLINE unitl #-}
-  unitl' = Right
-  {-# INLINE unitl' #-}
-  unitr = either id absurd
-  {-# INLINE unitr #-}
-  unitr' = Left
-  {-# INLINE unitr' #-}
 
 -- | Coproduct symmetry on functions.
 --
@@ -394,6 +418,17 @@ instance Action Either (->) where
     Left a -> Right a
     Right b -> Left b
   {-# INLINE braid #-}
+
+-- | Coproduct unit structure on @K@ @m@.
+instance (Monad m) => Unital Either (K m) where
+  unitl = K $ either absurd pure
+  {-# INLINE unitl #-}
+  unitl' = K $ pure . Right
+  {-# INLINE unitl' #-}
+  unitr = K $ either pure absurd
+  {-# INLINE unitr #-}
+  unitr' = K $ pure . Left
+  {-# INLINE unitr' #-}
 
 -- | Coproduct tensor action on @K@ @m@.
 --
@@ -410,14 +445,6 @@ instance (Monad m) => Tensor Either (K m) where
       Left a -> Left <$> f a
       Right c -> Right <$> g c
   {-# INLINE tensor #-}
-  unitl = K $ either absurd pure
-  {-# INLINE unitl #-}
-  unitl' = K $ pure . Right
-  {-# INLINE unitl' #-}
-  unitr = K $ either pure absurd
-  {-# INLINE unitr #-}
-  unitr' = K $ pure . Left
-  {-# INLINE unitr' #-}
 
 -- | Coproduct symmetry on @K@ @m@.
 instance (Monad m) => Action Either (K m) where
@@ -426,13 +453,11 @@ instance (Monad m) => Action Either (K m) where
 
 type instance Unit These = Void
 
--- | Inclusive tensor action on functions.
+-- | Inclusive unit structure on functions.
 --
 -- Laws: 'unitl' eliminates a vacuous 'This', 'unitl'' injects with 'That';
 -- 'unitr' eliminates a vacuous 'That', 'unitr'' injects with 'This'.
-instance Tensor These (->) where
-  tensor = bimap
-  {-# INLINE tensor #-}
+instance Unital These (->) where
   unitl (That a) = a
   unitl (This v) = absurd v
   unitl (These v _) = absurd v
@@ -446,6 +471,11 @@ instance Tensor These (->) where
   unitr' = This
   {-# INLINE unitr' #-}
 
+-- | Inclusive tensor action on functions.
+instance Tensor These (->) where
+  tensor = bimap
+  {-# INLINE tensor #-}
+
 -- | Inclusive symmetry on functions.
 instance Action These (->) where
   braid (This a) = That a
@@ -453,14 +483,8 @@ instance Action These (->) where
   braid (These a b) = These b a
   {-# INLINE braid #-}
 
--- | Inclusive tensor action on @K@ @m@.
-instance (Monad m) => Tensor These (K m) where
-  tensor (K f) (K g) =
-    K $ \case
-      This a -> This <$> f a
-      That c -> That <$> g c
-      These a c -> These <$> f a <*> g c
-  {-# INLINE tensor #-}
+-- | Inclusive unit structure on @K@ @m@.
+instance (Monad m) => Unital These (K m) where
   unitl = K $ \case
     That a -> pure a
     This v -> absurd v
@@ -476,6 +500,15 @@ instance (Monad m) => Tensor These (K m) where
   unitr' = K $ pure . This
   {-# INLINE unitr' #-}
 
+-- | Inclusive tensor action on @K@ @m@.
+instance (Monad m) => Tensor These (K m) where
+  tensor (K f) (K g) =
+    K $ \case
+      This a -> This <$> f a
+      That c -> That <$> g c
+      These a c -> These <$> f a <*> g c
+  {-# INLINE tensor #-}
+
 -- | Inclusive symmetry on @K@ @m@.
 instance (Monad m) => Action These (K m) where
   braid =
@@ -486,6 +519,13 @@ instance (Monad m) => Action These (K m) where
         These a b -> These b a
   {-# INLINE braid #-}
 
+-- | Lift 'Unital' through 'Trace'.
+instance (Unital t arr) => Unital t (Trace t' arr) where
+  unitl = base unitl
+  unitl' = base unitl'
+  unitr = base unitr
+  unitr' = base unitr'
+
 -- | Lift 'Tensor'/'Action' through 'Trace'.
 --
 -- This is the single lawful instance: it evaluates each 'Trace' branch
@@ -495,10 +535,6 @@ instance (Monad m) => Action These (K m) where
 -- use 'superpose'.
 instance (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
   tensor f g = base (tensor (eval f) (eval g))
-  unitl = base unitl
-  unitl' = base unitl'
-  unitr = base unitr
-  unitr' = base unitr'
 
 instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
   braid = base braid

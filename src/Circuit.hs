@@ -433,6 +433,7 @@ import Circuit.System
 import Circuit.Tensor
   ( Action (..),
     Tensor (..),
+    Unital (..),
     superpose,
   )
 import Circuit.Trace (Trace, base, yank)

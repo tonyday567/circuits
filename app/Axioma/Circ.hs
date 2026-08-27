@@ -29,7 +29,7 @@ import Circuit.Circ
     whiskerSq,
   )
 import Circuit.Poles (Poles (..), box, iomap, poles0)
-import Circuit.Tensor (Action (..), Distributive (..), Tensor (..))
+import Circuit.Tensor (Action (..), Distributive (..), Tensor (..), Unital (..))
 import Control.Monad (when)
 import Data.Bifunctor (first, second)
 import Data.List (sort)

@@ -86,7 +86,7 @@ import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.System (System, mooreSystem, runSystem, runSystemMono)
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Circuit.Trace (Trace, base, yank)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Maybe (fromMaybe)
@@ -271,6 +271,12 @@ instance Traced (,) Process where
 -- right, so it can serve as a base category for shared-medium fusion and
 -- for @Trace (,) Process@.
 
+instance Unital (,) Process where
+  unitl = Process snd (\_ (_, a) -> a) id
+  unitl' = Process id const ((),)
+  unitr = Process fst (\_ (a, ()) -> a) id
+  unitr' = Process id const (,())
+
 instance Tensor (,) Process where
   tensor (Process i1 st1 ex1) (Process i2 st2 ex2) =
     Process
@@ -278,11 +284,6 @@ instance Tensor (,) Process where
       (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
       (bimap ex1 ex2)
   {-# INLINE tensor #-}
-
-  unitl = Process snd (\_ (_, a) -> a) id
-  unitl' = Process id const ((),)
-  unitr = Process fst (\_ (a, ()) -> a) id
-  unitr' = Process id const (,())
 
 instance Action (,) Process where
   braid = Process id (const id) sw

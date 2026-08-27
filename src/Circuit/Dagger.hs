@@ -34,13 +34,13 @@ import Circuit.Bimonoid
   )
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Bimonoid
--- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 -- >>> import Circuit.Channel (Traced (..))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
@@ -135,9 +135,7 @@ instance {-# INCOHERENT #-} (ZeroT t arr a, DiscardT t arr a) => ZeroT t (Dagger
   zeroT = Dagger (zeroT @t) (discardT @t)
   {-# INLINE zeroT #-}
 
-instance (Tensor t arr) => Tensor t (Dagger arr) where
-  tensor (Dagger f g) (Dagger f' g') = Dagger (tensor f f') (tensor g g')
-  {-# INLINE tensor #-}
+instance (Unital t arr) => Unital t (Dagger arr) where
   unitl = Dagger unitl unitl'
   {-# INLINE unitl #-}
   unitl' = Dagger unitl' unitl
@@ -146,6 +144,10 @@ instance (Tensor t arr) => Tensor t (Dagger arr) where
   {-# INLINE unitr #-}
   unitr' = Dagger unitr' unitr
   {-# INLINE unitr' #-}
+
+instance (Tensor t arr) => Tensor t (Dagger arr) where
+  tensor (Dagger f g) (Dagger f' g') = Dagger (tensor f f') (tensor g g')
+  {-# INLINE tensor #-}
 
 instance (Action t arr) => Action t (Dagger arr) where
   braid = Dagger braid braid

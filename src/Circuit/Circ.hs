@@ -88,7 +88,7 @@ where
 import Circuit.Body (Body (..), SomeBody (..), cascadeBody)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..))
-import Circuit.Tensor (Tensor (..), Unit, unitl, unitr)
+import Circuit.Tensor (Tensor (..), Unit, Unital (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -219,7 +219,7 @@ cascade (Circ g) (Circ f) =
 
 -- | Indexed left unitor square.
 unitorLeftSq ::
-  (Tensor t arr, Strength t arr) =>
+  (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t (Unit t) ch) ch a b
 unitorLeftSq b = Sq unitl (cascadeBody b (Body id)) b
@@ -227,21 +227,21 @@ unitorLeftSq b = Sq unitl (cascadeBody b (Body id)) b
 -- | Left unitor witness: composing a body with the identity at the unit carrier
 -- is isomorphic to the original body.
 unitorLeft ::
-  (Tensor t arr, Strength t arr) =>
+  (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Intertwiner t arr a b
 unitorLeft b = Intertwiner (unitorLeftSq b)
 
 -- | Indexed right unitor square.
 unitorRightSq ::
-  (Tensor t arr, Strength t arr) =>
+  (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t ch (Unit t)) ch a b
 unitorRightSq b = Sq unitr (cascadeBody (Body id) b) b
 
 -- | Right unitor witness.
 unitorRight ::
-  (Tensor t arr, Strength t arr) =>
+  (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Intertwiner t arr a b
 unitorRight b = Intertwiner (unitorRightSq b)

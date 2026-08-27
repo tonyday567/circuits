@@ -29,7 +29,7 @@
 --
 -- == Constraints
 --
--- Only 'identityOptic' needs 'Tensor', for the unitors.  Composition and the
+-- Only 'identityOptic' needs 'Unital', for the unitors.  Composition and the
 -- update action need nothing beyond 'Strength', because
 -- @'strength' f == 'Circuit.Tensor.tensor' 'Circuit.Category.id' f@ — a
 -- coherence the @Axioma.Circ@ oracles check at @(,)@, 'Either' and 'These'.
@@ -64,7 +64,7 @@ import Circuit.Category (Category, (.>))
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Poles (Poles, iomap)
 import Circuit.Poly (Mono, Morphism, applyLens, lens)
-import Circuit.Tensor (Tensor (..), Unit)
+import Circuit.Tensor (Unit, Unital (..))
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -125,9 +125,9 @@ withSomeOptic (SomeOptic o) k = k o
 -- | Identity optic at the boundary pair @(a,b)@.  The residual is the tensor
 -- unit.
 --
--- This is the only operation in the module that needs 'Tensor' rather than
+-- This is the only operation in the module that needs 'Unital' rather than
 -- 'Strength', and it needs only the unitors.
-identityOptic :: (Tensor t arr) => Optic t arr (Unit t) a b a b
+identityOptic :: (Unital t arr) => Optic t arr (Unit t) a b a b
 identityOptic = Optic unitl' unitl
 {-# INLINE identityOptic #-}
 
@@ -169,7 +169,7 @@ composeOptic (Optic f2 b2) (Optic f1 b1) =
 {-# INLINE composeOptic #-}
 
 -- | 'identityOptic' with the residual hidden.
-identitySomeOptic :: (Tensor t arr) => SomeOptic t arr a b a b
+identitySomeOptic :: (Unital t arr) => SomeOptic t arr a b a b
 identitySomeOptic = SomeOptic identityOptic
 {-# INLINE identitySomeOptic #-}
 

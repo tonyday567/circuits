@@ -55,7 +55,7 @@ import Circuit.Syntax
     eval,
     (:+:) (..),
   )
-import Circuit.Tensor (Action, Tensor, Unit)
+import Circuit.Tensor (Action, Tensor, Unit, Unital)
 import Circuit.Tensor qualified as T
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
@@ -96,12 +96,14 @@ instance (Category arr) => Category (SMC w arr) where
   id = lift id
   f . g = Op (L (SigCompose f g))
 
-instance (Tensor w arr) => Tensor w (SMC w arr) where
-  tensor f g = Op (R (L (SigPar f g)))
+instance (Unital w arr) => Unital w (SMC w arr) where
   unitl = lift T.unitl
   unitl' = lift T.unitl'
   unitr = lift T.unitr
   unitr' = lift T.unitr'
+
+instance (Tensor w arr) => Tensor w (SMC w arr) where
+  tensor f g = Op (R (L (SigPar f g)))
 
 instance (Action w arr) => Action w (SMC w arr) where
   braid = Op (R (R SigSwap))

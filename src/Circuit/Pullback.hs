@@ -28,7 +28,7 @@ import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Layer (run)
 import Circuit.Net (Net)
-import Circuit.Tensor (Action (..), Tensor (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Data.Bifunctor
 import Prelude hiding (id, (.))
 
@@ -36,7 +36,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..))
 -- >>> import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 -- >>> import Circuit.Channel (Channel (..), Strength (..), Traced (..))
--- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 -- >>> import Circuit.Net (Net)
 -- >>> import Prelude hiding (id, (.))
 
@@ -64,9 +64,7 @@ instance Category Pullback where
 -- >>> let g = Pullback (*2) :: Pullback Int Int
 -- >>> runPullback (tensor f g) (3, 4)
 -- (4,8)
-instance Tensor (,) Pullback where
-  tensor (Pullback f) (Pullback g) = Pullback (Data.Bifunctor.bimap f g)
-  {-# INLINE tensor #-}
+instance Unital (,) Pullback where
   unitl = Pullback snd
   {-# INLINE unitl #-}
   unitl' = Pullback ((),)
@@ -75,6 +73,10 @@ instance Tensor (,) Pullback where
   {-# INLINE unitr #-}
   unitr' = Pullback (,())
   {-# INLINE unitr' #-}
+
+instance Tensor (,) Pullback where
+  tensor (Pullback f) (Pullback g) = Pullback (Data.Bifunctor.bimap f g)
+  {-# INLINE tensor #-}
 
 instance Action (,) Pullback where
   braid = Pullback (\(b, a) -> (a, b))
