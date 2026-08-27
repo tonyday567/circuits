@@ -64,6 +64,7 @@ library
     Circuit.Pullback
     Circuit.Shared
     Circuit.SMC
+    Circuit.Span
     Circuit.Stamped
     Circuit.Stream
     Circuit.Syntax
@@ -89,6 +90,7 @@ executable circuits-axioma
     Axioma.Poles
     Axioma.Process
     Axioma.Shared
+    Axioma.Span
 
   build-depends:
     base >=4.20 && <5,
