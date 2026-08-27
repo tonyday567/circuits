@@ -56,6 +56,7 @@ module Circuit.Tensor
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
+import Circuit.Category qualified as Cat (Op (..))
 import Circuit.Channel (Strength (..), Traced (..))
 import Circuit.Channel qualified as Ch
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
@@ -525,6 +526,13 @@ instance (Unital t arr) => Unital t (Trace t' arr) where
   unitl' = base unitl'
   unitr = base unitr
   unitr' = base unitr'
+
+-- | Opposite category: unitors are reversed along with the base arrow.
+instance (Unital t arr) => Unital t (Cat.Op arr) where
+  unitl = Cat.Op unitl'
+  unitl' = Cat.Op unitl
+  unitr = Cat.Op unitr'
+  unitr' = Cat.Op unitr
 
 -- | Lift 'Tensor'/'Action' through 'Trace'.
 --

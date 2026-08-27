@@ -122,6 +122,7 @@ import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
+-- >>> import Circuit.Category (Op (..))
 -- >>> import Circuit.Poly (Eval (..), Mono, Morphism, lens, applyLens)
 -- >>> import Circuit.System (System, system, runSystem, mooreSystem, SystemEval (..), toEvalSystem, fromEvalSystem, monoDir, monoIn, parWiring)
 
@@ -132,6 +133,25 @@ import Prelude hiding (id, (.))
 -- together under @t@, and the result is the next state together with the current
 -- output position.  For the monomial @Mono i o@ and @t = (,)@ this is exactly
 -- the Moore body @arr (s, i) (s, o)@ after collapsing the unit positions.
+--
+-- In the equipment-optics vocabulary this is the span
+--
+-- @
+--   s <- (t s (Dir p)) -Pos p->
+-- @
+--
+-- expressed inside 'Circuit.Body.Body': the residual is the state @s@, the left
+-- leg returns the next state, and the right leg is the observable position.
+-- The input direction is part of the apex together with the residual.
+--
+-- The opposite arrow @Circuit.Category.Op arr@ is also supported, so
+-- @SystemT t (Op (->)) s p@ is a first-class codata body.  Together with the
+-- forward @(->)@ case this reproduces the @Fam(Set^op)@ rung of polynomial
+-- equipment.
+--
+-- >>> let sys = mooreSystem (+) (*2) :: System (->) Int (Mono Int Int)
+-- >>> runSystem sys (3, Right 5)
+-- (8,(16,()))
 --
 -- The cartesian specialisation @SystemT (,)@ is kept as the type synonym
 -- 'System'; use 'system' and 'runSystem' to construct and inspect it.

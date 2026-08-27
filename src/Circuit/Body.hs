@@ -25,7 +25,10 @@
 --   state, residual, a stream, or a feedback wire.
 --
 -- * __@arr@ — arrow / morphism__: the base category.  Usually @(->)@ or a
---   Kleisli arrow @K m@.
+--   Kleisli arrow @K m@.  The opposite arrow @Circuit.Category.Op arr@ is also
+--   available, so @Body t ch (Op (->)) a b@ is a first-class codata body:
+--   the channel carries the residual and the internal morphism runs backward.
+--   This makes the @Set^op@ rung of the polynomial equipment explicit.
 --
 -- This arrangement is the common shape underlying loops, processes, systems,
 -- and channel ends: a morphism whose input and output both carry an ambient
@@ -51,7 +54,17 @@ import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
+-- $setup
+-- >>> import Circuit.Category (Op (..))
+
 -- | A morphism across a tensored channel.
+--
+-- The opposite arrow reverses the internal morphism while keeping the channel
+-- threading intact:
+--
+-- >>> let b = Body (Op (\(s, a) -> (s, a + 1))) :: Body (,) Int (Op (->)) Int Int
+-- >>> runOp (morphism b) (5, 3)
+-- (5,4)
 --
 -- @Body t ch arr a b@ is a morphism @arr (t ch a) (t ch b)@.  The channel
 -- @ch@ is threaded alongside the payload by the tensor @t@; it may be state,

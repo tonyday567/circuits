@@ -34,7 +34,7 @@ module Circuit.Channel
   )
 where
 
-import Circuit.Category (Category (..), K (..))
+import Circuit.Category (Category (..), K (..), Op (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
@@ -143,6 +143,15 @@ instance Channel These (->) where
   slide (These a (That c)) = That (These a c)
   slide (These a (These b c)) = These b (These a c)
 
+-- | Opposite category: structural morphisms are reversed.
+--
+-- @Op arr@ reverses every arrow, so the associator uses the inverse direction
+-- and the slide (an involution for the standard tensors) stays the same.
+instance (Channel t arr) => Channel t (Op arr) where
+  assoc = Op assoc'
+  assoc' = Op assoc
+  slide = Op slide
+
 -- * Strength
 
 -- | Tensorial strength for a tensor @t@ inside a category @arr@.
@@ -181,6 +190,10 @@ instance Strength These (->) where
   strength _ (This a) = This a
   strength f (That b) = That (f b)
   strength f (These a b) = These a (f b)
+
+-- | Opposite category: strength is reversed along with the base arrow.
+instance (Strength t arr) => Strength t (Op arr) where
+  strength (Op f) = Op (strength f)
 
 -- * Traced
 

@@ -27,6 +27,7 @@ module Circuit.Category
     (|>),
     (<|),
     K (..),
+    Op (..),
     FunctionLike (..),
     Pointed (..),
   )
@@ -77,6 +78,22 @@ newtype K m a b = K {runK :: a -> m b}
 instance (Monad m) => Category (K m) where
   id = K pure
   K f . K g = K (f <=< g)
+
+-- | The opposite category: morphisms are reversed.
+--
+-- @Op arr a b@ is the same hom-set as @arr b a@.  This is the arrow used to
+-- make the @Set^op@ rung of the polynomial equipment explicit inside
+-- 'Circuit.Body' and 'Circuit.System'.
+newtype Op arr a b = Op {runOp :: arr b a}
+
+instance (Category arr) => Category (Op arr) where
+  id :: forall a. Op arr a a
+  id = Op id
+  {-# INLINE id #-}
+
+  (.) :: forall a b c. Op arr b c -> Op arr a b -> Op arr a c
+  Op g . Op f = Op (f . g)
+  {-# INLINE (.) #-}
 
 -- | Categories that can embed pure functions as morphisms.
 --
