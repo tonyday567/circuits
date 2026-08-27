@@ -5,7 +5,7 @@ module Axioma.Circ
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), SomeBody (..), runFlowchart, runSomeBody)
+import Circuit.Body (Body (..), SomeBody (..), cascadeBody, cascadeSome, runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Channel (Channel (..), Strength (..))
@@ -15,8 +15,6 @@ import Circuit.Circ
     acrossThenDown,
     associatorSq,
     bisimilarStates,
-    cascadeBody,
-    cascadeSome,
     downThenAcross,
     elgotFeedbackBody,
     feedback,

@@ -99,6 +99,8 @@ module Circuit
     -- * Body (knot-body category)
     Body (..),
     SomeBody (..),
+    cascadeBody,
+    cascadeSome,
     runSomeBody,
 
     -- * Circ (loose bicategory of bodies with varying carriers)
@@ -112,8 +114,6 @@ module Circuit
     downThenAcross,
     acrossThenDown,
     cascade,
-    cascadeBody,
-    cascadeSome,
     unitorLeft,
     unitorRight,
     unitorLeftSq,
@@ -280,6 +280,8 @@ import Circuit.Bimonoid
 import Circuit.Body
   ( Body (..),
     SomeBody (..),
+    cascadeBody,
+    cascadeSome,
     runSomeBody,
   )
 import Circuit.Category ((.>), (<|), (|>))
@@ -298,8 +300,6 @@ import Circuit.Circ
     associator,
     associatorSq,
     cascade,
-    cascadeBody,
-    cascadeSome,
     downThenAcross,
     feedback,
     hcompose,

@@ -37,11 +37,17 @@ module Circuit.Body
     SomeBody (..),
     runSomeBody,
     runFlowchart,
+
+    -- * Carrier-tensoring composition
+    cascadeBody,
+    cascadeSome,
   )
 where
 
 import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
+import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
+import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -146,3 +152,61 @@ instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
           Left s -> pure (Left s)
           Right v -> absurd v
      in Poles inU outU
+
+-- * Carrier-tensoring composition
+
+-- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
+-- @t ch ch'@.  This is the body-level building block of horizontal 2-cell
+-- algebra and of the 'Category' instance for 'SomeBody'.
+--
+-- The composite is
+--
+-- @
+--   assoc .> slide .> strength f .> slide .> strength g .> assoc'
+-- @
+cascadeBody ::
+  (Strength t arr) =>
+  Body t ch' arr b c ->
+  Body t ch arr a b ->
+  Body t (t ch ch') arr a c
+cascadeBody g f =
+  Body
+    ( assoc
+        .> slide
+        .> strength (morphism f)
+        .> slide
+        .> strength (morphism g)
+        .> assoc'
+    )
+
+-- | Pointed carrier-tensoring composition for @t = (,)@ and @arr = (->)@.
+--
+-- Seeds pair under the tensor, and the composite can be run with
+-- 'runSomeBody'.  This is the pointed counterpart to the unpointed
+-- 'cascadeBody'.
+cascadeSome ::
+  SomeBody (,) (->) b c ->
+  SomeBody (,) (->) a b ->
+  SomeBody (,) (->) a c
+cascadeSome (SomeBody s2 g) (SomeBody s1 f) =
+  SomeBody (s1, s2) (cascadeBody g f)
+
+-- | 'Category' instance for 'SomeBody'.
+--
+-- The carrier of the composite is the tensor of the two carriers, and the
+-- stored seed is combined with 'seedPair'.  Identity needs a seed at the
+-- tensor unit, hence the 'Pointed (Unit t)' requirement.  Tensors whose unit
+-- is uninhabited (e.g. 'Either' with @Unit Either = Void@) therefore do not
+-- admit an identity; tensors without a canonical value-level pairing (also
+-- 'Either', 'Data.These.These') do not admit composition.
+instance
+  (Strength t arr, Pointed (Unit t), TensorSeed t) =>
+  Category (SomeBody t arr)
+  where
+  id :: forall a. SomeBody t arr a a
+  id = SomeBody (point :: Unit t) (Body id)
+  {-# INLINE id #-}
+
+  (.) :: forall a b c. SomeBody t arr b c -> SomeBody t arr a b -> SomeBody t arr a c
+  SomeBody s2 g . SomeBody s1 f = SomeBody (seedPair s1 s2) (cascadeBody g f)
+  {-# INLINE (.) #-}
