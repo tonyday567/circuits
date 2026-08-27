@@ -233,7 +233,7 @@ into `src/` and the public API.
 ## ephemeral
 
 Local sibling-package paths (e.g. when building `circuits-machina` against a
-local `circuits-tools`) belong in `cabal.project.local`, which overrides
+local `circuits-prob`) belong in `cabal.project.local`, which overrides
 `cabal.project`. Do not commit `cabal.project` with ad-hoc local package links;
 keep them in the ephemeral `.local` file.
 

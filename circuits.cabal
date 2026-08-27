@@ -45,6 +45,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit
+    Circuit.Axioma.Test
     Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
@@ -97,6 +98,5 @@ executable circuits-axioma
   build-depends:
     base >=4.20 && <5,
     circuits,
-    circuits-tools >=0.1 && <0.2,
     optparse-applicative >=0.17 && <0.20,
     these >=1.1 && <1.3,

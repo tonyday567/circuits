@@ -25,9 +25,9 @@ module Axioma.Common
   )
 where
 
+import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
 import Circuit.Process (Process (..), delay, register)
-import Circuit.Tools.Test (check)
 import Data.Tuple qualified as Tuple
 import GHC.TypeNats (KnownNat, natVal)
 import Prelude hiding (curry, id, uncurry, (.))
