@@ -7,6 +7,7 @@ where
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
+import Circuit.Category qualified as Cat
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Circ
   ( Circ (..),
@@ -134,6 +135,36 @@ cascadeAgreesWithReferenceOk xs =
   let f = SomeBody 2 sumBody
       g = SomeBody (-3) maxBody
    in runSomeBody (cascadeSome g f) xs == runSomeBody (cascadeSomeReference g f) xs
+
+-- | SomeBody Category instance agrees with 'cascadeSome'.
+--
+-- The generic 'Category' instance uses 'cascadeBody' and 'seedPair'; for
+-- @(,)@ this should coincide exactly with the hand-written 'cascadeSome'.
+someBodyCategoryAgreesOk :: [Int] -> Bool
+someBodyCategoryAgreesOk xs =
+  let f = SomeBody 2 sumBody
+      g = SomeBody (-3) maxBody
+   in runSomeBody (g Cat.. f) xs == runSomeBody (cascadeSome g f) xs
+
+-- | SomeBody Category left identity.
+someBodyCategoryLeftIdOk :: [Int] -> Bool
+someBodyCategoryLeftIdOk xs =
+  let f = SomeBody 7 sumBody
+   in runSomeBody (Cat.id Cat.. f) xs == runSomeBody f xs
+
+-- | SomeBody Category right identity.
+someBodyCategoryRightIdOk :: [Int] -> Bool
+someBodyCategoryRightIdOk xs =
+  let f = SomeBody 7 sumBody
+   in runSomeBody (f Cat.. Cat.id) xs == runSomeBody f xs
+
+-- | SomeBody Category associativity.
+someBodyCategoryAssocOk :: [Int] -> Bool
+someBodyCategoryAssocOk xs =
+  let f = SomeBody 7 delayBody
+      g = SomeBody 0 sumBody
+      h = SomeBody (-5) maxBody
+   in runSomeBody ((h Cat.. g) Cat.. f) xs == runSomeBody (h Cat.. (g Cat.. f)) xs
 
 -- | Moore-split 'Poles' for the counter body.  The write pole updates state
 -- and discards the payload; the read pole observes state and emits a 'Char'.
@@ -1188,6 +1219,14 @@ circTopic verbosity = do
         cascadeAssocOk [3, 1, 4, 1, 5],
       checkV verbosity "cascadeSome agrees with reference implementation" $
         cascadeAgreesWithReferenceOk [3, 1, 4, 1, 5],
+      checkV verbosity "SomeBody Category instance agrees with cascadeSome" $
+        someBodyCategoryAgreesOk [3, 1, 4, 1, 5],
+      checkV verbosity "SomeBody Category left identity" $
+        someBodyCategoryLeftIdOk [3, 1, 4, 1, 5],
+      checkV verbosity "SomeBody Category right identity" $
+        someBodyCategoryRightIdOk [3, 1, 4, 1, 5],
+      checkV verbosity "SomeBody Category associativity" $
+        someBodyCategoryAssocOk [3, 1, 4, 1, 5],
       checkV verbosity "right whisker agrees with stream composition" $
         rightWhiskerObservationalOk [False, True, True, False, True],
       checkV verbosity "right whisker preserves the square" rightWhiskerSquareOk,

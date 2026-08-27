@@ -1,5 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Loose bicategory of 'Circuit.Body.Body' values with varying carriers.
 --
@@ -88,9 +90,9 @@ module Circuit.Circ
 where
 
 import Circuit.Body (Body (..), SomeBody (..))
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..), Pointed (..), (.>))
 import Circuit.Channel (Channel (..), Strength (..))
-import Circuit.Tensor (Tensor (..), Unit, unitl, unitr)
+import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit, unitl, unitr)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -492,4 +494,24 @@ instance (Strength t arr) => Category (Circ t arr) where
 
   (.) :: forall a b c. Circ t arr b c -> Circ t arr a b -> Circ t arr a c
   (.) = cascade
+  {-# INLINE (.) #-}
+
+-- | 'Category' instance for 'SomeBody'.
+--
+-- The carrier of the composite is the tensor of the two carriers, and the
+-- stored seed is combined with 'seedPair'.  Identity needs a seed at the
+-- tensor unit, hence the 'Pointed (Unit t)' requirement.  Tensors whose unit
+-- is uninhabited (e.g. 'Either' with @Unit Either = Void@) therefore do not
+-- admit an identity; tensors without a canonical value-level pairing (also
+-- 'Either', 'Data.These.These') do not admit composition.
+instance
+  (Strength t arr, Pointed (Unit t), TensorSeed t) =>
+  Category (SomeBody t arr)
+  where
+  id :: forall a. SomeBody t arr a a
+  id = SomeBody (point :: Unit t) (Body id)
+  {-# INLINE id #-}
+
+  (.) :: forall a b c. SomeBody t arr b c -> SomeBody t arr a b -> SomeBody t arr a c
+  SomeBody s2 g . SomeBody s1 f = SomeBody (seedPair s1 s2) (cascadeBody g f)
   {-# INLINE (.) #-}
