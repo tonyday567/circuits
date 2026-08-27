@@ -44,11 +44,18 @@ module Circuit.Poles
     -- * Counit
     close,
 
+    -- * Generalised polar plug
+    plug,
+
     -- * Prefixing an action to an @In@
     prefixIn,
 
     -- * Suffixing an action to an @Out@
     suffixOut,
+
+    -- * Companion / conjoint of a tight arrow
+    companionTight,
+    conjointTight,
 
     -- * Build a @Poles@ from primitive actions
     poles,
@@ -149,6 +156,21 @@ data Poles arr a b = Poles
 close :: In arr a -> Out arr a -> arr a a
 close contra = commit contra
 
+-- | Generalised polar plug.
+--
+-- 'plug' feeds an @Out arr b@ into an @In arr a@, producing a morphism
+-- @arr a b@.  It is the counit of the polar pairing without the same-type
+-- restriction of 'close'.  Every @In@ pole is already a polymorphic consumer
+-- of @Out@ poles, so this is just the underlying 'commit' exposed.
+--
+-- >>> let polesU = open :: Poles (->) () ()
+-- >>> let outA = suffixOut (companion polesU) (const 42) :: Out (->) Int
+-- >>> let inA = prefixIn (const ()) (conjoint polesU) :: In (->) String
+-- >>> plug inA outA "hello"
+-- 42
+plug :: In arr a -> Out arr b -> arr a b
+plug i o = commit i o
+
 -- | Precompose an @arr@-morphism with an @In@ pole.
 --
 -- Given @f :: arr a b@ and an @In@ pole at type @b@, produce an @In@ pole
@@ -182,6 +204,42 @@ prefixIn f i = In $ \(o :: Out arr x) -> f .> commit i o
 -- 42
 suffixOut :: forall arr a b. (Category arr) => Out arr a -> arr a b -> Out arr b
 suffixOut o g = Out $ \(i :: In arr x) -> emit o i .> g
+
+-- * Companion / conjoint of a tight arrow
+
+-- | The companion of a tight arrow incident to the dualising object.
+--
+-- A morphism @f :: arr bot b@ from the dualising object is postcomposed with
+-- the unit companion, yielding an @Out arr b@.  This is the equipment-theoretic
+-- companion restricted to unit-incident arrows; the same construction works for
+-- any arrow with a dualising object.
+--
+-- >>> let polesU = open :: Poles (->) () ()
+-- >>> let outInc = companionTight (const 42 :: () -> Int) :: Out (->) Int
+-- >>> emit outInc (conjoint polesU) ()
+-- 42
+companionTight ::
+  forall arr b bot.
+  (HasDual bot arr) =>
+  arr bot b ->
+  Out arr b
+companionTight f = suffixOut (companion (open :: Poles arr bot bot)) f
+
+-- | The conjoint of a tight arrow incident to the dualising object.
+--
+-- A morphism @f :: arr a bot@ to the dualising object is precomposed with the
+-- unit conjoint, yielding an @In arr a@.
+--
+-- >>> let polesU = open :: Poles (->) () ()
+-- >>> let inInc = conjointTight (const () :: Int -> ()) :: In (->) Int
+-- >>> commit inInc (companion polesU) 7
+-- ()
+conjointTight ::
+  forall arr a bot.
+  (HasDual bot arr) =>
+  arr a bot ->
+  In arr a
+conjointTight f = prefixIn f (conjoint (open :: Poles arr bot bot))
 
 -- * Dualising object / unit poles
 

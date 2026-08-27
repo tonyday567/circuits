@@ -18,12 +18,19 @@ module Circuit.Span
     -- * 2-cells between spans
     refinesS,
 
+    -- * Body bridges
+    bodyFromSpan,
+    spanFromBody,
+    someBodyFromSpan,
+
     -- * Metric optics
     spanDistance,
   )
 where
 
+import Circuit.Body (Body (..), SomeBody (..), runSomeBody)
 import Control.Category (id, (.))
+import Data.Maybe (fromMaybe)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -100,6 +107,41 @@ presentS (Span xs s t) = composeS (companion xs t) (conjoint xs s)
 -- (True,False)
 refinesS :: (Eq a, Eq b) => Span a b -> Span a b -> Bool
 refinesS p q = all (`elem` pairs q) (pairs p)
+
+-- * Body bridges
+
+-- | View a finite span as a lookup body over the left-leg enumeration.
+--
+-- The channel is @[a]@ (the left-boundary values of the span) and the internal
+-- computation selects the matching right-boundary value.  This is the Rel-rung
+-- bridge: the original apex is forgotten, only the boundary pairs remain.
+--
+-- The result is partial on inputs that do not occur as a left leg; the caller
+-- is responsible for supplying valid inputs.
+bodyFromSpan :: (Eq a) => Span a b -> Body (,) [a] (->) a b
+bodyFromSpan sp =
+  Body $ \(ch, a) ->
+    let b = fromMaybe (error "bodyFromSpan: input not in left leg") (lookup a (pairs sp))
+     in (ch, b)
+
+-- | Extract a span from a body whose channel is the left-leg enumeration.
+--
+-- The supplied list @as@ is taken as the apex; the left leg is the identity and
+-- the right leg runs the body.  This is a partial inverse to 'bodyFromSpan' up
+-- to the Rel-rung quotient (same 'pairs').
+spanFromBody :: (Eq a) => [a] -> Body (,) [a] (->) a b -> Span a b
+spanFromBody as (Body f) = Span as id (snd . f . (as,))
+
+-- | View a finite span as a 'SomeBody' whose hidden channel is the apex list.
+--
+-- This is the Span-rung bridge: the apex list is carried as the body channel
+-- and the internal computation looks up the input in the left leg.  The apex
+-- type is hidden by the existential packaging.
+someBodyFromSpan :: (Eq a) => Span a b -> SomeBody (,) (->) a b
+someBodyFromSpan sp@(Span xs _ _) =
+  SomeBody xs $ Body $ \(ch, a) ->
+    let b = fromMaybe (error "someBodyFromSpan: input not in left leg") (lookup a (pairs sp))
+     in (ch, b)
 
 -- | Directed Hausdorff distance between two spans over a common boundary:
 --

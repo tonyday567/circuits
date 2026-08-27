@@ -5,7 +5,17 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Span (Span (..), composeS, identityS, pairs, presentS)
+import Circuit.Body (Body (..), cascadeBody, runSomeBody)
+import Circuit.Span
+  ( Span (..),
+    bodyFromSpan,
+    composeS,
+    identityS,
+    pairs,
+    presentS,
+    someBodyFromSpan,
+    spanFromBody,
+  )
 import Control.Category (id)
 import Control.Monad (when)
 import Prelude hiding (id, (.))
@@ -72,5 +82,33 @@ spanTopic verbosity = do
             r :: Span Sig ()
             r = Span [Hi, Lo] id (\_ -> ())
          in pairs ((r `composeS` q) `composeS` p)
-              == pairs (r `composeS` (q `composeS` p))
+              == pairs (r `composeS` (q `composeS` p)),
+      -- Body-bridge oracles (use an injective left leg so the lookup is faithful)
+      checkV verbosity "bodyFromSpan runs the span as a lookup body" $
+        let sp0 = Span [W1, W2, W3] id spR
+            Body f = bodyFromSpan sp0
+            inputs = [W1, W2, W3]
+         in snd (f (inputs, W1)) == spR W1
+              && snd (f (inputs, W3)) == spR W3,
+      checkV verbosity "spanFromBody recovers the pairs view" $
+        let sp0 = Span [W1, W2, W3] id spR
+            inputs = [W1, W2, W3]
+            sp' = spanFromBody inputs (bodyFromSpan sp0)
+         in pairs sp' == pairs sp0,
+      checkV verbosity "someBodyFromSpan runs the apex-list channel" $
+        let sp0 = Span [W1, W2, W3] id spR
+            inputs = [W1, W2, W3]
+         in runSomeBody (someBodyFromSpan sp0) inputs == map spR [W1, W2, W3],
+      checkV verbosity "span composition agrees with body cascade on pairs" $
+        let p :: Span Pin Bit
+            p = Span [W1, W2, W3] spL (\case W1 -> O; W2 -> O; W3 -> I)
+            q :: Span Bit Sig
+            q = Span [P1, P2] (\case P1 -> O; P2 -> I) (\case P1 -> Lo; P2 -> Hi)
+            inputs = map spL [W1, W2, W3]
+            qInputs = [O, I]
+            Body direct = bodyFromSpan (q `composeS` p)
+            Body cascaded = cascadeBody (bodyFromSpan q) (bodyFromSpan p)
+         in all
+              (\a -> snd (direct (inputs, a)) == snd (cascaded ((inputs, qInputs), a)))
+              inputs
     ]

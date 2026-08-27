@@ -19,10 +19,13 @@ import Circuit.Poles
     Poles (..),
     box,
     close,
+    companionTight,
     compose,
     compose0,
+    conjointTight,
     copycat,
     open,
+    plug,
     poles,
     poles0,
     polesK,
@@ -169,5 +172,25 @@ polesTopic verbosity = do
          in morphism b (42, ()) == (42, ()) && morphism b (0, ()) == (0, ()),
       checkV verbosity "Body Either HasDual yanking closes unit poles to identity" $
         let b = box @Void (open :: Poles (Body Either [Int] (->)) Void Void) :: Body Either [Int] (->) Void Void
-         in morphism b (Left [1, 2, 3]) == Left [1, 2, 3]
+         in morphism b (Left [1, 2, 3]) == Left [1, 2, 3],
+      -- Tight-arrow companion / conjoint oracles
+      checkV verbosity "plug generalises close on same-type poles" $
+        let p = open :: Poles (->) () ()
+         in close (conjoint p) (companion p) () == plug (conjoint p) (companion p) (),
+      checkV verbosity "companionTight posts a unit-incident arrow to Out" $
+        let f = const 42 :: () -> Int
+            o = companionTight f :: Out (->) Int
+         in emit o (conjoint (open :: Poles (->) () ())) () == 42,
+      checkV verbosity "conjointTight pres a unit-incident arrow to In" $
+        let f = const () :: Int -> ()
+            i = conjointTight f :: In (->) Int
+         in commit i (companion (open :: Poles (->) () ())) 7 == (),
+      checkV verbosity "plugging companionTight and conjointTight recovers composition" $
+        let f = const () :: Int -> ()
+            g = const 42 :: () -> Int
+         in plug (conjointTight f) (companionTight g) 7 == 42,
+      checkV verbosity "plugging companionTight and conjointTight agrees with f .> g" $
+        let f = const () :: Int -> ()
+            g = const 42 :: () -> Int
+         in plug (conjointTight f) (companionTight g) 5 == (g . f) 5
     ]
