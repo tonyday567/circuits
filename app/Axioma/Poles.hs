@@ -8,6 +8,7 @@ module Axioma.Poles
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
+import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Poles
@@ -18,7 +19,10 @@ import Circuit.Poles
     Poles (..),
     box,
     close,
+    compose,
+    compose0,
     copycat,
+    open,
     poles,
     poles0,
     polesK,
@@ -36,6 +40,7 @@ import Circuit.System (System, mooreSystem)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (isNothing)
+import Data.Void (Void)
 import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]
@@ -140,5 +145,29 @@ polesTopic verbosity = do
         let innerSys = mooreSystem (+) id :: System (->) Int (Mono Int Int)
             sys = markSystem (== "HALT") id innerSys
             p = systemToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
-         in scan p [] == [] && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing
+         in scan p [] == [] && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
+      -- equipment-law oracles
+      checkV verbosity "box is a homomorphism for stateful Poles over Body" $
+        let w1 = Body (\(s, x) -> (s + x, ())) :: Body (,) Int (->) Int ()
+            r1 = Body (\(s, ()) -> (s, s)) :: Body (,) Int (->) () Int
+            p1 = poles0 w1 r1 :: Poles (Body (,) Int (->)) Int Int
+            w2 = Body (\(s, x) -> (s * x, ())) :: Body (,) Int (->) Int ()
+            r2 = Body (\(s, ()) -> (s, s + 1)) :: Body (,) Int (->) () Int
+            p2 = poles0 w2 r2 :: Poles (Body (,) Int (->)) Int Int
+            lhs = box @() (compose @_ @_ @_ @_ @() p1 p2) :: Body (,) Int (->) Int Int
+            rhs = box @() p2 . box @() p1
+         in morphism lhs (2, 3) == morphism rhs (2, 3)
+              && morphism lhs (1, 4) == morphism rhs (1, 4),
+      checkV verbosity "open is the identity for Poles composition at terminal unit" $
+        let p = poles0 (const ()) (const 42 :: () -> Int) :: Poles (->) () Int
+            o = open :: Poles (->) () ()
+            (wL, rL) = splay0 (compose0 o p)
+            (w, r) = splay0 p
+         in wL () == w () && rL () == r () && box @() (compose0 o p) () == box @() p (),
+      checkV verbosity "Body (,) HasDual yanking closes unit poles to identity" $
+        let b = box @() (open :: Poles (Body (,) Int (->)) () ()) :: Body (,) Int (->) () ()
+         in morphism b (42, ()) == (42, ()) && morphism b (0, ()) == (0, ()),
+      checkV verbosity "Body Either HasDual yanking closes unit poles to identity" $
+        let b = box @Void (open :: Poles (Body Either [Int] (->)) Void Void) :: Body Either [Int] (->) Void Void
+         in morphism b (Left [1, 2, 3]) == Left [1, 2, 3]
     ]

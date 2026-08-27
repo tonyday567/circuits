@@ -326,6 +326,12 @@ splay0 = splay @_ @_ @_ @()
 -- >>> let p2 = poles0 (const ()) (const 2 :: () -> Int) :: Poles (->) Int Int
 -- >>> box @() (compose0 p1 p2) ()
 -- 2
+--
+-- 'open' at the dualising object is the identity for composition:
+--
+-- >>> let r = poles @(->) @Bool @Bool @Bool not not
+-- >>> box @Bool (compose @_ @_ @_ @_ @Bool (open :: Poles (->) Bool Bool) r) True
+-- True
 compose ::
   forall arr a b c bot.
   (HasDual bot arr) =>
