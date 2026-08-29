@@ -18,19 +18,19 @@ import Axioma.Common
     swapPairP,
   )
 import Circuit.Bimonoid (Copy (..), Merge (..))
-import Circuit.Body (SomeBody (..), runSomeBody)
+import Circuit.Body (Body, SomeBody (..), runSomeBody)
 import Circuit.Body qualified as Body
 import Circuit.Category (id, (.), (.>))
-import Circuit.Channel (assoc, assoc', slide, strength, trace)
+import Circuit.Channel (assoc, assoc', slide, strength, yank)
 import Circuit.Layer (run)
+import Circuit.Moore (Moore, mooreMachine)
 import Circuit.Net qualified as Net
 import Circuit.Poles (Bias (..))
-import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markSystem, mealy, register, runMealy, scan, systemToProcess)
+import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markMoore, mealy, mooreToProcess, register, runMealy, scan)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
-import Circuit.System (System, mooreSystem)
 import Circuit.Tensor (tensor)
 import Circuit.Trace (Trace, base, yank)
 import Control.Monad (when)
@@ -39,6 +39,10 @@ import Data.These (These (..))
 import Data.Tuple qualified as Tuple
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
+
+-- | Helper that fixes the Either tensor for 'yank' over list functions.
+yankEither :: (Either s a -> Either s b) -> Trace Either (->) a b
+yankEither = yank . base
 
 -- | Residual state for the pair-sum mealy process.
 data PS = Empty | Held Int
@@ -76,10 +80,10 @@ processTopic verbosity = do
         isNothing (fold sumP []),
       checkV verbosity "Process scan == run . encode" $
         Syn.eval (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
-      checkV verbosity "Process Traced (,) yanking" $
-        scan (trace swapPairP) [1, 2, 3] == [1, 2, 3],
-      checkV verbosity "Process Traced Either yanking" $
-        scan (trace swapEitherP) [1, 2, 3] == [1, 2, 3],
+      checkV verbosity "Process Yank (,) yanking" $
+        scan (yank swapPairP) [1, 2, 3] == [1, 2, 3],
+      checkV verbosity "Process Yank Either yanking" $
+        scan (yank swapEitherP) [1, 2, 3] == [1, 2, 3],
       checkV verbosity "Process register (EWMA)" $
         scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
       checkV verbosity "Process register == trace . strength . delay (EWMA)" $
@@ -89,7 +93,7 @@ processTopic verbosity = do
             swapP (Process i st ex) =
               Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
          in scan (register s0 body) xs
-              == scan (trace (swapP (body . strength (delay s0)))) xs,
+              == scan (yank (swapP (body . strength (delay s0)))) xs,
       -- Process / Body equivalence
       checkV verbosity "processToSomeBody sumP agrees with scan" $
         runSomeBody (Process.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
@@ -99,7 +103,7 @@ processTopic verbosity = do
         runSomeBody (Process.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
       -- Process / Trace Either round-trip factors through Body Either ch (->)
       checkV verbosity "Process encode factors through Body Either ch (->)" $
-        let viaBody p = case Process.processToBody p of SomeBody _ (Body.Body f) -> yank (base f)
+        let viaBody p = case Process.processToBody p of SomeBody _ (Body.Body f) -> yankEither f
          in scan sumP [1, 2, 3] == Syn.eval (viaBody sumP) [1, 2, 3]
               && scan swapPairP [(1, 2), (3, 4), (5, 6)] == Syn.eval (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
               && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == Syn.eval (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],

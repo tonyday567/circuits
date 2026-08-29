@@ -46,7 +46,7 @@ module Circuit.SMC
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Syntax
   ( Algebra (..),
@@ -108,16 +108,18 @@ instance (Tensor w arr) => Tensor w (SMC w arr) where
 instance (Action w arr) => Action w (SMC w arr) where
   braid = Op (R (R SigSwap))
 
-instance (Category arr, Channel t arr) => Channel t (SMC w arr) where
+instance (Category arr, Assoc t arr) => Assoc t (SMC w arr) where
   assoc = lift assoc
   assoc' = lift assoc'
+
+instance (Category arr, Slide t arr) => Slide t (SMC w arr) where
   slide = lift slide
 
 instance (Strength t arr, Action w arr) => Strength t (SMC w arr) where
   strength f = lift (strength (eval f))
 
-instance (Traced t arr, Action w arr) => Traced t (SMC w arr) where
-  trace body = lift (trace (eval body))
+instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
+  yank body = lift (yank (eval body))
 
 -- Dagger mirror
 

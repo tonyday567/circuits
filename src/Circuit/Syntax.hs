@@ -50,7 +50,7 @@ module Circuit.Syntax
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -145,13 +145,15 @@ instance (Category arr) => Category (AlgCat arr) where
   id = Lift id
   f . g = Op (SigCompose f g)
 
-instance (Category arr, Channel t arr) => Channel t (AlgCat arr) where
+instance (Category arr, Assoc t arr) => Assoc t (AlgCat arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
+
+instance (Category arr, Slide t arr) => Slide t (AlgCat arr) where
   slide = Lift slide
 
 instance (Category arr, Strength t arr) => Strength t (AlgCat arr) where
   strength f = Lift (strength (eval f))
 
-instance (Category arr, Traced t arr) => Traced t (AlgCat arr) where
-  trace body = Lift (trace (eval body))
+instance (Category arr, Yank t arr) => Yank t (AlgCat arr) where
+  yank body = Lift (yank (eval body))

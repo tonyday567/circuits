@@ -11,7 +11,7 @@
 -- @
 --
 -- Both the channel and the payload enter together, and both exit together.
--- 'Circuit.System.System' specializes this shape to a Moore machine over a
+-- 'Circuit.Moore.Moore' specializes this shape to a Moore machine over a
 -- polynomial interface; 'Circuit.Process.Process' is the pointed monomial
 -- special case of that.
 --
@@ -48,7 +48,7 @@ module Circuit.Body
 where
 
 import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
-import Circuit.Channel (Channel (..), Strength (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
 import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit)
 import Data.Void (Void, absurd)

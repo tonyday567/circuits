@@ -26,9 +26,9 @@ Recommended reading order for the source (core concepts first):
 ```
 Circuit.Category    — Local 'Category' class, 'K' Kleisli newtype, and
                       composition/application helpers (.>), (|>), (<|).
-Circuit.Channel     — Structural class ladder: Channel, Strength, Traced.
+Circuit.Channel     — Structural class ladder: Assoc, Slide, Strength, Yank.
                       Instances for (->) and K m; (,), Either, These tensors.
-                      Left = feedback/continue, Right = exit for Either trace.
+                      Left = feedback/continue, Right = exit for Either yank.
 Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
                       plumbing, and superpose (fused parallel composition).
 Circuit.Body        — The knot-body category: Body t ch arr a b and SomeBody.
@@ -46,7 +46,7 @@ Circuit.Linear      — Linear-logic connectives: Lolli, Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
 Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
                       delay/register, Body conversions.
-Circuit.System      — SystemT / System: dynamical systems over polynomials.
+Circuit.Moore       — Moore machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
 Circuit.Poly.Channel — Poly-indexed Moore channels.
 Circuit.Poles       — Bi-polar channel ends (Out/In), boxes, copycat, race.
@@ -98,8 +98,8 @@ type signatures, code — use names. This boundary prevents churn.
 
 - **Language**: GHC2024.
 - **Trace direction**: `Left` = feedback (continue), `Right` = exit.
-  The `Traced Either (->)` instance iterates until `Right`. The
-  `Traced (,) (->)` instance ties a lazy knot.
+  The `Yank Either (->)` instance iterates until `Right`. The
+  `Yank (,) (->)` instance ties a lazy knot.
 - **Category composition**: Use `(.)` from `Control.Category`, not `Prelude`.
   Import `Prelude hiding (id, (.))`.
 - **Use the right elimination form**:
@@ -120,7 +120,7 @@ type signatures, code — use names. This boundary prevents churn.
 ### run vs runHyper vs observe
 
 `run` is overloaded by the `Layer` class. `run someTrace` folds a `Trace` into
-any `Traced t arr`; `run someNet` folds a `Net` via `melt` into `Trace` and
+any `Yank t arr`; `run someNet` folds a `Net` via `melt` into `Trace` and
 then `run`.
 
 `runHyper` takes a `Hyper a a`. `observe` extracts `Hyper a b -> (a -> b)`.
@@ -140,7 +140,7 @@ sessions — not automated tests.
 
 ### either blindness
 
-`Traced Either (->)` uses `Left` = feedback (continue), `Right` = exit.
+`Yank Either (->)` uses `Left` = feedback (continue), `Right` = exit.
 User-facing code often uses the opposite convention — `Left` = result
 (done), `Right` = continue (next state). See `while.md` in
 `circuits-examples` for an `Either` iteration type and the `swapRL` bridge.
@@ -158,7 +158,7 @@ from using the wrong one — you'll get a puzzling type error deep inside a
 
 Pin the tensor explicitly with a type annotation:
 `:: Trace (,) (->) Int Int` or `:: Trace Either (->) Int Int`.
-The annotation also resolves overlapping `Traced` instances for `(->)`.
+The annotation also resolves overlapping `Yank` instances for `(->)`.
 
 ### extra dependencies for example cards
 

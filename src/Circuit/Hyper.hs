@@ -27,12 +27,12 @@
 -- === doctests
 --
 -- >>> import Circuit.Hyper
--- >>> import Circuit.Channel (trace)
+-- >>> import Circuit.Channel (yank)
 -- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 --
 -- >>> let body = liftK (K (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: K Identity ([Int], ()) ([Int], [Int]))
--- >>> runIdentity (observeK (trace body) ())
+-- >>> runIdentity (observeK (yank body) ())
 -- [0,0,0]
 module Circuit.Hyper
   ( -- * Parameterised hyperfunctions
@@ -65,7 +65,7 @@ module Circuit.Hyper
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)
@@ -162,16 +162,18 @@ instance Category Hyper where
   id = lift id
   f . g = HyperA $ \k -> invoke f (g . k)
 
-instance Channel (,) Hyper where
+instance Assoc (,) Hyper where
   assoc = lift assoc
   assoc' = lift assoc'
+
+instance Slide (,) Hyper where
   slide = lift slide
 
 instance Strength (,) Hyper where
   strength h = lift $ \(a, b) -> (a, observe h b)
 
-instance Traced (,) Hyper where
-  trace body = HyperA $ \k ->
+instance Yank (,) Hyper where
+  yank body = HyperA $ \k ->
     let pair = invoke body cont
         cont = HyperA $ \_ -> (fst pair, observe k (snd pair))
      in snd pair
@@ -182,16 +184,18 @@ instance (Monad m) => Category (HyperA (K m)) where
   id = liftK id
   f . g = HyperA $ K $ \k -> runK (invoke f) (g . k)
 
-instance (Monad m) => Channel (,) (HyperA (K m)) where
+instance (Monad m) => Assoc (,) (HyperA (K m)) where
   assoc = liftK assoc
   assoc' = liftK assoc'
+
+instance (Monad m) => Slide (,) (HyperA (K m)) where
   slide = liftK slide
 
 instance (Monad m) => Strength (,) (HyperA (K m)) where
   strength h = liftK $ K $ \(a, b) -> (a,) <$> observeK h b
 
-instance (MonadFix m) => Traced (,) (HyperA (K m)) where
-  trace body = HyperA $ K $ \k -> do
+instance (MonadFix m) => Yank (,) (HyperA (K m)) where
+  yank body = HyperA $ K $ \k -> do
     pair <- mfix $ \pair -> do
       let cont =
             HyperA $ K $ \_ -> do
@@ -204,7 +208,7 @@ instance (MonadFix m) => Traced (,) (HyperA (K m)) where
 
 -- | Encode an Either-loop as a self-referential 'Hyper'.
 --
--- Whereas 'encode' handles the @(,)@ tensor using @Hyper@'s own 'Traced'
+-- Whereas 'encode' handles the @(,)@ tensor using @Hyper@'s own 'Yank'
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
@@ -258,7 +262,7 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- @'observe' . 'encode' = 'Circuit.Syntax.eval'@.
 --
 -- 'base' constructors embed directly via 'lift'; 'Circuit.Trace.yank'
--- constructors become 'trace' over a hyperfunction.
+-- constructors become 'yank' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace
 -- >>> observe (encode (Trace.base (+1) :: Trace.Trace (,) (->) Int Int)) 5
@@ -268,7 +272,7 @@ encode ::
   Hyper a b
 encode (Syn.Lift f) = lift f
 encode (Syn.Op (L (SigCompose g f))) = encode g . encode f
-encode (Syn.Op (R (Yank body))) = trace (encode body)
+encode (Syn.Op (R (YankBody body))) = yank (encode body)
 
 -- | Encode a Kleisli 'Trace' into a @'HyperA' ('K' m)@.
 encodeK ::
@@ -277,4 +281,4 @@ encodeK ::
   HyperA (K m) a b
 encodeK (Syn.Lift f) = liftK f
 encodeK (Syn.Op (L (SigCompose g f))) = encodeK g . encodeK f
-encodeK (Syn.Op (R (Yank body))) = trace (encodeK body)
+encodeK (Syn.Op (R (YankBody body))) = yank (encodeK body)

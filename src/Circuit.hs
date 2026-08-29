@@ -12,7 +12,7 @@
 -- are produced simultaneously.
 --
 -- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
--- >>> trace powers () :: [Integer]
+-- >>> yank powers () :: [Integer]
 -- [1,2,4,8,16]
 --
 -- === Iteration
@@ -20,7 +20,7 @@
 -- Use the `Either` tensor for loops that terminate.
 --
 -- >>> let step n = if n < 5 then Left (n + 1) else Right n
--- >>> trace (either step step) (0 :: Int)
+-- >>> yank (either step step) (0 :: Int)
 -- 5
 --
 -- === Switching between representations
@@ -42,7 +42,7 @@
 --   @arr (t ch a) (t ch b)@, the stateful substrate that @Trace@ hides before
 --   tracing. The cartesian instance is `Body (,) ch (->)`.
 --
--- The `Traced` class (in "Circuit.Channel") abstracts the choice of tensor,
+-- The `Yank` class (in "Circuit.Channel") abstracts the choice of tensor,
 -- supporting lazy knots with @(,@), iteration with `Either`, and scheduling
 -- with `Data.These.These`.
 --
@@ -81,19 +81,19 @@ module Circuit
     Trace,
     base,
     yank,
-    Traced,
+    Yank,
     Strength,
-    -- | Close a feedback loop. See "Circuit.Channel".
-    trace,
-    -- | Open a feedback loop. See "Circuit.Channel".
     strength,
 
     -- * Structural channel moves
-    Channel,
+    Assoc,
+    assoc,
+    assoc',
+    Slide,
     slide,
 
     -- * Polynomial channels
-    PChan (..),
+    Channel (..),
     emitChannel,
     commitChannel,
     idChannel,
@@ -133,14 +133,14 @@ module Circuit
     -- * Feedback on Circ
     feedback,
 
-    -- * Polynomial interfaces
-    System,
-    system,
-    runSystem,
-    mooreSystem,
+    -- * Moore machines
+    Moore,
+    moore,
+    mooreMorphism,
+    mooreMachine,
     monoIn,
     monoDir,
-    runSystemMono,
+    runMooreMono,
     Mono,
     Morphism (..),
     lens,
@@ -153,8 +153,8 @@ module Circuit
     Process (..),
     scan,
     fold,
-    systemToProcess,
-    markSystem,
+    mooreToProcess,
+    markMoore,
     delay,
     register,
     mealy,
@@ -298,12 +298,14 @@ import Circuit.Body
   )
 import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
-  ( Channel,
+  ( Assoc,
+    Slide,
     Strength,
-    Traced,
+    Yank,
+    assoc,
+    assoc',
     slide,
     strength,
-    trace,
   )
 import Circuit.Circ
   ( Circ (..),
@@ -368,6 +370,15 @@ import Circuit.Linear
     WhyNotIntro (..),
     WhyNotMonoid (..),
   )
+import Circuit.Moore
+  ( Moore,
+    monoDir,
+    monoIn,
+    moore,
+    mooreMachine,
+    mooreMorphism,
+    runMooreMono,
+  )
 import Circuit.Net
   ( Net,
     melt,
@@ -406,7 +417,7 @@ import Circuit.Poly
     prism,
   )
 import Circuit.Poly.Channel
-  ( PChan (..),
+  ( Channel (..),
     commitChannel,
     constChannel,
     emitChannel,
@@ -417,12 +428,12 @@ import Circuit.Process
   ( Process (..),
     delay,
     fold,
-    markSystem,
+    markMoore,
     mealy,
+    mooreToProcess,
     register,
     runMealy,
     scan,
-    systemToProcess,
   )
 import Circuit.Pullback
   ( Pullback (..),
@@ -438,15 +449,6 @@ import Circuit.Shared
   )
 import Circuit.Stamped (Stamped (..))
 import Circuit.Syntax (eval)
-import Circuit.System
-  ( System,
-    monoDir,
-    monoIn,
-    mooreSystem,
-    runSystem,
-    runSystemMono,
-    system,
-  )
 import Circuit.Tensor
   ( Action (..),
     Tensor (..),

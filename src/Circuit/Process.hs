@@ -11,7 +11,7 @@
 -- data Process a b = forall s. Process (a -> s) (s -> a -> s) (s -> b)
 -- @
 --
--- 'Process' is the monomial special case of 'Circuit.System.System': the
+-- 'Process' is the monomial special case of 'Circuit.Moore.Moore': the
 -- interface is @Mono a b@ and the initial state is supplied by the first input.
 -- The underlying span-shaped carrier is 'Circuit.Body.Body'.
 --
@@ -30,14 +30,14 @@
 -- * 'scanStream' generalizes this to any 'Uncons' input and 'Cons' output.
 -- * 'encode' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
 --   lists; the two runners are verified equivalent by oracle.
--- * The arrow-level 'Traced' Either instance is per-tick Conway/Elgot settle,
+-- * The arrow-level 'Yank' Either instance is per-tick Conway/Elgot settle,
 --   not cross-tick state feedback; see 'register' for the latter.
 --
 -- = Pointed systems
 --
--- The pointed-Moore view of a stateful morphism is 'Circuit.System.System' with
--- an explicit seed.  Use 'Circuit.System.mooreSystem' to build such a system,
--- and 'systemToProcess' to turn it into a first-input-seeded 'Process'.
+-- The pointed-Moore view of a stateful morphism is 'Circuit.Moore.Moore' with
+-- an explicit seed.  Use 'Circuit.Moore.mooreMachine' to build such a machine,
+-- and 'mooreToProcess' to turn it into a first-input-seeded 'Process'.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
@@ -47,13 +47,13 @@ module Circuit.Process
     isMark,
     isPayload,
 
-    -- * System <-> Process conversions
-    systemToProcess,
-    systemAsProcess,
-    markSystem,
+    -- * Moore <-> Process conversions
+    mooreToProcess,
+    mooreAsProcess,
+    markMoore,
 
     -- * Runners
-    iterateSystem,
+    iterateMoore,
     after,
     scan,
     scanStream,
@@ -81,11 +81,11 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Moore (Moore, mooreMachine, mooreMorphism, runMooreMono)
 import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
-import Circuit.System (System, mooreSystem, runSystem, runSystemMono)
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Circuit.Trace (Trace, base, yank)
 import Data.Bifunctor (Bifunctor (..))
@@ -146,66 +146,66 @@ data Process a b where
     (s -> b) ->
     Process a b
 
--- | Convert a monomial 'System', an explicit seed, and a state observation
+-- | Convert a monomial 'Moore', an explicit seed, and a state observation
 -- into a first-input-seeded 'Process'.
 --
 -- The observation @s -> b@ is applied to the /current/ state to produce each
--- output, including the first output from the seed.  The step system is used
+-- output, including the first output from the seed.  The step machine is used
 -- only for state transitions.
-systemToProcess :: s -> (s -> b) -> System (->) s (Mono a b) -> Process a b
-systemToProcess s0 ex sys =
+mooreToProcess :: s -> (s -> b) -> Moore (,) (->) s (Mono a b) -> Process a b
+mooreToProcess s0 ex sys =
   Process
-    (\a -> fst (runSystem sys (s0, Right a)))
-    (\s a -> fst (runSystem sys (s, Right a)))
+    (\a -> fst (mooreMorphism sys (s0, Right a)))
+    (\s a -> fst (mooreMorphism sys (s, Right a)))
     ex
 
--- | Convert a monomial 'System' into a 'Process' machine with a given initial
+-- | Convert a monomial 'Moore' into a 'Process' machine with a given initial
 -- state.
 --
 -- The first input is consumed for the state transition from the supplied
--- initial state, matching the coalgebra intuition of a 'System'.
-systemAsProcess :: System (->) s (Mono i o) -> s -> Process i o
-systemAsProcess sys s0 =
+-- initial state, matching the coalgebra intuition of a 'Moore'.
+mooreAsProcess :: Moore (,) (->) s (Mono i o) -> s -> Process i o
+mooreAsProcess sys s0 =
   Process
-    (snd (runSystemMono sys s0))
-    (snd . runSystemMono sys)
-    (fst . runSystemMono sys)
+    (snd (runMooreMono sys s0))
+    (snd . runMooreMono sys)
+    (fst . runMooreMono sys)
 
--- | Run a system for as many steps as there are inputs, emitting one output
+-- | Run a Moore machine for as many steps as there are inputs, emitting one output
 -- per input. The output is the state /after/ consuming the input, matching
--- the 'Process' semantics of 'systemAsProcess'.
-iterateSystem :: System (->) s (Mono i o) -> s -> [i] -> [o]
-iterateSystem _ _ [] = []
-iterateSystem sys s (i : is) =
-  let s' = snd (runSystemMono sys s) i
-      (o, _) = runSystemMono sys s'
-   in o : iterateSystem sys s' is
+-- the 'Process' semantics of 'mooreAsProcess'.
+iterateMoore :: Moore (,) (->) s (Mono i o) -> s -> [i] -> [o]
+iterateMoore _ _ [] = []
+iterateMoore sys s (i : is) =
+  let s' = snd (runMooreMono sys s) i
+      (o, _) = runMooreMono sys s'
+   in o : iterateMoore sys s' is
 
 -- | State after consuming a list of inputs.
-after :: System (->) s (Mono i o) -> s -> [i] -> s
+after :: Moore (,) (->) s (Mono i o) -> s -> [i] -> s
 after _ s [] = s
-after sys s (i : is) = after sys (snd (runSystemMono sys s) i) is
+after sys s (i : is) = after sys (snd (runMooreMono sys s) i) is
 
--- | Lift a monomial 'System' and a state observation into a boundary system
+-- | Lift a monomial 'Moore' and a state observation into a boundary machine
 -- over 'Boundary' tokens.
 --
--- Payloads are stepped through the inner system.  Marks satisfying the halt
--- predicate freeze the system and produce 'Nothing' thereafter; non-halt
+-- Payloads are stepped through the inner machine.  Marks satisfying the halt
+-- predicate freeze the machine and produce 'Nothing' thereafter; non-halt
 -- marks leave the state unchanged and emit the current output.  The halted
 -- state remembers the final inner state.
 --
--- The returned system carries state @Either s s@: 'Left' is running, 'Right'
+-- The returned machine carries state @Either s s@: 'Left' is running, 'Right'
 -- is halted.  This is the core combinator behind mark-driven halt: the finite
 -- mark alphabet @k@ carries control tokens, while payloads carry data.
-markSystem ::
+markMoore ::
   (k -> Bool) ->
   (s -> b) ->
-  System (->) s (Mono a b) ->
-  System (->) (Either s s) (Mono (Boundary k a) (Maybe b))
-markSystem isHalt ex sys =
-  mooreSystem
+  Moore (,) (->) s (Mono a b) ->
+  Moore (,) (->) (Either s s) (Mono (Boundary k a) (Maybe b))
+markMoore isHalt ex sys =
+  mooreMachine
     ( \s tok -> case (s, tok) of
-        (Left s', Payload a) -> Left (fst (runSystem sys (s', Right a)))
+        (Left s', Payload a) -> Left (fst (mooreMorphism sys (s', Right a)))
         (Left s', Mark k) -> if isHalt k then Right s' else Left s'
         (Right s', _) -> Right s'
     )
@@ -233,17 +233,19 @@ instance Category Process where
       (\(_, s2) -> ex2 s2)
   {-# INLINE (.) #-}
 
--- Channel / Strength / Traced for (,)
+-- Assoc / Slide / Strength / Yank for (,)
 --
 -- These instances make Process a traced monoidal category under the cartesian
--- tensor. The trace ties a lazy self-referential knot and is productive only
+-- tensor. The yank ties a lazy self-referential knot and is productive only
 -- when the body is non-strict in the feedback channel. Strict accumulators
--- (e.g. moving averages) diverge under the (,) trace; use Either-trace 'run'
+-- (e.g. moving averages) diverge under the (,) yank; use Either-trace 'run'
 -- or the 'register' combinator for those.
 
-instance Channel (,) Process where
+instance Assoc (,) Process where
   assoc = Process id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
   assoc' = Process id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
+
+instance Slide (,) Process where
   slide = Process id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
 instance Strength (,) Process where
@@ -253,8 +255,8 @@ instance Strength (,) Process where
       (\(~(_, s)) (~(a', b)) -> (a', st s b))
       (\(~(a, s)) -> (a, ex s))
 
-instance Traced (,) Process where
-  trace (Process i st ex) =
+instance Yank (,) Process where
+  yank (Process i st ex) =
     Process
       (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
       ( \s b ->
@@ -362,14 +364,14 @@ instance Shared (,) Process where
            in (Just sL', Just sR', s''', These b d)
   {-# INLINE sharedBy #-}
 
--- Channel / Strength / Traced for Either
+-- Assoc / Slide / Strength / Yank for Either
 --
 -- These instances make Process a traced monoidal category under the Either
--- tensor. The trace is per-tick Conway/Elgot settle: Right injects a value,
+-- tensor. The yank is per-tick Conway/Elgot settle: Right injects a value,
 -- Left feeds intermediate state back within the same tick until Right exits.
 -- This is the instance required by 'Net Either Process' knot bodies.
 
-instance Channel Either Process where
+instance Assoc Either Process where
   assoc = Process id (\_ x -> x) assocEither
     where
       assocEither (Left (Left a)) = Left a
@@ -380,6 +382,8 @@ instance Channel Either Process where
       assocEither' (Left a) = Left (Left a)
       assocEither' (Right (Left b)) = Left (Right b)
       assocEither' (Right (Right c)) = Right c
+
+instance Slide Either Process where
   slide = Process id (\_ x -> x) slideEither
     where
       slideEither (Left a) = Right (Left a)
@@ -398,8 +402,8 @@ instance Strength Either Process where
       )
       snd
 
-instance Traced Either Process where
-  trace (Process i st ex) = Process i' st' ex'
+instance Yank Either Process where
+  yank (Process i st ex) = Process i' st' ex'
     where
       settle m = case ex m of
         Left s -> settle (st m (Left s))
@@ -409,7 +413,7 @@ instance Traced Either Process where
       st' m a = settle (st m (Right a))
       ex' m = case ex m of
         Right b -> b
-        Left _ -> error "Circuit.Process.Traced Either: unsettled state"
+        Left _ -> error "Circuit.Process.Yank Either: unsettled state"
 
 -- * Bimonoid instances (pointwise lift)
 
@@ -555,7 +559,7 @@ delay s0 = Process (const s0) (const id) id
 -- analogue of the cartesian trace: the delay is explicit in the wiring
 -- rather than implicit in a lazy knot.
 --
--- Compare with the cartesian 'trace' on 'Process', which ties a lazy knot
+-- Compare with the cartesian 'yank' on 'Process', which ties a lazy knot
 -- and diverges for strict state; 'register' keeps strict state cells sound
 -- by making the one-tick delay observable.
 --

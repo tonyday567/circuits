@@ -68,7 +68,7 @@ import Circuit.Bimonoid
   )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..), (.>))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))
@@ -215,7 +215,7 @@ sift = evalInto SMC.lift
 -- 6
 melt ::
   forall w t arr a b.
-  (Traced t arr, Action w arr) =>
+  (Yank t arr, Action w arr) =>
   Net w arr a b ->
   Trace t arr a b
 melt = evalInto base

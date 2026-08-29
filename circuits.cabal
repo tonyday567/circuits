@@ -70,7 +70,7 @@ library
     Circuit.Stamped
     Circuit.Stream
     Circuit.Syntax
-    Circuit.System
+    Circuit.Moore
     Circuit.Tensor
     Circuit.Trace
 

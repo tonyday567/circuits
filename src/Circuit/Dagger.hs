@@ -33,7 +33,7 @@ import Circuit.Bimonoid
     ZeroT (..),
   )
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Prelude hiding (id, (.))
 
@@ -41,7 +41,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Bimonoid
 -- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
--- >>> import Circuit.Channel (Traced (..))
+-- >>> import Circuit.Channel (Yank (..))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
@@ -80,9 +80,9 @@ instance (Strength t arr) => Strength t (Dagger arr) where
   strength (Dagger f g) = Dagger (strength f) (strength g)
   {-# INLINE strength #-}
 
-instance (Traced t arr) => Traced t (Dagger arr) where
-  trace (Dagger f g) = Dagger (trace f) (trace g)
-  {-# INLINE trace #-}
+instance (Yank t arr) => Yank t (Dagger arr) where
+  yank (Dagger f g) = Dagger (yank f) (yank g)
+  {-# INLINE yank #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
 --
@@ -153,7 +153,9 @@ instance (Action t arr) => Action t (Dagger arr) where
   braid = Dagger braid braid
   {-# INLINE braid #-}
 
-instance (Channel t arr) => Channel t (Dagger arr) where
+instance (Assoc t arr) => Assoc t (Dagger arr) where
   assoc = Dagger assoc assoc'
   assoc' = Dagger assoc' assoc
+
+instance (Slide t arr) => Slide t (Dagger arr) where
   slide = Dagger slide slide

@@ -38,7 +38,7 @@ module Circuit.Shared
 where
 
 import Circuit.Category (Category (..), K (..))
-import Circuit.Channel (Channel (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose,

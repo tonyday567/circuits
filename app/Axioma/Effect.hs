@@ -12,7 +12,7 @@ import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, runK, (.))
-import Circuit.Channel (trace)
+import Circuit.Channel (yank)
 import Circuit.Process (Process (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
@@ -20,6 +20,10 @@ import Circuit.Trace (Trace, base, yank)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Prelude hiding (curry, id, uncurry, (.))
+
+-- | Helper that fixes the cartesian tensor for 'yank' over 'K IO' arrows.
+yankK :: K IO (s, a) (s, b) -> Trace (,) (K IO) a b
+yankK = yank . base
 
 effectTopic :: Verbosity -> IO [Bool]
 effectTopic verbosity = do
@@ -37,8 +41,8 @@ effectTopic verbosity = do
               g = K $ \ ~() -> do
                 modifyIORef' ref (* 2)
                 pure ()
-              post = trace (tensor @(,) @(K IO) g id . f)
-              pre = trace (f . tensor @(,) @(K IO) g id)
+              post = yank (tensor @(,) @(K IO) g id . f)
+              pre = yank (f . tensor @(,) @(K IO) g id)
           (l, r) <- (,) <$> runK post () <*> runK pre ()
           pure (l /= r),
       -- Body (,) (K IO) must compose as a category. This is the untested
@@ -57,10 +61,10 @@ effectTopic verbosity = do
               gf = g . f
           (sOut, c) <- runK (Body.morphism gf) (0, 5)
           pure (sOut == 2 && c == 12),
-      -- Benton-Hyland Def 3.2 at the Trace level: Trace's trace inherits the
+      -- Benton-Hyland Def 3.2 at the Trace level: Trace's yank inherits the
       -- Central Sliding side-condition from its base. A non-central effectful
       -- morphism g slid past f give a different result depending on order.
-      -- Trace's 'trace' discharges into the base 'trace', so the same witness
+      -- Trace's 'yank' discharges into the base 'yank', so the same witness
       -- that fails for K IO directly also fails for Trace (,) (K IO).
       checkIOV verbosity "Trace trace requires centrality over K IO (Central Sliding)" $
         do
@@ -72,8 +76,8 @@ effectTopic verbosity = do
               g = K $ \ ~() -> do
                 modifyIORef' ref (* 2)
                 pure ()
-              post = trace (base f . base (tensor @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
-              pre = trace (base (tensor @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
+              post = yank (base f . base (tensor @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
+              pre = yank (base (tensor @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
           l <- runK (Syn.eval post) ()
           writeIORef ref 1
           r <- runK (Syn.eval pre) ()
@@ -93,17 +97,15 @@ effectTopic verbosity = do
                 v <- readIORef ref
                 writeIORef ref (v * 2)
                 pure (s, v * b)
-              loopFG = yank (base f) . yank (base g) :: Trace (,) (K IO) Int Int
+              loopFG = yankK f . yankK g :: Trace (,) (K IO) Int Int
               -- Same threading as Trace's (.) normal form: g's state wire first.
               handBuiltFG =
-                yank
-                  ( base
-                      ( K $
-                          \ ~((s1, s2), a) -> do
-                            (s1', b) <- runK g (s1, a)
-                            (s2', c) <- runK f (s2, b)
-                            pure ((s1', s2'), c)
-                      )
+                yankK
+                  ( K $
+                      \ ~((s1, s2), a) -> do
+                        (s1', b) <- runK g (s1, a)
+                        (s2', c) <- runK f (s2, b)
+                        pure ((s1', s2'), c)
                   )
           r1 <- runK (Syn.eval loopFG) 5
           writeIORef ref 1

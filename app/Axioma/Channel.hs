@@ -7,10 +7,10 @@ module Axioma.Channel
 where
 
 import Axioma.Common (Verbosity (..), checkV)
+import Circuit.Moore (monoIn)
 import Circuit.Par (Par (..), distL, distR, mix)
 import Circuit.Poly (Eval (..), Mono, lens)
-import Circuit.Poly.Channel (PChan (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
-import Circuit.System (monoIn)
+import Circuit.Poly.Channel (Channel (..), commitChannel, constChannel, emitChannel, idChannel, mapChannel)
 import Control.Monad (when)
 import Data.Void (Void)
 import Prelude hiding (id, (.))

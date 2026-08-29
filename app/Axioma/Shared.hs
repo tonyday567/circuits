@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 -- | Shared-medium scheduling, premonoidal centrality, whiskering, and the
--- impossibility of a canonical 'Traced These' instance.
+-- impossibility of a canonical 'Yank These' instance.
 module Axioma.Shared
   ( sharedTopic,
   )
@@ -29,6 +29,13 @@ import Data.List (sort)
 import Data.These (These (..), these)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
+
+-- | Helper that fixes the cartesian tensor for 'yank' over plain functions.
+--
+-- The class method needs the 'Trace' tensor to be inferable; this wrapper
+-- pins it to @(,)@ via the argument shape.
+yankFun :: ((s, a) -> (s, b)) -> Trace (,) (->) a b
+yankFun = yank . base
 
 -- | Body that prepends a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
@@ -174,13 +181,13 @@ sharedTopic verbosity = do
       checkV verbosity "Channel These slide . slide == id where types permit" $
         let x = These 'a' (These 'b' 'c' :: These Char Char)
          in (slide . slide) x == (x :: These Char (These Char Char)),
-      -- Traced These falsifier: the both-branch forces a discard.
+      -- Yank These falsifier: the both-branch forces a discard.
       --
-      -- A candidate trace for These must choose, in the These a c case,
+      -- A candidate yank for These must choose, in the These a c case,
       -- whether to emit c (discarding a) or loop on a (discarding c).
-      -- Two equally natural biased traces disagree, so no canonical trace
+      -- Two equally natural biased yanks disagree, so no canonical yank
       -- exists; any fixed bias breaks sliding/dinaturality under composition.
-      checkV verbosity "Traced These is impossible: biased traces disagree in the both-branch" $
+      checkV verbosity "Yank These is impossible: biased yanks disagree in the both-branch" $
         let traceTheseEmit f b = go (f (That b))
               where
                 go (That c) = c
@@ -201,21 +208,21 @@ sharedTopic verbosity = do
       checkV verbosity "pure order braid is invisible at the shared channel (sliding axiom)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ())
-              == Syn.eval (yank (base (sharedBy pureRight k1 k2))) ((), ()),
+         in Syn.eval (yankFun (sharedBy pureLeft k1 k2)) ((), ())
+              == Syn.eval (yankFun (sharedBy pureRight k1 k2)) ((), ()),
       checkV verbosity "sharedBy differs from superpose (shared vs independent feedback)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             theseToPair (This a) = (a, [])
             theseToPair (That b) = ([], b)
             theseToPair (These a b) = (a, b)
-         in Syn.eval (superpose (yank (base k1)) (yank (base k2))) ((), ())
-              /= theseToPair (Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())),
+         in Syn.eval (superpose (yankFun k1) (yankFun k2)) ((), ())
+              /= theseToPair (Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())),
       checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yank (base (sharedBy rightFirst k1 k2))) ((), ())
-              /= Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ()),
+         in Syn.eval (yankFun (sharedBy rightFirst k1 k2)) ((), ())
+              /= Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ()),
       checkV verbosity "sharedBy Both LeftFirst equals premonoidal left-first product" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -268,8 +275,8 @@ sharedTopic verbosity = do
       checkV verbosity "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yank (base (bodyParL k1 k2))) ((), ())
-              == Syn.eval (yank (base (bodyParR k1 k2))) ((), ()),
+         in Syn.eval (yankFun (bodyParL k1 k2)) ((), ())
+              == Syn.eval (yankFun (bodyParR k1 k2)) ((), ()),
       -- Structural maps are central: they do not touch the shared state,
       -- so order of threading is invisible (Benton–Hyland centrality).
       checkV verbosity "copy witnesses centrality wrt state-touching body at a point" $
@@ -291,17 +298,17 @@ sharedTopic verbosity = do
         let k1 = markerBody 1
             k2 = markerBody 2
             leftOnly = Schedule (,Shared.L) :: Schedule [Int]
-         in Syn.eval (yank (base (sharedBy leftOnly k1 k2))) ((), ()) == This [1, 1, 1],
+         in Syn.eval (yankFun (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
       checkV verbosity "sharedBy R gates left body (output is That only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             rightOnly = Schedule (,Shared.R) :: Schedule [Int]
-         in Syn.eval (yank (base (sharedBy rightOnly k1 k2))) ((), ()) == That [2, 2, 2],
+         in Syn.eval (yankFun (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
       checkV verbosity "sharedBy left-first and right-first both agree on body sets" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            leftResult = Syn.eval (yank (base (sharedBy leftFirst k1 k2))) ((), ())
-            rightResult = Syn.eval (yank (base (sharedBy rightFirst k1 k2))) ((), ())
+            leftResult = Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())
+            rightResult = Syn.eval (yankFun (sharedBy rightFirst k1 k2)) ((), ())
             bodySet = sort . these id id (++)
          in bodySet leftResult == [0, 0, 1, 1, 2, 2]
               && bodySet rightResult == [0, 0, 1, 1, 2, 2],
@@ -314,7 +321,7 @@ sharedTopic verbosity = do
               Op
                 ( Syn.R
                     ( Syn.R
-                        ( Yank
+                        ( YankBody
                             ( Op
                                 ( Syn.R
                                     (Syn.L (SigShared pureLeft (Lift k1) (Lift k2)))
@@ -323,7 +330,7 @@ sharedTopic verbosity = do
                         )
                     )
                 )
-         in eval term ((), ()) == Syn.eval (yank (base (sharedBy pureLeft k1 k2))) ((), ()),
+         in eval term ((), ()) == Syn.eval (yankFun (sharedBy pureLeft k1 k2)) ((), ()),
       checkV verbosity "AlgShared L schedule gates right body" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -333,7 +340,7 @@ sharedTopic verbosity = do
               Op
                 ( Syn.R
                     ( Syn.R
-                        ( Yank
+                        ( YankBody
                             ( Op
                                 ( Syn.R
                                     (Syn.L (SigShared leftOnly (Lift k1) (Lift k2)))
@@ -352,7 +359,7 @@ sharedTopic verbosity = do
               Op
                 ( Syn.R
                     ( Syn.R
-                        ( Yank
+                        ( YankBody
                             ( Op
                                 ( Syn.R
                                     (Syn.L (SigShared rightOnly (Lift k1) (Lift k2)))

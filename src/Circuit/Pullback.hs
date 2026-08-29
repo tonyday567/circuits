@@ -25,7 +25,7 @@ where
 
 import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Layer (run)
 import Circuit.Net (Net)
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
@@ -35,7 +35,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Category (Category (..))
 -- >>> import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
--- >>> import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+-- >>> import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 -- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 -- >>> import Circuit.Net (Net)
 -- >>> import Prelude hiding (id, (.))
@@ -102,13 +102,13 @@ instance Strength (,) Pullback where
 -- eliminated outright rather than iterated.
 --
 -- >>> let body = Pullback (\(dx', dc) -> (2.0 * dc, dx')) :: Pullback (Double, Double) (Double, Double)
--- >>> runPullback (trace body) 1.0
+-- >>> runPullback (yank body) 1.0
 -- 2.0
-instance Traced (,) Pullback where
-  trace (Pullback f) = Pullback $ \dc ->
+instance Yank (,) Pullback where
+  yank (Pullback f) = Pullback $ \dc ->
     let ~(dx, db) = f (dx, dc)
      in db
-  {-# INLINE trace #-}
+  {-# INLINE yank #-}
 
 -- | Pullback-instance of the comonoid structure.
 --
@@ -160,7 +160,9 @@ evalPullback n = runPullback (run n)
 {-# INLINE evalPullback #-}
 
 -- | Cartesian channel plumbing for pullbacks.
-instance Channel (,) Pullback where
+instance Assoc (,) Pullback where
   assoc = Pullback (\((s, s'), x) -> (s, (s', x)))
   assoc' = Pullback (\(s, (s', x)) -> ((s, s'), x))
+
+instance Slide (,) Pullback where
   slide = Pullback (\(s, (s', x)) -> (s', (s, x)))

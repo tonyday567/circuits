@@ -61,7 +61,7 @@ module Circuit.Optic
 where
 
 import Circuit.Category (Category, (.>))
-import Circuit.Channel (Channel (..), Strength (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
 import Circuit.Poles (Poles, iomap)
 import Circuit.Poly (Mono, Morphism, applyLens, lens)
 import Circuit.Tensor (Unit, Unital (..))

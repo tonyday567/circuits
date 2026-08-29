@@ -57,7 +57,7 @@ where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
-import Circuit.Channel (Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
 import Circuit.Channel qualified as Ch
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Trace (SigYank (..), Trace, base, yank)
@@ -541,10 +541,10 @@ instance (Unital t arr) => Unital t (Cat.Op arr) where
 -- base arrow's tensor. It is correct and black-hole-free, but does not fuse
 -- feedback loops. For the fused superposition of two 'Circuit.Trace.yank's,
 -- use 'superpose'.
-instance (Tensor t arr, Traced t' arr) => Tensor t (Trace t' arr) where
+instance (Tensor t arr, Yank t' arr) => Tensor t (Trace t' arr) where
   tensor f g = base (tensor (eval f) (eval g))
 
-instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
+instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
   braid = base braid
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.
@@ -572,7 +572,7 @@ instance (Action t arr, Traced t' arr) => Action t (Trace t' arr) where
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
   forall t arr a b c d.
-  (Tensor t arr, Traced t arr) =>
+  (Tensor t arr, TraceC t arr) =>
   Trace t arr a b ->
   Trace t arr c d ->
   Trace t arr (t a c) (t b d)
@@ -580,25 +580,25 @@ superpose x y =
   case (x, y) of
     (Lift f, Lift g) ->
       base (tensor f g)
-    (Op (R (Yank f)), Lift g) ->
+    (Op (R (YankBody f)), Lift g) ->
       yank (base assoc . base (tensor (eval f) g) . base assoc')
-    (Lift f, Op (R (Yank g))) ->
+    (Lift f, Op (R (YankBody g))) ->
       yank (base shuffle . base (tensor f (eval g)) . base shuffle)
-    (Op (R (Yank f)), Op (R (Yank g))) ->
+    (Op (R (YankBody f)), Op (R (YankBody g))) ->
       yank (base post . base (tensor (eval f) (eval g)) . base pre)
     -- Non-normal forms fall back to the lawful independent-evaluation instance.
     _ ->
       base (tensor (eval x) (eval y))
   where
-    assoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
-    assoc = Ch.assoc
+    reassoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
+    reassoc = Ch.assoc
 
-    assoc' :: forall x y z. arr (t x (t y z)) (t (t x y) z)
-    assoc' = Ch.assoc'
+    reassoc' :: forall x y z. arr (t x (t y z)) (t (t x y) z)
+    reassoc' = Ch.assoc'
 
     shuffle :: forall x y z. arr (t x (t y z)) (t y (t x z))
     shuffle = Ch.slide
 
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
-    pre = assoc .> strength shuffle .> assoc'
-    post = assoc .> strength shuffle .> assoc'
+    pre = reassoc .> strength shuffle .> reassoc'
+    post = reassoc .> strength shuffle .> reassoc'

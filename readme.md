@@ -11,9 +11,10 @@ draws on when it folds. ([open full page](other/circuits-class.html))
 ```mermaid
 graph LR
   Category["Category"]
-  Channel["Channel"]
+  Assoc["Assoc"]
+  Slide["Slide"]
   Strength["Strength"]
-  Traced["Traced"]
+  Yank["Yank"]
   Tensor["Tensor"]
   Action["Action"]
   Bimonoid["Bimonoid"]
@@ -24,14 +25,16 @@ graph LR
   Trace["Trace"]
 
   Category -.-> Free
-  Channel -.-> Trace
+  Assoc -.-> Trace
+  Slide -.-> Trace
   Strength -.-> Trace
-  Traced -.-> Trace
+  Yank -.-> Trace
   Action -.-> SMC
   Action -.-> Net
   Bimonoid -.-> Net
 
-  Category --> Channel --> Strength --> Traced
+  Category --> Assoc --> Strength --> Yank
+  Category --> Slide --> Strength
   Category --> Tensor --> Action
   Free --> SMC --> Net
   Net --> Trace
@@ -41,9 +44,10 @@ graph LR
   linkStyle 12,13,14 stroke:#8FB83A,stroke-width:2px
 
   style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
-  style Channel fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Assoc fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Slide fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
-  style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style Yank fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
   style Tensor fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
@@ -61,9 +65,10 @@ graph LR
   Category["Circuit.Category"]
 
   subgraph Channel ["Circuit.Channel"]
-    ChannelClass["Channel"]
+    Assoc["Assoc"]
+    Slide["Slide"]
     Strength["Strength"]
-    Traced["Traced"]
+    Yank["Yank"]
   end
 
   subgraph Tensor ["Circuit.Tensor"]
@@ -78,22 +83,23 @@ graph LR
   Poles["Circuit.Poles"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
-  System["Circuit.System"]
+  Moore["Circuit.Moore"]
   Process["Circuit.Process"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
   Par["Circuit.Par"]
   Linear["Circuit.Linear"]
 
-  Category --> ChannelClass --> Strength --> Traced
+  Category --> Assoc --> Strength --> Yank
+  Category --> Slide --> Strength
   Category --> TensorClass --> Action
   Net --> Trace
   Trace --> Hyper
   Dagger --> Net
   Body --> Trace
   Poly --> Body
-  Poly --> System
-  System --> Process
+  Poly --> Moore
+  Moore --> Process
   Shared --> Body
   Bimonoid --> Net
   Par --> Shared
@@ -109,9 +115,10 @@ graph LR
   style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
   style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
-  style ChannelClass fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Assoc fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
+  style Slide fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
-  style Traced fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style Yank fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
   style TensorClass fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
@@ -123,7 +130,7 @@ graph LR
   style Poles fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Body fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style System fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Moore fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Process fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
@@ -138,8 +145,9 @@ Everything is built over a base arrow that you bring — `(->)`, `K m`,
 semantics; it adds structure along two ladders and one common shape.
 
 **A ladder of laws.** The type classes form chains out of `Category`:
-`Channel → Strength → Traced` (monoidal structure, tensorial strength, feedback
-via trace) and `Tensor → Action` (the concrete `(,)` and `Either` machinery).
+`Assoc / Slide → Strength → Yank` (monoidal associator, slide, tensorial
+strength, feedback via yank) and `Tensor → Action` (the concrete `(,)` and
+`Either` machinery).
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
@@ -184,7 +192,7 @@ functors.
   giving `Circuit.Poly.Channel` its interactive channel model.
 
 The recent refactor crystallised this around `Body t ch arr a b`. Everything
-stateful — `Process`, `SystemT`, `Poles` — is a specialisation or projection of
+stateful — `Process`, `Moore`, `Poles` — is a specialisation or projection of
 it.
 
 In many of the free objects we tag common computation patterns: function

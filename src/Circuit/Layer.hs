@@ -50,7 +50,7 @@ module Circuit.Layer
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -161,9 +161,11 @@ freeze (Lift f) = f
 freeze (Compose g f) = freeze g . freeze f
 
 -- | Lift the 'Channel' structure through 'Free'.
-instance (Channel t arr) => Channel t (Free arr) where
+instance (Assoc t arr) => Assoc t (Free arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
+
+instance (Slide t arr) => Slide t (Free arr) where
   slide = Lift slide
 
 -- | Lift the 'Strength' class through 'Free'.
@@ -172,8 +174,8 @@ instance (Channel t arr) => Channel t (Free arr) where
 instance (Strength t arr) => Strength t (Free arr) where
   strength = Lift . strength . freeze
 
--- | Lift the 'Traced' class through 'Free'.
+-- | Lift the 'Yank' class through 'Free'.
 --
--- A loop body in @Free arr@ is frozen before calling the base 'trace'.
-instance (Traced t arr) => Traced t (Free arr) where
-  trace = Lift . trace . freeze
+-- A loop body in @Free arr@ is frozen before calling the base 'yank'.
+instance (Yank t arr) => Yank t (Free arr) where
+  yank = Lift . yank . freeze

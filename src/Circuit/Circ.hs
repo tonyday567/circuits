@@ -87,7 +87,7 @@ where
 
 import Circuit.Body (Body (..), SomeBody (..), cascadeBody)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Channel (Channel (..), Strength (..))
+import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
@@ -337,7 +337,7 @@ whiskerSq f g sq =
 --   feedback (Circ (Body f)) = Circ (Body (assoc .> f .> assoc'))
 -- @
 feedback ::
-  (Channel t arr) =>
+  (Assoc t arr) =>
   Circ t arr (t s a) (t s b) ->
   Circ t arr a b
 feedback (Circ (Body f)) = Circ $ Body $ assoc .> f .> assoc'

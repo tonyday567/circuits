@@ -13,7 +13,7 @@
 -- @Kleisli@ evaluation helpers without changing the type.
 module Circuit.Poly.Channel
   ( -- * Poly-indexed channel
-    PChan (..),
+    Channel (..),
 
     -- * Observation and interaction
     emitChannel,
@@ -26,6 +26,15 @@ module Circuit.Poly.Channel
   )
 where
 
+import Circuit.Moore
+  ( Moore,
+    MooreEval (..),
+    evalToMoore,
+    fromEvalMoore,
+    lensAsMoore,
+    moore,
+    toEvalMoore,
+  )
 import Circuit.Poly
   ( Dir,
     Eval (..),
@@ -36,49 +45,40 @@ import Circuit.Poly
     lens,
     runMorphism,
   )
-import Circuit.System
-  ( System,
-    SystemEval (..),
-    evalToSystem,
-    fromEvalSystem,
-    lensAsSystem,
-    system,
-    toEvalSystem,
-  )
 import Control.Category (id, (.))
 import Data.Functor (void)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Poly (Mono, Morphism, lens, applyLens)
--- >>> import Circuit.System (System)
+-- >>> import Circuit.Moore (Moore)
 
 -- | A channel whose interface is the polynomial @p@.
 --
--- Internally it is a Moore system with hidden state @s@. The state is
+-- Internally it is a Moore machine with hidden state @s@. The state is
 -- existentially quantified so that different channel constructors can use
 -- different state types.
-data PChan arr (p :: Poly) where
+data Channel arr (p :: Poly) where
   Ch ::
-    (SystemEval p) =>
+    (MooreEval p) =>
     -- | Current state of the Moore machine.
     s ->
-    -- | The system governing the channel interface.
-    System arr s p ->
-    PChan arr p
+    -- | The machine governing the channel interface.
+    Moore (,) arr s p ->
+    Channel arr p
 
 -- | Observe the current output of a @(->)@ channel.
 --
 -- The observation is an @Eval p ()@: a position together with a trivial
 -- direction consumer. The position is the channel's current output; the
 -- direction consumer is how a future input will advance the channel.
-emitChannel :: PChan (->) p -> Eval p ()
-emitChannel (Ch s sys) = void (toEvalSystem sys s)
+emitChannel :: Channel (->) p -> Eval p ()
+emitChannel (Ch s sys) = void (toEvalMoore sys s)
 
 -- | Commit an input direction to a @(->)@ channel, advancing its state.
-commitChannel :: PChan (->) p -> Dir p -> PChan (->) p
+commitChannel :: Channel (->) p -> Dir p -> Channel (->) p
 commitChannel (Ch s sys) d =
-  let (_pos, next) = evalToSystem (toEvalSystem sys s)
+  let (_pos, next) = evalToMoore (toEvalMoore sys s)
    in Ch (next d) sys
 
 -- | Identity channel on a monomial interface @Mono a a@.
@@ -86,15 +86,15 @@ commitChannel (Ch s sys) d =
 -- Output is the current state; next state is the input direction.  An
 -- initial state must be supplied because a Moore machine has no input
 -- before the first commit.
-idChannel :: a -> PChan (->) (Mono a a)
-idChannel s0 = Ch s0 (lensAsSystem (lens id (\_ d -> d)))
+idChannel :: a -> Channel (->) (Mono a a)
+idChannel s0 = Ch s0 (lensAsMoore (lens id (\_ d -> d)))
 
 -- | Constant-output channel on a monomial interface @Mono a b@.
 --
 -- Output is always @b@; the state is the constant value and is preserved
 -- across commits (the input direction is ignored).
-constChannel :: b -> PChan (->) (Mono a b)
-constChannel b = Ch b (lensAsSystem (lens (const b) const))
+constChannel :: b -> Channel (->) (Mono a b)
+constChannel b = Ch b (lensAsMoore (lens (const b) const))
 
 -- | Map a polynomial morphism over a @(->)@ channel.
 --
@@ -102,14 +102,14 @@ constChannel b = Ch b (lensAsSystem (lens (const b) const))
 -- directions. This is the functorial action of 'Circuit.Poly.Morphism' on
 -- channels.
 mapChannel ::
-  (SystemEval p, SystemEval q) =>
+  (MooreEval p, MooreEval q) =>
   Morphism p q ->
-  PChan (->) p ->
-  PChan (->) q
+  Channel (->) p ->
+  Channel (->) q
 mapChannel m (Ch s sys) =
-  Ch s (system step)
+  Ch s (moore step)
   where
     step (s', d') =
-      let tgtEval = runMorphism m (toEvalSystem sys s')
-          (pos, next) = evalToSystem tgtEval
+      let tgtEval = runMorphism m (toEvalMoore sys s')
+          (pos, next) = evalToMoore tgtEval
        in (next d', pos)
