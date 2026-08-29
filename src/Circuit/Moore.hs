@@ -90,7 +90,6 @@ module Circuit.Moore
 
     -- * Coalgebras
     Coalgebra (..),
-    Step,
     coalgebraToMoore,
     composeCoalgebra,
     mooreToCoalgebraMono,
@@ -423,20 +422,15 @@ runMooreSumHet sys s = case toEvalMoore sys s of
   ES (Left (EP (EK o, EE f))) -> SumStepL o f
   ES (Right (EP (EK o, EE f))) -> SumStepR o f
 
--- | A step observation in @q@, parameterized by state. 'Eval' is already the
--- GADT that pairs each position with its branch-appropriate direction consumer,
--- so it avoids the flat 'Dir q' family that makes sums impossible.
-type Step s q = Eval q s
-
 -- | Spivak's @[p,q]@-coalgebra. State @s@ is runtime, not a type index.
 --
 -- * 'act' gives the wiring pattern as a polynomial morphism.
 -- * 'upd' takes a state and an input observation in @p@ and returns an output
---   observation in @q@, i.e. a 'Step' pairing the presented position with its
+--   observation in @q@, i.e. an 'Eval' pairing the presented position with its
 --   own direction consumer.
 data Coalgebra s p q = Coalgebra
   { act :: s -> Morphism p q,
-    upd :: s -> Eval p s -> Step s q
+    upd :: s -> Eval p s -> Eval q s
   }
 
 -- | Run a @Coalgebra s 'Y q@ as a 'Moore' over @q@.
