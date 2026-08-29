@@ -89,10 +89,11 @@ module Circuit
     strength,
 
     -- * Structural channel moves
+    Channel,
     slide,
 
     -- * Polynomial channels
-    Channel (..),
+    PChan (..),
     emitChannel,
     commitChannel,
     idChannel,
@@ -297,7 +298,8 @@ import Circuit.Body
   )
 import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
-  ( Strength,
+  ( Channel,
+    Strength,
     Traced,
     slide,
     strength,
@@ -404,7 +406,7 @@ import Circuit.Poly
     prism,
   )
 import Circuit.Poly.Channel
-  ( Channel (..),
+  ( PChan (..),
     commitChannel,
     constChannel,
     emitChannel,

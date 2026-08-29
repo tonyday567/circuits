@@ -13,7 +13,7 @@
 -- @Kleisli@ evaluation helpers without changing the type.
 module Circuit.Poly.Channel
   ( -- * Poly-indexed channel
-    Channel (..),
+    PChan (..),
 
     -- * Observation and interaction
     emitChannel,
@@ -58,25 +58,25 @@ import Prelude hiding (id, (.))
 -- Internally it is a Moore system with hidden state @s@. The state is
 -- existentially quantified so that different channel constructors can use
 -- different state types.
-data Channel arr (p :: Poly) where
+data PChan arr (p :: Poly) where
   Ch ::
     (SystemEval p) =>
     -- | Current state of the Moore machine.
     s ->
     -- | The system governing the channel interface.
     System arr s p ->
-    Channel arr p
+    PChan arr p
 
 -- | Observe the current output of a @(->)@ channel.
 --
 -- The observation is an @Eval p ()@: a position together with a trivial
 -- direction consumer. The position is the channel's current output; the
 -- direction consumer is how a future input will advance the channel.
-emitChannel :: Channel (->) p -> Eval p ()
+emitChannel :: PChan (->) p -> Eval p ()
 emitChannel (Ch s sys) = void (toEvalSystem sys s)
 
 -- | Commit an input direction to a @(->)@ channel, advancing its state.
-commitChannel :: Channel (->) p -> Dir p -> Channel (->) p
+commitChannel :: PChan (->) p -> Dir p -> PChan (->) p
 commitChannel (Ch s sys) d =
   let (_pos, next) = evalToSystem (toEvalSystem sys s)
    in Ch (next d) sys
@@ -86,14 +86,14 @@ commitChannel (Ch s sys) d =
 -- Output is the current state; next state is the input direction.  An
 -- initial state must be supplied because a Moore machine has no input
 -- before the first commit.
-idChannel :: a -> Channel (->) (Mono a a)
+idChannel :: a -> PChan (->) (Mono a a)
 idChannel s0 = Ch s0 (lensAsSystem (lens id (\_ d -> d)))
 
 -- | Constant-output channel on a monomial interface @Mono a b@.
 --
 -- Output is always @b@; the state is the constant value and is preserved
 -- across commits (the input direction is ignored).
-constChannel :: b -> Channel (->) (Mono a b)
+constChannel :: b -> PChan (->) (Mono a b)
 constChannel b = Ch b (lensAsSystem (lens (const b) const))
 
 -- | Map a polynomial morphism over a @(->)@ channel.
@@ -104,8 +104,8 @@ constChannel b = Ch b (lensAsSystem (lens (const b) const))
 mapChannel ::
   (SystemEval p, SystemEval q) =>
   Morphism p q ->
-  Channel (->) p ->
-  Channel (->) q
+  PChan (->) p ->
+  PChan (->) q
 mapChannel m (Ch s sys) =
   Ch s (system step)
   where
