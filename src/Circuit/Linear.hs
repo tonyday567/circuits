@@ -39,7 +39,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 -- | Closed monoidal structure: @A ⊸ B@ is the right adjoint of tensor.
 --
 -- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
--- 'eval' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
+-- 'evalLinear' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
 -- That is the existing Chu convention; it differs from @uncurry id@ by a
 -- 'Circuit.Tensor.braid'.  'lolli' is identity on the implication object, used to mention
 -- it.
@@ -59,7 +59,7 @@ class (Category arr) => Lolli (t :: Type -> Type -> Type) (arr :: Type -> Type -
     arr (LolliT t arr a b) (LolliT t arr a b)
 
   -- | Evaluation counit @A ⊗ (A ⊸ B) -> B@.
-  eval ::
+  evalLinear ::
     arr (t a (LolliT t arr a b)) b
 
   -- | Curry the left factor: @(A ⊗ B -> C) -> (A -> B ⊸ C)@.
@@ -78,8 +78,8 @@ instance Lolli (,) (->) where
   type LolliT (,) (->) a b = a -> b
   lolli _ = id
   {-# INLINE lolli #-}
-  eval (a, f) = f a
-  {-# INLINE eval #-}
+  evalLinear (a, f) = f a
+  {-# INLINE evalLinear #-}
   curry f a b = f (a, b)
   {-# INLINE curry #-}
   uncurry g (a, b) = g a b

@@ -28,7 +28,7 @@
 --
 -- * 'scan' is the reference runner over lists.
 -- * 'scanStream' generalizes this to any 'Uncons' input and 'Cons' output.
--- * 'encode' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
+-- * 'encodeList' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
 --   lists; the two runners are verified equivalent by oracle.
 -- * The arrow-level 'Yank' Either instance is per-tick Conway/Elgot settle,
 --   not cross-tick state feedback; see 'register' for the latter.
@@ -59,7 +59,7 @@ module Circuit.Process
     scanStream,
     fold,
     foldStream,
-    encode,
+    encodeList,
     encodeStream,
 
     -- * Mealy-style processes
@@ -490,9 +490,9 @@ encodeStream p = case processToBodyStream p of
   SomeBody _ (Body b) -> yank (base b)
 
 -- | List specialization of 'encodeStream'.
-encode :: Process a b -> Trace Either (->) [a] [b]
-encode = encodeStream
-{-# INLINE encode #-}
+encodeList :: Process a b -> Trace Either (->) [a] [b]
+encodeList = encodeStream
+{-# INLINE encodeList #-}
 
 -- * Mealy-style processes
 

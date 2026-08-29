@@ -31,10 +31,9 @@
 module Circuit.SMC
   ( -- * Free symmetric monoidal category
     SMC,
-    lift,
 
     -- * Dagger mirror
-    mirror,
+    mirrorSMC,
 
     -- * Constraint synonym used by Net's Layer law
     FreeSMC,
@@ -86,21 +85,17 @@ instance (Action w arr') => Algebra (SigSwap w) arr arr' where
 -- | Free symmetric monoidal category over wiring tensor @w@.
 type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 
--- | Lift a base arrow into the free symmetric monoidal category.
-lift :: arr a b -> SMC w arr a b
-lift = Lift
-
 -- Instances for the free symmetric monoidal category
 
 instance (Category arr) => Category (SMC w arr) where
-  id = lift id
+  id = Lift id
   f . g = Op (L (SigCompose f g))
 
 instance (Unital w arr) => Unital w (SMC w arr) where
-  unitl = lift T.unitl
-  unitl' = lift T.unitl'
-  unitr = lift T.unitr
-  unitr' = lift T.unitr'
+  unitl = Lift T.unitl
+  unitl' = Lift T.unitl'
+  unitr = Lift T.unitr
+  unitr' = Lift T.unitr'
 
 instance (Tensor w arr) => Tensor w (SMC w arr) where
   tensor f g = Op (R (L (SigPar f g)))
@@ -109,33 +104,33 @@ instance (Action w arr) => Action w (SMC w arr) where
   braid = Op (R (R SigSwap))
 
 instance (Category arr, Assoc t arr) => Assoc t (SMC w arr) where
-  assoc = lift assoc
-  assoc' = lift assoc'
+  assoc = Lift assoc
+  assoc' = Lift assoc'
 
 instance (Category arr, Slide t arr) => Slide t (SMC w arr) where
-  slide = lift slide
+  slide = Lift slide
 
 instance (Strength t arr, Action w arr) => Strength t (SMC w arr) where
-  strength f = lift (strength (eval f))
+  strength f = Lift (strength (eval f))
 
 instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
-  yank body = lift (yank (eval body))
+  yank body = Lift (yank (eval body))
 
--- Dagger mirror
+-- * Dagger mirror
 
 -- | Mirror an 'SMC' built over 'Dg.Dagger'.
 --
--- Reverses composition, transposes each lifted arrow, and leaves 'Circuit.Tensor.tensor'
+-- Reverses composition, transposes each Lifted arrow, and leaves 'Circuit.Tensor.tensor'
 -- and 'Circuit.Tensor.braid' self-dual. This is the structural transpose of the SMC
--- layer that 'Circuit.Net.mirror' delegates to.
-mirror ::
+-- layer that 'Circuit.Net.mirrorSMC' delegates to.
+mirrorSMC ::
   forall w arr a b.
   SMC w (Dg.Dagger arr) a b ->
   SMC w (Dg.Dagger arr) b a
-mirror (Lift d) = Lift (Dg.transpose d)
-mirror (Op op) = case op of
-  L (SigCompose g f) -> Op (L (SigCompose (mirror f) (mirror g)))
-  R (L (SigPar f g)) -> Op (R (L (SigPar (mirror f) (mirror g))))
+mirrorSMC (Lift d) = Lift (Dg.transpose d)
+mirrorSMC (Op op) = case op of
+  L (SigCompose g f) -> Op (L (SigCompose (mirrorSMC f) (mirrorSMC g)))
+  R (L (SigPar f g)) -> Op (R (L (SigPar (mirrorSMC f) (mirrorSMC g))))
   R (R SigSwap) -> Op (R (R SigSwap))
 
 -- Constraint synonym used by Net's Layer law

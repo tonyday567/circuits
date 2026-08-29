@@ -2,7 +2,12 @@
 --
 -- == Usage
 --
+-- This module re-exports the whole public API. Because it brings its own
+-- 'id', '(.)', 'curry' and 'uncurry', importing it unqualified alongside
+-- 'Prelude' requires hiding the duplicates:
+--
 -- @
+-- import Prelude hiding (curry, id, uncurry, (.))
 -- import Circuit
 -- @
 --
@@ -17,7 +22,7 @@
 --
 -- === Iteration
 --
--- Use the `Either` tensor for loops that terminate.
+-- Use the 'Either' tensor for loops that terminate.
 --
 -- >>> let step n = if n < 5 then Left (n + 1) else Right n
 -- >>> yank (either step step) (0 :: Int)
@@ -77,13 +82,18 @@
 -- * __Representation changes__: `encode` (@Trace@ to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
 module Circuit
-  ( -- * Trace (free traced category syntax)
+  ( -- * Category (local arrow hierarchy)
+    Category (..),
+    K (..),
+    Op (..),
+    FunctionLike (..),
+    Pointed (..),
+
+    -- * Trace (free traced category syntax)
     Trace,
     base,
     yank,
-    Yank,
-    Strength,
-    strength,
+    SigYank (..),
 
     -- * Structural channel moves
     Assoc,
@@ -91,6 +101,29 @@ module Circuit
     assoc',
     Slide,
     slide,
+    Strength,
+    strength,
+    Yank,
+    TraceC,
+
+    -- * Tensor action and braiding
+    Tensor (..),
+    Action (..),
+    Unital (..),
+    TensorSeed (..),
+    Unit,
+    Distributive (..),
+    Bias (..),
+    superpose,
+    assocL,
+    assocR,
+    coassoc,
+    coassoc',
+    coseed,
+    coabsorbL,
+    coabsorbR,
+    coreleaseL,
+    coreleaseR,
 
     -- * Polynomial channels
     Channel (..),
@@ -100,6 +133,37 @@ module Circuit
     constChannel,
     mapChannel,
 
+    -- * Polynomial functors
+    Poly,
+    Eval (..),
+    Pos,
+    Dir,
+    Mono,
+    Morphism (..),
+    runMorphism,
+    lens,
+    dagger,
+    applyLens,
+    prism,
+    prismMatch,
+    Netlist (..),
+    netRoundTrip,
+    tensorUnitorL,
+    tensorUnitorL',
+    tensorUnitorR,
+    tensorUnitorR',
+    morphAt,
+    parT,
+    nestedToComp,
+    compToNested,
+    compUnitorL,
+    compUnitorL',
+    compUnitorR,
+    compUnitorR',
+    compAssocL,
+    compAssocR,
+    tensorEval,
+
     -- * Body (knot-body category)
     Body (..),
     SomeBody (..),
@@ -108,7 +172,7 @@ module Circuit
     runFlowchart,
     runSomeBody,
 
-    -- * Circ (loose bicategory of bodies with varying carriers)
+    -- * Circ (loose bicategory of bodies)
     Circ (..),
     idCirc,
     Sq (..),
@@ -129,60 +193,102 @@ module Circuit
     leftWhisker,
     hcompose,
     whiskerSq,
-
-    -- * Feedback on Circ
     feedback,
+    elgotBody,
+    elgotDagger,
+    elgotFeedbackBody,
+    bisimilarStates,
+    isBisimulation,
+    maxBisimulation,
 
     -- * Moore machines
-    Moore,
+    Moore (..),
     moore,
     mooreMorphism,
     mooreMachine,
+    MooreEval (..),
+    fromEvalMoore,
+    toEvalMoore,
+    step,
     monoIn,
     monoDir,
     runMooreMono,
-    Mono,
-    Morphism (..),
-    lens,
-    applyLens,
-    prism,
-    Pos,
-    Dir,
+    parWiring,
+    SomePoles (..),
+    runSomePoles,
+    mooreToPolesWithProbe,
+    mooreWithSeedToPoles,
+    mooreAsLens,
+    lensAsMoore,
+    duplicateMoore,
+    branchMoore,
+    runMooreSum,
+    branchMooreHet,
+    runMooreSumHet,
+    SumStep (..),
+    Coalgebra (..),
+    coalgebraToMoore,
+    composeCoalgebra,
+    mooreToCoalgebraMono,
 
     -- * Stream transformer (first-input-seeded processes)
     Process (..),
-    scan,
-    fold,
+    Boundary (..),
+    isMark,
+    isPayload,
     mooreToProcess,
+    mooreAsProcess,
     markMoore,
-    delay,
-    register,
+    iterateMoore,
+    after,
+    scan,
+    scanStream,
+    fold,
+    foldStream,
+    encodeList,
+    encodeStream,
     mealy,
     runMealy,
+    runMealyStream,
+    delay,
+    register,
+    processToBody,
+    processToSomeBody,
 
-    -- * Channel poles (bi-polar effectful/process API; still the right tool for
-
-    --   Kleisli IO/STM plumbing until Channel gains Kleisli evaluation)
+    -- * Channel poles (bi-polar effectful/process API)
     Out (..),
     In (..),
     Poles (..),
     close,
+    plug,
     prefixIn,
     suffixOut,
+    companionTight,
+    conjointTight,
+    HasDual (..),
+    copycat,
     poles,
+    poles0,
     polesK,
     splay,
+    splay0,
+    compose,
+    compose0,
     (>:>),
-    HasDual (..),
-
-    -- * Copycat / multiplicative excluded middle
-    copycat,
-
-    -- * Boxes
+    polesTensor,
+    iomap,
+    imap,
+    omap,
     box,
     boxAsymmetric,
+    pair,
+    race,
 
-    -- * Free
+    -- * Dagger (free dagger category)
+    Dagger (..),
+    transpose,
+
+    -- * Free category
     Free,
     freeze,
 
@@ -191,7 +297,16 @@ module Circuit
     Cat2,
     (:~>),
     lower,
+
+    -- * Syntax substrate
+    Sig,
+    (:+:),
+    Syntax (Lift),
+    Algebra (..),
     eval,
+    evalInto,
+    SigCompose (..),
+    AlgCat,
 
     -- * Operators
     (.>),
@@ -206,17 +321,44 @@ module Circuit
     CopyDiscard,
     MergeZero,
     Bimonoid,
-
-    -- * Dagger (free dagger category)
-    Dagger (..),
-    transpose,
+    SigCopy (..),
+    SigDiscard (..),
+    SigCopyDiscard,
+    SigPlus (..),
+    SigZero (..),
+    SigMergeZero,
+    Affine,
+    Relevant,
+    Cartesian,
+    CoAffine,
+    CoRelevant,
+    CopyT (..),
+    DiscardT (..),
+    MergeT (..),
+    ZeroT (..),
+    BimonoidT,
 
     -- * SMC
     SMC,
+    mirrorSMC,
+    FreeSMC,
+    SigPar (..),
+    SigSwap (..),
 
     -- * Net
     Net,
+    widen,
+    sift,
     melt,
+    mirrorNet,
+    AlgRelevant,
+    AlgAffine,
+    AlgCartesian,
+    AlgCoRelevant,
+    AlgCoAffine,
+    AlgCocartesian,
+    AlgBimonoidal,
+    AlgNet,
 
     -- * Pullback (linear cotangent maps)
     Pullback (..),
@@ -227,10 +369,12 @@ module Circuit
     HyperA (..),
     lift,
     observe,
+    baseHyper,
     push,
     runHyper,
     liftK,
     observeK,
+    baseK,
     pushK,
     runHyperK,
     encode,
@@ -238,26 +382,8 @@ module Circuit
     encodeEither,
     runEither,
 
-    -- * Tensor
-    superpose,
-
-    -- * Stamped values
-    Stamped (..),
-
-    -- * Additive poles
-    Bias (..),
-
-    -- * Par (multiplicative disjunction)
-    Bot,
-    Par (..),
-    distL,
-    distR,
-    mix,
-
-    -- * Linear implication (internal hom)
+    -- * Linear implication and exponentials
     Lolli (..),
-
-    -- * Exponentials
     Exponential (..),
     BangCopy (..),
     BangWeaken (..),
@@ -267,26 +393,107 @@ module Circuit
     AffineBang,
     RelevantBang,
 
-    -- * Channel product
-    Tensor (..),
-    Action (..),
-    Unital (..),
+    -- * Par (multiplicative disjunction)
+    Bot,
+    Par (..),
+    distL,
+    distR,
+    mix,
 
     -- * Shared-medium fusion (the ⅋ connective)
     Pick (..),
     Schedule (..),
     Shared (..),
+    SigShared (..),
+    AlgShared,
+
+    -- * Finite spans
+    Span (..),
+    pairs,
+    companionSpan,
+    conjointSpan,
+    composeS,
+    identityS,
+    presentS,
+    refinesS,
+    bodyFromSpan,
+    spanFromBody,
+    someBodyFromSpan,
+    spanDistance,
+
+    -- * Mixed optics
+    Optic (..),
+    SomeOptic (..),
+    withSomeOptic,
+    identityOptic,
+    composeOptic,
+    identitySomeOptic,
+    composeSomeOptic,
+    opticUpdate,
+    someOpticUpdate,
+    opticPoles,
+    opticAsLens,
+    lensAsOptic,
+
+    -- * Finite relations over GF(2)
+    FinObj (..),
+    KnownDim (..),
+    FinRel (..),
+    finId,
+    compFinRel,
+    parFinRel,
+    unitlFinRel,
+    unitl'FinRel,
+    unitrFinRel,
+    unitr'FinRel,
+    swapFinRel,
+    assocFinRel,
+    assoc'FinRel,
+    slideFinRel,
+    strengthFinRel,
+    traceFinRel,
+    finCopy,
+    finDiscard,
+    finPlus,
+    finZero,
+    finScalar,
+    wiring,
+
+    -- * Stream algebra
+    These (..),
+    Uncons (..),
+    Cons (..),
+    Snoc (..),
+
+    -- * Stamped values
+    Stamped (..),
   )
 where
 
 import Circuit.Bimonoid
-  ( Bimonoid,
+  ( Affine,
+    Bimonoid,
+    BimonoidT,
+    CoAffine,
+    CoRelevant,
+    Cartesian,
     Copy (..),
     CopyDiscard,
+    CopyT (..),
     Discard (..),
+    DiscardT (..),
     Merge (..),
     MergeZero,
+    MergeT (..),
+    Relevant,
+    SigCopy (..),
+    SigCopyDiscard,
+    SigDiscard (..),
+    SigMergeZero,
+    SigPlus (..),
+    SigZero (..),
     Zero (..),
+    ZeroT (..),
   )
 import Circuit.Body
   ( Body (..),
@@ -296,16 +503,23 @@ import Circuit.Body
     runFlowchart,
     runSomeBody,
   )
-import Circuit.Category ((.>), (<|), (|>))
-import Circuit.Traced
-  ( Assoc,
-    Slide,
-    Strength,
-    Yank,
-    assoc,
-    assoc',
-    slide,
-    strength,
+import Circuit.Category
+  ( Category (..),
+    FunctionLike (..),
+    K (..),
+    Op (..),
+    Pointed (..),
+    (.>),
+    (<|),
+    (|>),
+  )
+import Circuit.Channel
+  ( Channel (..),
+    commitChannel,
+    constChannel,
+    emitChannel,
+    idChannel,
+    mapChannel,
   )
 import Circuit.Circ
   ( Circ (..),
@@ -314,13 +528,19 @@ import Circuit.Circ
     acrossThenDown,
     associator,
     associatorSq,
+    bisimilarStates,
     cascade,
     downThenAcross,
+    elgotBody,
+    elgotDagger,
+    elgotFeedbackBody,
     feedback,
     hcompose,
     idCirc,
     idSq,
+    isBisimulation,
     leftWhisker,
+    maxBisimulation,
     rightWhisker,
     unitorLeft,
     unitorLeftSq,
@@ -334,9 +554,35 @@ import Circuit.Dagger
   ( Dagger (..),
     transpose,
   )
+import Circuit.FinRel
+  ( FinObj (..),
+    FinRel (..),
+    KnownDim (..),
+    assocFinRel,
+    assoc'FinRel,
+    compFinRel,
+    finCopy,
+    finDiscard,
+    finId,
+    finPlus,
+    finScalar,
+    finZero,
+    parFinRel,
+    slideFinRel,
+    strengthFinRel,
+    swapFinRel,
+    traceFinRel,
+    unitlFinRel,
+    unitl'FinRel,
+    unitrFinRel,
+    unitr'FinRel,
+    wiring,
+  )
 import Circuit.Hyper
   ( Hyper,
     HyperA (..),
+    baseHyper,
+    baseK,
     encode,
     encodeEither,
     encodeK,
@@ -352,11 +598,10 @@ import Circuit.Hyper
   )
 import Circuit.Layer
   ( Cat2,
-    Free (..),
+    Free,
     Layer (..),
     freeze,
     lower,
-    run,
     (:~>),
   )
 import Circuit.Linear
@@ -365,23 +610,73 @@ import Circuit.Linear
     BangWeaken (..),
     Exponential (..),
     LinearBang,
-    Lolli (curry, lolli, uncurry),
+    Lolli (..),
     RelevantBang,
     WhyNotIntro (..),
     WhyNotMonoid (..),
+    curry,
+    evalLinear,
+    lolli,
+    uncurry,
   )
 import Circuit.Moore
-  ( Moore,
-    monoDir,
-    monoIn,
+  ( Coalgebra (..),
+    Moore (..),
+    MooreEval (..),
+    SomePoles (..),
+    SumStep (..),
+    branchMoore,
+    branchMooreHet,
+    coalgebraToMoore,
+    composeCoalgebra,
+    duplicateMoore,
+    fromEvalMoore,
+    lensAsMoore,
     moore,
+    mooreAsLens,
     mooreMachine,
     mooreMorphism,
+    mooreToCoalgebraMono,
+    mooreToPolesWithProbe,
+    mooreWithSeedToPoles,
+    monoDir,
+    monoIn,
+    parWiring,
     runMooreMono,
+    runMooreSum,
+    runMooreSumHet,
+    runSomePoles,
+    step,
+    toEvalMoore,
   )
 import Circuit.Net
-  ( Net,
+  ( AlgAffine,
+    AlgBimonoidal,
+    AlgCartesian,
+    AlgCoAffine,
+    AlgCoRelevant,
+    AlgCocartesian,
+    AlgNet,
+    AlgRelevant,
+    Net,
     melt,
+    mirrorNet,
+    sift,
+    widen,
+  )
+import Circuit.Optic
+  ( Optic (..),
+    SomeOptic (..),
+    composeOptic,
+    composeSomeOptic,
+    identityOptic,
+    identitySomeOptic,
+    lensAsOptic,
+    opticAsLens,
+    opticPoles,
+    opticUpdate,
+    someOpticUpdate,
+    withSomeOptic,
   )
 import Circuit.Par
   ( Bot,
@@ -391,69 +686,167 @@ import Circuit.Par
     mix,
   )
 import Circuit.Poles
-  ( Bias (..),
-    HasDual (..),
+  ( HasDual (..),
     In (..),
     Out (..),
     Poles (..),
     box,
     boxAsymmetric,
     close,
+    companionTight,
+    compose,
+    compose0,
+    conjointTight,
     copycat,
+    imap,
+    iomap,
+    omap,
+    pair,
+    plug,
     poles,
+    poles0,
     polesK,
+    polesTensor,
     prefixIn,
+    race,
     splay,
+    splay0,
     suffixOut,
     (>:>),
   )
 import Circuit.Poly
   ( Dir,
+    Eval (..),
     Mono,
     Morphism (..),
+    Netlist (..),
+    Poly,
     Pos,
     applyLens,
+    compAssocL,
+    compAssocR,
+    compToNested,
+    compUnitorL,
+    compUnitorL',
+    compUnitorR,
+    compUnitorR',
+    dagger,
     lens,
+    morphAt,
+    nestedToComp,
+    netRoundTrip,
+    parT,
     prism,
-  )
-import Circuit.Channel
-  ( Channel (..),
-    commitChannel,
-    constChannel,
-    emitChannel,
-    idChannel,
-    mapChannel,
+    prismMatch,
+    runMorphism,
+    tensorEval,
+    tensorUnitorL,
+    tensorUnitorL',
+    tensorUnitorR,
+    tensorUnitorR',
   )
 import Circuit.Process
-  ( Process (..),
+  ( Boundary (..),
+    Process (..),
+    after,
     delay,
+    encodeList,
+    encodeStream,
     fold,
+    foldStream,
+    isMark,
+    isPayload,
+    iterateMoore,
     markMoore,
     mealy,
+    mooreAsProcess,
     mooreToProcess,
+    processToBody,
+    processToSomeBody,
     register,
     runMealy,
+    runMealyStream,
     scan,
+    scanStream,
   )
 import Circuit.Pullback
   ( Pullback (..),
     evalPullback,
   )
 import Circuit.SMC
-  ( SMC,
+  ( FreeSMC,
+    SMC,
+    SigPar (..),
+    SigSwap (..),
+    mirrorSMC,
   )
 import Circuit.Shared
-  ( Pick (..),
+  ( AlgShared,
+    Pick (..),
     Schedule (..),
     Shared (..),
+    SigShared (..),
+  )
+import Circuit.Span
+  ( Span (..),
+    bodyFromSpan,
+    companionSpan,
+    composeS,
+    conjointSpan,
+    identityS,
+    pairs,
+    presentS,
+    refinesS,
+    someBodyFromSpan,
+    spanDistance,
+    spanFromBody,
   )
 import Circuit.Stamped (Stamped (..))
-import Circuit.Syntax (eval)
+import Circuit.Stream
+  ( Cons (..),
+    Snoc (..),
+    These (..),
+    Uncons (..),
+  )
+import Circuit.Syntax
+  ( Algebra (..),
+    AlgCat,
+    Sig,
+    SigCompose (..),
+    Syntax (Lift),
+    eval,
+    evalInto,
+    (:+:),
+  )
 import Circuit.Tensor
   ( Action (..),
+    Bias (..),
+    Distributive (..),
     Tensor (..),
+    TensorSeed (..),
     Unital (..),
+    Unit,
+    assocL,
+    assocR,
+    coabsorbL,
+    coabsorbR,
+    coassoc,
+    coassoc',
+    coseed,
+    coreleaseL,
+    coreleaseR,
     superpose,
   )
-import Circuit.Trace (Trace, base, yank)
-import Prelude hiding (curry, uncurry)
+import Circuit.Trace (Trace, base, yank, SigYank (..))
+import Circuit.Traced
+  ( Assoc,
+    Slide,
+    Strength,
+    TraceC,
+    Yank,
+    assoc,
+    assoc',
+    slide,
+    strength,
+  )
+import Prelude hiding (curry, id, uncurry, (.))

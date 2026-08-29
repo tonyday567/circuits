@@ -43,7 +43,7 @@ module Circuit.Hyper
     -- * Function-category hyperfunctions
     lift,
     observe,
-    base,
+    baseHyper,
     push,
     runHyper,
 
@@ -109,14 +109,14 @@ lift f = push f (lift f)
 -- >>> observe (lift reverse) "hello"
 -- "olleh"
 observe :: Hyper a b -> (a -> b)
-observe h a = invoke h (base a)
+observe h a = invoke h (baseHyper a)
 
 -- | Ignores the input and returns a constant value.
 --
--- >>> observe (base 42) undefined
+-- >>> observe (baseHyper 42) undefined
 -- 42
-base :: a -> Hyper b a
-base b = HyperA $ \_ -> b
+baseHyper :: a -> Hyper b a
+baseHyper b = HyperA $ \_ -> b
 
 -- | Push a plain function onto a hyperfunction.
 --
@@ -130,7 +130,7 @@ push f h = HyperA $ \k -> f (invoke k h)
 -- >>> runHyper (Hyper $ \_ -> 42 :: Int)
 -- 42
 runHyper :: Hyper a a -> a
-runHyper h = let a = invoke h (base a) in a
+runHyper h = let a = invoke h (baseHyper a) in a
 
 -- * Kleisli hyperfunctions
 
@@ -261,7 +261,7 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- to the final object ('Hyper'), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'Circuit.Syntax.eval'@.
 --
--- 'base' constructors embed directly via 'lift'; 'Circuit.Trace.yank'
+-- 'baseHyper' and 'baseK' constructors embed directly via 'lift'; 'Circuit.Trace.yank'
 -- constructors become 'yank' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace

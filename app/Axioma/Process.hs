@@ -26,7 +26,7 @@ import Circuit.Layer (run)
 import Circuit.Moore (Moore, mooreMachine)
 import Circuit.Net qualified as Net
 import Circuit.Poles (Bias (..))
-import Circuit.Process (Boundary (..), Process (..), delay, encode, fold, isMark, isPayload, markMoore, mealy, mooreToProcess, register, runMealy, scan)
+import Circuit.Process (Boundary (..), Process (..), delay, encodeList, fold, isMark, isPayload, markMoore, mealy, mooreToProcess, register, runMealy, scan)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)
@@ -78,8 +78,8 @@ processTopic verbosity = do
         fold sumP [1, 2, 3] == Just 6,
       checkV verbosity "Process fold empty" $
         isNothing (fold sumP []),
-      checkV verbosity "Process scan == run . encode" $
-        Syn.eval (encode sumP) [1, 2, 3] == scan sumP [1, 2, 3],
+      checkV verbosity "Process scan == run . encodeList" $
+        Syn.eval (encodeList sumP) [1, 2, 3] == scan sumP [1, 2, 3],
       checkV verbosity "Process Yank (,) yanking" $
         scan (yank swapPairP) [1, 2, 3] == [1, 2, 3],
       checkV verbosity "Process Yank Either yanking" $
@@ -102,7 +102,7 @@ processTopic verbosity = do
       checkV verbosity "processToSomeBody ewma agrees with scan" $
         runSomeBody (Process.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
       -- Process / Trace Either round-trip factors through Body Either ch (->)
-      checkV verbosity "Process encode factors through Body Either ch (->)" $
+      checkV verbosity "Process encodeList factors through Body Either ch (->)" $
         let viaBody p = case Process.processToBody p of SomeBody _ (Body.Body f) -> yankEither f
          in scan sumP [1, 2, 3] == Syn.eval (viaBody sumP) [1, 2, 3]
               && scan swapPairP [(1, 2), (3, 4), (5, 6)] == Syn.eval (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
@@ -112,10 +112,10 @@ processTopic verbosity = do
         scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]
           == scan sumP [1, 2, 3],
       checkV verbosity "Net (,) Process copy uses Process.copy" $
-        let p = run (Net.lift (copy :: Process Int (Int, Int)) :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
+        let p = run (Lift (copy :: Process Int (Int, Int)) :: Net.Net (,) Process Int (Int, Int)) :: Process Int (Int, Int)
          in scan p [5] == [(5, 5)],
       checkV verbosity "Net (,) Process plus uses Process.plus" $
-        let p = run (Net.lift (plus :: Process (Int, Int) Int) :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
+        let p = run (Lift (plus :: Process (Int, Int) Int) :: Net.Net (,) Process (Int, Int) Int) :: Process (Int, Int) Int
          in scan p [(2, 3)] == [5],
       checkV verbosity "Shared (,) Process LR order differs from RL" $
         let lr = sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) sharedAddP sharedDoubleP
@@ -133,7 +133,7 @@ processTopic verbosity = do
         runMealy countP [(), (), ()] == [1, 2, 3],
       checkV verbosity "mealy scan matches runMealy" $
         catMaybes (scan pairSumP [1, 2, 3, 4 :: Int]) == runMealy pairSumP [1, 2, 3, 4],
-      checkV verbosity "mealy process encodes to Trace Either" $
-        Syn.eval (encode pairSumP) [1, 2, 3, 4 :: Int]
+      checkV verbosity "mealy process encodeLists to Trace Either" $
+        Syn.eval (encodeList pairSumP) [1, 2, 3, 4 :: Int]
           == scan pairSumP [1, 2, 3, 4]
     ]

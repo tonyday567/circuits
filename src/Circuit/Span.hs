@@ -9,8 +9,8 @@
 module Circuit.Span
   ( Span (..),
     pairs,
-    companion,
-    conjoint,
+    companionSpan,
+    conjointSpan,
     composeS,
     identityS,
     presentS,
@@ -58,17 +58,17 @@ instance (Show a, Show b) => Show (Span a b) where
 pairs :: Span a b -> [(a, b)]
 pairs (Span xs s t) = [(s x, t x) | x <- xs]
 
--- | The companion of a function: its graph read forward.
+-- | The companionSpan of a function: its graph read forward.
 --
--- @companion xs f@ is the span @A ←id— A —f→ B@.
-companion :: (Eq a) => [a] -> (a -> b) -> Span a b
-companion xs f = Span xs id f
+-- @companionSpan xs f@ is the span @A ←id— A —f→ B@.
+companionSpan :: (Eq a) => [a] -> (a -> b) -> Span a b
+companionSpan xs = Span xs id
 
--- | The conjoint of a function: its graph read backward.
+-- | The conjointSpan of a function: its graph read backward.
 --
--- @conjoint xs f@ is the span @B ←f— A —id→ A@.
-conjoint :: (Eq a) => [a] -> (a -> b) -> Span b a
-conjoint xs f = Span xs f id
+-- @conjointSpan xs f@ is the span @B ←f— A —id→ A@.
+conjointSpan :: (Eq a) => [a] -> (a -> b) -> Span b a
+conjointSpan xs f = Span xs f id
 
 -- | Pullback composition of spans.  The new apex is the set of pairs that
 -- agree on the shared boundary.
@@ -78,7 +78,7 @@ composeS (Span ys h k) (Span xs f g) =
 
 -- | The identity span on a finite type, given by its enumeration.
 identityS :: (Eq a) => [a] -> Span a a
-identityS xs = companion xs id
+identityS xs = companionSpan xs id
 
 -- | Present a span as its own two legs: @⟨s,t⟩ = s* ⊙ t_*@.
 --
@@ -86,7 +86,7 @@ identityS xs = companion xs id
 -- the diagonal pulled back along identity — the same span up to apex
 -- isomorphism, never up to quotient.
 presentS :: Span a b -> Span a b
-presentS (Span xs s t) = composeS (companion xs t) (conjoint xs s)
+presentS (Span xs s t) = composeS (companionSpan xs t) (conjointSpan xs s)
 
 -- | Does a span 2-cell from the first span to the second exist?
 --
