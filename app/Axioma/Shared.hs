@@ -297,12 +297,12 @@ sharedTopic verbosity = do
       checkV verbosity "sharedBy L gates right body (output is This only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            leftOnly = Schedule (,Shared.L) :: Schedule [Int]
+            leftOnly = Schedule (,Shared.PickL) :: Schedule [Int]
          in Syn.eval (yankFun (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
       checkV verbosity "sharedBy R gates left body (output is That only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            rightOnly = Schedule (,Shared.R) :: Schedule [Int]
+            rightOnly = Schedule (,Shared.PickR) :: Schedule [Int]
          in Syn.eval (yankFun (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
       checkV verbosity "sharedBy left-first and right-first both agree on body sets" $
         let k1 = markerBody 1
@@ -318,11 +318,11 @@ sharedTopic verbosity = do
             k2 = markerBody 2
             term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
             term =
-              Op
+              Oper
                 ( Syn.R
                     ( Syn.R
                         ( YankBody
-                            ( Op
+                            ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared pureLeft (Lift k1) (Lift k2)))
                                 )
@@ -334,14 +334,14 @@ sharedTopic verbosity = do
       checkV verbosity "AlgShared L schedule gates right body" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            leftOnly = Schedule (,Shared.L) :: Schedule [Int]
+            leftOnly = Schedule (,Shared.PickL) :: Schedule [Int]
             term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
             term =
-              Op
+              Oper
                 ( Syn.R
                     ( Syn.R
                         ( YankBody
-                            ( Op
+                            ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared leftOnly (Lift k1) (Lift k2)))
                                 )
@@ -353,14 +353,14 @@ sharedTopic verbosity = do
       checkV verbosity "AlgShared R schedule gates left body" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            rightOnly = Schedule (,Shared.R) :: Schedule [Int]
+            rightOnly = Schedule (,Shared.PickR) :: Schedule [Int]
             term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
             term =
-              Op
+              Oper
                 ( Syn.R
                     ( Syn.R
                         ( YankBody
-                            ( Op
+                            ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared rightOnly (Lift k1) (Lift k2)))
                                 )

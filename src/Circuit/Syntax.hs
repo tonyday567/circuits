@@ -75,7 +75,7 @@ infixr 6 :+:
 -- | The free construction over a signature.
 data Syntax (sig :: Sig) (arr :: Type -> Type -> Type) a b where
   Lift :: arr a b -> Syntax sig arr a b
-  Op :: sig arr (Syntax sig arr) a b -> Syntax sig arr a b
+  Oper :: sig arr (Syntax sig arr) a b -> Syntax sig arr a b
 
 -- | Algebra for a signature. Interprets operations of a signature over
 -- source arrow @arr@ into a target arrow @arr'@.
@@ -108,7 +108,7 @@ evalInto ::
   Syntax sig arr a b ->
   arr' a b
 evalInto emb (Lift f) = emb f
-evalInto emb (Op op) = alg emb (evalInto emb) op
+evalInto emb (Oper op) = alg emb (evalInto emb) op
 
 -- | Fold a free construction into its own base arrow.
 eval ::
@@ -143,7 +143,7 @@ type AlgCat arr = Syntax SigCompose arr
 
 instance (Category arr) => Category (AlgCat arr) where
   id = Lift id
-  f . g = Op (SigCompose f g)
+  f . g = Oper (SigCompose f g)
 
 instance (Category arr, Assoc t arr) => Assoc t (AlgCat arr) where
   assoc = Lift assoc

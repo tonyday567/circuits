@@ -314,11 +314,11 @@ instance Shared (,) Process where
       extract (_, _, s, out) = (s, out)
 
       runInject pick s' a c = case pick of
-        L ->
+        PickL ->
           let sL0 = iL (s', a)
               (s'', b) = exL sL0
            in (Just sL0, Nothing, s'', This b)
-        R ->
+        PickR ->
           let sR0 = iR (s', c)
               (s'', d) = exR sR0
            in (Nothing, Just sR0, s'', That d)
@@ -336,12 +336,12 @@ instance Shared (,) Process where
            in (Just sL0, Just sR0, sOut, These b d)
 
       runStep pick msL msR s' a c = case pick of
-        L ->
+        PickL ->
           let sL = fromMaybe (iL (s', a)) msL
               sL' = stL sL (s', a)
               (s'', b) = exL sL'
            in (Just sL', msR, s'', This b)
-        R ->
+        PickR ->
           let sR = fromMaybe (iR (s', c)) msR
               sR' = stR sR (s', c)
               (s'', d) = exR sR'

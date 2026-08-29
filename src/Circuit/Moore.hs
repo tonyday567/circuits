@@ -253,10 +253,10 @@ instance (MooreEval p, MooreEval q) => MooreEval ('Prod p q) where
   probeDir :: Dir ('Prod p q)
   probeDir = Left (probeDir @p)
 
-instance (MooreEval p, MooreEval q) => MooreEval ('Tensor p q) where
+instance (MooreEval p, MooreEval q) => MooreEval ('PTensor p q) where
   evalToMoore (ET pos f) = (pos, f)
   evalFromMoore = ET
-  probeDir :: Dir ('Tensor p q)
+  probeDir :: Dir ('PTensor p q)
   probeDir = (probeDir @p, probeDir @q)
 
 instance (MooreEval p, MooreEval q) => MooreEval ('Comp p q) where
@@ -273,7 +273,7 @@ offFibre = error "off-fibre direction"
 -- This is the entry point for acyclic wiring over the Dirichlet tensor —
 -- boxes in parallel, pins assigned jointly.  The wired interface can be
 -- mapped with 'parT' (wire-then-map).
-parWiring :: Moore (,) (->) s p -> Moore (,) (->) t q -> Moore (,) (->) (s, t) (Tensor p q)
+parWiring :: Moore (,) (->) s p -> Moore (,) (->) t q -> Moore (,) (->) (s, t) (PTensor p q)
 parWiring sp sq =
   moore $ \((s, t), (dp, dq)) ->
     let (s', posP) = mooreMorphism sp (s, dp)

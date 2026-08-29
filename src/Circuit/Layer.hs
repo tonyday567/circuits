@@ -119,23 +119,23 @@ lower g = g . unit
 
 -- | The free category over a base arrow.
 --
--- The two constructors are 'Lift', which embeds a base arrow, and
--- 'Compose', which sequences two free morphisms.  The universal fold out
+-- The two constructors are 'FreeLift', which embeds a base arrow, and
+-- 'FreeCompose', which sequences two free morphisms.  The universal fold out
 -- of 'Free' is 'run'.
 --
--- >>> run (Lift (+1) :: Free (->) Int Int) 5
+-- >>> run (FreeLift (+1) :: Free (->) Int Int) 5
 -- 6
--- >>> run (Compose (Lift (+1)) (Lift (*2)) :: Free (->) Int Int) 5
+-- >>> run (FreeCompose (FreeLift (+1)) (FreeLift (*2)) :: Free (->) Int Int) 5
 -- 11
 data Free arr a b where
   -- | Embed a base arrow.
-  Lift :: arr a b -> Free arr a b
+  FreeLift :: arr a b -> Free arr a b
   -- | Sequential composition.
-  Compose :: Free arr b c -> Free arr a b -> Free arr a c
+  FreeCompose :: Free arr b c -> Free arr a b -> Free arr a c
 
 instance (Category arr) => Category (Free arr) where
-  id = Lift id
-  (.) = Compose
+  id = FreeLift id
+  (.) = FreeCompose
 
 -- | Layer instance for the free category.
 --
@@ -145,37 +145,37 @@ instance Layer Free where
   type Law Free arr' = Category arr'
   type Run Free arr = Category arr
   type Bind Free arr = ()
-  unit = Lift
+  unit = FreeLift
   bind :: forall arr' arr a b. (Law Free arr') => (arr :~> arr') -> Free arr a b -> arr' a b
-  bind h (Lift f) = h f
-  bind h (Compose @_ @_ g f) = bind h g . bind h f
+  bind h (FreeLift f) = h f
+  bind h (FreeCompose @_ @_ g f) = bind h g . bind h f
 
 -- | Freeze a 'Free' category into its base arrow.
 --
 -- This is a synonym for 'run' @Free@.
 --
--- >>> freeze (Lift (+1) :: Free (->) Int Int) 5
+-- >>> freeze (FreeLift (+1) :: Free (->) Int Int) 5
 -- 6
 freeze :: (Category arr) => Free arr a b -> arr a b
-freeze (Lift f) = f
-freeze (Compose g f) = freeze g . freeze f
+freeze (FreeLift f) = f
+freeze (FreeCompose g f) = freeze g . freeze f
 
 -- | Lift the 'Channel' structure through 'Free'.
 instance (Assoc t arr) => Assoc t (Free arr) where
-  assoc = Lift assoc
-  assoc' = Lift assoc'
+  assoc = FreeLift assoc
+  assoc' = FreeLift assoc'
 
 instance (Slide t arr) => Slide t (Free arr) where
-  slide = Lift slide
+  slide = FreeLift slide
 
--- | Lift the 'Strength' class through 'Free'.
+-- | Lift the 'Channel' structure through 'Free'.
 --
 -- A morphism is frozen before tensoring with the feedback channel.
 instance (Strength t arr) => Strength t (Free arr) where
-  strength = Lift . strength . freeze
+  strength = FreeLift . strength . freeze
 
 -- | Lift the 'Yank' class through 'Free'.
 --
 -- A loop body in @Free arr@ is frozen before calling the base 'yank'.
 instance (Yank t arr) => Yank t (Free arr) where
-  yank = Lift . yank . freeze
+  yank = FreeLift . yank . freeze

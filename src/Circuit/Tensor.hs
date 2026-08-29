@@ -580,11 +580,11 @@ superpose x y =
   case (x, y) of
     (Lift f, Lift g) ->
       base (tensor f g)
-    (Op (R (YankBody f)), Lift g) ->
+    (Oper (R (YankBody f)), Lift g) ->
       yank (base assoc . base (tensor (eval f) g) . base assoc')
-    (Lift f, Op (R (YankBody g))) ->
+    (Lift f, Oper (R (YankBody g))) ->
       yank (base shuffle . base (tensor f (eval g)) . base shuffle)
-    (Op (R (YankBody f)), Op (R (YankBody g))) ->
+    (Oper (R (YankBody f)), Oper (R (YankBody g))) ->
       yank (base post . base (tensor (eval f) (eval g)) . base pre)
     -- Non-normal forms fall back to the lawful independent-evaluation instance.
     _ ->

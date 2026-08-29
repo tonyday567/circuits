@@ -18,7 +18,7 @@
 --           |  Exp A          y^A
 --           |  Sum p q        coproduct
 --           |  Prod p q       cartesian product
---           |  Tensor p q     Dirichlet/parallel product
+--           |  PTensor p q    Dirichlet/parallel product
 --           |  Comp p q       composition (substitution)
 --
 -- The kind @Poly@ is promoted, so polynomial expressions live at the type
@@ -39,7 +39,7 @@
 -- With them, the general point-dependent lens @(get :: a -> b, put :: a -> db -> da)@
 -- is a two-line 'Morphism'.
 --
--- The 'Tensor' constructor adds the Dirichlet (parallel) product. It requires
+-- The 'PTensor' constructor adds the Dirichlet (parallel) product. It requires
 -- 'Pos' and 'Dir' type families because a value of @(p ⊗ q)(x)@ is a pair of
 -- positions together with a single function out of the product of direction
 -- sets — not derivable from a pair of ordinary 'Eval' values.
@@ -113,7 +113,7 @@ data Poly
   | Exp Type
   | Sum Poly Poly
   | Prod Poly Poly
-  | Tensor Poly Poly
+  | PTensor Poly Poly
   | Comp Poly Poly
 
 -- | Position set of a polynomial.
@@ -125,7 +125,7 @@ type family Pos (p :: Poly) :: Type where
   Pos ('Exp a) = ()
   Pos ('Sum p q) = Either (Pos p) (Pos q)
   Pos ('Prod p q) = (Pos p, Pos q)
-  Pos ('Tensor p q) = (Pos p, Pos q)
+  Pos ('PTensor p q) = (Pos p, Pos q)
   Pos ('Comp p q) = (Pos p, Dir p -> Pos q)
 
 -- | Direction set of a polynomial.
@@ -150,7 +150,7 @@ type family Dir (p :: Poly) :: Type where
   Dir ('Exp a) = a
   Dir ('Sum p q) = Either (Dir p) (Dir q)
   Dir ('Prod p q) = Either (Dir p) (Dir q)
-  Dir ('Tensor p q) = (Dir p, Dir q)
+  Dir ('PTensor p q) = (Dir p, Dir q)
   Dir ('Comp p q) = (Dir p, Dir q)
 
 -- | Values of a polynomial functor @p@ evaluated at @x@.
@@ -172,7 +172,7 @@ data Eval (p :: Poly) (x :: Type) where
   EE :: (a -> x) -> Eval ('Exp a) x
   ES :: Either (Eval p x) (Eval q x) -> Eval ('Sum p q) x
   EP :: (Eval p x, Eval q x) -> Eval ('Prod p q) x
-  ET :: (Pos p, Pos q) -> ((Dir p, Dir q) -> x) -> Eval ('Tensor p q) x
+  ET :: (Pos p, Pos q) -> ((Dir p, Dir q) -> x) -> Eval ('PTensor p q) x
   EC ::
     (Pos p, Dir p -> Pos q) ->
     ((Dir p, Dir q) -> x) ->
@@ -229,7 +229,7 @@ instance (Netlist p, Netlist q) => Netlist ('Prod p q) where
      in ((i, j), either f g)
   fromNet (i, j) k = EP (fromNet i (k . Left), fromNet j (k . Right))
 
-instance Netlist ('Tensor p q) where
+instance Netlist ('PTensor p q) where
   toNet (ET ij f) = (ij, f)
   fromNet = ET
 
@@ -245,21 +245,21 @@ netRoundTrip v = uncurry fromNet (toNet v)
 -- | Left unitor for the Dirichlet tensor: @Y ⊗ p ≅ p@.
 --
 -- The @Y@ factor is degenerate; collapse via 'fromNet' on the other factor.
-tensorUnitorL :: (Netlist p) => Eval ('Tensor 'Y p) x -> Eval p x
+tensorUnitorL :: (Netlist p) => Eval ('PTensor 'Y p) x -> Eval p x
 tensorUnitorL (ET ((), i) f) = fromNet i (\dp -> f ((), dp))
 
 -- | Inverse left unitor: @p -> Y ⊗ p@.
-tensorUnitorL' :: (Netlist p) => Eval p x -> Eval ('Tensor 'Y p) x
+tensorUnitorL' :: (Netlist p) => Eval p x -> Eval ('PTensor 'Y p) x
 tensorUnitorL' v =
   let (i, k) = toNet v
    in ET ((), i) (\((), dp) -> k dp)
 
 -- | Right unitor for the Dirichlet tensor: @p ⊗ Y ≅ p@.
-tensorUnitorR :: (Netlist p) => Eval ('Tensor p 'Y) x -> Eval p x
+tensorUnitorR :: (Netlist p) => Eval ('PTensor p 'Y) x -> Eval p x
 tensorUnitorR (ET (i, ()) f) = fromNet i (\dp -> f (dp, ()))
 
 -- | Inverse right unitor: @p -> p ⊗ Y@.
-tensorUnitorR' :: (Netlist p) => Eval p x -> Eval ('Tensor p 'Y) x
+tensorUnitorR' :: (Netlist p) => Eval p x -> Eval ('PTensor p 'Y) x
 tensorUnitorR' v =
   let (i, k) = toNet v
    in ET (i, ()) (\(dp, ()) -> k dp)
@@ -282,8 +282,8 @@ parT ::
   (Netlist p, Netlist q, Netlist p', Netlist q') =>
   Morphism p p' ->
   Morphism q q' ->
-  Eval ('Tensor p q) x ->
-  Eval ('Tensor p' q') x
+  Eval ('PTensor p q) x ->
+  Eval ('PTensor p' q') x
 parT m n (ET (i, j) f) =
   let (i', pullM) = morphAt m i
       (j', pullN) = morphAt n j
@@ -371,7 +371,7 @@ compT f g (EC (aPos, hang) k) =
 --
 -- Each factor contributes its position and pin assignment; the result is
 -- one joint assignment over the product of direction sets.
-tensorEval :: (Netlist p, Netlist q) => Eval p a -> Eval q b -> Eval (Tensor p q) (a, b)
+tensorEval :: (Netlist p, Netlist q) => Eval p a -> Eval q b -> Eval (PTensor p q) (a, b)
 tensorEval v w =
   let (i, fv) = toNet v
       (j, fw) = toNet w
@@ -412,10 +412,10 @@ tensorEval v w =
 -- >>> case netRoundTrip pv of EP (EE f, EE g) -> (f 'x', g 'y')
 -- ("x!","y?")
 --
--- 'Tensor': the constructor already /is/ netlist form, but the witness
+-- 'PTensor': the constructor already /is/ netlist form, but the witness
 -- still exercises the split product of directions.
 --
--- >>> let tv = ET ((), ()) (\(d1, d2) -> d1 ++ d2) :: Eval ('Tensor ('Exp String) ('Exp String)) String
+-- >>> let tv = ET ((), ()) (\(d1, d2) -> d1 ++ d2) :: Eval ('PTensor ('Exp String) ('Exp String)) String
 -- >>> case netRoundTrip tv of ET ((), ()) f -> f ("hello ", "world")
 -- "hello world"
 --
@@ -429,7 +429,7 @@ tensorEval v w =
 -- Left unitor: @Y ⊗ Mono@ collapses to @Mono@ and back.  Pin assignment
 -- transforms (@dn -> show dn ++ "!"@) — a stub that ignores @f@ fails.
 --
--- >>> let yt = ET ((), (5, ())) (\((), Right dn) -> show dn ++ "!") :: Eval ('Tensor 'Y (Mono Int Int)) String
+-- >>> let yt = ET ((), (5, ())) (\((), Right dn) -> show dn ++ "!") :: Eval ('PTensor 'Y (Mono Int Int)) String
 -- >>> case tensorUnitorL yt of EP (EK n, EE f) -> (n, f 7, f 42)
 -- (5,"7!","42!")
 --
@@ -442,7 +442,7 @@ tensorEval v w =
 --
 -- Right unitor: position pair @(i, ())@ not @(() , i)@.
 --
--- >>> let ty = ET ((5, ()), ()) (\(Right dn, ()) -> dn + 10) :: Eval ('Tensor (Mono Int Int) 'Y) Int
+-- >>> let ty = ET ((5, ()), ()) (\(Right dn, ()) -> dn + 10) :: Eval ('PTensor (Mono Int Int) 'Y) Int
 -- >>> case tensorUnitorR ty of EP (EK n, EE f) -> (n, f 3, f 7)
 -- (5,13,17)
 --
@@ -490,11 +490,11 @@ data Morphism (p :: Poly) (q :: Poly) where
   Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Const a) p) q
   -- | Left associator for the Dirichlet tensor:
   -- @((p ⊗ q) ⊗ r) -> (p ⊗ (q ⊗ r))@.
-  TensorAssocL :: Morphism ('Tensor ('Tensor p q) r) ('Tensor p ('Tensor q r))
+  TensorAssocL :: Morphism ('PTensor ('PTensor p q) r) ('PTensor p ('PTensor q r))
   -- | Right associator for the Dirichlet tensor.
-  TensorAssocR :: Morphism ('Tensor p ('Tensor q r)) ('Tensor ('Tensor p q) r)
+  TensorAssocR :: Morphism ('PTensor p ('PTensor q r)) ('PTensor ('PTensor p q) r)
   -- | Symmetry/braiding for the Dirichlet tensor: @p ⊗ q -> q ⊗ p@.
-  TensorBraid :: Morphism ('Tensor p q) ('Tensor q p)
+  TensorBraid :: Morphism ('PTensor p q) ('PTensor q p)
   -- | Functorial action of the Dirichlet tensor on monomial morphisms:
   -- @f ⊗ g : (a·y^{da}) ⊗ (c·y^{dc}) -> (b·y^{db}) ⊗ (d·y^{dd})@.
   --
@@ -503,7 +503,7 @@ data Morphism (p :: Poly) (q :: Poly) where
   ParT ::
     Morphism (Mono da a) (Mono db b) ->
     Morphism (Mono dc c) (Mono dd d) ->
-    Morphism ('Tensor (Mono da a) (Mono dc c)) ('Tensor (Mono db b) (Mono dd d))
+    Morphism ('PTensor (Mono da a) (Mono dc c)) ('PTensor (Mono db b) (Mono dd d))
   -- | Left unitor for the composition product: @Y ◁ p ≅ p@.
   CompUnitL :: (Netlist p) => Morphism ('Comp 'Y p) p
   -- | Inverse left unitor for the composition product.
@@ -584,13 +584,13 @@ runMorphism = \case
 -- A value is a position pair together with one function out of the product of
 -- direction sets — not two separate functions.
 --
--- >>> let ab = ET ((), ()) (\(a, b) -> a ++ b) :: Eval ('Tensor ('Exp String) ('Exp String)) String
+-- >>> let ab = ET ((), ()) (\(a, b) -> a ++ b) :: Eval ('PTensor ('Exp String) ('Exp String)) String
 -- >>> case ab of ET ((), ()) f -> f ("hello ", "world")
 -- "hello world"
 --
 -- 'fmap' acts on the result of the combined direction function.
 --
--- >>> let v = ET ((), ()) (\(a, b) -> a + b) :: Eval ('Tensor ('Exp Int) ('Exp Int)) Int
+-- >>> let v = ET ((), ()) (\(a, b) -> a + b) :: Eval ('PTensor ('Exp Int) ('Exp Int)) Int
 -- >>> case fmap (* 2) v of ET ((), ()) f -> f (3, 4)
 -- 14
 --
@@ -601,7 +601,7 @@ runMorphism = \case
 --
 -- The associator reassociates both positions and directions.
 --
--- >>> let abc = ET (((), ()), ()) (\((a, b), c) -> a ++ b ++ c) :: Eval ('Tensor ('Tensor ('Exp String) ('Exp String)) ('Exp String)) String
+-- >>> let abc = ET (((), ()), ()) (\((a, b), c) -> a ++ b ++ c) :: Eval ('PTensor ('PTensor ('Exp String) ('Exp String)) ('Exp String)) String
 -- >>> case runMorphism TensorAssocL abc of ET ((), ((), ())) f -> f ("a", ("b", "c"))
 -- "abc"
 -- >>> case runMorphism TensorAssocR (runMorphism TensorAssocL abc) of ET (((), ()), ()) f -> f (("x", "y"), "z")
@@ -616,7 +616,7 @@ runMorphism = \case
 --
 -- >>> let m1 = lens show (\n dn -> n + dn) :: Morphism (Mono Int Int) (Mono Int String)
 -- >>> let m2 = lens (\b -> if b then 1 else 0 :: Int) (\b db -> b && db) :: Morphism (Mono Bool Bool) (Mono Bool Int)
--- >>> let v = ET ((5, ()), (True, ())) (\(Right n, Right b) -> (n, b)) :: Eval ('Tensor (Mono Int Int) (Mono Bool Bool)) (Int, Bool)
+-- >>> let v = ET ((5, ()), (True, ())) (\(Right n, Right b) -> (n, b)) :: Eval ('PTensor (Mono Int Int) (Mono Bool Bool)) (Int, Bool)
 -- >>> case runMorphism (ParT m1 m2) v of ET ((_, ()), (_, ())) f -> f (Right 3, Right True)
 -- (8,True)
 -- >>> case runMorphism (ParT m1 m2) v of ET ((_, ()), (_, ())) f -> f (Right 2, Right False)
@@ -625,7 +625,7 @@ runMorphism = \case
 -- 'parT' on non-monomial 'Netlist' factors ('Exp' morphisms via 'ExpMap').
 -- Both pullbacks must fire; dropping either factor leaves the wrong sign.
 --
--- >>> let v = ET ((), ()) (\(i, b) -> if b then i else -i) :: Eval ('Tensor ('Exp Int) ('Exp Bool)) Int
+-- >>> let v = ET ((), ()) (\(i, b) -> if b then i else -i) :: Eval ('PTensor ('Exp Int) ('Exp Bool)) Int
 -- >>> let m = ExpMap (+ 10) :: Morphism ('Exp Int) ('Exp Int)
 -- >>> let n = ExpMap not :: Morphism ('Exp Bool) ('Exp Bool)
 -- >>> case parT m n v of ET ((), ()) g -> (g (3, True), g (0, False))

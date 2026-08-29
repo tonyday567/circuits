@@ -81,7 +81,7 @@ base = Lift
 
 instance (Category arr) => Category (Trace t arr) where
   id = base id
-  f . g = Op (L (SigCompose f g))
+  f . g = Oper (L (SigCompose f g))
 
 instance (Category arr, Assoc t arr) => Assoc t (Trace t arr) where
   assoc = base assoc
@@ -94,4 +94,4 @@ instance (Assoc t arr, Slide t arr, Strength t arr, Yank t arr) => Strength t (T
   strength f = base (strength (eval f))
 
 instance (Yank t arr) => Yank t (Syntax (SigCompose :+: SigYank t) arr) where
-  yank body = Op (R (YankBody body))
+  yank body = Oper (R (YankBody body))

@@ -89,7 +89,7 @@ type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 
 instance (Category arr) => Category (SMC w arr) where
   id = Lift id
-  f . g = Op (L (SigCompose f g))
+  f . g = Oper (L (SigCompose f g))
 
 instance (Unital w arr) => Unital w (SMC w arr) where
   unitl = Lift T.unitl
@@ -98,10 +98,10 @@ instance (Unital w arr) => Unital w (SMC w arr) where
   unitr' = Lift T.unitr'
 
 instance (Tensor w arr) => Tensor w (SMC w arr) where
-  tensor f g = Op (R (L (SigPar f g)))
+  tensor f g = Oper (R (L (SigPar f g)))
 
 instance (Action w arr) => Action w (SMC w arr) where
-  braid = Op (R (R SigSwap))
+  braid = Oper (R (R SigSwap))
 
 instance (Category arr, Assoc t arr) => Assoc t (SMC w arr) where
   assoc = Lift assoc
@@ -128,10 +128,10 @@ mirrorSMC ::
   SMC w (Dg.Dagger arr) a b ->
   SMC w (Dg.Dagger arr) b a
 mirrorSMC (Lift d) = Lift (Dg.transpose d)
-mirrorSMC (Op op) = case op of
-  L (SigCompose g f) -> Op (L (SigCompose (mirrorSMC f) (mirrorSMC g)))
-  R (L (SigPar f g)) -> Op (R (L (SigPar (mirrorSMC f) (mirrorSMC g))))
-  R (R SigSwap) -> Op (R (R SigSwap))
+mirrorSMC (Oper op) = case op of
+  L (SigCompose g f) -> Oper (L (SigCompose (mirrorSMC f) (mirrorSMC g)))
+  R (L (SigPar f g)) -> Oper (R (L (SigPar (mirrorSMC f) (mirrorSMC g))))
+  R (R SigSwap) -> Oper (R (R SigSwap))
 
 -- Constraint synonym used by Net's Layer law
 

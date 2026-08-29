@@ -54,13 +54,13 @@ import Prelude hiding (id, (.))
 
 -- | A schedule decision: which poles advance on a shared channel.
 --
--- * @L@ — advance the left body only; the right input is not consumed
+-- * @PickL@ — advance the left body only; the right input is not consumed
 --   (corresponds to 'This').
--- * @R@ — advance the right body only; the left input is not consumed
+-- * @PickR@ — advance the right body only; the left input is not consumed
 --   (corresponds to 'That').
 -- * @Both b@ — advance both bodies, with the bias choosing the order
 --   (corresponds to 'These').
-data Pick = L | R | Both Bias
+data Pick = PickL | PickR | Both Bias
   deriving (Eq, Show)
 
 -- | A schedule drives shared-medium fusion.
@@ -94,7 +94,7 @@ class (Tensor t arr) => Shared t arr where
 
 -- | Cartesian shared fusion on functions.
 --
--- The schedule chooses which bodies advance and in what order.  @L@/@R@
+-- The schedule chooses which bodies advance and in what order.  @PickL@/@PickR@
 -- run only the chosen body and emit a partial 'This'/'That' product; the
 -- other body's input is discarded.  @Both LeftFirst@ / @Both RightFirst@ run
 -- both bodies, threading the shared state in the chosen order, and emit a
@@ -104,10 +104,10 @@ instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
     let (s', pick) = chooseS sched s
      in case pick of
-          L ->
+          PickL ->
             let (s'', b) = f (s', a)
              in (s'', This b)
-          R ->
+          PickR ->
             let (s'', d) = g (s', c)
              in (s'', That d)
           Both LeftFirst ->
@@ -126,10 +126,10 @@ instance (Monad m) => Shared (,) (K m) where
     K $ \(s, (a, c)) -> do
       let (s', pick) = chooseS sched s
       case pick of
-        L -> do
+        PickL -> do
           (s'', b) <- f (s', a)
           pure (s'', This b)
-        R -> do
+        PickR -> do
           (s'', d) <- g (s', c)
           pure (s'', That d)
         Both LeftFirst -> do

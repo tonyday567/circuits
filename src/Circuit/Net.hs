@@ -80,7 +80,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Layer (bind, run, unit)
 -- >>> import Circuit.Net
 -- >>> import Circuit.Trace (Trace, base, yank)
--- >>> import Circuit.Syntax (Lift, eval, evalInto)
+-- >>> import Circuit.Syntax (Syntax (Lift), eval, evalInto)
 -- >>> import Circuit.SMC
 -- >>> import Circuit.Category ((.))
 -- >>> import Prelude hiding (id, (.))
@@ -93,7 +93,7 @@ import Prelude hiding (id, (.))
 -- 'SigCompose' ':+:' 'SigPar' w ':+:' 'SigSwap' w ':+:' 'SigCopy' w ':+:' 'SigDiscard' w ':+:' 'SigPlus' w ':+:' 'SigZero' w
 -- @
 --
--- The 'Lift' constructor embeds a base arrow; the 'Op' constructor holds
+-- The 'Lift' constructor embeds a base arrow; the 'Oper' constructor holds
 -- one of the signature nodes.  'widen' embeds an entire 'SMC' circuit.
 type Net (w :: Type -> Type -> Type) arr =
   Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
@@ -126,7 +126,7 @@ type AlgNet w arr = Net w arr
 -- 'id' is a lifted identity and composition is a 'SigCompose' node.
 instance (Category arr) => Category (Net w arr) where
   id = Lift id
-  f . g = Op (L (SigCompose f g))
+  f . g = Oper (L (SigCompose f g))
 
 -- | Include an 'SMC' circuit into 'Net'.
 --
@@ -169,10 +169,10 @@ instance (Category arr) => Category (Net w arr) where
 -- 4
 widen :: SMC w arr a b -> Net w arr a b
 widen (Lift f) = Lift f
-widen (Op op) = case op of
-  L (SigCompose g f) -> Op (L (SigCompose (widen g) (widen f)))
-  R (L (SigPar f g)) -> Op (R (L (SigPar (widen f) (widen g))))
-  R (R SigSwap) -> Op (R (R (L SigSwap)))
+widen (Oper op) = case op of
+  L (SigCompose g f) -> Oper (L (SigCompose (widen g) (widen f)))
+  R (L (SigPar f g)) -> Oper (R (L (SigPar (widen f) (widen g))))
+  R (R SigSwap) -> Oper (R (R (L SigSwap)))
 
 -- | Forget the bimonoid rows of a 'Net', keeping only the 'SMC' wiring.
 --
@@ -197,7 +197,7 @@ sift = evalInto Lift
 --
 -- @'run' @Net = 'Circuit.Syntax.eval' . 'melt'@.
 --
--- >>> eval (melt (lift (+1) :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
+-- >>> eval (melt (Lift (+1) :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
 -- 6
 melt ::
   forall w t arr a b.
@@ -223,14 +223,14 @@ mirrorNet ::
   Net w (Dg.Dagger arr) a b ->
   Net w (Dg.Dagger arr) b a
 mirrorNet (Lift d) = Lift (Dg.transpose d)
-mirrorNet (Op op) = case op of
-  L (SigCompose g f) -> Op (L (SigCompose (mirrorNet f) (mirrorNet g)))
-  R (L (SigPar f g)) -> Op (R (L (SigPar (mirrorNet f) (mirrorNet g))))
-  R (R (L SigSwap)) -> Op (R (R (L SigSwap)))
-  R (R (R (L SigCopy))) -> Op (R (R (R (R (R (L SigPlus))))))
-  R (R (R (R (L SigDiscard)))) -> Op (R (R (R (R (R (R SigZero))))))
-  R (R (R (R (R (L SigPlus))))) -> Op (R (R (R (L SigCopy))))
-  R (R (R (R (R (R SigZero))))) -> Op (R (R (R (R (L SigDiscard)))))
+mirrorNet (Oper op) = case op of
+  L (SigCompose g f) -> Oper (L (SigCompose (mirrorNet f) (mirrorNet g)))
+  R (L (SigPar f g)) -> Oper (R (L (SigPar (mirrorNet f) (mirrorNet g))))
+  R (R (L SigSwap)) -> Oper (R (R (L SigSwap)))
+  R (R (R (L SigCopy))) -> Oper (R (R (R (R (R (L SigPlus))))))
+  R (R (R (R (L SigDiscard)))) -> Oper (R (R (R (R (R (R SigZero))))))
+  R (R (R (R (R (L SigPlus))))) -> Oper (R (R (R (L SigCopy))))
+  R (R (R (R (R (R SigZero))))) -> Oper (R (R (R (R (L SigDiscard)))))
 
 -- | Free symmetric monoidal category with a bimonoid.
 --

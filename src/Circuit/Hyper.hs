@@ -70,6 +70,7 @@ import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)
 import Control.Monad.Fix (MonadFix, mfix)
+import Data.Bifunctor (second)
 import Data.Functor.Identity (Identity (..))
 import Prelude hiding (id, (.))
 
@@ -116,7 +117,7 @@ observe h a = invoke h (baseHyper a)
 -- >>> observe (baseHyper 42) undefined
 -- 42
 baseHyper :: a -> Hyper b a
-baseHyper b = HyperA $ \_ -> b
+baseHyper b = HyperA $ const b
 
 -- | Push a plain function onto a hyperfunction.
 --
@@ -170,12 +171,12 @@ instance Slide (,) Hyper where
   slide = lift slide
 
 instance Strength (,) Hyper where
-  strength h = lift $ \(a, b) -> (a, observe h b)
+  strength h = lift $ second (observe h)
 
 instance Yank (,) Hyper where
   yank body = HyperA $ \k ->
     let pair = invoke body cont
-        cont = HyperA $ \_ -> (fst pair, observe k (snd pair))
+        cont = HyperA $ const (second (observe k) pair)
      in snd pair
 
 -- * Kleisli instances
@@ -271,8 +272,8 @@ encode ::
   Trace (,) (->) a b ->
   Hyper a b
 encode (Syn.Lift f) = lift f
-encode (Syn.Op (L (SigCompose g f))) = encode g . encode f
-encode (Syn.Op (R (YankBody body))) = yank (encode body)
+encode (Syn.Oper (L (SigCompose g f))) = encode g . encode f
+encode (Syn.Oper (R (YankBody body))) = yank (encode body)
 
 -- | Encode a Kleisli 'Trace' into a @'HyperA' ('K' m)@.
 encodeK ::
@@ -280,5 +281,5 @@ encodeK ::
   Trace (,) (K m) a b ->
   HyperA (K m) a b
 encodeK (Syn.Lift f) = liftK f
-encodeK (Syn.Op (L (SigCompose g f))) = encodeK g . encodeK f
-encodeK (Syn.Op (R (YankBody body))) = yank (encodeK body)
+encodeK (Syn.Oper (L (SigCompose g f))) = encodeK g . encodeK f
+encodeK (Syn.Oper (R (YankBody body))) = yank (encodeK body)
