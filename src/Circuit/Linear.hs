@@ -125,7 +125,7 @@ class (Exponential t arr) => WhyNotIntro t arr where
 -- | The ⅋-monoid structure on @?A@.
 --
 -- Dual to the @!@-comonoid ('BangCopy' / 'BangWeaken'), but living on the
--- tensor product rather than the tensor product. 'mergeE' is the
+-- par product (@⅋@) rather than the tensor product (@⊗@). 'mergeE' is the
 -- multiplication @?A ⅋ ?A → ?A@ and 'zeroE' is the unit @⊥ → ?A@.
 class (Exponential t arr, Par p arr) => WhyNotMonoid t p arr where
   mergeE ::

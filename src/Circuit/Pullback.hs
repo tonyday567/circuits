@@ -122,11 +122,10 @@ instance Traced (,) Pullback where
 -- >>> runPullback (discard :: Pullback Int ()) 5
 -- ()
 --
--- NOTE: neither method here uses an @Additive (->) a@ constraint — copying
--- and discarding are linear as they stand.  If the class head permits,
--- drop the constraint; keeping a stray @Additive@ reads as "addition
--- happens in this instance", which is the confusion the paragraph above
--- tries to dispel.
+-- Copying and discarding are linear as they stand and do not use an
+-- @Additive (->) a@ constraint. The instance carries the constraint only
+-- because the class head requires it; do not read it as implying that
+-- addition happens here.
 instance Copy Pullback a where
   copy = Pullback (\b -> (b, b))
   {-# INLINE copy #-}

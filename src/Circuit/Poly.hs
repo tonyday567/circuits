@@ -9,8 +9,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- \$composition-product, $tensor-wiring.
-
 -- | Sketch: the category Poly.
 --
 -- Polynomial objects are syntactic expressions, promoted to a kind:

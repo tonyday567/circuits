@@ -39,11 +39,16 @@ approx :: Double -> Double -> Bool
 approx x y = abs (x - y) < 1e-9
 
 -- | Enumerate all functions from a finite domain to a finite codomain.
+--
+-- An empty domain or codomain enumerates to no functions (the empty-domain
+-- case is not supported by this representation).
 enumFunctions :: (Eq a) => [a] -> [b] -> [a -> b]
-enumFunctions [] _ = [const (error "enumFunctions: empty domain")]
-enumFunctions domain codomain = map (listToFunction domain) (replicateM (length domain) codomain)
-  where
-    listToFunction dom vals x = fromMaybe (error "listToFunction: input not in domain") (lookup x (zip dom vals))
+enumFunctions [] _ = []
+enumFunctions _ [] = []
+enumFunctions domain codomain@(defaultVal : _) =
+  map
+    (\vals x -> fromMaybe defaultVal (lookup x (zip domain vals)))
+    (replicateM (length domain) codomain)
 
 -- | Cartesian product of two lists.
 enumCartesian :: [a] -> [b] -> [(a, b)]

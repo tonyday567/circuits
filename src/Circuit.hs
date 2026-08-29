@@ -88,6 +88,9 @@ module Circuit
     -- | Open a feedback loop. See "Circuit.Channel".
     strength,
 
+    -- * Structural channel moves
+    slide,
+
     -- * Polynomial channels
     Channel (..),
     emitChannel,
@@ -101,6 +104,7 @@ module Circuit
     SomeBody (..),
     cascadeBody,
     cascadeSome,
+    runFlowchart,
     runSomeBody,
 
     -- * Circ (loose bicategory of bodies with varying carriers)
@@ -133,6 +137,9 @@ module Circuit
     system,
     runSystem,
     mooreSystem,
+    monoIn,
+    monoDir,
+    runSystemMono,
     Mono,
     Morphism (..),
     lens,
@@ -183,6 +190,7 @@ module Circuit
     Cat2,
     (:~>),
     lower,
+    eval,
 
     -- * Operators
     (.>),
@@ -256,10 +264,12 @@ module Circuit
     WhyNotMonoid (..),
     LinearBang,
     AffineBang,
+    RelevantBang,
 
     -- * Channel product
     Tensor (..),
     Action (..),
+    Unital (..),
 
     -- * Shared-medium fusion (the ⅋ connective)
     Pick (..),
@@ -282,16 +292,17 @@ import Circuit.Body
     SomeBody (..),
     cascadeBody,
     cascadeSome,
+    runFlowchart,
     runSomeBody,
   )
 import Circuit.Category ((.>), (<|), (|>))
 import Circuit.Channel
   ( Strength,
     Traced,
+    slide,
     strength,
     trace,
   )
-import Circuit.Channel qualified as Channel
 import Circuit.Circ
   ( Circ (..),
     Intertwiner (..),
@@ -350,7 +361,7 @@ import Circuit.Linear
     BangWeaken (..),
     Exponential (..),
     LinearBang,
-    Lolli (..),
+    Lolli (curry, lolli, uncurry),
     RelevantBang,
     WhyNotIntro (..),
     WhyNotMonoid (..),
@@ -424,10 +435,14 @@ import Circuit.Shared
     Shared (..),
   )
 import Circuit.Stamped (Stamped (..))
+import Circuit.Syntax (eval)
 import Circuit.System
   ( System,
+    monoDir,
+    monoIn,
     mooreSystem,
     runSystem,
+    runSystemMono,
     system,
   )
 import Circuit.Tensor
@@ -437,5 +452,4 @@ import Circuit.Tensor
     superpose,
   )
 import Circuit.Trace (Trace, base, yank)
-import Circuit.Trace qualified as Trace
 import Prelude hiding (curry, uncurry)
