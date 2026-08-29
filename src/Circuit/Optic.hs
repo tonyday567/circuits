@@ -61,7 +61,7 @@ module Circuit.Optic
 where
 
 import Circuit.Category (Category, (.>))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Poles (Poles, iomap)
 import Circuit.Poly (Mono, Morphism, applyLens, lens)
 import Circuit.Tensor (Unit, Unital (..))
@@ -140,7 +140,7 @@ identityOptic = Optic unitl' unitl
 -- left.
 --
 -- Note what is /absent/: composition reassociates and applies 'strength', but
--- never 'Circuit.Channel.slide'.  'Circuit.Body.cascadeBody' needs two slides,
+-- never 'Circuit.Traced.slide'.  'Circuit.Body.cascadeBody' needs two slides,
 -- because a single 'Circuit.Body.Body' must push one carrier past the payload
 -- so that one arrow sees both.  An optic keeps its two residuals on the same
 -- side throughout.  That is the precise sense in which body composition is the

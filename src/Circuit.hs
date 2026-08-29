@@ -42,7 +42,7 @@
 --   @arr (t ch a) (t ch b)@, the stateful substrate that @Trace@ hides before
 --   tracing. The cartesian instance is `Body (,) ch (->)`.
 --
--- The `Yank` class (in "Circuit.Channel") abstracts the choice of tensor,
+-- The `Yank` class (in "Circuit.Traced") abstracts the choice of tensor,
 -- supporting lazy knots with @(,@), iteration with `Either`, and scheduling
 -- with `Data.These.These`.
 --
@@ -297,7 +297,7 @@ import Circuit.Body
     runSomeBody,
   )
 import Circuit.Category ((.>), (<|), (|>))
-import Circuit.Channel
+import Circuit.Traced
   ( Assoc,
     Slide,
     Strength,
@@ -416,7 +416,7 @@ import Circuit.Poly
     lens,
     prism,
   )
-import Circuit.Poly.Channel
+import Circuit.Channel
   ( Channel (..),
     commitChannel,
     constChannel,

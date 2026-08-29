@@ -24,7 +24,7 @@
 --   assoc .> slide .> strength f .> slide .> strength g .> assoc'
 -- @
 --
--- using 'Circuit.Channel.assoc', 'assoc'', 'slide' and 'strength'.  No
+-- using 'Circuit.Traced.assoc', 'assoc'', 'slide' and 'strength'.  No
 -- braiding/'Action' is needed because 'slide' already swaps the second carrier
 -- past the payload.
 --
@@ -87,7 +87,7 @@ where
 
 import Circuit.Body (Body (..), SomeBody (..), cascadeBody)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))

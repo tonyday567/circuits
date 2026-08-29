@@ -8,7 +8,7 @@ import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), cascadeBody, cascadeSome, runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Circ
   ( Circ (..),
     Sq (..),

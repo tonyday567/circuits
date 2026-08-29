@@ -23,12 +23,12 @@
 -- it routes traffic between the two poles without ever deciding which side is
 -- true.  For the unit object use 'open' (also exported as 'copycat').
 --
--- == Relationship to 'Circuit.Poly.Channel'
+-- == Relationship to 'Circuit.Channel'
 --
 -- @Poles@ is the bi-polar / effectful API: it is the right tool for
 -- @K IO/STM@ process plumbing where the channel is a write pole paired
 -- with a read pole.  For pure @(->)@ Moore-style channels indexed by a
--- polynomial, prefer 'Circuit.Poly.Channel'.
+-- polynomial, prefer 'Circuit.Channel'.
 --
 -- There is no deprecation shim yet: the relationship between the bi-polar
 -- and polynomial views is still being settled.  This module stays unchanged
@@ -98,7 +98,7 @@ where
 
 import Circuit.Bimonoid (Copy (copy))
 import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Bias (..), Tensor, Unit)
 import Circuit.Tensor qualified as Tensor
 import Data.Bifunctor (bimap)

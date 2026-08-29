@@ -12,7 +12,7 @@ import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, runK, (.))
-import Circuit.Channel (yank)
+import Circuit.Traced (yank)
 import Circuit.Process (Process (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)

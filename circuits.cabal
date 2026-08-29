@@ -49,7 +49,7 @@ library
     Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
-    Circuit.Channel
+    Circuit.Traced
     Circuit.Circ
     Circuit.Dagger
     Circuit.FinRel
@@ -61,7 +61,7 @@ library
     Circuit.Par
     Circuit.Poles
     Circuit.Poly
-    Circuit.Poly.Channel
+    Circuit.Channel
     Circuit.Process
     Circuit.Pullback
     Circuit.Shared

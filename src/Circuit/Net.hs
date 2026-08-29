@@ -68,7 +68,7 @@ import Circuit.Bimonoid
   )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..), (.>))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))

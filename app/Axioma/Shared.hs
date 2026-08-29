@@ -16,7 +16,7 @@ import Axioma.Common
     sharedDoubleP,
   )
 import Circuit.Category (id, (.), (.>))
-import Circuit.Channel (assoc, assoc', slide)
+import Circuit.Traced (assoc, assoc', slide)
 import Circuit.Process (Process (..))
 import Circuit.Shared (AlgShared, Pick (Both), Schedule (..), SigShared (..), sharedBy)
 import Circuit.Shared qualified as Shared

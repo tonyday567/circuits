@@ -26,7 +26,7 @@ Recommended reading order for the source (core concepts first):
 ```
 Circuit.Category    — Local 'Category' class, 'K' Kleisli newtype, and
                       composition/application helpers (.>), (|>), (<|).
-Circuit.Channel     — Structural class ladder: Assoc, Slide, Strength, Yank.
+Circuit.Traced     — Structural class ladder: Assoc, Slide, Strength, Yank.
                       Instances for (->) and K m; (,), Either, These tensors.
                       Left = feedback/continue, Right = exit for Either yank.
 Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
@@ -48,7 +48,7 @@ Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
                       delay/register, Body conversions.
 Circuit.Moore       — Moore machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.Poly.Channel — Poly-indexed Moore channels.
+Circuit.Channel — Poly-indexed Moore channels.
 Circuit.Poles       — Bi-polar channel ends (Out/In), boxes, copycat, race.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.

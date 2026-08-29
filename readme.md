@@ -64,7 +64,7 @@ satellites around the core. ([open full page](other/circuits-module.html))
 graph LR
   Category["Circuit.Category"]
 
-  subgraph Channel ["Circuit.Channel"]
+  subgraph Channel ["Circuit.Traced"]
     Assoc["Assoc"]
     Slide["Slide"]
     Strength["Strength"]
@@ -189,7 +189,7 @@ functors.
   this channel explicit before tracing.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms,
-  giving `Circuit.Poly.Channel` its interactive channel model.
+  giving `Circuit.Channel` its interactive channel model.
 
 The recent refactor crystallised this around `Body t ch arr a b`. Everything
 stateful — `Process`, `Moore`, `Poles` — is a specialisation or projection of

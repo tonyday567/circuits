@@ -22,7 +22,7 @@ move from `Loop` to `Trace`.
 
 *Polynomial interfaces and stateful processes*
 
-- New modules `Circuit.Poly`, `Circuit.Poly.Channel`, and `Circuit.System`.
+- New modules `Circuit.Poly`, `Circuit.Channel`, and `Circuit.System`.
   `SystemT t arr s p` is `Body t arr s (Dir p) (Pos p)`; `System` is the
   cartesian specialisation. `mooreSystem`, `runSystem`, and lens conversions
   live here.
@@ -104,8 +104,8 @@ separation between syntax and semantics.
 
 *Semantics split across two tracks*
 
-- Structural semantics: `Circuit.Category.Category` → `Circuit.Channel.Channel`
-  → `Circuit.Channel.Strength` → `Circuit.Channel.Traced`.
+- Structural semantics: `Circuit.Category.Category` → `Circuit.Traced.Channel`
+  → `Circuit.Traced.Strength` → `Circuit.Traced.Traced`.
 - Functorial semantics: `Circuit.Category.Category` → `Circuit.Tensor.Tensor`
   → `Circuit.Tensor.Action`.
 

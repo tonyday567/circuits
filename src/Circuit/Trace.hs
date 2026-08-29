@@ -39,7 +39,7 @@ module Circuit.Trace
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose (..),

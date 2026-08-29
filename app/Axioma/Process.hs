@@ -21,7 +21,7 @@ import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body, SomeBody (..), runSomeBody)
 import Circuit.Body qualified as Body
 import Circuit.Category (id, (.), (.>))
-import Circuit.Channel (assoc, assoc', slide, strength, yank)
+import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Circuit.Layer (run)
 import Circuit.Moore (Moore, mooreMachine)
 import Circuit.Net qualified as Net

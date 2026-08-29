@@ -46,7 +46,7 @@ module Circuit.SMC
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Syntax
   ( Algebra (..),

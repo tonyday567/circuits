@@ -33,7 +33,7 @@ import Circuit.Bimonoid
     ZeroT (..),
   )
 import Circuit.Category (Category (..))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
 import Prelude hiding (id, (.))
 
@@ -41,7 +41,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Dagger
 -- >>> import Circuit.Bimonoid
 -- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
--- >>> import Circuit.Channel (Yank (..))
+-- >>> import Circuit.Traced (Yank (..))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 

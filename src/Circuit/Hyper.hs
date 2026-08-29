@@ -27,7 +27,7 @@
 -- === doctests
 --
 -- >>> import Circuit.Hyper
--- >>> import Circuit.Channel (yank)
+-- >>> import Circuit.Traced (yank)
 -- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 --
@@ -65,7 +65,7 @@ module Circuit.Hyper
 where
 
 import Circuit.Category (Category (..), K (..), (.>))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)

@@ -81,7 +81,7 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Moore (Moore, mooreMachine, mooreMorphism, runMooreMono)
 import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Bias (..), Pick (..), Schedule (..), Shared (..), chooseS)

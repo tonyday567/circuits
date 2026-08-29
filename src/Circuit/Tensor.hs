@@ -22,7 +22,7 @@
 --
 -- Note: the monomorphic 'assocL' and 'assocR' helpers below reassociate
 -- /leftward/ and /rightward/ respectively — the opposite direction to
--- 'Circuit.Channel.assoc' and 'Circuit.Channel.assoc''.
+-- 'Circuit.Traced.assoc' and 'Circuit.Traced.assoc''.
 --
 -- 'Tensor' / 'Action' are kind-polymorphic.
 module Circuit.Tensor
@@ -57,8 +57,8 @@ where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
-import Circuit.Channel (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
-import Circuit.Channel qualified as Ch
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
+import Circuit.Traced qualified as Ch
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Trace (SigYank (..), Trace, base, yank)
 import Control.Monad (Monad)
