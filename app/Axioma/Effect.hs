@@ -12,11 +12,11 @@ import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, runK, (.))
-import Circuit.Traced (yank)
 import Circuit.Process (Process (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
 import Circuit.Trace (Trace, base)
+import Circuit.Traced (yank)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Prelude hiding (curry, id, uncurry, (.))

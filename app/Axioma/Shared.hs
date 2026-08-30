@@ -16,7 +16,6 @@ import Axioma.Common
     sharedDoubleP,
   )
 import Circuit.Category (id, (.), (.>))
-import Circuit.Traced (assoc, assoc', slide, yank)
 import Circuit.Process (Process (..))
 import Circuit.Shared (AlgShared, Pick (Both), Schedule (..), SigShared (..), sharedBy)
 import Circuit.Shared qualified as Shared
@@ -24,6 +23,7 @@ import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace, base)
+import Circuit.Traced (assoc, assoc', slide, yank)
 import Control.Monad (when)
 import Data.List (sort)
 import Data.These (These (..), these)

@@ -57,10 +57,10 @@ where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
-import Circuit.Traced qualified as Ch
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Trace (SigYank (..), Trace, base)
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
+import Circuit.Traced qualified as Ch
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)

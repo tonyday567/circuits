@@ -38,7 +38,6 @@ module Circuit.Trace
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose (..),
@@ -46,6 +45,7 @@ import Circuit.Syntax
     eval,
     (:+:) (..),
   )
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 

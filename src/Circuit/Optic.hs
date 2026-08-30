@@ -61,10 +61,10 @@ module Circuit.Optic
 where
 
 import Circuit.Category (Category, (.>))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Poles (Poles, iomap)
 import Circuit.Poly (Mono, Morphism, applyLens, lens)
 import Circuit.Tensor (Unit, Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Prelude hiding (id, (.))
 
 -- $setup

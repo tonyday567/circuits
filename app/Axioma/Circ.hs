@@ -8,7 +8,6 @@ import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), SomeBody (..), mergeChannel, runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Circ
   ( Circ (..),
     Sq (..),
@@ -30,6 +29,7 @@ import Circuit.Circ
   )
 import Circuit.Poles (Poles (..), box, iomap, poles0)
 import Circuit.Tensor (Action (..), Distributive (..), Tensor (..), Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Control.Monad (when)
 import Data.Bifunctor (first, second)
 import Data.List (sort)

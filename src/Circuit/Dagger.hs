@@ -33,8 +33,8 @@ import Circuit.Bimonoid
     ZeroT (..),
   )
 import Circuit.Category (Category (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Prelude hiding (id, (.))
 
 -- $setup

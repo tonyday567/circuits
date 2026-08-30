@@ -87,8 +87,8 @@ where
 
 import Circuit.Body (Body (..), SomeBody (..), mergeChannel)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 

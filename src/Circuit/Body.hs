@@ -47,9 +47,9 @@ module Circuit.Body
 where
 
 import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
 import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit)
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 

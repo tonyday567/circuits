@@ -97,9 +97,9 @@ where
 
 import Circuit.Bimonoid (Copy (copy))
 import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Bias (..), Tensor, Unit)
 import Circuit.Tensor qualified as Tensor
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Data.Bifunctor (bimap)
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
@@ -153,6 +153,7 @@ data Poles arr a b = Poles
 --
 -- Yanking: for the unit poles from 'open',
 -- @close (conjoint p) (companion p) = id@.
+
 {- HLINT ignore close "Eta reduce" -}
 close :: In arr a -> Out arr a -> arr a a
 close contra = commit contra
@@ -169,6 +170,7 @@ close contra = commit contra
 -- >>> let inA = prefixIn (const ()) (conjoint polesU) :: In (->) String
 -- >>> plug inA outA "hello"
 -- 42
+
 {- HLINT ignore plug "Eta reduce" -}
 plug :: In arr a -> Out arr b -> arr a b
 plug i o = commit i o

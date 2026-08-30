@@ -64,7 +64,6 @@ import Circuit.Bimonoid
   )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..), (.>))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Dagger qualified as Dg
 import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))
@@ -72,6 +71,7 @@ import Circuit.SMC qualified as SMC
 import Circuit.Syntax (Algebra (..), SigCompose (..), Syntax (..), evalInto, (:+:) (..))
 import Circuit.Tensor (Action, Tensor (..), Unit)
 import Circuit.Trace (Trace, base)
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 

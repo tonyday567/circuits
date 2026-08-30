@@ -25,10 +25,10 @@ where
 
 import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (Category (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Layer (run)
 import Circuit.Net (Net)
 import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor
 import Prelude hiding (id, (.))
 
