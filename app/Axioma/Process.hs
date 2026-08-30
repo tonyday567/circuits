@@ -21,7 +21,6 @@ import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body, SomeBody (..), runSomeBody)
 import Circuit.Body qualified as Body
 import Circuit.Category (id, (.), (.>))
-import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Circuit.Layer (run)
 import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
 import Circuit.Net qualified as Net
@@ -32,6 +31,7 @@ import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Bias (..), tensor)
 import Circuit.Trace (Trace, base)
+import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Control.Monad (when)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))

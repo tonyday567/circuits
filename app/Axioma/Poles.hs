@@ -12,7 +12,6 @@ import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
-import Circuit.Tensor (Bias (..))
 import Circuit.Poles
   ( HasDual (..),
     In (..),
@@ -40,6 +39,7 @@ import Circuit.Poles qualified as Poles
 import Circuit.Poly (Mono)
 import Circuit.Process (fold, mooreAsProcess, scan)
 import Circuit.Stamped (Stamped (..), stamp, stamped)
+import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (isNothing)
