@@ -136,11 +136,11 @@ identityOptic = Optic unitl' unitl
 -- Given @opt1@ from @(s,r)@ to @(a,b)@ with residual @ch1@ and @opt2@ from
 -- @(a,b)@ to @(u,v)@ with residual @ch2@, the composite has residual
 -- @t ch1 ch2@ — the tensoring of residuals in the coend formula.  The
--- residual order matches 'Circuit.Body.cascadeBody': first-applied on the
+-- residual order matches 'Circuit.Body.mergeChannel': first-applied on the
 -- left.
 --
 -- Note what is /absent/: composition reassociates and applies 'strength', but
--- never 'Circuit.Traced.slide'.  'Circuit.Body.cascadeBody' needs two slides,
+-- never 'Circuit.Traced.slide'.  'Circuit.Body.mergeChannel' needs two slides,
 -- because a single 'Circuit.Body.Body' must push one carrier past the payload
 -- so that one arrow sees both.  An optic keeps its two residuals on the same
 -- side throughout.  That is the precise sense in which body composition is the

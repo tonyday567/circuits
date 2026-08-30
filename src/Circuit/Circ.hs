@@ -34,7 +34,7 @@
 -- @ch ⊗ (ch' ⊗ ch'')@ and @(ch ⊗ ch') ⊗ ch''@ are different Haskell types, so
 -- on-the-nose associativity is impossible.  The proof artifact is the
 -- intertwiner itself; the falsification artifact is observational, via the
--- pointed specialisation 'Circuit.Body.cascadeSome' and 'Circuit.Body.runSomeBody'.
+-- 'Category' instance for 'SomeBody' and 'Circuit.Body.runSomeBody'.
 module Circuit.Circ
   ( -- * Loose 1-cell (carrier hidden)
     Circ (..),
@@ -85,7 +85,7 @@ module Circuit.Circ
   )
 where
 
-import Circuit.Body (Body (..), SomeBody (..), cascadeBody)
+import Circuit.Body (Body (..), SomeBody (..), mergeChannel)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
@@ -206,23 +206,14 @@ cascade ::
   Circ t arr b c ->
   Circ t arr a b ->
   Circ t arr a c
-cascade (Circ g) (Circ f) =
-  Circ $
-    Body
-      ( assoc
-          .> slide
-          .> strength (morphism f)
-          .> slide
-          .> strength (morphism g)
-          .> assoc'
-      )
+cascade (Circ g) (Circ f) = Circ (mergeChannel g f)
 
 -- | Indexed left unitor square.
 unitorLeftSq ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t (Unit t) ch) ch a b
-unitorLeftSq b = Sq unitl (cascadeBody b (Body id)) b
+unitorLeftSq b = Sq unitl (mergeChannel b (Body id)) b
 
 -- | Left unitor witness: composing a body with the identity at the unit carrier
 -- is isomorphic to the original body.
@@ -237,7 +228,7 @@ unitorRightSq ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t ch (Unit t)) ch a b
-unitorRightSq b = Sq unitr (cascadeBody (Body id) b) b
+unitorRightSq b = Sq unitr (mergeChannel (Body id) b) b
 
 -- | Right unitor witness.
 unitorRight ::
@@ -256,8 +247,8 @@ associatorSq ::
 associatorSq h g f =
   Sq
     assoc
-    (cascadeBody h (cascadeBody g f))
-    (cascadeBody (cascadeBody h g) f)
+    (mergeChannel h (mergeChannel g f))
+    (mergeChannel (mergeChannel h g) f)
 
 -- | Associator witness: carrier bracketing of three composed bodies is
 -- isomorphic up to the associator of the tensor.
@@ -279,8 +270,8 @@ rightWhisker ::
 rightWhisker sq r =
   Sq
     (tensor (carrierMap sq) id)
-    (cascadeBody r (sqSrc sq))
-    (cascadeBody r (sqTgt sq))
+    (mergeChannel r (sqSrc sq))
+    (mergeChannel r (sqTgt sq))
 
 -- | Left whisker: tensor an identity-on-boundaries 1-cell on the left of a
 -- square.
@@ -292,8 +283,8 @@ leftWhisker ::
 leftWhisker l sq =
   Sq
     (tensor id (carrierMap sq))
-    (cascadeBody (sqSrc sq) l)
-    (cascadeBody (sqTgt sq) l)
+    (mergeChannel (sqSrc sq) l)
+    (mergeChannel (sqTgt sq) l)
 
 -- | Horizontal composition of two squares.
 hcompose ::
@@ -304,8 +295,8 @@ hcompose ::
 hcompose sq2 sq1 =
   Sq
     (tensor (carrierMap sq1) (carrierMap sq2))
-    (cascadeBody (sqSrc sq2) (sqSrc sq1))
-    (cascadeBody (sqTgt sq2) (sqTgt sq1))
+    (mergeChannel (sqSrc sq2) (sqSrc sq1))
+    (mergeChannel (sqTgt sq2) (sqTgt sq1))
 
 -- | Boundary whisker: apply tight maps to the input and output boundaries of a
 -- square.  This is the `Sq` side of the interchange law; the `Poles` side is

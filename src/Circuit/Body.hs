@@ -42,8 +42,7 @@ module Circuit.Body
     runFlowchart,
 
     -- * Carrier-tensoring composition
-    cascadeBody,
-    cascadeSome,
+    mergeChannel,
   )
 where
 
@@ -177,12 +176,12 @@ instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
 -- @
 --   assoc .> slide .> strength f .> slide .> strength g .> assoc'
 -- @
-cascadeBody ::
+mergeChannel ::
   (Strength t arr) =>
   Body t ch' arr b c ->
   Body t ch arr a b ->
   Body t (t ch ch') arr a c
-cascadeBody g f =
+mergeChannel g f =
   Body
     ( assoc
         .> slide
@@ -191,18 +190,6 @@ cascadeBody g f =
         .> strength (morphism g)
         .> assoc'
     )
-
--- | Pointed carrier-tensoring composition for @t = (,)@ and @arr = (->)@.
---
--- Seeds pair under the tensor, and the composite can be run with
--- 'runSomeBody'.  This is the pointed counterpart to the unpointed
--- 'cascadeBody'.
-cascadeSome ::
-  SomeBody (,) (->) b c ->
-  SomeBody (,) (->) a b ->
-  SomeBody (,) (->) a c
-cascadeSome (SomeBody s2 g) (SomeBody s1 f) =
-  SomeBody (s1, s2) (cascadeBody g f)
 
 -- | 'Category' instance for 'SomeBody'.
 --
@@ -221,5 +208,8 @@ instance
   {-# INLINE id #-}
 
   (.) :: forall a b c. SomeBody t arr b c -> SomeBody t arr a b -> SomeBody t arr a c
-  SomeBody s2 g . SomeBody s1 f = SomeBody (seedPair s1 s2) (cascadeBody g f)
+  sb2@(SomeBody _ _) . sb1@(SomeBody _ _) = mergeChannelSome sb2 sb1
+    where
+      mergeChannelSome (SomeBody s2' g') (SomeBody s1' f') =
+        SomeBody (seedPair s1' s2') (mergeChannel g' f')
   {-# INLINE (.) #-}

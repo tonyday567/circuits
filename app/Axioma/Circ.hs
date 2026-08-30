@@ -5,7 +5,7 @@ module Axioma.Circ
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), SomeBody (..), cascadeBody, cascadeSome, runFlowchart, runSomeBody)
+import Circuit.Body (Body (..), SomeBody (..), mergeChannel, runFlowchart, runSomeBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
@@ -78,14 +78,14 @@ resetDriftSq :: Sq (,) (->) Int Bool Bool Char
 resetDriftSq = Sq odd resetDriftBody parityBody
 
 -- | Reference implementation of pointed cascade, kept as an independent
--- specification against which 'cascadeSome' (which uses 'cascadeBody') is
+-- specification against which the 'SomeBody' 'Category' instance is
 -- checked.  This inverts the previous arrangement where the reference lived in
 -- the library and the test used it.
-cascadeSomeReference ::
+_mergeChannelSomeReference ::
   SomeBody (,) (->) b c ->
   SomeBody (,) (->) a b ->
   SomeBody (,) (->) a c
-cascadeSomeReference (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
+_mergeChannelSomeReference (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
   SomeBody (s1, s2) $ Body $ \((s1', s2'), a) ->
     let (s1'', b) = f (s1', a)
         (s2'', c) = g (s2', b)
@@ -111,7 +111,7 @@ cascadeStreamOk :: [Int] -> Bool
 cascadeStreamOk xs =
   let f = SomeBody 0 sumBody
       g = SomeBody (-5) maxBody
-   in runSomeBody (cascadeSome g f) xs == runSomeBody g (runSomeBody f xs)
+   in runSomeBody (g Cat.. f) xs == runSomeBody g (runSomeBody f xs)
 
 -- | Associativity oracle: pointed cascade is associative on input lists.  All
 -- three bodies are input- and state-sensitive; @doublerBody@ was removed
@@ -123,26 +123,26 @@ cascadeAssocOk xs =
   let f = SomeBody 7 delayBody
       g = SomeBody 0 sumBody
       h = SomeBody (-5) maxBody
-   in runSomeBody (cascadeSome h (cascadeSome g f)) xs
-        == runSomeBody (cascadeSome (cascadeSome h g) f) xs
+   in runSomeBody ((h Cat.. g) Cat.. f) xs
+        == runSomeBody (h Cat.. (g Cat.. f)) xs
 
--- | 'cascadeSome' agrees with the independent reference implementation.
--- Distinct seeds catch seed mis-pairing.
+-- | The 'SomeBody' 'Category' instance agrees with the independent reference
+-- implementation.  Distinct seeds catch seed mis-pairing.
 cascadeAgreesWithReferenceOk :: [Int] -> Bool
 cascadeAgreesWithReferenceOk xs =
   let f = SomeBody 2 sumBody
       g = SomeBody (-3) maxBody
-   in runSomeBody (cascadeSome g f) xs == runSomeBody (cascadeSomeReference g f) xs
+   in runSomeBody (g Cat.. f) xs == runSomeBody (_mergeChannelSomeReference g f) xs
 
--- | SomeBody Category instance agrees with 'cascadeSome'.
+-- | The 'SomeBody' 'Category' instance is associative.
 --
--- The generic 'Category' instance uses 'cascadeBody' and 'seedPair'; for
--- @(,)@ this should coincide exactly with the hand-written 'cascadeSome'.
+-- The generic 'Category' instance uses 'mergeChannel' and 'seedPair'; for
+-- @(,)@ this should coincide exactly with the reference implementation.
 someBodyCategoryAgreesOk :: [Int] -> Bool
 someBodyCategoryAgreesOk xs =
   let f = SomeBody 2 sumBody
       g = SomeBody (-3) maxBody
-   in runSomeBody (g Cat.. f) xs == runSomeBody (cascadeSome g f) xs
+   in runSomeBody (g Cat.. f) xs == runSomeBody (_mergeChannelSomeReference g f) xs
 
 -- | SomeBody Category left identity.
 someBodyCategoryLeftIdOk :: [Int] -> Bool
@@ -362,7 +362,7 @@ unitorRightOk =
         [(n, r) | n <- carrierRange, r <- [False, True]]
 
 -- | Associator proof witness: carrier bracketing of three composed bodies is
--- isomorphic.  This also stress-tests 'cascadeBody' asymmetrically.
+-- isomorphic.  This also stress-tests 'mergeChannel' asymmetrically.
 associatorOk :: Bool
 associatorOk =
   let sq = associatorSq maxBody sumBody delayBody
@@ -458,8 +458,8 @@ tighteningHBody = Body $ \((), x) -> ((), x + 10)
 tighteningOk :: Bool
 tighteningOk =
   let idS = idBody :: Body (,) () (->) Int Int
-      lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `cascadeBody` runningSumFB)
-      rhs = tighteningHBody `cascadeBody` feedbackBody runningSumFB
+      lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `mergeChannel` runningSumFB)
+      rhs = tighteningHBody `mergeChannel` feedbackBody runningSumFB
    in runSomeBody (SomeBody (((), ((), ())), 0) lhs) [1, 2, 3]
         == runSomeBody (SomeBody (((), 0), ()) rhs) [1, 2, 3]
 
@@ -521,8 +521,8 @@ slidingFBody = Body $ \((), (t, a)) -> let s' = t + a in ((), (s', s'))
 slidingOk :: Bool
 slidingOk =
   let hTensorId = slidingHBody `tensorBody` idBody
-      lhs = feedbackBody (slidingFBody `cascadeBody` hTensorId)
-      rhs = feedbackBody (hTensorId `cascadeBody` slidingFBody)
+      lhs = feedbackBody (slidingFBody `mergeChannel` hTensorId)
+      rhs = feedbackBody (hTensorId `mergeChannel` slidingFBody)
    in runSomeBody (SomeBody ((((), ()), ()), 0) lhs) [1, 2, 3]
         == runSomeBody (SomeBody (((), ((), ())), 1) rhs) [1, 2, 3]
 
@@ -614,8 +614,8 @@ eitherHBody = Body $ \case
 -- @(ch1 + (ch2 + ch3))@, so the check is up to carrier isomorphism.
 eitherCascadeAssocOk :: Bool
 eitherCascadeAssocOk =
-  let lhs = cascadeBody eitherHBody (cascadeBody eitherGBody eitherFBody)
-      rhs = cascadeBody (cascadeBody eitherHBody eitherGBody) eitherFBody
+  let lhs = mergeChannel eitherHBody (mergeChannel eitherGBody eitherFBody)
+      rhs = mergeChannel (mergeChannel eitherHBody eitherGBody) eitherFBody
    in all
         ( \n ->
             fst (runFlowchart lhs 30 n)
@@ -1215,9 +1215,9 @@ circTopic verbosity = do
         cascadeStreamOk [3, 1, 4, 1, 5],
       checkV verbosity "pointed cascade is associative on input lists" $
         cascadeAssocOk [3, 1, 4, 1, 5],
-      checkV verbosity "cascadeSome agrees with reference implementation" $
+      checkV verbosity "pointed cascade agrees with reference implementation" $
         cascadeAgreesWithReferenceOk [3, 1, 4, 1, 5],
-      checkV verbosity "SomeBody Category instance agrees with cascadeSome" $
+      checkV verbosity "SomeBody Category instance agrees with reference implementation" $
         someBodyCategoryAgreesOk [3, 1, 4, 1, 5],
       checkV verbosity "SomeBody Category left identity" $
         someBodyCategoryLeftIdOk [3, 1, 4, 1, 5],
