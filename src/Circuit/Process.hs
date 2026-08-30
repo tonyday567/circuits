@@ -44,7 +44,6 @@ module Circuit.Process
 
     -- * Pointed process (explicit seed)
     PProcess (..),
-    SomePProcess (..),
     asProcess,
     asPProcess,
 
@@ -55,7 +54,6 @@ module Circuit.Process
 
     -- * Moore <-> Process conversions
     mooreAsProcess,
-    mooreAsPProcess,
     pprocessAsMoore,
 
     -- * Functorial plumbing
@@ -131,7 +129,7 @@ data Process a b where
 -- The first input is consumed for the state transition from the supplied
 -- initial state, matching the coalgebra intuition of a 'Moore'.
 mooreAsProcess :: Moore (,) (->) s (Mono i o) -> s -> Process i o
-mooreAsProcess sys s0 = asProcess (mooreAsPProcess sys s0)
+mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
 {-# INLINEABLE mooreAsProcess #-}
 
 -- | A pointed process with an explicit seed.
@@ -145,9 +143,14 @@ data PProcess s a b = PProcess
     pprocessExtract :: s -> b
   }
 
--- | An existentially-quantified 'PProcess'.
-data SomePProcess a b where
-  SomePProcess :: PProcess s a b -> SomePProcess a b
+-- | Convert a monomial 'Moore' into a 'PProcess' with a given seed.
+asPProcess :: Moore (,) (->) s (Mono i o) -> s -> PProcess s i o
+asPProcess sys s0 =
+  PProcess
+    s0
+    (\s i -> stepMoore sys s i)
+    (\s -> peekMoore sys s)
+{-# INLINEABLE asPProcess #-}
 
 -- | Forget the explicit seed of a 'PProcess', yielding a 'Process' whose
 -- first input creates the initial state via 'pprocessStep'.
@@ -155,24 +158,6 @@ asProcess :: PProcess s a b -> Process a b
 asProcess (PProcess s0 step extract) =
   Process (\a -> step s0 a) step extract
 {-# INLINEABLE asProcess #-}
-
--- | Reveal the state of a 'Process' by supplying the first input.
---
--- The 'Process' is run for one tick with the supplied input; the resulting
--- state is exposed in a 'PProcess'.
-asPProcess :: Process a b -> a -> SomePProcess a b
-asPProcess (Process inject step extract) a =
-  SomePProcess (PProcess (inject a) step extract)
-{-# INLINEABLE asPProcess #-}
-
--- | Convert a monomial 'Moore' into a 'PProcess' with a given seed.
-mooreAsPProcess :: Moore (,) (->) s (Mono i o) -> s -> PProcess s i o
-mooreAsPProcess sys s0 =
-  PProcess
-    s0
-    (\s i -> stepMoore sys s i)
-    (\s -> peekMoore sys s)
-{-# INLINEABLE mooreAsPProcess #-}
 
 -- | Convert a 'PProcess' into a monomial 'Moore'.
 pprocessAsMoore :: PProcess s i o -> Moore (,) (->) s (Mono i o)

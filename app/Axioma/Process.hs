@@ -25,7 +25,7 @@ import Circuit.Layer (run)
 import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Mono)
-import Circuit.Process (PProcess (..), Process (..), SomePProcess (..), asPProcess, asProcess, delay, encodeList, fold, foldPProcess, mealy, mooreAsPProcess, pprocessAsMoore, register, runMealy, scan, scanPProcess)
+import Circuit.Process (PProcess (..), Process (..), asPProcess, asProcess, delay, encodeList, fold, foldPProcess, mealy, pprocessAsMoore, register, runMealy, scan, scanPProcess)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)
@@ -82,21 +82,22 @@ processTopic verbosity = do
       checkV verbosity "PProcess scan matches Process scan" $
         let pp = PProcess 0 (+) id
          in scanPProcess pp 0 [1, 2, 3 :: Int] == [1, 3, 6],
+      checkV verbosity "asPProcess converts monomial Moore" $
+        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+            pp = asPProcess sys 0
+         in scanPProcess pp 0 [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "asProcess . asPProcess round-trips" $
-        case asPProcess sumP 0 of
-          SomePProcess pp -> scan (asProcess pp) [1, 2, 3 :: Int] == [1, 3, 6],
+        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+            pp = asPProcess sys 0
+         in scan (asProcess pp) [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "PProcess fold matches Process fold" $
         let pp = PProcess 0 (+) id
          in foldPProcess pp 0 [1, 2, 3 :: Int] == Just 6,
-      checkV verbosity "mooreAsPProcess converts monomial Moore" $
-        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
-            pp = mooreAsPProcess sys 0
-         in scanPProcess pp 0 [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "pprocessAsMoore round-trips" $
         let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
-            pp = mooreAsPProcess sys 0
+            pp = asPProcess sys 0
             sys' = pprocessAsMoore pp
-            pp' = mooreAsPProcess sys' 0
+            pp' = asPProcess sys' 0
          in scanPProcess pp' 0 [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "Process scan == run . encodeList" $
         Syn.eval (encodeList sumP) [1, 2, 3] == scan sumP [1, 2, 3],
