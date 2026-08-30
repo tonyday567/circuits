@@ -1,0 +1,102 @@
+cabal-version: 3.0
+name: circuits
+version: 0.3.0.0
+license: BSD-3-Clause
+license-file: LICENSE
+copyright: Tony Day (c) 2025-2026
+category: control
+author: Tony Day
+maintainer: tonyday567@gmail.com
+homepage: https://github.com/tonyday567/circuits#readme
+bug-reports: https://github.com/tonyday567/circuits/issues
+synopsis: first-class circuits
+description:
+  circuits provides a suite of tools that make coding with circuits first-class.
+
+build-type: Simple
+tested-with:
+  ghc ==9.10.1
+  ghc ==9.12.2
+  ghc ==9.14.1
+
+extra-doc-files:
+  ChangeLog.md
+  LICENSE
+  readme.md
+
+source-repository head
+  type: git
+  location: https://github.com/tonyday567/circuits
+
+common ghc-options-stanza
+  ghc-options:
+    -Wall
+    -Wno-unused-imports
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+library
+  import: ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs: src
+  exposed-modules:
+    Circuit
+    Circuit.Axioma.Test
+    Circuit.Bimonoid
+    Circuit.Body
+    Circuit.Category
+    Circuit.Channel
+    Circuit.Circ
+    Circuit.Dagger
+    Circuit.FinRel
+    Circuit.Hyper
+    Circuit.Layer
+    Circuit.Linear
+    Circuit.Moore
+    Circuit.Net
+    Circuit.Optic
+    Circuit.Par
+    Circuit.Poles
+    Circuit.Poly
+    Circuit.Process
+    Circuit.Pullback
+    Circuit.Shared
+    Circuit.SMC
+    Circuit.Span
+    Circuit.Stamped
+    Circuit.Stream
+    Circuit.Syntax
+    Circuit.Tensor
+    Circuit.Trace
+    Circuit.Traced
+
+  build-depends:
+    base >=4.20 && <5,
+    these >=1.1 && <1.3,
+
+executable circuits-axioma
+  import: ghc-options-stanza
+  default-language: GHC2024
+  main-is: circuits-axioma.hs
+  hs-source-dirs: app
+  other-modules:
+    Axioma.Channel
+    Axioma.Circ
+    Axioma.Common
+    Axioma.Effect
+    Axioma.FinRel
+    Axioma.Optic
+    Axioma.Poles
+    Axioma.Process
+    Axioma.Shared
+    Axioma.Span
+
+  build-depends:
+    base >=4.20 && <5,
+    circuits,
+    optparse-applicative >=0.17 && <0.20,
+    these >=1.1 && <1.3,
