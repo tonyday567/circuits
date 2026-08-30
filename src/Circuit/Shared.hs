@@ -14,13 +14,10 @@
 -- 'Circuit.Tensor.superpose', which keeps channels independent
 -- (the @⊗@ product).
 --
--- 'Bias' is re-exported from "Circuit.Tensor" because it is also used for
--- additive disjunction in "Circuit.Poles".
+-- 'Bias' lives in "Circuit.Tensor"; import it from there if you need the
+-- schedule bias constructors.
 module Circuit.Shared
-  ( -- * Schedule bias
-    Bias (..),
-
-    -- * Schedule decision
+  ( -- * Schedule decision
     Pick (..),
 
     -- * Schedule driver

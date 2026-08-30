@@ -3,11 +3,11 @@
 -- == Usage
 --
 -- This module re-exports the whole public API. Because it brings its own
--- 'id', '(.)', 'curry' and 'uncurry', importing it unqualified alongside
--- 'Prelude' requires hiding the duplicates:
+-- 'id' and '(.)', importing it unqualified alongside 'Prelude' requires
+-- hiding the duplicates:
 --
 -- @
--- import Prelude hiding (curry, id, uncurry, (.))
+-- import Prelude hiding (id, (.))
 -- import Circuit
 -- @
 --
@@ -131,12 +131,12 @@ import Circuit.Poly
 import Circuit.Process
 import Circuit.Pullback
 import Circuit.SMC
-import Circuit.Shared hiding (Bias)
+import Circuit.Shared
 import Circuit.Span
 import Circuit.Stamped
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor
-import Circuit.Trace hiding (yank)
+import Circuit.Trace
 import Circuit.Traced
-import Prelude hiding (curry, id, uncurry, (.))
+import Prelude hiding (id, (.))

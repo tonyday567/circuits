@@ -25,14 +25,13 @@ import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Circuit.Layer (run)
 import Circuit.Moore (Moore, mooreMachine)
 import Circuit.Net qualified as Net
-import Circuit.Poles (Bias (..))
 import Circuit.Process (Boundary (..), Process (..), delay, encodeList, fold, isMark, isPayload, markMoore, mealy, mooreToProcess, register, runMealy, scan)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (tensor)
-import Circuit.Trace (Trace, base, yank)
+import Circuit.Tensor (Bias (..), tensor)
+import Circuit.Trace (Trace, base)
 import Control.Monad (when)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))

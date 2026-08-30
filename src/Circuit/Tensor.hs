@@ -60,7 +60,7 @@ import Circuit.Category qualified as Cat (Op (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), TraceC, Yank (..))
 import Circuit.Traced qualified as Ch
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
-import Circuit.Trace (SigYank (..), Trace, base, yank)
+import Circuit.Trace (SigYank (..), Trace, base)
 import Control.Monad (Monad)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -70,7 +70,8 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
--- >>> import Circuit.Trace (Trace, base, yank)
+-- >>> import Circuit.Trace (Trace, base)
+-- >>> import Circuit.Traced (yank)
 -- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Functor.Identity (Identity)
@@ -549,7 +550,7 @@ instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.
 --
--- Two 'Circuit.Trace.yank's in parallel superpose into one 'Circuit.Trace.yank' over a paired channel,
+-- Two 'Circuit.Traced.yank's in parallel superpose into one 'Circuit.Traced.yank' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
 --
 -- @superpose (trace f) (trace g) = trace (pre . tensor f g . post)@

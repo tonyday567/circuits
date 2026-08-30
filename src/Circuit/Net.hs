@@ -71,7 +71,7 @@ import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))
 import Circuit.SMC qualified as SMC
 import Circuit.Syntax (Algebra (..), SigCompose (..), Syntax (..), evalInto, (:+:) (..))
 import Circuit.Tensor (Action, Tensor (..), Unit)
-import Circuit.Trace (Trace, base, yank)
+import Circuit.Trace (Trace, base)
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
@@ -79,7 +79,8 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Dagger qualified as Dg
 -- >>> import Circuit.Layer (bind, run, unit)
 -- >>> import Circuit.Net
--- >>> import Circuit.Trace (Trace, base, yank)
+-- >>> import Circuit.Trace (Trace, base)
+-- >>> import Circuit.Traced (yank)
 -- >>> import Circuit.Syntax (Syntax (Lift), eval, evalInto)
 -- >>> import Circuit.SMC
 -- >>> import Circuit.Category ((.))

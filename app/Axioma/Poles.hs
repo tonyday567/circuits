@@ -12,9 +12,9 @@ import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Moore (Moore, mooreMachine)
+import Circuit.Tensor (Bias (..))
 import Circuit.Poles
-  ( Bias (..),
-    HasDual (..),
+  ( HasDual (..),
     In (..),
     Out (..),
     Poles (..),
@@ -148,7 +148,7 @@ polesTopic verbosity = do
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
-         in scan p [] == [] && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
+         in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
       -- equipment-law oracles
       checkV verbosity "box is a homomorphism for stateful Poles over Body" $
         let w1 = Body (\(s, x) -> (s + x, ())) :: Body (,) Int (->) Int ()

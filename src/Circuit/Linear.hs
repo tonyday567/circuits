@@ -32,15 +32,15 @@ import Circuit.Par (Bot, Par (..))
 import Circuit.Tensor (Tensor (..), Unit)
 import Data.Kind (Type)
 import Data.Void (Void, absurd)
-import Prelude hiding (curry, id, uncurry, (.))
+import Prelude hiding (id, (.))
 
 -- * Linear implication (internal hom)
 
 -- | Closed monoidal structure: @A ⊸ B@ is the right adjoint of tensor.
 --
--- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curry'/'uncurry'.
+-- Maps @A ⊗ B -> C@ correspond to maps @A -> B ⊸ C@ via 'curryL'/'uncurryL'.
 -- 'evalLinear' is the counit @A ⊗ (A ⊸ B) -> B@ (hom on the right of the tensor).
--- That is the existing Chu convention; it differs from @uncurry id@ by a
+-- That is the existing Chu convention; it differs from @uncurryL id@ by a
 -- 'Circuit.Tensor.braid'.  'lolli' is identity on the implication object, used to mention
 -- it.
 --
@@ -63,12 +63,12 @@ class (Category arr) => Lolli (t :: Type -> Type -> Type) (arr :: Type -> Type -
     arr (t a (LolliT t arr a b)) b
 
   -- | Curry the left factor: @(A ⊗ B -> C) -> (A -> B ⊸ C)@.
-  curry ::
+  curryL ::
     arr (t a b) c ->
     arr a (LolliT t arr b c)
 
   -- | Uncurry the left factor: @(A -> B ⊸ C) -> (A ⊗ B -> C)@.
-  uncurry ::
+  uncurryL ::
     arr a (LolliT t arr b c) ->
     arr (t a b) c
 
@@ -80,10 +80,10 @@ instance Lolli (,) (->) where
   {-# INLINE lolli #-}
   evalLinear (a, f) = f a
   {-# INLINE evalLinear #-}
-  curry f a b = f (a, b)
-  {-# INLINE curry #-}
-  uncurry g (a, b) = g a b
-  {-# INLINE uncurry #-}
+  curryL f a b = f (a, b)
+  {-# INLINE curryL #-}
+  uncurryL g (a, b) = g a b
+  {-# INLINE uncurryL #-}
 
 -- * Exponentials (! and ?)
 

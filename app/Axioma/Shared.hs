@@ -16,14 +16,14 @@ import Axioma.Common
     sharedDoubleP,
   )
 import Circuit.Category (id, (.), (.>))
-import Circuit.Traced (assoc, assoc', slide)
+import Circuit.Traced (assoc, assoc', slide, yank)
 import Circuit.Process (Process (..))
 import Circuit.Shared (AlgShared, Pick (Both), Schedule (..), SigShared (..), sharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (Tensor (..), superpose)
-import Circuit.Trace (SigYank (..), Trace, base, yank)
+import Circuit.Tensor (Bias (..), Tensor (..), superpose)
+import Circuit.Trace (SigYank (..), Trace, base)
 import Control.Monad (when)
 import Data.List (sort)
 import Data.These (These (..), these)
@@ -46,22 +46,22 @@ markerBody n (ns, ()) = (n : ns, take 3 ns)
 -- state.  A pure order braid is invisible to the trace — this is the sliding
 -- axiom of the traced category observed at the shared channel.
 pureLeft :: Schedule [Int]
-pureLeft = Schedule (,Both Shared.LeftFirst)
+pureLeft = Schedule (,Both LeftFirst)
 
 -- | Schedule that always runs the right body first without modifying the shared
 -- state.
 pureRight :: Schedule [Int]
-pureRight = Schedule (,Both Shared.RightFirst)
+pureRight = Schedule (,Both RightFirst)
 
 -- | Schedule that always runs the left body first, leaving a neutral schedule
 -- token in the shared state so the interleaving is observable.
 leftFirst :: Schedule [Int]
-leftFirst = Schedule $ \s -> (0 : s, Both Shared.LeftFirst)
+leftFirst = Schedule $ \s -> (0 : s, Both LeftFirst)
 
 -- | Schedule that always runs the right body first, leaving the same neutral
 -- schedule token so the two orderings remain comparable on body sets.
 rightFirst :: Schedule [Int]
-rightFirst = Schedule $ \s -> (0 : s, Both Shared.RightFirst)
+rightFirst = Schedule $ \s -> (0 : s, Both RightFirst)
 
 -- | Function counterpart of 'sharedAddP' for premonoidal centrality tests.
 sharedAddF :: (Int, Int) -> (Int, Int)
@@ -227,12 +227,12 @@ sharedTopic verbosity = do
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
-         in sharedBy (Schedule (,Both Shared.LeftFirst) :: Schedule [Int]) k1 k2 input == bodyParL k1 k2 input,
+         in sharedBy (Schedule (,Both LeftFirst) :: Schedule [Int]) k1 k2 input == bodyParL k1 k2 input,
       checkV verbosity "sharedBy Both RightFirst equals premonoidal right-first product" $
         let k1 = markerBody 1
             k2 = markerBody 2
             input = ([], ((), ())) :: ([Int], ((), ()))
-         in sharedBy (Schedule (,Both Shared.RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
+         in sharedBy (Schedule (,Both RightFirst) :: Schedule [Int]) k1 k2 input == bodyParR k1 k2 input,
       -- Gate: Bias = f⋉g / f⋊g means the hand-written products agree with
       -- sharedBy under the constant schedules pureLeft / pureRight.
       checkV verbosity "bodyParL equals sharedBy under pureLeft" $

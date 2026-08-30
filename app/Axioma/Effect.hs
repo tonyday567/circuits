@@ -16,7 +16,7 @@ import Circuit.Traced (yank)
 import Circuit.Process (Process (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
-import Circuit.Trace (Trace, base, yank)
+import Circuit.Trace (Trace, base)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Prelude hiding (curry, id, uncurry, (.))

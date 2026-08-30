@@ -31,7 +31,6 @@ module Circuit.Trace
   ( -- * Free traced category
     Trace,
     base,
-    yank,
 
     -- * Trace signature
     SigYank (..),
