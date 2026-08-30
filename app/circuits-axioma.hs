@@ -1,10 +1,10 @@
 module Main (main) where
 
-import Axioma.Moore (mooreTopic)
 import Axioma.Circ (circTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Effect (effectTopic)
 import Axioma.FinRel (finRelTopic)
+import Axioma.Moore (mooreTopic)
 import Axioma.Optic (opticTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Process (processTopic)

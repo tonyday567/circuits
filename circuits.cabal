@@ -84,10 +84,10 @@ executable circuits-axioma
   hs-source-dirs: app
   other-modules:
     Axioma.Circ
-    Axioma.Moore
     Axioma.Common
     Axioma.Effect
     Axioma.FinRel
+    Axioma.Moore
     Axioma.Optic
     Axioma.Poles
     Axioma.Process
