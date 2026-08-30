@@ -19,11 +19,13 @@
 -- * @|@ means /apply/ to a value: @('|>')@ feeds a value into a function
 --   (forward application, like @&@), and @('<|')@ applies a function
 --   to a value (backward application, like @'$'@).
--- * @.@ means /compose/ morphisms: @('.>')@ is forward composition and
---   @('.')@ is backward composition as usual.
+-- * @.@ means /compose/ morphisms: @('.>')@ is forward composition,
+--   @('.')@ is backward composition as usual, and @('<.')@ is the same
+--   backward composition under a non-Prelude name.
 module Circuit.Category
   ( Category (..),
     (.>),
+    (<.),
     (|>),
     (<|),
     K (..),
@@ -52,6 +54,17 @@ class Category (arr :: k -> k -> Type) where
 (.>) :: (Category arr) => arr a b -> arr b c -> arr a c
 f .> g = g . f
 {-# INLINE (.>) #-}
+
+infixr 9 .>
+
+-- | Backward composition (non-Prelude name for '(.)').
+--
+-- @f <. g = f . g@, so data flows from @g@ to @f@.
+(<.) :: (Category arr) => arr b c -> arr a b -> arr a c
+(<.) = (.)
+{-# INLINE (<.) #-}
+
+infixr 9 <.
 
 -- | Forward application. @x |> f = f x@
 (|>) :: a -> (a -> b) -> b
