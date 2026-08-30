@@ -23,16 +23,12 @@
 -- it routes traffic between the two poles without ever deciding which side is
 -- true.  For the unit object use 'open' (also exported as 'copycat').
 --
--- == Relationship to 'Circuit.Channel'
+-- == Relationship to 'Circuit.Moore'
 --
 -- @Poles@ is the bi-polar / effectful API: it is the right tool for
 -- @K IO/STM@ process plumbing where the channel is a write pole paired
--- with a read pole.  For pure @(->)@ Moore-style channels indexed by a
--- polynomial, prefer 'Circuit.Channel'.
---
--- There is no deprecation shim yet: the relationship between the bi-polar
--- and polynomial views is still being settled.  This module stays unchanged
--- until the polynomial 'Channel' gains an equivalent effectful story.
+-- with a read pole.  For pure @(->)@ Moore-style machines indexed by a
+-- polynomial, prefer 'Circuit.Moore'.
 module Circuit.Poles
   ( -- * Channel poles (bi-polar contract)
     Out (..),

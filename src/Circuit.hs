@@ -85,7 +85,6 @@ module Circuit
   ( module Circuit.Bimonoid,
     module Circuit.Body,
     module Circuit.Category,
-    module Circuit.Channel,
     module Circuit.Circ,
     module Circuit.Dagger,
     module Circuit.FinRel,
@@ -115,7 +114,6 @@ where
 import Circuit.Bimonoid
 import Circuit.Body
 import Circuit.Category
-import Circuit.Channel
 import Circuit.Circ
 import Circuit.Dagger
 import Circuit.FinRel

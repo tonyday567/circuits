@@ -1195,7 +1195,7 @@ bisimCarrierIsoFinerOk =
 --
 -- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
 -- carrier map), with the second slot fed 'id'.  Coverage of 'tensor's payload
--- slot belongs in "Axioma.Channel"; 'hcomposeObservationalOk' also exercises
+-- slot belongs in "Axioma.Moore"; 'hcomposeObservationalOk' also exercises
 -- the joint behaviour of 'tensor' through horizontal composition.
 circTopic :: Verbosity -> IO [Bool]
 circTopic verbosity = do

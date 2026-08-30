@@ -59,6 +59,8 @@ module Circuit.Moore
     fromEvalMoore,
     toEvalMoore,
     step,
+    peekMoore,
+    stepMoore,
 
     -- * Monomial helpers
     monoDir,
@@ -161,7 +163,7 @@ import Prelude hiding (id, (.))
 --
 -- >>> let sys = mooreMachine (+) (*2) :: Moore (,) (->) Int (Mono Int Int)
 -- >>> mooreMorphism sys (3, Right 5)
--- (8,(16,()))
+-- (8,(6,()))
 newtype Moore (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) s (p :: Poly)
   = Moore (Body t s arr (Dir p) (Pos p))
 
@@ -185,7 +187,7 @@ mooreMachine st ex =
     (_, Left v) -> absurd v
     (s, Right a) ->
       let s' = st s a
-       in (s', (ex s', ()))
+       in (s', (ex s, ()))
 
 -- | Extract the monomial direction from its 'Either Void' encoding.
 monoDir :: Dir (Mono i o) -> i
@@ -316,6 +318,22 @@ toEvalMoore sys s = evalFromMoore pos (\d -> fst (mooreMorphism sys (s, d)))
 step :: (MooreEval p) => Moore (,) (->) s p -> s -> Eval p s
 step = toEvalMoore
 
+-- | Peek at the current output of a monomial Moore machine.
+--
+-- >>> let sys = mooreMachine (\s i -> s + i) (\s -> s * 2) :: Moore (,) (->) Int (Mono Int Int)
+-- >>> peekMoore sys 5
+-- 10
+peekMoore :: Moore (,) (->) s (Mono i o) -> s -> o
+peekMoore sys s = fst (runMooreMono sys s)
+
+-- | Advance a monomial Moore machine by one input, returning the next state.
+--
+-- >>> let sys = mooreMachine (\s i -> s + i) (\s -> s * 2) :: Moore (,) (->) Int (Mono Int Int)
+-- >>> stepMoore sys 5 3
+-- 8
+stepMoore :: Moore (,) (->) s (Mono i o) -> s -> i -> s
+stepMoore sys s i = snd (runMooreMono sys s) i
+
 -- | Helpers for translating between the 'Eval' presentation and the arrow
 -- presentation of a @(->)@ Moore machine.  These extend the netlist view to 'Sum'.
 class MooreEval (p :: Poly) where
@@ -371,6 +389,15 @@ instance (MooreEval p, MooreEval q) => MooreEval ('Comp p q) where
   evalFromMoore = EC
   probeDir :: Dir ('Comp p q)
   probeDir = (probeDir @p, probeDir @q)
+
+-- | Monomial evaluation.  The position is the current-state observation, so
+-- the probe direction is only needed to build the transition function and is
+-- never forced when reading the position.
+instance {-# OVERLAPPING #-} MooreEval (Mono i o) where
+  evalToMoore (EP (EK o, EE f)) = ((o, ()), f . monoDir)
+  evalFromMoore (o, ()) k = EP (EK o, EE (k . monoIn))
+  probeDir :: Dir (Mono i o)
+  probeDir = Right (error "probeDir Mono")
 
 offFibre :: a
 offFibre = error "off-fibre direction"
