@@ -23,9 +23,9 @@ import Circuit.Body qualified as Body
 import Circuit.Category (id, (.), (.>))
 import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Circuit.Layer (run)
-import Circuit.Moore (Moore, mooreMachine)
+import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
 import Circuit.Net qualified as Net
-import Circuit.Process (Boundary (..), Process (..), delay, encodeList, fold, isMark, isPayload, markMoore, mealy, mooreToProcess, register, runMealy, scan)
+import Circuit.Process (Process (..), delay, encodeList, fold, mealy, register, runMealy, scan)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)

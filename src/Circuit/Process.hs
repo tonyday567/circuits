@@ -37,7 +37,7 @@
 --
 -- The pointed-Moore view of a stateful morphism is 'Circuit.Moore.Moore' with
 -- an explicit seed.  Use 'Circuit.Moore.mooreMachine' to build such a machine,
--- and 'mooreToProcess' to turn it into a first-input-seeded 'Process'.
+-- and 'mooreAsProcess' to turn it into a first-input-seeded 'Process'.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
@@ -48,13 +48,16 @@ module Circuit.Process
     isPayload,
 
     -- * Moore <-> Process conversions
-    mooreToProcess,
     mooreAsProcess,
-    markMoore,
+
+    -- * Functorial plumbing
+    before,
+    after,
+    parWith,
+    parWith3,
+    parWith4,
 
     -- * Runners
-    iterateMoore,
-    after,
     scan,
     scanStream,
     fold,
@@ -82,12 +85,13 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..), SomeBody (..))
 import Circuit.Category (Category (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
-import Circuit.Moore (Moore, mooreMachine, mooreMorphism, runMooreMono)
+import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, mooreMachine, mooreMorphism, runMooreMono)
 import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unital (..))
 import Circuit.Trace (Trace, base)
+import Control.Applicative (liftA3)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Maybe (fromMaybe)
 import Data.These (These (..))
@@ -96,41 +100,6 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Process
 -- >>> import Prelude hiding (id, (.))
-
--- * Boundary tokens (K + payload)
-
--- | The free boundary @K + payload@.
---
--- A token on the boundary is either a mark from a finite alphabet @k@ or a
--- payload value @a@.  This is the level-0 grammar of process boundaries:
--- marks are the control tokens, payloads are the data.
---
--- 'fmap' acts only on the payload side; marks are carried through unchanged.
---
--- >>> fmap length (Payload "hi")
--- Payload 2
--- >>> fmap length (Mark "halt")
--- Mark "halt"
-data Boundary k a
-  = -- | Control token from the finite mark alphabet.
-    Mark k
-  | -- | Data-carrying payload.
-    Payload a
-  deriving (Eq, Show, Functor, Foldable, Traversable)
-
-instance Bifunctor Boundary where
-  bimap f _ (Mark k) = Mark (f k)
-  bimap _ g (Payload a) = Payload (g a)
-
--- | True iff the token is a 'Mark'.
-isMark :: Boundary k a -> Bool
-isMark (Mark _) = True
-isMark (Payload _) = False
-
--- | True iff the token is a 'Payload'.
-isPayload :: Boundary k a -> Bool
-isPayload (Mark _) = False
-isPayload (Payload _) = True
 
 -- | A stateful process from @a@ to @b@.
 --
@@ -146,19 +115,6 @@ data Process a b where
     (s -> b) ->
     Process a b
 
--- | Convert a monomial 'Moore', an explicit seed, and a state observation
--- into a first-input-seeded 'Process'.
---
--- The observation @s -> b@ is applied to the /current/ state to produce each
--- output, including the first output from the seed.  The step machine is used
--- only for state transitions.
-mooreToProcess :: s -> (s -> b) -> Moore (,) (->) s (Mono a b) -> Process a b
-mooreToProcess s0 ex sys =
-  Process
-    (\a -> fst (mooreMorphism sys (s0, Right a)))
-    (\s a -> fst (mooreMorphism sys (s, Right a)))
-    ex
-
 -- | Convert a monomial 'Moore' into a 'Process' machine with a given initial
 -- state.
 --
@@ -170,49 +126,51 @@ mooreAsProcess sys s0 =
     (snd (runMooreMono sys s0))
     (snd . runMooreMono sys)
     (fst . runMooreMono sys)
+{-# INLINEABLE mooreAsProcess #-}
 
--- | Run a Moore machine for as many steps as there are inputs, emitting one output
--- per input. The output is the state /after/ consuming the input, matching
--- the 'Process' semantics of 'mooreAsProcess'.
-iterateMoore :: Moore (,) (->) s (Mono i o) -> s -> [i] -> [o]
-iterateMoore _ _ [] = []
-iterateMoore sys s (i : is) =
-  let s' = snd (runMooreMono sys s) i
-      (o, _) = runMooreMono sys s'
-   in o : iterateMoore sys s' is
+-- * Functorial plumbing
 
--- | State after consuming a list of inputs.
-after :: Moore (,) (->) s (Mono i o) -> s -> [i] -> s
-after _ s [] = s
-after sys s (i : is) = after sys (snd (runMooreMono sys s) i) is
+-- | 'fmap' postcomposes a pure function on the output of a process.
+instance Functor (Process a) where
+  fmap f (Process i st ex) = Process i st (f . ex)
+  {-# INLINEABLE fmap #-}
 
--- | Lift a monomial 'Moore' and a state observation into a boundary machine
--- over 'Boundary' tokens.
---
--- Payloads are stepped through the inner machine.  Marks satisfying the halt
--- predicate freeze the machine and produce 'Nothing' thereafter; non-halt
--- marks leave the state unchanged and emit the current output.  The halted
--- state remembers the final inner state.
---
--- The returned machine carries state @Either s s@: 'Left' is running, 'Right'
--- is halted.  This is the core combinator behind mark-driven halt: the finite
--- mark alphabet @k@ carries control tokens, while payloads carry data.
-markMoore ::
-  (k -> Bool) ->
-  (s -> b) ->
-  Moore (,) (->) s (Mono a b) ->
-  Moore (,) (->) (Either s s) (Mono (Boundary k a) (Maybe b))
-markMoore isHalt ex sys =
-  mooreMachine
-    ( \s tok -> case (s, tok) of
-        (Left s', Payload a) -> Left (fst (mooreMorphism sys (s', Right a)))
-        (Left s', Mark k) -> if isHalt k then Right s' else Left s'
-        (Right s', _) -> Right s'
-    )
-    ( \case
-        Left s -> Just (ex s)
-        Right _ -> Nothing
-    )
+-- | 'pure' produces a constant process; '<*>' pairs states and applies the
+-- left output to the right output.
+instance Applicative (Process a) where
+  pure b = Process (const ()) (\_ _ -> ()) (const b)
+  {-# INLINEABLE pure #-}
+  Process i1 st1 ex1 <*> Process i2 st2 ex2 =
+    Process
+      (\a -> (i1 a, i2 a))
+      (\(s1, s2) a -> (st1 s1 a, st2 s2 a))
+      (\(s1, s2) -> ex1 s1 (ex2 s2))
+  {-# INLINEABLE (<*>) #-}
+
+-- | Precompose a pure function before a process.
+before :: Process b c -> (a -> b) -> Process a c
+before (Process i st ex) f = Process (i . f) (\s a -> st s (f a)) ex
+{-# INLINEABLE before #-}
+
+-- | Postcompose a pure function after a process.
+after :: Process a b -> (b -> c) -> Process a c
+after (Process i st ex) f = Process i st (f . ex)
+{-# INLINEABLE after #-}
+
+-- | Run two processes on the same input and combine their outputs.
+parWith :: (x -> y -> z) -> Process a x -> Process a y -> Process a z
+parWith = liftA2
+{-# INLINEABLE parWith #-}
+
+-- | Run three processes on the same input and combine their outputs.
+parWith3 :: (x -> y -> z -> w) -> Process a x -> Process a y -> Process a z -> Process a w
+parWith3 = liftA3
+{-# INLINEABLE parWith3 #-}
+
+-- | Run four processes on the same input and combine their outputs.
+parWith4 :: (w -> x -> y -> z -> r) -> Process a w -> Process a x -> Process a y -> Process a z -> Process a r
+parWith4 f p1 p2 p3 p4 = liftA2 (\w (x, y, z) -> f w x y z) p1 (liftA3 (,,) p2 p3 p4)
+{-# INLINEABLE parWith4 #-}
 
 -- * Category
 

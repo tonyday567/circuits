@@ -26,7 +26,8 @@
 -- lives in Circuit.Tensor as braid. Where both structures exist,
 -- @slide = assoc' .> tensor braid id .> assoc@.
 --
--- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
+-- @t@ and @arr@ are monomorphic at 'Type' so that downstream type-family
+-- carriers (for example in @circuits-chu@) can write explicit signatures.
 module Circuit.Traced
   ( Assoc (..),
     Slide (..),
@@ -38,6 +39,7 @@ where
 
 import Circuit.Category (Category (..), K (..), Op (..))
 import Control.Monad.Fix (MonadFix, mfix)
+import Data.Kind (Type)
 import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
@@ -64,7 +66,7 @@ import Prelude hiding (id, (.))
 -- apparatus; composite-object legitimacy is an audit concern.
 class
   (Category arr) =>
-  Assoc t arr
+  Assoc (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
   where
   -- | Reassociate to the right: @t (t a b) c -> t a (t b c)@.
   assoc ::
@@ -140,7 +142,7 @@ instance (Assoc t arr) => Assoc t (Op arr) where
 -- sliding axiom of a traced category.
 class
   (Category arr) =>
-  Slide t arr
+  Slide (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
   where
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
@@ -184,7 +186,7 @@ instance (Slide t arr) => Slide t (Op arr) where
 -- 'strength' tensors a plain morphism with the ambient channel. It is
 -- /not/ a syntactic inverse of 'yank'; it is the strength
 -- ("tensorial strength") of the tensor @t@ acting on morphisms.
-class (Assoc t arr, Slide t arr) => Strength t arr where
+class (Assoc t arr, Slide t arr) => Strength (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
   strength ::
     arr b c ->
     arr (t a b) (t a c)
@@ -240,7 +242,7 @@ instance (Strength t arr) => Strength t (Op arr) where
 -- This class does not enforce the side-conditions at the type level; lawful
 -- instances must guarantee them by construction. See the @circuits-axioma@
 -- sliding oracles for witnesses that the side-condition is not vacuous.
-class (Strength t arr) => Yank t arr where
+class (Strength t arr) => Yank (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
   yank ::
     arr (t a b) (t a c) ->
     arr b c

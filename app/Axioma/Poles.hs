@@ -11,7 +11,7 @@ import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
-import Circuit.Moore (Moore, mooreMachine)
+import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
 import Circuit.Tensor (Bias (..))
 import Circuit.Poles
   ( HasDual (..),
@@ -38,7 +38,7 @@ import Circuit.Poles
   )
 import Circuit.Poles qualified as Poles
 import Circuit.Poly (Mono)
-import Circuit.Process (Boundary (..), fold, isMark, isPayload, markMoore, mooreToProcess, scan)
+import Circuit.Process (fold, mooreAsProcess, scan)
 import Circuit.Stamped (Stamped (..), stamp, stamped)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
@@ -127,27 +127,27 @@ polesTopic verbosity = do
       checkV verbosity "markMoore steps payloads through the inner system" $
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
-            p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+            p = mooreAsProcess sys (Left 0)
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
       checkV verbosity "markMoore halts on a halt mark and emits Nothing thereafter" $
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
-            p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+            p = mooreAsProcess sys (Left 0)
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
       checkV verbosity "markMoore treats non-halt marks as no-ops" $
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
-            p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+            p = mooreAsProcess sys (Left 0)
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
       checkV verbosity "markMoore halts immediately when the first input is a halt mark" $
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
-            p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+            p = mooreAsProcess sys (Left 0)
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
       checkV verbosity "markMoore round-trips through mooreToProcess" $
         let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
-            p = mooreToProcess (Left 0) (\case Left s -> Just s; Right _ -> Nothing) sys
+            p = mooreAsProcess sys (Left 0)
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
       -- equipment-law oracles
       checkV verbosity "box is a homomorphism for stateful Poles over Body" $

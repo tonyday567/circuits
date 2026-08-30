@@ -64,6 +64,17 @@ module Circuit.Moore
     monoDir,
     monoIn,
 
+    -- * Boundary tokens
+    Boundary (..),
+    isMark,
+    isPayload,
+    markMoore,
+
+    -- * Running monomial Moore machines
+    iterateMoore,
+    finalState,
+    scanMoore,
+
     -- * Tensor wiring
     parWiring,
 
@@ -116,6 +127,7 @@ import Circuit.Poly
 import Control.Category (id, (.))
 import Data.Bifunctor
 import Data.Kind (Type)
+import Data.Maybe
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -166,7 +178,7 @@ mooreMorphism (Moore (Body f)) = f
 -- This is the pointed-Moore view of a stateful morphism, expressed directly
 -- in 'Moore' terminology.  The state transition @s -> a -> s@ and the
 -- observation @s -> b@ are explicit; the seed is supplied later (for example
--- by 'Circuit.Process.mooreToProcess').
+-- by 'Circuit.Process.mooreAsProcess').
 mooreMachine :: (s -> a -> s) -> (s -> b) -> Moore (,) (->) s (Mono a b)
 mooreMachine st ex =
   moore $ \case
@@ -183,6 +195,101 @@ monoDir (Left v) = absurd v
 -- | Inject a monomial direction into its 'Either Void' encoding.
 monoIn :: i -> Dir (Mono i o)
 monoIn = Right
+
+-- * Boundary tokens
+
+-- | The free boundary @K + payload@.
+--
+-- A token on the boundary is either a mark from a finite alphabet @k@ or a
+-- payload value @a@.  This is the level-0 grammar of process boundaries:
+-- marks are the control tokens, payloads are the data.
+--
+-- 'fmap' acts only on the payload side; marks are carried through unchanged.
+--
+-- >>> fmap length (Payload "hi")
+-- Payload 2
+-- >>> fmap length (Mark "halt")
+-- Mark "halt"
+data Boundary k a
+  = -- | Control token from the finite mark alphabet.
+    Mark k
+  | -- | Data-carrying payload.
+    Payload a
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor Boundary where
+  bimap f _ (Mark k) = Mark (f k)
+  bimap _ g (Payload a) = Payload (g a)
+
+-- | True iff the token is a 'Mark'.
+isMark :: Boundary k a -> Bool
+isMark (Mark _) = True
+isMark (Payload _) = False
+
+-- | True iff the token is a 'Payload'.
+isPayload :: Boundary k a -> Bool
+isPayload (Mark _) = False
+isPayload (Payload _) = True
+
+-- * Running monomial Moore machines
+
+-- | Run a Moore machine for as many steps as there are inputs, emitting one output
+-- per input. The output is the state /after/ consuming the input, matching
+-- the 'Process' semantics of 'mooreAsProcess'.
+iterateMoore :: Moore (,) (->) s (Mono i o) -> s -> [i] -> [o]
+iterateMoore _ _ [] = []
+iterateMoore sys s (i : is) =
+  let s' = snd (runMooreMono sys s) i
+      (o, _) = runMooreMono sys s'
+   in o : iterateMoore sys s' is
+{-# INLINEABLE iterateMoore #-}
+
+-- | Final state after consuming a list of inputs.
+finalState :: Moore (,) (->) s (Mono i o) -> s -> [i] -> s
+finalState _ s [] = s
+finalState sys s (i : is) = finalState sys (snd (runMooreMono sys s) i) is
+{-# INLINEABLE finalState #-}
+
+-- | Run a Moore machine over a list of inputs, producing the list of outputs
+-- /and/ the final state in a single pass.
+scanMoore :: Moore (,) (->) s (Mono i o) -> s -> [i] -> ([o], s)
+scanMoore sys s0 is = go s0 is []
+  where
+    go s [] acc = (reverse acc, s)
+    go s (i : is') acc =
+      let s' = snd (runMooreMono sys s) i
+          (o, _) = runMooreMono sys s'
+       in go s' is' (o : acc)
+{-# INLINEABLE scanMoore #-}
+
+-- | Lift a monomial 'Moore' and a state observation into a boundary machine
+-- over 'Boundary' tokens.
+--
+-- Payloads are stepped through the inner machine.  Marks satisfying the halt
+-- predicate freeze the machine and produce 'Nothing' thereafter; non-halt
+-- marks leave the state unchanged and emit the current output.  The halted
+-- state remembers the final inner state.
+--
+-- The returned machine carries state @Either s s@: 'Left' is running, 'Right'
+-- is halted.  This is the core combinator behind mark-driven halt: the finite
+-- mark alphabet @k@ carries control tokens, while payloads carry data.
+markMoore ::
+  (k -> Bool) ->
+  (s -> b) ->
+  Moore (,) (->) s (Mono a b) ->
+  Moore (,) (->) (Either s s) (Mono (Boundary k a) (Maybe b))
+markMoore isHalt ex sys =
+  mooreMachine
+    ( \s tok -> case (s, tok) of
+        (Left s', Payload a) -> Left (fst (mooreMorphism sys (s', Right a)))
+        (Left s', Mark k) -> if isHalt k then Right s' else Left s'
+        (Right s', _) -> Right s'
+    )
+    ( \case
+        Left s -> Just (ex s)
+        Right _ -> Nothing
+    )
+{-# INLINEABLE markMoore #-}
 
 -- | Convert an eval-form @(->)@ Moore machine into the arrow form.
 fromEvalMoore :: (MooreEval p) => (s -> Eval p s) -> Moore (,) (->) s p
