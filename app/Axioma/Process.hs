@@ -83,18 +83,18 @@ processTopic verbosity = do
         let pp = PProcess 0 (+) id
          in scanPProcess pp 0 [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "asPProcess converts monomial Moore" $
-        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let sys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             pp = asPProcess sys 0
          in scanPProcess pp 0 [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "asProcess . asPProcess round-trips" $
-        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let sys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             pp = asPProcess sys 0
          in scan (asProcess pp) [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "PProcess fold matches Process fold" $
         let pp = PProcess 0 (+) id
          in foldPProcess pp 0 [1, 2, 3 :: Int] == Just 6,
       checkV verbosity "pprocessAsMoore round-trips" $
-        let sys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let sys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             pp = asPProcess sys 0
             sys' = pprocessAsMoore pp
             pp' = asPProcess sys' 0

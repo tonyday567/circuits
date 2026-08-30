@@ -125,27 +125,27 @@ polesTopic verbosity = do
          in isPayload p && p == Payload 2,
       -- Mark system (circuits-residual §7)
       checkV verbosity "markMoore steps payloads through the inner system" $
-        let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreAsProcess sys (Left 0)
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
       checkV verbosity "markMoore halts on a halt mark and emits Nothing thereafter" $
-        let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreAsProcess sys (Left 0)
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
       checkV verbosity "markMoore treats non-halt marks as no-ops" $
-        let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreAsProcess sys (Left 0)
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
       checkV verbosity "markMoore halts immediately when the first input is a halt mark" $
-        let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreAsProcess sys (Left 0)
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
       checkV verbosity "markMoore round-trips through mooreToProcess" $
-        let innerSys = mooreMachine (+) id :: Moore (,) (->) Int (Mono Int Int)
+        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
             sys = markMoore (== "HALT") id innerSys
             p = mooreAsProcess sys (Left 0)
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,

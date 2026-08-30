@@ -128,7 +128,7 @@ data Process a b where
 --
 -- The first input is consumed for the state transition from the supplied
 -- initial state, matching the coalgebra intuition of a 'Moore'.
-mooreAsProcess :: Moore (,) (->) s (Mono i o) -> s -> Process i o
+mooreAsProcess :: Moore (,) s (->) (Mono i o) -> s -> Process i o
 mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
 {-# INLINEABLE mooreAsProcess #-}
 
@@ -144,7 +144,7 @@ data PProcess s a b = PProcess
   }
 
 -- | Convert a monomial 'Moore' into a 'PProcess' with a given seed.
-asPProcess :: Moore (,) (->) s (Mono i o) -> s -> PProcess s i o
+asPProcess :: Moore (,) s (->) (Mono i o) -> s -> PProcess s i o
 asPProcess sys s0 =
   PProcess
     s0
@@ -160,7 +160,7 @@ asProcess (PProcess s0 step extract) =
 {-# INLINEABLE asProcess #-}
 
 -- | Convert a 'PProcess' into a monomial 'Moore'.
-pprocessAsMoore :: PProcess s i o -> Moore (,) (->) s (Mono i o)
+pprocessAsMoore :: PProcess s i o -> Moore (,) s (->) (Mono i o)
 pprocessAsMoore (PProcess _ step extract) =
   mooreMachine step extract
 {-# INLINEABLE pprocessAsMoore #-}
