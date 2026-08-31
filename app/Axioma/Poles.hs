@@ -11,7 +11,8 @@ import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
-import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreAsProcess, mooreMachine)
+import Circuit.Boundary (Boundary (..), isMark, isPayload)
+import Circuit.Moore (Moore, markMoore, mooreAsProcess, mooreMachine)
 import Circuit.Poles
   ( HasDual (..),
     In (..),

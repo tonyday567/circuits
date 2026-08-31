@@ -68,10 +68,7 @@ module Circuit.Moore
     monoDir,
     monoIn,
 
-    -- * Boundary tokens
-    Boundary (..),
-    isMark,
-    isPayload,
+    -- * Boundary machines
     markMoore,
 
     -- * Process conversions
@@ -112,6 +109,7 @@ module Circuit.Moore
 where
 
 import Circuit.Body (Body (..))
+import Circuit.Boundary (Boundary (..), isMark, isPayload)
 import Circuit.Poles (HasDual (..), Poles (..))
 import Circuit.Poles qualified as Poles
 import Circuit.Poly
@@ -218,41 +216,6 @@ monoDir (Left v) = absurd v
 -- | Inject a monomial direction into its 'Either Void' encoding.
 monoIn :: i -> Dir (Mono i o)
 monoIn = Right
-
--- * Boundary tokens
-
--- | The free boundary @K + payload@.
---
--- A token on the boundary is either a mark from a finite alphabet @k@ or a
--- payload value @a@.  This is the level-0 grammar of process boundaries:
--- marks are the control tokens, payloads are the data.
---
--- 'fmap' acts only on the payload side; marks are carried through unchanged.
---
--- >>> fmap length (Payload "hi")
--- Payload 2
--- >>> fmap length (Mark "halt")
--- Mark "halt"
-data Boundary k a
-  = -- | Control token from the finite mark alphabet.
-    Mark k
-  | -- | Data-carrying payload.
-    Payload a
-  deriving (Eq, Show, Functor, Foldable, Traversable)
-
-instance Bifunctor Boundary where
-  bimap f _ (Mark k) = Mark (f k)
-  bimap _ g (Payload a) = Payload (g a)
-
--- | True iff the token is a 'Mark'.
-isMark :: Boundary k a -> Bool
-isMark (Mark _) = True
-isMark (Payload _) = False
-
--- | True iff the token is a 'Payload'.
-isPayload :: Boundary k a -> Bool
-isPayload (Mark _) = False
-isPayload (Payload _) = True
 
 -- * Process conversions
 

@@ -84,6 +84,7 @@
 module Circuit
   ( module Circuit.Bimonoid,
     module Circuit.Body,
+    module Circuit.Boundary,
     module Circuit.Category,
     module Circuit.Circ,
     module Circuit.Dagger,
@@ -113,6 +114,7 @@ where
 
 import Circuit.Bimonoid
 import Circuit.Body
+import Circuit.Boundary
 import Circuit.Category
 import Circuit.Circ
 import Circuit.Dagger

@@ -21,7 +21,7 @@ import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body (..))
 import Circuit.Category (id, (.), (.>))
 import Circuit.Layer (run)
-import Circuit.Moore (Boundary (..), Moore, asPProcess, isMark, isPayload, markMoore, mooreMachine, pprocessAsMoore)
+import Circuit.Moore (Moore, asPProcess, mooreMachine, pprocessAsMoore)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Mono)
 import Circuit.Process (PProcess (..), Process (..), asProcess, delay, encodeList, fold, foldPProcess, mealy, register, runBody, runMealy, scan, scanPProcess)
