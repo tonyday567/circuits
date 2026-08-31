@@ -13,14 +13,16 @@ import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Optic
   ( Optic (..),
-    SomeOptic (..),
+    POptic (..),
     composeOptic,
+    composePOptic,
     identityOptic,
+    identityPOptic,
     lensAsOptic,
     opticAsLens,
-    opticPoles,
     opticUpdate,
-    someOpticUpdate,
+    popticPoles,
+    popticUpdate,
   )
 import Circuit.Poles (Poles, poles0, splay0)
 import Control.Monad (when)
@@ -31,33 +33,33 @@ import Prelude hiding (id, (.))
 
 -- | Lens focusing the first component of a pair.  Residual: the second
 -- component.
-firstLens :: Optic (,) (->) String Int Int (Int, String) (Int, String)
-firstLens = Optic (\(n, s) -> (s, n)) (\(s, n) -> (n, s))
+firstLens :: POptic (,) String (->) Int Int (Int, String) (Int, String)
+firstLens = POptic (\(n, s) -> (s, n)) (\(s, n) -> (n, s))
 
 -- | Lens focusing the second component of a pair.  Residual: the first
 -- component.  Both legs are the identity because the residual is already in
 -- the leading slot.
-secondLens :: Optic (,) (->) Int String String (Int, String) (Int, String)
-secondLens = Optic id id
+secondLens :: POptic (,) Int (->) String String (Int, String) (Int, String)
+secondLens = POptic id id
 
 -- | A well-typed optic that is /not/ lawful: the backward leg perturbs the
 -- residual on the way out, so updating with the identity is not the identity.
 --
--- This is the falsification artifact for the round-trip law.  'Optic' carries
+-- This is the falsification artifact for the round-trip law.  'POptic' carries
 -- no lawfulness condition, and the wiki's open thread — lawfulness as
 -- coalgebra for the comonad induced by the round-trip witness — is exactly
 -- the gap this witnesses.
-badLens :: Optic (,) (->) String Int Int (Int, String) (Int, String)
-badLens = Optic (\(n, s) -> (s, n)) (\(s, n) -> (n, s ++ "!"))
+badLens :: POptic (,) String (->) Int Int (Int, String) (Int, String)
+badLens = POptic (\(n, s) -> (s, n)) (\(s, n) -> (n, s ++ "!"))
 
 -- | Outer lens: focus the @(Int, Bool)@ half of a nested pair.
 outerLens ::
-  Optic (,) (->) String (Int, Bool) (Int, Bool) ((Int, Bool), String) ((Int, Bool), String)
-outerLens = Optic (\(p, s) -> (s, p)) (\(s, p) -> (p, s))
+  POptic (,) String (->) (Int, Bool) (Int, Bool) ((Int, Bool), String) ((Int, Bool), String)
+outerLens = POptic (\(p, s) -> (s, p)) (\(s, p) -> (p, s))
 
 -- | Inner lens: focus the @Int@ of an @(Int, Bool)@.
-innerLens :: Optic (,) (->) Bool Int Int (Int, Bool) (Int, Bool)
-innerLens = Optic (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
+innerLens :: POptic (,) Bool (->) Int Int (Int, Bool) (Int, Bool)
+innerLens = POptic (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
 
 -- * Cocartesian witness
 
@@ -65,12 +67,12 @@ innerLens = Optic (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
 -- not match.
 --
 -- @'Circuit.Tensor.Unit' 'Either'@ is uninhabited, which is what denied the
--- old 'Circuit.Body.SomeBody' an identity.  'SomeOptic' has no such problem:
+-- old 'Circuit.Body.SomeBody' an identity.  'Optic' has no such problem:
 -- the residual is produced by the forward leg, never stored.  The @Either@
 -- identity oracle below is the observable consequence.
-prismLeft :: Optic Either (->) String Int Int (Either Int String) (Either Int String)
+prismLeft :: POptic Either String (->) Int Int (Either Int String) (Either Int String)
 prismLeft =
-  Optic
+  POptic
     ( \case
         Left n -> Right n
         Right s -> Left s
@@ -110,90 +112,90 @@ opticTopic verbosity = do
   sequence
     [ -- update action
       checkV verbosity "identity optic updates the focus unchanged" $
-        opticUpdate (identityOptic :: Optic (,) (->) () Int Int Int Int) incFocus 3 == 4,
+        popticUpdate (identityPOptic :: POptic (,) () (->) Int Int Int Int) incFocus 3 == 4,
       checkV verbosity "firstLens updates the first component" $
-        opticUpdate firstLens incFocus (3, "hello") == (4, "hello"),
+        popticUpdate firstLens incFocus (3, "hello") == (4, "hello"),
       checkV verbosity "secondLens updates the second component" $
-        opticUpdate secondLens reverseFocus (3, "hello") == (3, "olleh"),
+        popticUpdate secondLens reverseFocus (3, "hello") == (3, "olleh"),
       -- lens laws
       checkV verbosity "lens get-put (update with identity is identity)" $
-        sameOn wholes (opticUpdate firstLens id) id,
+        sameOn wholes (popticUpdate firstLens id) id,
       checkV verbosity "lens put-get (the written focus reads back)" $
-        sameOn wholes (opticUpdate firstLens (const 9) .> fst) (const 9),
+        sameOn wholes (popticUpdate firstLens (const 9) .> fst) (const 9),
       checkV verbosity "lens put-put (the last write wins)" $
         sameOn
           wholes
-          (opticUpdate firstLens (const 7) .> opticUpdate firstLens (const 9))
-          (opticUpdate firstLens (const 9)),
+          (popticUpdate firstLens (const 7) .> popticUpdate firstLens (const 9))
+          (popticUpdate firstLens (const 9)),
       -- falsification: the laws above are not automatic
       checkV verbosity "an unlawful optic is well-typed and fails get-put" $
-        not (sameOn wholes (opticUpdate badLens id) id),
+        not (sameOn wholes (popticUpdate badLens id) id),
       checkV verbosity "the unlawful optic still passes put-get (the failure is specific)" $
-        sameOn wholes (opticUpdate badLens (const 9) .> fst) (const 9),
+        sameOn wholes (popticUpdate badLens (const 9) .> fst) (const 9),
       -- composition
-      checkV verbosity "opticUpdate is functorial through composeOptic" $
+      checkV verbosity "popticUpdate is functorial through composePOptic" $
         sameOn
           nested
-          (opticUpdate (composeOptic innerLens outerLens) incFocus)
-          (opticUpdate outerLens (opticUpdate innerLens incFocus)),
+          (popticUpdate (composePOptic innerLens outerLens) incFocus)
+          (popticUpdate outerLens (popticUpdate innerLens incFocus)),
       checkV verbosity "functoriality holds for the unlawful optic too (it is structural)" $
         sameOn
           wholes
-          (opticUpdate (composeOptic identityOptic badLens) incFocus)
-          (opticUpdate badLens incFocus),
-      checkV verbosity "composeOptic right unit (identity on the inside)" $
+          (popticUpdate (composePOptic identityPOptic badLens) incFocus)
+          (popticUpdate badLens incFocus),
+      checkV verbosity "composePOptic right unit (identity on the inside)" $
         sameOn
           wholes
-          (opticUpdate (composeOptic identityOptic firstLens) incFocus)
-          (opticUpdate firstLens incFocus),
-      checkV verbosity "composeOptic left unit (identity on the outside)" $
+          (popticUpdate (composePOptic identityPOptic firstLens) incFocus)
+          (popticUpdate firstLens incFocus),
+      checkV verbosity "composePOptic left unit (identity on the outside)" $
         sameOn
           wholes
-          (opticUpdate (composeOptic firstLens identityOptic) incFocus)
-          (opticUpdate firstLens incFocus),
+          (popticUpdate (composePOptic firstLens identityPOptic) incFocus)
+          (popticUpdate firstLens incFocus),
       checkV verbosity "the nested sample discriminates (functoriality is not vacuous)" $
         not
           ( sameOn
               nested
-              (opticUpdate (composeOptic innerLens outerLens) incFocus)
-              (opticUpdate (composeOptic innerLens outerLens) (const 0))
+              (popticUpdate (composePOptic innerLens outerLens) incFocus)
+              (popticUpdate (composePOptic innerLens outerLens) (const 0))
           ),
       -- Either / prisms
       checkV verbosity "Either identity optic updates the focus unchanged" $
-        opticUpdate (identityOptic :: Optic Either (->) Void Int Int Int Int) incFocus 3 == 4,
+        popticUpdate (identityPOptic :: POptic Either Void (->) Int Int Int Int) incFocus 3 == 4,
       checkV verbosity "prism updates the matching branch only" $
         sameOn
           branches
-          (opticUpdate prismLeft incFocus)
+          (popticUpdate prismLeft incFocus)
           ( \case
               Left n -> Left (n + 1)
               Right s -> Right s
           ),
       checkV verbosity "prism get-put" $
-        sameOn branches (opticUpdate prismLeft id) id,
+        sameOn branches (popticUpdate prismLeft id) id,
       checkV verbosity "prism composition with the Either identity agrees" $
         sameOn
           branches
-          (opticUpdate (composeOptic identityOptic prismLeft) incFocus)
-          (opticUpdate prismLeft incFocus),
+          (popticUpdate (composePOptic identityPOptic prismLeft) incFocus)
+          (popticUpdate prismLeft incFocus),
       -- the residual is a coend, not a product
       checkV verbosity "polynomial-lens round trip changes the residual but not the behaviour" $
         sameOn
           wholes
-          (someOpticUpdate (SomeOptic (lensAsOptic (opticAsLens (SomeOptic firstLens)))) incFocus)
-          (opticUpdate firstLens incFocus),
+          (opticUpdate (lensAsOptic (opticAsLens (Optic firstLens))) incFocus)
+          (popticUpdate firstLens incFocus),
       checkV verbosity "the round trip of the unlawful optic is still unlawful" $
         not
           ( sameOn
               wholes
-              (someOpticUpdate (SomeOptic (lensAsOptic (opticAsLens (SomeOptic badLens)))) id)
+              (opticUpdate (lensAsOptic (opticAsLens (Optic badLens))) id)
               id
           ),
       -- poles action
-      checkV verbosity "opticPoles suffixes the backward leg onto the companion" $
+      checkV verbosity "popticPoles suffixes the backward leg onto the companion" $
         let p = poles0 (const ()) (const ("hi", 7)) :: Poles (->) (String, Int) (String, Int)
-         in snd (splay0 (opticPoles firstLens p)) () == (7, "hi"),
-      checkV verbosity "opticPoles read pole agrees with the backward leg" $
+         in snd (splay0 (popticPoles firstLens p)) () == (7, "hi"),
+      checkV verbosity "popticPoles read pole agrees with the backward leg" $
         let p = poles0 (const ()) (const ("hi", 7)) :: Poles (->) (String, Int) (String, Int)
-         in snd (splay0 (opticPoles firstLens p)) () == opticBackward firstLens ("hi", 7)
+         in snd (splay0 (popticPoles firstLens p)) () == popticBackward firstLens ("hi", 7)
     ]
