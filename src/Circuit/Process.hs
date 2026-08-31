@@ -45,6 +45,18 @@ module Circuit.Process
     PProcess (..),
     asProcess,
 
+    -- * Moore conversions
+    asPProcess,
+    mooreAsProcess,
+
+    -- * Boundary machines
+    markPProcess,
+    markProcess,
+
+    -- * Channel-pole processes
+    polesToPProcess,
+    runPoles,
+
     -- * Functorial plumbing
     before,
     after,
@@ -82,7 +94,12 @@ where
 import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
+import Circuit.Boundary (Boundary (..))
 import Circuit.Category (Category (..))
+import Circuit.Moore (Moore, mooreMorphism, monoDir, monoIn, toEvalMoore)
+import Circuit.Poles (Poles)
+import Circuit.Poles qualified as Poles
+import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unital (..))
@@ -129,6 +146,74 @@ asProcess :: PProcess s a b -> Process a b
 asProcess (PProcess s0 step extract) =
   Process (\a -> step s0 a) step extract
 {-# INLINEABLE asProcess #-}
+
+-- * Moore conversions
+
+-- | Convert a monomial @(->)@ Moore machine into a pointed process.
+asPProcess :: Moore (,) s (->) (Mono i o) -> s -> PProcess s i o
+asPProcess sys s0 = PProcess s0 step' extract'
+  where
+    step' s i = case toEvalMoore sys s of EP (EK _, EE f) -> f i
+    extract' s = case toEvalMoore sys s of EP (EK o, EE _) -> o
+
+-- | Convert a monomial @(->)@ Moore machine into a process.
+mooreAsProcess :: Moore (,) s (->) (Mono i o) -> s -> Process i o
+mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
+
+-- * Boundary machines
+
+-- | Mark-driven halt combinator for pointed processes.
+markPProcess ::
+  (k -> Bool) ->
+  PProcess s a b ->
+  PProcess (Either s s) (Boundary k a) (Maybe b)
+markPProcess isHalt (PProcess s0 step extract) =
+  PProcess
+    (Left s0)
+    ( \case
+        Left s -> \case
+          Payload a -> Left (step s a)
+          Mark k -> if isHalt k then Right s else Left s
+        Right s -> const (Right s)
+    )
+    ( \case
+        Left s -> Just (extract s)
+        Right _ -> Nothing
+    )
+
+-- | Mark-driven halt combinator for processes.
+markProcess ::
+  (k -> Bool) ->
+  Process a b ->
+  Process (Boundary k a) (Maybe b)
+markProcess isHalt (Process inject step extract) =
+  Process
+    ( \case
+        Payload a -> Left (inject a)
+        Mark k -> if isHalt k then Right () else Left (inject (error "markProcess: initial mark without payload"))
+    )
+    ( \case
+        Left s -> \case
+          Payload a -> Left (step s a)
+          Mark k -> if isHalt k then Right () else Left s
+        Right () -> const (Right ())
+    )
+    ( \case
+        Left s -> Just (extract s)
+        Right () -> Nothing
+    )
+
+-- * Channel-pole processes
+
+-- | Build a pointed process from channel poles.
+polesToPProcess :: Poles (Body (,) s (->)) a b -> s -> PProcess s a b
+polesToPProcess p s0 =
+  let (Body write, Body receive) = Poles.splay0 p
+   in PProcess s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, ())))
+
+-- | Run channel poles over a list of inputs.
+runPoles :: Poles (Body (,) s (->)) a b -> s -> [a] -> [b]
+runPoles p s0 xs = scanPProcess (polesToPProcess p s0) xs
 
 -- * Functorial plumbing
 

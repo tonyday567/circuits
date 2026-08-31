@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Poles, Additive Poles, Stamped, Boundary, and markMoore oracles.
+-- | Poles, Additive Poles, Stamped, Boundary, and markPProcess oracles.
 module Axioma.Poles
   ( polesTopic,
   )
@@ -12,7 +12,6 @@ import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Boundary (Boundary (..), isMark, isPayload)
-import Circuit.Moore (Moore, markMoore, mooreAsProcess, mooreMachine)
 import Circuit.Poles
   ( HasDual (..),
     In (..),
@@ -37,8 +36,7 @@ import Circuit.Poles
     (>:>),
   )
 import Circuit.Poles qualified as Poles
-import Circuit.Poly (Mono)
-import Circuit.Process (fold, scan)
+import Circuit.Process (PProcess (..), asProcess, fold, markPProcess, scan, scanPProcess)
 import Circuit.Stamped (Stamped (..), stamp, stamped)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
@@ -49,7 +47,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]
 polesTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markMoore oracles"
+  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markPProcess oracles"
   sequence
     [ -- Poles oracles
       checkV verbosity "O9 poles . splay == id" $
@@ -125,30 +123,30 @@ polesTopic verbosity = do
         let p = fmap length (Payload "hi" :: Boundary String String)
          in isPayload p && p == Payload 2,
       -- Mark system (circuits-residual §7)
-      checkV verbosity "markMoore steps payloads through the inner system" $
-        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
-            sys = markMoore (== "HALT") id innerSys
-            p = mooreAsProcess sys (Left 0)
+      checkV verbosity "markPProcess steps payloads through the inner system" $
+        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+            sys = markPProcess (== "HALT") innerP
+            p = asProcess sys
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
-      checkV verbosity "markMoore halts on a halt mark and emits Nothing thereafter" $
-        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
-            sys = markMoore (== "HALT") id innerSys
-            p = mooreAsProcess sys (Left 0)
+      checkV verbosity "markPProcess halts on a halt mark and emits Nothing thereafter" $
+        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+            sys = markPProcess (== "HALT") innerP
+            p = asProcess sys
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
-      checkV verbosity "markMoore treats non-halt marks as no-ops" $
-        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
-            sys = markMoore (== "HALT") id innerSys
-            p = mooreAsProcess sys (Left 0)
+      checkV verbosity "markPProcess treats non-halt marks as no-ops" $
+        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+            sys = markPProcess (== "HALT") innerP
+            p = asProcess sys
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
-      checkV verbosity "markMoore halts immediately when the first input is a halt mark" $
-        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
-            sys = markMoore (== "HALT") id innerSys
-            p = mooreAsProcess sys (Left 0)
+      checkV verbosity "markPProcess halts immediately when the first input is a halt mark" $
+        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+            sys = markPProcess (== "HALT") innerP
+            p = asProcess sys
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
-      checkV verbosity "markMoore round-trips through mooreToProcess" $
-        let innerSys = mooreMachine (+) id :: Moore (,) Int (->) (Mono Int Int)
-            sys = markMoore (== "HALT") id innerSys
-            p = mooreAsProcess sys (Left 0)
+      checkV verbosity "markPProcess round-trips through Process" $
+        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+            sys = markPProcess (== "HALT") innerP
+            p = asProcess sys
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
       -- equipment-law oracles
       checkV verbosity "box is a homomorphism for stateful Poles over Body" $
