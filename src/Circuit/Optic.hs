@@ -107,11 +107,11 @@ data Optic t arr ch a b s r = Optic
 --
 -- There is no residual /value/ here, only a residual type: the forward leg
 -- produces the residual and the backward leg consumes it.  This is why
--- 'SomeOptic' is cheaper than 'Circuit.Body.SomeBody', which must store a
--- seed and therefore has no inhabitant at tensors with an uninhabited unit.
--- 'identitySomeOptic' exists at 'Either', where @'Circuit.Tensor.Unit'
--- 'Either' = 'Data.Void.Void'@ and the corresponding @SomeBody@ identity does
--- not.
+-- 'SomeOptic' is cheaper than an existential body wrapper, which would have
+-- to store a seed and therefore has no inhabitant at tensors with an
+-- uninhabited unit.  'identitySomeOptic' exists at 'Either', where
+-- @'Circuit.Tensor.Unit' 'Either' = 'Data.Void.Void'@ and the corresponding
+-- pointed-body identity does not.
 data SomeOptic t arr a b s r where
   SomeOptic :: Optic t arr ch a b s r -> SomeOptic t arr a b s r
 

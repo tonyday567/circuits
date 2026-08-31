@@ -18,14 +18,13 @@ import Axioma.Common
     swapPairP,
   )
 import Circuit.Bimonoid (Copy (..), Merge (..))
-import Circuit.Body (Body, SomeBody (..), runSomeBody)
-import Circuit.Body qualified as Body
+import Circuit.Body (Body (..))
 import Circuit.Category (id, (.), (.>))
 import Circuit.Layer (run)
 import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, markMoore, mooreMachine)
 import Circuit.Net qualified as Net
 import Circuit.Poly (Mono)
-import Circuit.Process (PProcess (..), Process (..), asPProcess, asProcess, delay, encodeList, fold, foldPProcess, mealy, pprocessAsMoore, register, runMealy, scan, scanPProcess)
+import Circuit.Process (PProcess (..), Process (..), asPProcess, asProcess, delay, encodeList, fold, foldPProcess, mealy, pprocessAsMoore, register, runBody, runMealy, scan, scanPProcess)
 import Circuit.Process qualified as Process
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), eval)
@@ -39,10 +38,6 @@ import Data.These (These (..))
 import Data.Tuple qualified as Tuple
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
-
--- | Helper that fixes the Either tensor for 'yank' over list functions.
-yankEither :: (Either s a -> Either s b) -> Trace Either (->) a b
-yankEither = yank . base
 
 -- | Residual state for the pair-sum mealy process.
 data PS = Empty | Held Int
@@ -115,19 +110,10 @@ processTopic verbosity = do
               Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
          in scan (register s0 body) xs
               == scan (yank (swapP (body . strength (delay s0)))) xs,
-      -- Process / Body equivalence
-      checkV verbosity "processToSomeBody sumP agrees with scan" $
-        runSomeBody (Process.processToSomeBody sumP) [1, 2, 3 :: Int] == scan sumP [1, 2, 3],
-      checkV verbosity "processToSomeBody swapPairP agrees with scan" $
-        runSomeBody (Process.processToSomeBody swapPairP) [(1, 2), (3, 4), (5, 6)] == scan swapPairP [(1, 2), (3, 4), (5, 6)],
-      checkV verbosity "processToSomeBody ewma agrees with scan" $
-        runSomeBody (Process.processToSomeBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0] == scan (ewma 0.5 0.0) [1.0, 1.0, 1.0],
-      -- Process / Trace Either round-trip factors through Body Either ch (->)
-      checkV verbosity "Process encodeList factors through Body Either ch (->)" $
-        let viaBody p = case Process.processToBody p of SomeBody _ (Body.Body f) -> yankEither f
-         in scan sumP [1, 2, 3] == Syn.eval (viaBody sumP) [1, 2, 3]
-              && scan swapPairP [(1, 2), (3, 4), (5, 6)] == Syn.eval (viaBody swapPairP) [(1, 2), (3, 4), (5, 6)]
-              && scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == Syn.eval (viaBody (ewma 0.5 0.0)) [1.0, 1.0, 1.0],
+      -- Body runner
+      checkV verbosity "runBody agrees with a known body" $
+        let sumBody = Body $ \(s, a) -> (s + a, s + a)
+         in runBody sumBody 0 [1, 2, 3 :: Int] == [1, 3, 6],
       -- Process as a base arrow for Trace / Net / Shared
       checkV verbosity "Process lifts into Trace (,) Process" $
         scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]

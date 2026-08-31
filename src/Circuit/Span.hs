@@ -21,14 +21,13 @@ module Circuit.Span
     -- * Body bridges
     bodyFromSpan,
     spanFromBody,
-    someBodyFromSpan,
 
     -- * Metric optics
     spanDistance,
   )
 where
 
-import Circuit.Body (Body (..), SomeBody (..), runSomeBody)
+import Circuit.Body (Body (..))
 import Control.Category (id, (.))
 import Data.Maybe (fromMaybe)
 import Prelude hiding (id, (.))
@@ -131,17 +130,6 @@ bodyFromSpan sp =
 -- to the Rel-rung quotient (same 'pairs').
 spanFromBody :: (Eq a) => [a] -> Body (,) [a] (->) a b -> Span a b
 spanFromBody as (Body f) = Span as id (snd . f . (as,))
-
--- | View a finite span as a 'SomeBody' whose hidden channel is the apex list.
---
--- This is the Span-rung bridge: the apex list is carried as the body channel
--- and the internal computation looks up the input in the left leg.  The apex
--- type is hidden by the existential packaging.
-someBodyFromSpan :: (Eq a) => Span a b -> SomeBody (,) (->) a b
-someBodyFromSpan sp@(Span xs _ _) =
-  SomeBody xs $ Body $ \(ch, a) ->
-    let b = fromMaybe (error "someBodyFromSpan: input not in left leg") (lookup a (pairs sp))
-     in (ch, b)
 
 -- | Directed Hausdorff distance between two spans over a common boundary:
 --

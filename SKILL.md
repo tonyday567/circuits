@@ -31,7 +31,7 @@ Circuit.Traced     — Structural class ladder: Assoc, Slide, Strength, Yank.
                       Left = feedback/continue, Right = exit for Either yank.
 Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
                       plumbing, and superpose (fused parallel composition).
-Circuit.Body        — The knot-body category: Body t ch arr a b and SomeBody.
+Circuit.Body        — The knot-body category: Body t ch arr a b.
 Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank).
 Circuit.SMC         — Free symmetric monoidal category over a wiring tensor.
 Circuit.Net         — Free SMC with bimonoid rows (Copy/Discard/Plus/Zero);

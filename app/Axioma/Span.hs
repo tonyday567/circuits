@@ -5,7 +5,8 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), mergeChannel, runSomeBody)
+import Circuit.Body (Body (..), mergeChannel)
+import Circuit.Process (runBody)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,
@@ -13,7 +14,6 @@ import Circuit.Span
     identityS,
     pairs,
     presentS,
-    someBodyFromSpan,
     spanFromBody,
   )
 import Control.Category (id)
@@ -95,10 +95,10 @@ spanTopic verbosity = do
             inputs = [W1, W2, W3]
             sp' = spanFromBody inputs (bodyFromSpan sp0)
          in pairs sp' == pairs sp0,
-      checkV verbosity "someBodyFromSpan runs the apex-list channel" $
+      checkV verbosity "bodyFromSpan runs the apex-list channel" $
         let sp0 = Span [W1, W2, W3] id spR
             inputs = [W1, W2, W3]
-         in runSomeBody (someBodyFromSpan sp0) inputs == map spR [W1, W2, W3],
+         in runBody (bodyFromSpan sp0) inputs inputs == map spR [W1, W2, W3],
       checkV verbosity "span composition agrees with body cascade on pairs" $
         let p :: Span Pin Bit
             p = Span [W1, W2, W3] spL (\case W1 -> O; W2 -> O; W3 -> I)

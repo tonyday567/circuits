@@ -5,7 +5,8 @@ module Axioma.Circ
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), SomeBody (..), mergeChannel, runFlowchart, runSomeBody)
+import Circuit.Body (Body (..), mergeChannel, runFlowchart)
+import Circuit.Process (runBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Circ
@@ -77,16 +78,14 @@ resetDriftBody = Body $ \(n, r) -> let n' = if r then 1 else n + 1 in (n', if od
 resetDriftSq :: Sq (,) (->) Int Bool Bool Char
 resetDriftSq = Sq odd resetDriftBody parityBody
 
--- | Reference implementation of pointed cascade, kept as an independent
--- specification against which the 'SomeBody' 'Category' instance is
--- checked.  This inverts the previous arrangement where the reference lived in
--- the library and the test used it.
-_mergeChannelSomeReference ::
-  SomeBody (,) (->) b c ->
-  SomeBody (,) (->) a b ->
-  SomeBody (,) (->) a c
-_mergeChannelSomeReference (SomeBody s2 (Body g)) (SomeBody s1 (Body f)) =
-  SomeBody (s1, s2) $ Body $ \((s1', s2'), a) ->
+-- | Reference implementation of carrier-tensoring composition, kept as an
+-- independent specification against which 'mergeChannel' is checked.
+_mergeChannelReference ::
+  Body (,) s2 (->) b c ->
+  Body (,) s1 (->) a b ->
+  Body (,) (s1, s2) (->) a c
+_mergeChannelReference (Body g) (Body f) =
+  Body $ \((s1', s2'), a) ->
     let (s1'', b) = f (s1', a)
         (s2'', c) = g (s2', b)
      in ((s1'', s2''), c)
@@ -102,67 +101,54 @@ maxBody = Body $ \(s, a) -> let s' = max s a in (s', s')
 delayBody :: Body (,) Int (->) Int Int
 delayBody = Body $ \(s, a) -> (a, s)
 
--- | Stream-composition oracle: pointed cascade agrees with running the two
--- bodies in sequence on the input list.  @sumBody@ and @maxBody@ do not
--- commute, so a reversed composition order is caught.
+-- | Stream-composition oracle: 'mergeChannel' agrees with running two bodies
+-- in sequence on the input list.  @sumBody@ and @maxBody@ do not commute, so a
+-- reversed composition order is caught.
 --
 -- Distinct seeds (0 and -5) ensure a wrongly-paired seed tuple is visible.
 cascadeStreamOk :: [Int] -> Bool
 cascadeStreamOk xs =
-  let f = SomeBody 0 sumBody
-      g = SomeBody (-5) maxBody
-   in runSomeBody (g Cat.. f) xs == runSomeBody g (runSomeBody f xs)
+  let s1 = 0
+      s2 = -5
+   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
+        == runBody maxBody s2 (runBody sumBody s1 xs)
 
--- | Associativity oracle: pointed cascade is associative on input lists.  All
+-- | Associativity oracle: 'mergeChannel' is associative on input lists.  All
 -- three bodies are input- and state-sensitive; @doublerBody@ was removed
 -- because it discarded its input and made the test vacuous.
 --
 -- Distinct seeds (7, 0, -5) catch seed mis-pairing.
 cascadeAssocOk :: [Int] -> Bool
 cascadeAssocOk xs =
-  let f = SomeBody 7 delayBody
-      g = SomeBody 0 sumBody
-      h = SomeBody (-5) maxBody
-   in runSomeBody ((h Cat.. g) Cat.. f) xs
-        == runSomeBody (h Cat.. (g Cat.. f)) xs
+  let f = delayBody
+      g = sumBody
+      h = maxBody
+      s1 = 7
+      s2 = 0
+      s3 = -5
+   in runBody (mergeChannel h (mergeChannel g f)) ((s1, s2), s3) xs
+        == runBody (mergeChannel (mergeChannel h g) f) (s1, (s2, s3)) xs
 
--- | The 'SomeBody' 'Category' instance agrees with the independent reference
--- implementation.  Distinct seeds catch seed mis-pairing.
-cascadeAgreesWithReferenceOk :: [Int] -> Bool
-cascadeAgreesWithReferenceOk xs =
-  let f = SomeBody 2 sumBody
-      g = SomeBody (-3) maxBody
-   in runSomeBody (g Cat.. f) xs == runSomeBody (_mergeChannelSomeReference g f) xs
+-- | 'mergeChannel' agrees with the independent reference implementation.
+-- Distinct seeds catch seed mis-pairing.
+mergeChannelAgreesOk :: [Int] -> Bool
+mergeChannelAgreesOk xs =
+  let s1 = 2
+      s2 = -3
+   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
+        == runBody (_mergeChannelReference maxBody sumBody) (s1, s2) xs
 
--- | The 'SomeBody' 'Category' instance is associative.
---
--- The generic 'Category' instance uses 'mergeChannel' and 'seedPair'; for
--- @(,)@ this should coincide exactly with the reference implementation.
-someBodyCategoryAgreesOk :: [Int] -> Bool
-someBodyCategoryAgreesOk xs =
-  let f = SomeBody 2 sumBody
-      g = SomeBody (-3) maxBody
-   in runSomeBody (g Cat.. f) xs == runSomeBody (_mergeChannelSomeReference g f) xs
+-- | Left identity for carrier-tensoring composition.
+mergeChannelLeftIdOk :: [Int] -> Bool
+mergeChannelLeftIdOk xs =
+  let s = 7
+   in runBody (mergeChannel sumBody (Body id)) ((), s) xs == runBody sumBody s xs
 
--- | SomeBody Category left identity.
-someBodyCategoryLeftIdOk :: [Int] -> Bool
-someBodyCategoryLeftIdOk xs =
-  let f = SomeBody 7 sumBody
-   in runSomeBody (Cat.id Cat.. f) xs == runSomeBody f xs
-
--- | SomeBody Category right identity.
-someBodyCategoryRightIdOk :: [Int] -> Bool
-someBodyCategoryRightIdOk xs =
-  let f = SomeBody 7 sumBody
-   in runSomeBody (f Cat.. Cat.id) xs == runSomeBody f xs
-
--- | SomeBody Category associativity.
-someBodyCategoryAssocOk :: [Int] -> Bool
-someBodyCategoryAssocOk xs =
-  let f = SomeBody 7 delayBody
-      g = SomeBody 0 sumBody
-      h = SomeBody (-5) maxBody
-   in runSomeBody ((h Cat.. g) Cat.. f) xs == runSomeBody (h Cat.. (g Cat.. f)) xs
+-- | Right identity for carrier-tensoring composition.
+mergeChannelRightIdOk :: [Int] -> Bool
+mergeChannelRightIdOk xs =
+  let s = 7
+   in runBody (mergeChannel (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
 
 -- | Moore-split 'Poles' for the counter body.  The write pole updates state
 -- and discards the payload; the read pole observes state and emits a 'Char'.
@@ -246,12 +232,12 @@ leftWhiskerBody = Body $ \(s, a) -> (s + a, odd s)
 rightWhiskerObservationalOk :: [Bool] -> Bool
 rightWhiskerObservationalOk rs =
   let sq = rightWhisker counterToParitySq rightWhiskerBody
-      counterOuts = runSomeBody (SomeBody 3 counterBody) rs
-      hOutsSrc = runSomeBody (SomeBody (-2) rightWhiskerBody) counterOuts
-      sqOutsSrc = runSomeBody (SomeBody (3, -2) (sqSrc sq)) rs
-      parityOuts = runSomeBody (SomeBody False parityBody) rs
-      hOutsTgt = runSomeBody (SomeBody (-2) rightWhiskerBody) parityOuts
-      sqOutsTgt = runSomeBody (SomeBody (False, -2) (sqTgt sq)) rs
+      counterOuts = runBody counterBody 3 rs
+      hOutsSrc = runBody rightWhiskerBody (-2) counterOuts
+      sqOutsSrc = runBody (sqSrc sq) (3, -2) rs
+      parityOuts = runBody parityBody False rs
+      hOutsTgt = runBody rightWhiskerBody (-2) parityOuts
+      sqOutsTgt = runBody (sqTgt sq) (False, -2) rs
    in sqOutsSrc == hOutsSrc && sqOutsTgt == hOutsTgt
 
 -- | Square-preservation check: right whisker yields a commuting square.
@@ -266,12 +252,12 @@ rightWhiskerSquareOk =
 leftWhiskerObservationalOk :: [Int] -> Bool
 leftWhiskerObservationalOk xs =
   let sq = leftWhisker leftWhiskerBody counterToParitySq
-      lOutsSrc = runSomeBody (SomeBody 1 leftWhiskerBody) xs
-      counterOuts = runSomeBody (SomeBody 4 counterBody) lOutsSrc
-      sqOutsSrc = runSomeBody (SomeBody (1, 4) (sqSrc sq)) xs
-      lOutsTgt = runSomeBody (SomeBody 1 leftWhiskerBody) xs
-      parityOuts = runSomeBody (SomeBody True parityBody) lOutsTgt
-      sqOutsTgt = runSomeBody (SomeBody (1, True) (sqTgt sq)) xs
+      lOutsSrc = runBody leftWhiskerBody 1 xs
+      counterOuts = runBody counterBody 4 lOutsSrc
+      sqOutsSrc = runBody (sqSrc sq) (1, 4) xs
+      lOutsTgt = runBody leftWhiskerBody 1 xs
+      parityOuts = runBody parityBody True lOutsTgt
+      sqOutsTgt = runBody (sqTgt sq) (1, True) xs
    in sqOutsSrc == counterOuts && sqOutsTgt == parityOuts
 
 -- | Square-preservation check: left whisker yields a commuting square.
@@ -286,12 +272,12 @@ leftWhiskerSquareOk =
 hcomposeObservationalOk :: [Bool] -> Bool
 hcomposeObservationalOk rs =
   let sq = hcompose echoSq counterToParitySq
-      counterOuts = runSomeBody (SomeBody 2 counterBody) rs
-      echoOutsSrc = runSomeBody (SomeBody (-3) echoBody) counterOuts
-      sqOutsSrc = runSomeBody (SomeBody (2, -3) (sqSrc sq)) rs
-      parityOuts = runSomeBody (SomeBody False parityBody) rs
-      echoOutsTgt = runSomeBody (SomeBody True echoParityBody) parityOuts
-      sqOutsTgt = runSomeBody (SomeBody (False, True) (sqTgt sq)) rs
+      counterOuts = runBody counterBody 2 rs
+      echoOutsSrc = runBody echoBody (-3) counterOuts
+      sqOutsSrc = runBody (sqSrc sq) (2, -3) rs
+      parityOuts = runBody parityBody False rs
+      echoOutsTgt = runBody echoParityBody True parityOuts
+      sqOutsTgt = runBody (sqTgt sq) (False, True) rs
    in sqOutsSrc == echoOutsSrc && sqOutsTgt == echoOutsTgt
 
 -- | Square-preservation check: horizontal composition yields a commuting square.
@@ -433,7 +419,7 @@ runningSumFB = Body $ \((), (s, a)) -> let s' = s + a in ((), (s', s'))
 -- sums [1,3,6] on input [1,2,3].
 runningSumFeedbackOk :: Bool
 runningSumFeedbackOk =
-  runSomeBody (SomeBody ((), 0) (feedbackBody runningSumFB)) [1, 2, 3] == [1, 3, 6]
+  runBody (feedbackBody runningSumFB) ((), 0) [1, 2, 3] == [1, 3, 6]
 
 -- | Body used in the vanishing law: increment the payload while carrying the
 -- unit feedback wire.
@@ -447,8 +433,8 @@ vanishingDirectBody = Body $ \((), a) -> ((), a + 1)
 -- | A2 Vanishing: feedback over the unit object @()@ is the identity.
 vanishingOk :: Bool
 vanishingOk =
-  runSomeBody (SomeBody ((), ()) (feedbackBody vanishingFBody)) [1, 2, 3]
-    == runSomeBody (SomeBody () vanishingDirectBody) [1, 2, 3]
+  runBody (feedbackBody vanishingFBody) ((), ()) [1, 2, 3]
+    == runBody vanishingDirectBody () [1, 2, 3]
 
 -- | Post-feedback map used in the tightening law: add ten to the output.
 tighteningHBody :: Body (,) () (->) Int Int
@@ -460,8 +446,8 @@ tighteningOk =
   let idS = idBody :: Body (,) () (->) Int Int
       lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `mergeChannel` runningSumFB)
       rhs = tighteningHBody `mergeChannel` feedbackBody runningSumFB
-   in runSomeBody (SomeBody (((), ((), ())), 0) lhs) [1, 2, 3]
-        == runSomeBody (SomeBody (((), 0), ()) rhs) [1, 2, 3]
+   in runBody lhs (((), ((), ())), 0) [1, 2, 3]
+        == runBody rhs (((), 0), ()) [1, 2, 3]
 
 -- | Body used in the joining law: two accumulators @(s,t)@ with output @t'@.
 joiningFBody :: Body (,) () (->) ((Int, Int), Int) ((Int, Int), Int)
@@ -485,8 +471,8 @@ joiningOk =
       joiningFBOnce = feedbackBody joiningReassocBody
       joiningFBTwice :: Body (,) (((), Int), Int) (->) Int Int
       joiningFBTwice = feedbackBody joiningFBOnce
-   in runSomeBody (SomeBody (((), 0), 0) joiningFBTwice) [1, 2, 3]
-        == runSomeBody (SomeBody ((), (0, 0)) (feedbackBody joiningFBody)) [1, 2, 3]
+   in runBody joiningFBTwice (((), 0), 0) [1, 2, 3]
+        == runBody (feedbackBody joiningFBody) ((), (0, 0)) [1, 2, 3]
 
 -- | Body used in the superposing law: add 100 to the parallel stream.
 superposingGBody :: Body (,) () (->) Int Int
@@ -505,8 +491,8 @@ superposingOk :: Bool
 superposingOk =
   let lhs = feedbackBody superposingLhsBody
       rhs = feedbackBody runningSumFB `tensorBody` superposingGBody
-   in runSomeBody (SomeBody (((), ()), 0) lhs) [(1, 10), (2, 20), (3, 30)]
-        == runSomeBody (SomeBody (((), 0), ()) rhs) [(1, 10), (2, 20), (3, 30)]
+   in runBody lhs (((), ()), 0) [(1, 10), (2, 20), (3, 30)]
+        == runBody rhs (((), 0), ()) [(1, 10), (2, 20), (3, 30)]
 
 -- | Isomorphism used in the sliding law: shift state by one.
 slidingHBody :: Body (,) () (->) Int Int
@@ -523,8 +509,8 @@ slidingOk =
   let hTensorId = slidingHBody `tensorBody` idBody
       lhs = feedbackBody (slidingFBody `mergeChannel` hTensorId)
       rhs = feedbackBody (hTensorId `mergeChannel` slidingFBody)
-   in runSomeBody (SomeBody ((((), ()), ()), 0) lhs) [1, 2, 3]
-        == runSomeBody (SomeBody (((), ((), ())), 1) rhs) [1, 2, 3]
+   in runBody lhs ((((), ()), ()), 0) [1, 2, 3]
+        == runBody rhs (((), ((), ())), 1) [1, 2, 3]
 
 -- | Braid on @(s, s)@ used to show yanking fails.
 feedbackBraidBody :: Body (,) () (->) (Int, Int) (Int, Int)
@@ -535,8 +521,8 @@ feedbackBraidBody = Body $ \((), (x, y)) -> ((), (y, x))
 yankingFailsOk :: Bool
 yankingFailsOk =
   let fbBraid = feedbackBody feedbackBraidBody
-   in runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] /= [1, 2, 3]
-        && runSomeBody (SomeBody ((), 0) fbBraid) [1, 2, 3] == [0, 1, 2]
+   in runBody fbBraid ((), 0) [1, 2, 3] /= [1, 2, 3]
+        && runBody fbBraid ((), 0) [1, 2, 3] == [0, 1, 2]
 
 -- * Either carrier oracles
 
@@ -1168,8 +1154,8 @@ bisimNonEquivalentOk =
 -- identical outputs.
 bisimStreamOk :: Bool
 bisimStreamOk =
-  runSomeBody (SomeBody 0 bisim3Body) [False, True, False, False, True]
-    == runSomeBody (SomeBody 0 bisim2Body) [False, True, False, False, True]
+  runBody bisim3Body 0 [False, True, False, False, True]
+    == runBody bisim2Body 0 [False, True, False, False, True]
 
 -- | Carrier-isomorphism implies bisimulation, but not conversely.  Two
 -- isomorphic two-state machines (states relabelled @10,11@ vs @0,1@) are
@@ -1215,16 +1201,12 @@ circTopic verbosity = do
         cascadeStreamOk [3, 1, 4, 1, 5],
       checkV verbosity "pointed cascade is associative on input lists" $
         cascadeAssocOk [3, 1, 4, 1, 5],
-      checkV verbosity "pointed cascade agrees with reference implementation" $
-        cascadeAgreesWithReferenceOk [3, 1, 4, 1, 5],
-      checkV verbosity "SomeBody Category instance agrees with reference implementation" $
-        someBodyCategoryAgreesOk [3, 1, 4, 1, 5],
-      checkV verbosity "SomeBody Category left identity" $
-        someBodyCategoryLeftIdOk [3, 1, 4, 1, 5],
-      checkV verbosity "SomeBody Category right identity" $
-        someBodyCategoryRightIdOk [3, 1, 4, 1, 5],
-      checkV verbosity "SomeBody Category associativity" $
-        someBodyCategoryAssocOk [3, 1, 4, 1, 5],
+      checkV verbosity "mergeChannel agrees with reference implementation" $
+        mergeChannelAgreesOk [3, 1, 4, 1, 5],
+      checkV verbosity "mergeChannel left identity" $
+        mergeChannelLeftIdOk [3, 1, 4, 1, 5],
+      checkV verbosity "mergeChannel right identity" $
+        mergeChannelRightIdOk [3, 1, 4, 1, 5],
       checkV verbosity "right whisker agrees with stream composition" $
         rightWhiskerObservationalOk [False, True, True, False, True],
       checkV verbosity "right whisker preserves the square" rightWhiskerSquareOk,

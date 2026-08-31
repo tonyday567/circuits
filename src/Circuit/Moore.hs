@@ -83,10 +83,10 @@ module Circuit.Moore
     parWiring,
 
     -- * Channel-pole view of Moore machines
-    SomePoles (..),
-    runSomePoles,
+    mooreToPoles,
     mooreToPolesWithProbe,
-    mooreWithSeedToPoles,
+    polesToMoore,
+    runPoles,
 
     -- * Running monomial Moore machines
     runMooreMono,
@@ -438,21 +438,22 @@ parWiring sp sq =
 
 -- * Channel-pole view of Moore machines
 
--- | An existentially-quantified pair of channel poles over a body, carrying
--- its seed. The shape mirrors 'Circuit.Body.SomeBody'.
-data SomePoles t arr a b where
-  SomePoles :: s -> Poles (Body t s arr) a b -> SomePoles t arr a b
-
--- | Run an existentially-packed pair of poles over a list of inputs.
+-- | Convert a pole-split body into a monomial @(->)@ 'Moore' machine.
 --
--- This is the @(,)@ / @(->)@ specialisation; 'SomePoles' is parametric in the
--- tensor and arrow so that other shapes can reuse the existential packaging.
-runSomePoles :: SomePoles (,) (->) a b -> [a] -> [b]
-runSomePoles (SomePoles s0 p) xs =
-  let (write, receive) = Poles.splay0 p
-      Body f = write .> receive
-      (_, bs) = foldl (\(s, acc) a -> let (s', b) = f (s, a) in (s', b : acc)) (s0, []) xs
-   in reverse bs
+-- The write pole supplies the state transition and the read pole supplies the
+-- observation.  The result is a pointed Moore machine whose seed is supplied
+-- separately (for example by 'runPoles').
+polesToMoore :: Poles (Body (,) s (->)) a b -> Moore (,) s (->) (Mono a b)
+polesToMoore p =
+  let (Body write, Body receive) = Poles.splay0 p
+   in mooreMachine (\s a -> fst (write (s, a))) (\s -> snd (receive (s, ())))
+
+-- | Run a pair of channel poles over a list of inputs.
+--
+-- The poles are converted to a monomial 'Moore' and executed with
+-- 'scanMoore'; the final state is discarded.
+runPoles :: Poles (Body (,) s (->)) a b -> s -> [a] -> [b]
+runPoles p s0 xs = fst (scanMoore (polesToMoore p) s0 xs)
 
 -- | Shared write pole for a @(->)@ Moore machine over @(,)@: run the step and discard
 -- the output position.
@@ -465,7 +466,7 @@ mooreWriteBody sys = Body $ \(s, d) -> (fst (mooreMorphism sys (s, d)), ())
 -- fabricates an observation by re-stepping the machine with the supplied probe
 -- direction. This works only when the read can be reasonably approximated by a
 -- single probe direction; for an honest Moore observation prefer
--- 'mooreWithSeedToPoles'.
+-- 'mooreToPoles'.
 mooreToPolesWithProbe :: Dir p -> Moore (,) s (->) p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
 mooreToPolesWithProbe probe sys =
   Poles.poles0
@@ -474,16 +475,14 @@ mooreToPolesWithProbe probe sys =
 
 -- | Convert a pointed 'Moore' into companion/conjoint channel poles over @Body@.
 --
--- The state carrier is the machine's state @s@ and the seed @s0@ is carried by
--- 'SomePoles'.  The write pole steps with the supplied direction; the read pole
--- observes the current state without stepping, using the supplied observation
--- function.
-mooreWithSeedToPoles :: s -> (s -> Pos p) -> Moore (,) s (->) p -> SomePoles (,) (->) (Dir p) (Pos p)
-mooreWithSeedToPoles s0 ex sys =
-  SomePoles s0 $
-    Poles.poles0
-      (mooreWriteBody sys)
-      (Body $ \(s, ()) -> (s, ex s))
+-- The state carrier is the machine's state @s@.  The write pole steps with the
+-- supplied direction; the read pole observes the current state without stepping,
+-- using the supplied observation function.
+mooreToPoles :: (s -> Pos p) -> Moore (,) s (->) p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
+mooreToPoles ex sys =
+  Poles.poles0
+    (mooreWriteBody sys)
+    (Body $ \(s, ()) -> (s, ex s))
 
 -- | Run a monomial @(->)@ Moore machine at a state, exposing the output position and
 -- the state-transition function.

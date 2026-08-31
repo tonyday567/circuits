@@ -82,15 +82,15 @@ module Circuit.Process
     delay,
     register,
 
-    -- * Body conversions
-    processToBody,
-    processToSomeBody,
+    -- * Body conversions and runners
+    bodyToProcess,
+    runBody,
   )
 where
 
 import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
-import Circuit.Body (Body (..), SomeBody (..))
+import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
 import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, mooreMachine, mooreMorphism, peekMoore, stepMoore)
 import Circuit.Poly (Mono, Pos)
@@ -498,9 +498,37 @@ foldPProcess pp s (a : as) = foldPProcess pp (pprocessStep pp s a) as
 -- This is the definitional runner: 'scanStream' is 'Circuit.Syntax.eval'
 -- composed with 'encodeStream'. The feedback channel carries
 -- @(Maybe channel, remaining input, accumulated output)@.
-encodeStream :: (Uncons f a, Cons g b) => Process a b -> Trace Either (->) f g
-encodeStream p = case processToBodyStream p of
-  SomeBody _ (Body b) -> yank (base b)
+encodeStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> Trace Either (->) f g
+encodeStream (Process inject step extract) = yank (base b)
+  where
+    Body b =
+      Body $ \case
+        Right f -> case uncons f of
+          That _ -> Right nilG
+          This a ->
+            let ch0 = inject a
+             in Left (Just ch0, nilF, [extract ch0])
+          These a rest ->
+            let ch0 = inject a
+             in Left (Just ch0, rest, [extract ch0])
+        Left (Nothing, _, _) -> error "encodeStream: feedback reached before first input"
+        Left (Just ch, f, bs) -> case uncons f of
+          That _ -> Right (foldl (flip consG) nilG bs)
+          This a ->
+            let ch' = step ch a
+             in Left (Just ch', nilF, extract ch' : bs)
+          These a rest ->
+            let ch' = step ch a
+             in Left (Just ch', rest, extract ch' : bs)
+
+    nilF :: f
+    nilF = nil @f @a
+
+    nilG :: g
+    nilG = consNil @g @b
+
+    consG :: b -> g -> g
+    consG = cons
 
 -- | List specialization of 'encodeStream'.
 encodeList :: Process a b -> Trace Either (->) [a] [b]
@@ -589,58 +617,19 @@ register s0 (Process i st ex) = Process i' st' ex'
 
 -- * Body conversions
 
--- | View a 'Process' as a knot body over the 'Either' tensor, for any
--- 'Uncons' input and 'Cons' output stream.
+-- | View a cartesian body as a 'Process'.
 --
--- This is the same body used by 'encodeStream', now exposed as a value of
--- @Body Either ch (->)@. It confirms the Process / Trace Either round-trip
--- factors through the knot-body category.
-processToBodyStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> SomeBody Either (->) f g
-processToBodyStream (Process inject step extract) =
-  SomeBody (Nothing, nilF, []) $ Body $ \case
-    Right f -> case uncons f of
-      That _ -> Right nilG
-      This a ->
-        let ch0 = inject a
-         in Left (Just ch0, nilF, [extract ch0])
-      These a rest ->
-        let ch0 = inject a
-         in Left (Just ch0, rest, [extract ch0])
-    Left (Nothing, _, _) -> error "processToBodyStream: feedback reached before first input"
-    Left (Just ch, f, bs) -> case uncons f of
-      That _ -> Right (foldl (flip consG) nilG bs)
-      This a ->
-        let ch' = step ch a
-         in Left (Just ch', nilF, extract ch' : bs)
-      These a rest ->
-        let ch' = step ch a
-         in Left (Just ch', rest, extract ch' : bs)
+-- The body state @s@ becomes the process state, paired with the most recent
+-- output so that the Moore-style @extract@ can be defined.
+bodyToProcess :: Body (,) s (->) a b -> s -> Process a b
+bodyToProcess (Body f) s0 = Process inject step extract
   where
-    nilF :: f
-    nilF = nil @f @a
+    inject a = f (s0, a)
+    step (s, _) a' = f (s, a')
+    extract = snd
+{-# INLINEABLE bodyToProcess #-}
 
-    nilG :: g
-    nilG = consNil @g @b
-
-    consG :: b -> g -> g
-    consG = cons
-
--- | List specialization of 'processToBodyStream'.
-processToBody :: Process a b -> SomeBody Either (->) [a] [b]
-processToBody = processToBodyStream
-
--- | View a 'Process' as an existentially-quantified 'Body'.
---
--- The process state is exposed as the ambient wire.  The initial state is
--- 'Nothing'; the first input is fed to @inject@ to create the real state, and
--- subsequent inputs use @step@.  The output is always @extract@ of the current
--- state.
-processToSomeBody :: Process a b -> SomeBody (,) (->) a b
-processToSomeBody (Process inject step extract) =
-  SomeBody Nothing $ Body $ \case
-    (Nothing, a) ->
-      let s = inject a
-       in (Just s, extract s)
-    (Just s, a) ->
-      let s' = step s a
-       in (Just s', extract s')
+-- | Run a cartesian body over a list of inputs.
+runBody :: Body (,) s (->) a b -> s -> [a] -> [b]
+runBody body s0 = scan (bodyToProcess body s0)
+{-# INLINEABLE runBody #-}

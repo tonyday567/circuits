@@ -64,9 +64,9 @@ innerLens = Optic (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
 -- | Prism matching the @Left@ branch.  The residual is the branch that did
 -- not match.
 --
--- @'Circuit.Tensor.Unit' 'Either'@ is uninhabited, which is what denies
--- 'Circuit.Body.SomeBody' an identity.  'SomeOptic' has no such problem: the
--- residual is produced by the forward leg, never stored.  The @Either@
+-- @'Circuit.Tensor.Unit' 'Either'@ is uninhabited, which is what denied the
+-- old 'Circuit.Body.SomeBody' an identity.  'SomeOptic' has no such problem:
+-- the residual is produced by the forward leg, never stored.  The @Either@
 -- identity oracle below is the observable consequence.
 prismLeft :: Optic Either (->) String Int Int (Either Int String) (Either Int String)
 prismLeft =

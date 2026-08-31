@@ -10,8 +10,7 @@ move from `Loop` to `Trace`.
 
 - `Circuit.Body` introduces `Body t ch arr a b`, the category
   `arr (t ch a) (t ch b)` that underlies loops, processes, systems, and
-  channel poles. `SomeBody` hides the channel type; `runSomeBody` runs
-  cartesian bodies over lists.
+  channel poles.
 - The free traced monoidal category is now `Circuit.Trace.Trace` (with
   constructors `base` and `yank`), replacing the old `Circuit.Loop.Loop`.
 - `Circuit.Layer` hosts the free category `Free`, with `freeze` for

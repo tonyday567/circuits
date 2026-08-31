@@ -22,7 +22,8 @@
 --   iteration, and 'Data.These.These' for scheduled interleaving.
 --
 -- * __@ch@ — channel__: the value threaded alongside the payload.  It may be
---   state, residual, a stream, or a feedback wire.
+--   state, residual, a stream, or any other value the base arrow @arr@ carries
+--   along with the input and output.
 --
 -- * __@arr@ — arrow / morphism__: the base category.  Usually @(->)@ or a
 --   Kleisli arrow @K m@.  The opposite arrow @Circuit.Category.Op arr@ is also
@@ -37,8 +38,6 @@
 module Circuit.Body
   ( -- * Knot-body category
     Body (..),
-    SomeBody (..),
-    runSomeBody,
     runFlowchart,
 
     -- * Carrier-tensoring composition
@@ -48,7 +47,7 @@ where
 
 import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
 import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
-import Circuit.Tensor (Tensor (..), TensorSeed (..), Unit)
+import Circuit.Tensor (Tensor (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
@@ -81,27 +80,15 @@ instance (Category arr) => Category (Body t ch arr) where
   Body g . Body f = Body (g . f)
   {-# INLINE (.) #-}
 
--- | A 'Body' with its channel type hidden.
-data SomeBody t arr a b where
-  SomeBody :: ch -> Body t ch arr a b -> SomeBody t arr a b
-
--- | Run an existentially-packed cartesian body over a list of inputs.
---
--- This is the @(,)@ / list specialisation of 'SomeBody'.
-runSomeBody :: SomeBody (,) (->) a b -> [a] -> [b]
-runSomeBody (SomeBody ch0 (Body f)) xs =
-  let (_, bs) = foldl (\(ch, acc) a -> let (ch', b) = f (ch, a) in (ch', b : acc)) (ch0, []) xs
-   in reverse bs
-
 -- | Run an 'Either' body as a partial function @a -> b@ with a fuel bound.
 -- Execution starts with the external input @a@; if the body emits a label
 -- @ch@ the runner feeds @Left ch@ back in, decrementing the fuel.
 --
 -- Returns the result (if any) and the number of steps taken.  A flowchart has
 -- no stored state — the input is the entire initial configuration — so there
--- is no seed parameter.  This is the coproduct analogue of 'runSomeBody':
--- where @(,)@ bodies run as stream functions, 'Either' bodies run as halting
--- computations.
+-- is no seed parameter.  This is the coproduct analogue of the cartesian
+-- runner: where @(,)@ bodies run as stream functions, 'Either' bodies run as
+-- halting computations.
 runFlowchart :: Body Either ch (->) a b -> Int -> a -> (Maybe b, Int)
 runFlowchart (Body f) fuel0 a0 = go fuel0 0 (Right a0)
   where
@@ -169,7 +156,7 @@ instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
 
 -- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
 -- @t ch ch'@.  This is the body-level building block of horizontal 2-cell
--- algebra and of the 'Category' instance for 'SomeBody'.
+-- algebra (for example in "Circuit.Circ").
 --
 -- The composite is
 --
@@ -190,26 +177,3 @@ mergeChannel g f =
         .> strength (morphism g)
         .> assoc'
     )
-
--- | 'Category' instance for 'SomeBody'.
---
--- The carrier of the composite is the tensor of the two carriers, and the
--- stored seed is combined with 'seedPair'.  Identity needs a seed at the
--- tensor unit, hence the 'Pointed (Unit t)' requirement.  Tensors whose unit
--- is uninhabited (e.g. 'Either' with @Unit Either = Void@) therefore do not
--- admit an identity; tensors without a canonical value-level pairing (also
--- 'Either', 'Data.These.These') do not admit composition.
-instance
-  (Strength t arr, Pointed (Unit t), TensorSeed t) =>
-  Category (SomeBody t arr)
-  where
-  id :: forall a. SomeBody t arr a a
-  id = SomeBody (point :: Unit t) (Body id)
-  {-# INLINE id #-}
-
-  (.) :: forall a b c. SomeBody t arr b c -> SomeBody t arr a b -> SomeBody t arr a c
-  sb2@(SomeBody _ _) . sb1@(SomeBody _ _) = mergeChannelSome sb2 sb1
-    where
-      mergeChannelSome (SomeBody s2' g') (SomeBody s1' f') =
-        SomeBody (seedPair s1' s2') (mergeChannel g' f')
-  {-# INLINE (.) #-}

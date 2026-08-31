@@ -33,8 +33,8 @@
 -- The bicategory laws hold only up to invertible 'Sq' witnesses: carriers
 -- @ch ⊗ (ch' ⊗ ch'')@ and @(ch ⊗ ch') ⊗ ch''@ are different Haskell types, so
 -- on-the-nose associativity is impossible.  The proof artifact is the
--- intertwiner itself; the falsification artifact is observational, via the
--- 'Category' instance for 'SomeBody' and 'Circuit.Body.runSomeBody'.
+-- intertwiner itself; the falsification artifact is observational, via
+-- 'Circuit.Body.mergeChannel' and the 'Process' runner.
 module Circuit.Circ
   ( -- * Loose 1-cell (carrier hidden)
     Circ (..),
@@ -85,7 +85,7 @@ module Circuit.Circ
   )
 where
 
-import Circuit.Body (Body (..), SomeBody (..), mergeChannel)
+import Circuit.Body (Body (..), mergeChannel)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
