@@ -74,10 +74,10 @@ module Circuit.Moore
     isPayload,
     markMoore,
 
-    -- * Running monomial Moore machines
-    iterateMoore,
-    finalState,
-    scanMoore,
+    -- * Process conversions
+    mooreAsProcess,
+    asPProcess,
+    pprocessAsMoore,
 
     -- * Tensor wiring
     parWiring,
@@ -88,7 +88,7 @@ module Circuit.Moore
     polesToMoore,
     runPoles,
 
-    -- * Running monomial Moore machines
+    -- * Monomial evaluation
     runMooreMono,
 
     -- * Lenses
@@ -112,7 +112,6 @@ module Circuit.Moore
 where
 
 import Circuit.Body (Body (..))
-import Circuit.Category ((.>))
 import Circuit.Poles (HasDual (..), Poles (..))
 import Circuit.Poles qualified as Poles
 import Circuit.Poly
@@ -128,12 +127,12 @@ import Circuit.Poly
     nestedToComp,
     runMorphism,
   )
+import Circuit.Process (PProcess (..), Process, asProcess, scanPProcess)
 import Circuit.Trace (Trace, base)
 import Circuit.Traced (Yank, yank)
 import Control.Category (Category, id, (.))
 import Data.Bifunctor
 import Data.Kind (Type)
-import Data.Maybe
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -202,7 +201,7 @@ mooreMorphism (Moore (Body f)) = f
 -- This is the pointed-Moore view of a stateful morphism, expressed directly
 -- in 'Moore' terminology.  The state transition @s -> a -> s@ and the
 -- observation @s -> b@ are explicit; the seed is supplied later (for example
--- by 'Circuit.Process.mooreAsProcess').
+-- by 'mooreAsProcess').
 mooreMachine :: (s -> a -> s) -> (s -> b) -> Moore (,) s (->) (Mono a b)
 mooreMachine st ex =
   moore $ \case
@@ -255,33 +254,28 @@ isPayload :: Boundary k a -> Bool
 isPayload (Mark _) = False
 isPayload (Payload _) = True
 
--- * Running monomial Moore machines
+-- * Process conversions
 
--- | Single monomial step: current output together with next state.
-mooreStep :: Moore (,) s (->) (Mono i o) -> s -> i -> (o, s)
-mooreStep sys s i = case toEvalMoore sys s of EP (EK o, EE f) -> (o, f i)
+-- | Convert a monomial 'Moore' into a 'PProcess' with a given seed.
+asPProcess :: Moore (,) s (->) (Mono i o) -> s -> PProcess s i o
+asPProcess sys s0 =
+  PProcess
+    s0
+    (\s i -> stepMoore sys s i)
+    (\s -> peekMoore sys s)
+{-# INLINEABLE asPProcess #-}
 
--- | Run a Moore machine for as many steps as there are inputs, emitting one output
--- per input. The output is the state /after/ consuming the input, matching
--- the 'Process' semantics of 'mooreAsProcess'.
-iterateMoore :: Moore (,) s (->) (Mono i o) -> s -> [i] -> [o]
-iterateMoore sys s = fst . scanMoore sys s
-{-# INLINEABLE iterateMoore #-}
+-- | Convert a monomial 'Moore' into a 'Process' machine with a given initial
+-- state.
+mooreAsProcess :: Moore (,) s (->) (Mono i o) -> s -> Process i o
+mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
+{-# INLINEABLE mooreAsProcess #-}
 
--- | Final state after consuming a list of inputs.
-finalState :: Moore (,) s (->) (Mono i o) -> s -> [i] -> s
-finalState _ s [] = s
-finalState sys s (i : is) = finalState sys (snd (mooreStep sys s i)) is
-{-# INLINEABLE finalState #-}
-
--- | Run a Moore machine over a list of inputs, producing the list of outputs
--- /and/ the final state in a single pass.
-scanMoore :: Moore (,) s (->) (Mono i o) -> s -> [i] -> ([o], s)
-scanMoore sys s0 is = go s0 is []
-  where
-    go s [] acc = (reverse acc, s)
-    go s (i : is') acc = case mooreStep sys s i of (o, s') -> go s' is' (o : acc)
-{-# INLINEABLE scanMoore #-}
+-- | Convert a 'PProcess' into a monomial 'Moore'.
+pprocessAsMoore :: PProcess s i o -> Moore (,) s (->) (Mono i o)
+pprocessAsMoore (PProcess _ st ex) =
+  mooreMachine st ex
+{-# INLINEABLE pprocessAsMoore #-}
 
 -- | Lift a monomial 'Moore' and a state observation into a boundary machine
 -- over 'Boundary' tokens.
@@ -447,10 +441,10 @@ polesToMoore p =
 
 -- | Run a pair of channel poles over a list of inputs.
 --
--- The poles are converted to a monomial 'Moore' and executed with
--- 'scanMoore'; the final state is discarded.
+-- The poles are converted to a 'PProcess' and scanned; the final state is
+-- discarded.
 runPoles :: Poles (Body (,) s (->)) a b -> s -> [a] -> [b]
-runPoles p s0 xs = fst (scanMoore (polesToMoore p) s0 xs)
+runPoles p s0 xs = scanPProcess (asPProcess (polesToMoore p) s0) xs
 
 -- | Shared write pole for a @(->)@ Moore machine over @(,)@: run the step and discard
 -- the output position.

@@ -5,24 +5,24 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | A pointed Moore machine packaged as a @Circuit@ base arrow.
+-- | A pointed stateful process from @a@ to @b@.
 --
 -- @
 -- data Process a b = forall s. Process (a -> s) (s -> a -> s) (s -> b)
 -- @
 --
--- 'Process' is the monomial special case of 'Circuit.Moore.Moore': the
--- interface is @Mono a b@ and the initial state is supplied by the first input.
--- The underlying span-shaped carrier is 'Circuit.Body.Body'.
+-- 'Process' is the circuits-native carrier for streaming state machines: the
+-- interface is a monomial @a -> b@ stream transformer and the initial state is
+-- supplied by the first input. The underlying span-shaped carrier is
+-- 'Circuit.Body.Body'.
 --
 -- * @inject@ converts the first input into an initial state.
 -- * @step@ updates the state given the current input.
 -- * @extract@ produces the output from the current state.
 --
--- This is the circuits-native carrier for streaming state machines. It is
--- intended to replace the hand-rolled state-machine arrow: stats packages
--- become boxes @Process a b@, while the arrow itself lives in the substrate
--- next to 'Circuit.Trace' and 'Circuit.Net'.
+-- This is intended to replace the hand-rolled state-machine arrow: stats
+-- packages become boxes @Process a b@, while the arrow itself lives in the
+-- substrate next to 'Circuit.Trace' and 'Circuit.Net'.
 --
 -- The semantics are intentionally tied to the circuits substrate:
 --
@@ -35,9 +35,8 @@
 --
 -- = Pointed systems
 --
--- The pointed-Moore view of a stateful morphism is 'Circuit.Moore.Moore' with
--- an explicit seed.  Use 'Circuit.Moore.mooreMachine' to build such a machine,
--- and 'mooreAsProcess' to turn it into a first-input-seeded 'Process'.
+-- The pointed-Moore view of a stateful morphism lives in 'Circuit.Moore', which
+-- builds polynomial interfaces on top of this monomial carrier.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
     Process (..),
@@ -45,16 +44,6 @@ module Circuit.Process
     -- * Pointed process (explicit seed)
     PProcess (..),
     asProcess,
-    asPProcess,
-
-    -- * Boundary tokens (K + payload)
-    Boundary (..),
-    isMark,
-    isPayload,
-
-    -- * Moore <-> Process conversions
-    mooreAsProcess,
-    pprocessAsMoore,
 
     -- * Functorial plumbing
     before,
@@ -66,6 +55,8 @@ module Circuit.Process
     -- * Runners
     scan,
     scanPProcess,
+    runPProcess,
+    finalPProcess,
     scanStream,
     fold,
     foldPProcess,
@@ -92,8 +83,6 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
-import Circuit.Moore (Boundary (..), Moore, isMark, isPayload, mooreMachine, mooreMorphism, peekMoore, stepMoore)
-import Circuit.Poly (Mono, Pos)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unital (..))
@@ -123,15 +112,6 @@ data Process a b where
     (s -> b) ->
     Process a b
 
--- | Convert a monomial 'Moore' into a 'Process' machine with a given initial
--- state.
---
--- The first input is consumed for the state transition from the supplied
--- initial state, matching the coalgebra intuition of a 'Moore'.
-mooreAsProcess :: Moore (,) s (->) (Mono i o) -> s -> Process i o
-mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
-{-# INLINEABLE mooreAsProcess #-}
-
 -- | A pointed process with an explicit seed.
 --
 -- This is the same data as 'Process' except the initial state @s0@ is exposed
@@ -143,27 +123,12 @@ data PProcess s a b = PProcess
     pprocessExtract :: s -> b
   }
 
--- | Convert a monomial 'Moore' into a 'PProcess' with a given seed.
-asPProcess :: Moore (,) s (->) (Mono i o) -> s -> PProcess s i o
-asPProcess sys s0 =
-  PProcess
-    s0
-    (\s i -> stepMoore sys s i)
-    (\s -> peekMoore sys s)
-{-# INLINEABLE asPProcess #-}
-
 -- | Forget the explicit seed of a 'PProcess', yielding a 'Process' whose
 -- first input creates the initial state via 'pprocessStep'.
 asProcess :: PProcess s a b -> Process a b
 asProcess (PProcess s0 step extract) =
   Process (\a -> step s0 a) step extract
 {-# INLINEABLE asProcess #-}
-
--- | Convert a 'PProcess' into a monomial 'Moore'.
-pprocessAsMoore :: PProcess s i o -> Moore (,) s (->) (Mono i o)
-pprocessAsMoore (PProcess _ step extract) =
-  mooreMachine step extract
-{-# INLINEABLE pprocessAsMoore #-}
 
 -- * Functorial plumbing
 
@@ -455,16 +420,34 @@ scan :: Process a b -> [a] -> [b]
 scan = scanStream
 {-# INLINE scan #-}
 
--- | Run a pointed process over a list, starting from its explicit seed.
+-- | Run a pointed process over a list, starting from its stored seed.
 --
 -- Output at each step is 'pprocessExtract' of the state /after/ consuming the
 -- input, matching the 'Process' semantics of 'scan'.
-scanPProcess :: PProcess s a b -> s -> [a] -> [b]
-scanPProcess _ _ [] = []
-scanPProcess (PProcess s0 step extract) s (a : as) =
-  let s' = step s a
-   in extract s' : scanPProcess (PProcess s0 step extract) s' as
+scanPProcess :: PProcess s a b -> [a] -> [b]
+scanPProcess pp = go (pprocessSeed pp)
+  where
+    go _ [] = []
+    go s (a : as) =
+      let s' = pprocessStep pp s a
+       in pprocessExtract pp s' : go s' as
 {-# INLINEABLE scanPProcess #-}
+
+-- | Run a pointed process over a list, producing the outputs /and/ the final
+-- state in a single pass.
+runPProcess :: PProcess s a b -> [a] -> ([b], s)
+runPProcess pp xs = go (pprocessSeed pp) xs []
+  where
+    go s [] acc = (reverse acc, s)
+    go s (a : as) acc =
+      let s' = pprocessStep pp s a
+       in go s' as (pprocessExtract pp s' : acc)
+{-# INLINEABLE runPProcess #-}
+
+-- | Final state after consuming a list of inputs.
+finalPProcess :: PProcess s a b -> [a] -> s
+finalPProcess pp = snd . runPProcess pp
+{-# INLINEABLE finalPProcess #-}
 
 -- | Run a process over a stream, returning the final output (if any).
 foldStream :: (Uncons f a) => Process a b -> f -> Maybe b
@@ -486,10 +469,12 @@ fold = foldStream
 {-# INLINE fold #-}
 
 -- | Run a pointed process over a list, returning the final output (if any).
-foldPProcess :: PProcess s a b -> s -> [a] -> Maybe b
-foldPProcess _ _ [] = Nothing
-foldPProcess pp s [a] = Just (pprocessExtract pp (pprocessStep pp s a))
-foldPProcess pp s (a : as) = foldPProcess pp (pprocessStep pp s a) as
+foldPProcess :: PProcess s a b -> [a] -> Maybe b
+foldPProcess pp = go (pprocessSeed pp)
+  where
+    go _ [] = Nothing
+    go s [a] = Just (pprocessExtract pp (pprocessStep pp s a))
+    go s (a : as) = go (pprocessStep pp s a) as
 {-# INLINEABLE foldPProcess #-}
 
 -- | Encode a process as a stream-level 'Trace' over arbitrary 'Uncons'/'Cons'
