@@ -66,7 +66,7 @@ where
 
 import Circuit.Category (Category, (.>))
 import Circuit.Poles (Poles, iomap)
-import Circuit.Poly (Mono, Morphism, applyLens, lens)
+import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
 import Circuit.Process (PProcess (..))
 import Circuit.Tensor (Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
@@ -247,7 +247,7 @@ opticPoles (Optic f b) = iomap f b
 --
 -- >>> let (a, put) = applyLens (opticAsLens (SomeOptic firstLens)) (3, "hello") in (a, put 9)
 -- (3,(9,"hello"))
-opticAsLens :: SomeOptic (,) (->) a b s r -> Morphism (Mono r s) (Mono b a)
+opticAsLens :: SomeOptic (,) (->) a b s r -> Lens s r a b
 opticAsLens (SomeOptic (Optic f g)) =
   lens (\s -> snd (f s)) (\s b -> g (fst (f s), b))
 
@@ -258,21 +258,21 @@ opticAsLens (SomeOptic (Optic f g)) =
 -- . 'opticAsLens'@ changes the residual and is only an identity after the
 -- coend quotient; @Axioma.Optic@ checks that it is an identity
 -- observationally, which is that quotient in action.
-lensAsOptic :: Morphism (Mono r s) (Mono b a) -> Optic (,) (->) (b -> r) a b s r
+lensAsOptic :: Lens s r a b -> Optic (,) (->) (b -> r) a b s r
 lensAsOptic m =
   Optic
     (\s -> let (a, k) = applyLens m s in (k, a))
     (\(k, b) -> k b)
 
 -- | A pointed monomial process as a polynomial lens.
-pprocessAsLens :: PProcess s i o -> Morphism (Mono s s) (Mono i o)
+pprocessAsLens :: PProcess s i o -> Lens s s o i
 pprocessAsLens pp = lens get put
   where
     get s = pprocessExtract pp s
     put s = pprocessStep pp s
 
 -- | Build a pointed process from a polynomial lens and a seed.
-lensAsPProcess :: Morphism (Mono s s) (Mono i o) -> s -> PProcess s i o
+lensAsPProcess :: Lens s s o i -> s -> PProcess s i o
 lensAsPProcess m s0 =
   PProcess
     s0

@@ -85,6 +85,7 @@ module Circuit.Poly
 
     -- * Lenses
     Mono,
+    Lens,
     lens,
     dagger,
     applyLens,
@@ -668,31 +669,39 @@ runMorphism = \case
 -- | The monomial interface: @i@ directions (input), @o@ positions (output).
 type Mono i o = 'Prod ('Const o) ('Exp i)
 
+-- | A polynomial lens @Lens s t a b@: source position @s@, source direction @t@,
+-- target position @a@, target direction @b@.
+--
+-- Equivalently, a morphism from the state object @Mono t s@ to the interface
+-- object @Mono b a@. The directions are the update channels: consuming a @b@
+-- produces a new @t@.
+type Lens s t a b = Morphism (Mono t s) (Mono b a)
+
 -- | The general point-dependent lens.
 --
--- Forward pass @get :: a -> b@; backward pass @put :: a -> db -> da@
--- depends on the current position.
+-- Forward pass @get :: s -> a@; backward pass @put :: s -> b -> t@
+-- depends on the current source position.
 --
--- >>> let l = lens show (\n d -> n + d) :: Morphism (Mono Int Int) (Mono Int String)
+-- >>> let l = lens show (\n d -> n + d) :: Lens Int Int String Int
 -- >>> let (v, put) = applyLens l 40 in (v, put 2)
 -- ("40",42)
-lens :: (a -> b) -> (a -> db -> da) -> Morphism (Mono da a) (Mono db b)
-lens f g = Depend (\a -> Pair (Konst (f a)) (ExpMap (g a)))
+lens :: (s -> a) -> (s -> b -> t) -> Lens s t a b
+lens f g = Depend (\s -> Pair (Konst (f s)) (ExpMap (g s)))
 
 -- | The position-independent dagger case.
 --
 -- Expressible without 'Konst' or 'Depend'.
 --
--- >>> let d = dagger (+1) (subtract 1) :: Morphism (Mono Int Int) (Mono Int Int)
+-- >>> let d = dagger (+1) (subtract 1) :: Lens Int Int Int Int
 -- >>> let (v, put) = applyLens d 5 in (v, put 6)
 -- (6,5)
-dagger :: (a -> b) -> (db -> da) -> Morphism (Mono da a) (Mono db b)
+dagger :: (s -> a) -> (b -> t) -> Lens s t a b
 dagger f g = Pair (Compose (ConstMap f) Fst) (Compose (ExpMap g) Snd)
 
--- | Apply a monomial morphism as a lens: @(get, put)@.
-applyLens :: Morphism (Mono da a) (Mono db b) -> a -> (b, db -> da)
-applyLens m a = case runMorphism m (EP (EK a, EE id)) of
-  EP (EK b, EE g) -> (b, g)
+-- | Apply a lens: @(get, put)@.
+applyLens :: Lens s t a b -> s -> (a, b -> t)
+applyLens m s = case runMorphism m (EP (EK s, EE id)) of
+  EP (EK a, EE g) -> (a, g)
 
 -- | Prism: match on a sum-like source, build from the focused branch.
 --
