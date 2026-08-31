@@ -257,21 +257,21 @@ isPayload (Payload _) = True
 
 -- * Running monomial Moore machines
 
+-- | Single monomial step: current output together with next state.
+mooreStep :: Moore (,) s (->) (Mono i o) -> s -> i -> (o, s)
+mooreStep sys s i = case toEvalMoore sys s of EP (EK o, EE f) -> (o, f i)
+
 -- | Run a Moore machine for as many steps as there are inputs, emitting one output
 -- per input. The output is the state /after/ consuming the input, matching
 -- the 'Process' semantics of 'mooreAsProcess'.
 iterateMoore :: Moore (,) s (->) (Mono i o) -> s -> [i] -> [o]
-iterateMoore _ _ [] = []
-iterateMoore sys s (i : is) =
-  let s' = snd (runMooreMono sys s) i
-      (o, _) = runMooreMono sys s'
-   in o : iterateMoore sys s' is
+iterateMoore sys s = fst . scanMoore sys s
 {-# INLINEABLE iterateMoore #-}
 
 -- | Final state after consuming a list of inputs.
 finalState :: Moore (,) s (->) (Mono i o) -> s -> [i] -> s
 finalState _ s [] = s
-finalState sys s (i : is) = finalState sys (snd (runMooreMono sys s) i) is
+finalState sys s (i : is) = finalState sys (snd (mooreStep sys s i)) is
 {-# INLINEABLE finalState #-}
 
 -- | Run a Moore machine over a list of inputs, producing the list of outputs
@@ -280,10 +280,7 @@ scanMoore :: Moore (,) s (->) (Mono i o) -> s -> [i] -> ([o], s)
 scanMoore sys s0 is = go s0 is []
   where
     go s [] acc = (reverse acc, s)
-    go s (i : is') acc =
-      let s' = snd (runMooreMono sys s) i
-          (o, _) = runMooreMono sys s'
-       in go s' is' (o : acc)
+    go s (i : is') acc = case mooreStep sys s i of (o, s') -> go s' is' (o : acc)
 {-# INLINEABLE scanMoore #-}
 
 -- | Lift a monomial 'Moore' and a state observation into a boundary machine
