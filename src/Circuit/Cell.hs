@@ -4,9 +4,9 @@
 -- | Loose bicategory of 'Circuit.Body.Body' values with varying carriers.
 --
 -- A KSW loose 1-cell is a body @arr (t ch a) (t ch b)@ with its carrier @ch@
--- hidden.  The 2-cells are carrier intertwiners: maps @α : ch -> ch'@ that make
--- the Mealy square commute.  'Body' is the fibre at fixed carrier; 'Circ' is
--- the coproduct of those fibres, and 'Sq' / 'Intertwiner' move between them.
+-- hidden.  The 2-cells are carrier two-cells: maps @α : ch -> ch'@ that make
+-- the Mealy square commute.  'Body' is the fibre at fixed carrier; 'Cell' is
+-- the coproduct of those fibres, and 'Sq' / 'TwoCell' move between them.
 --
 -- == Carrier-tensoring composition
 --
@@ -15,7 +15,7 @@
 -- @
 --   f :: Body t ch  arr a b
 --   g :: Body t ch' arr b c
---   cascade g f :: Circ t arr a c   -- carrier  t ch ch'
+--   cascade g f :: Cell t arr a c   -- carrier  t ch ch'
 -- @
 --
 -- The composite is
@@ -33,12 +33,12 @@
 -- The bicategory laws hold only up to invertible 'Sq' witnesses: carriers
 -- @ch ⊗ (ch' ⊗ ch'')@ and @(ch ⊗ ch') ⊗ ch''@ are different Haskell types, so
 -- on-the-nose associativity is impossible.  The proof artifact is the
--- intertwiner itself; the falsification artifact is observational, via
+-- two-cell itself; the falsification artifact is observational, via
 -- 'Circuit.Body.mergeChannel' and the 'Process' runner.
-module Circuit.Circ
+module Circuit.Cell
   ( -- * Loose 1-cell (carrier hidden)
-    Circ (..),
-    idCirc,
+    Cell (..),
+    idCell,
 
     -- * Indexed 2-cell (carrier map + commuting square)
     Sq (..),
@@ -46,8 +46,8 @@ module Circuit.Circ
     vcomp,
 
     -- * Existential closure of Sq
-    Intertwiner (..),
-    withIntertwiner,
+    TwoCell (..),
+    withTwoCell,
 
     -- * The two paths whose equality is the square
     downThenAcross,
@@ -94,20 +94,20 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XTypeApplications
--- >>> import Circuit.Circ
+-- >>> import Circuit.Cell
 -- >>> import Circuit.Body (Body (..))
 
 -- | Loose 1-cell: a body with its carrier type hidden.
-data Circ t arr a b where
-  Circ :: Body t ch arr a b -> Circ t arr a b
+data Cell t arr a b where
+  Cell :: Body t ch arr a b -> Cell t arr a b
 
 -- | Identity loose 1-cell at the tensor unit carrier.
 --
 -- The carrier is pinned to 'Unit' so that the unit law can be witnessed with
 -- the unitor; without the annotation GHC would instantiate the hidden carrier
 -- to 'Any'.
-idCirc :: forall t arr a. (Strength t arr) => Circ t arr a a
-idCirc = Circ (Body id :: Body t (Unit t) arr a a)
+idCell :: forall t arr a. (Strength t arr) => Cell t arr a a
+idCell = Cell (Body id :: Body t (Unit t) arr a a)
 
 -- | Square (indexed 2-cell).  The carrier maps compose; the middle body must
 -- match (a caller side condition).
@@ -135,19 +135,19 @@ vcomp ::
 vcomp g f = Sq (carrierMap f .> carrierMap g) (sqSrc f) (sqTgt g)
 
 -- | Existential closure of 'Sq', for stating "there exists a 2-cell".
-data Intertwiner t arr a b where
-  Intertwiner :: Sq t arr ch ch' a b -> Intertwiner t arr a b
+data TwoCell t arr a b where
+  TwoCell :: Sq t arr ch ch' a b -> TwoCell t arr a b
 
--- | Eliminator for the existential carrier types of an 'Intertwiner'.
-withIntertwiner ::
-  Intertwiner t arr a b ->
+-- | Eliminator for the existential carrier types of a 'TwoCell'.
+withTwoCell ::
+  TwoCell t arr a b ->
   (forall ch ch'. Sq t arr ch ch' a b -> r) ->
   r
-withIntertwiner (Intertwiner sq) k = k sq
+withTwoCell (TwoCell sq) k = k sq
 
 -- | Go down (carrier map) then across (target body).
 --
--- A nondegenerate intertwiner witness: counter state quotiented by parity.
+-- A nondegenerate two-cell witness: counter state quotiented by parity.
 -- The payload is 'Char' so the carrier slot and payload slot are type-distinct;
 -- slot confusion is a type error.  These examples exercise both parities and
 -- both reset branches.  A paired perturbation doctest on 'acrossThenDown'
@@ -203,10 +203,10 @@ acrossThenDown sq = morphism (sqSrc sq) .> tensor (carrierMap sq) id
 -- and the second has carrier @ch'@.
 cascade ::
   (Strength t arr) =>
-  Circ t arr b c ->
-  Circ t arr a b ->
-  Circ t arr a c
-cascade (Circ g) (Circ f) = Circ (mergeChannel g f)
+  Cell t arr b c ->
+  Cell t arr a b ->
+  Cell t arr a c
+cascade (Cell g) (Cell f) = Cell (mergeChannel g f)
 
 -- | Indexed left unitor square.
 unitorLeftSq ::
@@ -220,8 +220,8 @@ unitorLeftSq b = Sq unitl (mergeChannel b (Body id)) b
 unitorLeft ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
-  Intertwiner t arr a b
-unitorLeft b = Intertwiner (unitorLeftSq b)
+  TwoCell t arr a b
+unitorLeft b = TwoCell (unitorLeftSq b)
 
 -- | Indexed right unitor square.
 unitorRightSq ::
@@ -234,8 +234,8 @@ unitorRightSq b = Sq unitr (mergeChannel (Body id) b) b
 unitorRight ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
-  Intertwiner t arr a b
-unitorRight b = Intertwiner (unitorRightSq b)
+  TwoCell t arr a b
+unitorRight b = TwoCell (unitorRightSq b)
 
 -- | Indexed associator square.
 associatorSq ::
@@ -257,8 +257,8 @@ associator ::
   Body t ch3 arr c d ->
   Body t ch2 arr b c ->
   Body t ch1 arr a b ->
-  Intertwiner t arr a d
-associator h g f = Intertwiner (associatorSq h g f)
+  TwoCell t arr a d
+associator h g f = TwoCell (associatorSq h g f)
 
 -- | Right whisker: tensor a square with an identity-on-boundaries 1-cell on
 -- the right.
@@ -315,7 +315,7 @@ whiskerSq f g sq =
 
 -- | Close a feedback loop over a component @s@ of the input/output object.
 --
--- The 1-cell must be of the form @Circ t arr (t s a) (t s b)@: the feedback
+-- The 1-cell must be of the form @Cell t arr (t s a) (t s b)@: the feedback
 -- value @s@ appears as the first component of the tensor in both domain and
 -- codomain.  The result moves @s@ into the hidden carrier, turning it into
 -- state.  This is the guarded / state-bootstrapping feedback of KSW, not the
@@ -325,13 +325,13 @@ whiskerSq f g sq =
 -- Implemented by reassociating so that @s@ becomes part of the carrier:
 --
 -- @
---   feedback (Circ (Body f)) = Circ (Body (assoc .> f .> assoc'))
+--   feedback (Cell (Body f)) = Cell (Body (assoc .> f .> assoc'))
 -- @
 feedback ::
   (Assoc t arr) =>
-  Circ t arr (t s a) (t s b) ->
-  Circ t arr a b
-feedback (Circ (Body f)) = Circ $ Body $ assoc .> f .> assoc'
+  Cell t arr (t s a) (t s b) ->
+  Cell t arr a b
+feedback (Cell (Body f)) = Cell $ Body $ assoc .> f .> assoc'
 
 -- * Elgot dagger
 
@@ -339,7 +339,7 @@ feedback (Circ (Body f)) = Circ $ Body $ assoc .> f .> assoc'
 --
 -- The resulting body has the 'Void' unit carrier and payload
 -- @Either a a -> Either a b@, so it can be passed to 'feedback'.  The dagger
--- of @f@ is then a morphism @a -> b@ in 'Circ'.
+-- of @f@ is then a morphism @a -> b@ in 'Cell'.
 elgotBody :: (a -> Either a b) -> Body Either Void (->) (Either a a) (Either a b)
 elgotBody f =
   Body $ \case
@@ -358,8 +358,8 @@ elgotFeedbackBody :: (a -> Either a b) -> Body Either (Either Void a) (->) a b
 elgotFeedbackBody f = Body $ assoc .> morphism (elgotBody f) .> assoc'
 
 -- | Elgot dagger of @f :: a -> Either a b@ via 'feedback'.
-elgotDagger :: (a -> Either a b) -> Circ Either (->) a b
-elgotDagger f = Circ (elgotFeedbackBody f)
+elgotDagger :: (a -> Either a b) -> Cell Either (->) a b
+elgotDagger f = Cell (elgotFeedbackBody f)
 
 -- * Bisimulation
 
@@ -437,16 +437,16 @@ bisimilarStates ::
 bisimilarStates inputs states1 states2 body1 body2 s1 s2 =
   (s1, s2) `elem` maxBisimulation inputs states1 states2 body1 body2
 
--- | 'Category' instance for 'Circ'.
+-- | 'Category' instance for 'Cell'.
 --
 -- The laws hold only up to invertible 'Sq': on-the-nose associativity and
 -- unitality are impossible as Haskell values because the carriers of the two
--- sides differ.  Observational witnesses live in "Axioma.Circ".
-instance (Strength t arr) => Category (Circ t arr) where
-  id :: forall a. Circ t arr a a
-  id = idCirc
+-- sides differ.  Observational witnesses live in "Axioma.Cell".
+instance (Strength t arr) => Category (Cell t arr) where
+  id :: forall a. Cell t arr a a
+  id = idCell
   {-# INLINE id #-}
 
-  (.) :: forall a b c. Circ t arr b c -> Circ t arr a b -> Circ t arr a c
+  (.) :: forall a b c. Cell t arr b c -> Cell t arr a b -> Cell t arr a c
   (.) = cascade
   {-# INLINE (.) #-}

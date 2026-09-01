@@ -1,5 +1,5 @@
--- | Circ / bicategory of bodies oracles.
-module Axioma.Circ
+-- | Cell / bicategory of bodies oracles.
+module Axioma.Cell
   ( circTopic,
   )
 where
@@ -9,8 +9,8 @@ import Circuit.Body (Body (..), mergeChannel, runFlowchart)
 import Circuit.Process (runBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
-import Circuit.Circ
-  ( Circ (..),
+import Circuit.Cell
+  ( Cell (..),
     Sq (..),
     acrossThenDown,
     associatorSq,
@@ -38,7 +38,7 @@ import Data.Maybe (isNothing)
 import Data.These (These (..))
 import Data.Void (Void, absurd)
 
--- | Exact-oracle range for the intertwiner checks.
+-- | Exact-oracle range for the two-cell checks.
 carrierRange :: [Int]
 carrierRange = [-16 .. 16]
 
@@ -379,7 +379,7 @@ whiskerSqSquareOk =
 -- * Feedback-category law oracles
 
 --
--- These check the guarded feedback operator from "Circuit.Circ" against the
+-- These check the guarded feedback operator from "Circuit.Cell" against the
 -- feedback-category axioms of Di Lavore et al., "Span(Graph): a Canonical
 -- Feedback Algebra of Open Transition Systems" (arXiv:2010.10069), §3.1:
 -- A1 tightening, A2 vanishing, A3 joining, A4 strength/superposing, A5 sliding
@@ -666,9 +666,9 @@ eitherYankOk =
 
 -- * Uniformity / dinaturality oracles for Either feedback
 
--- | Helper: run a 'Circ Either' morphism as a fuel-bounded flowchart.
-runCircFlowchart :: Circ Either (->) Int Int -> Int -> (Maybe Int, Int)
-runCircFlowchart c n = case c of Circ b -> runFlowchart b 10 n
+-- | Helper: run a 'Cell Either' morphism as a fuel-bounded flowchart.
+runCellFlowchart :: Cell Either (->) Int Int -> Int -> (Maybe Int, Int)
+runCellFlowchart c n = case c of Cell b -> runFlowchart b 10 n
 
 -- | Helper: extract the payload function of a body whose carrier is 'Void'.
 -- Such a body is essentially a function on its payload, because @Either Void x@
@@ -678,7 +678,7 @@ runVoidBody b a = case morphism b (Right a) of
   Right b' -> b'
   Left v -> absurd v
 
--- | Uniformity: a non-injective intertwiner makes feedback invariant under a
+-- | Uniformity: a non-injective two-cell makes feedback invariant under a
 -- genuine quotient of the feedback wire.  The source feedback wire is 'Int';
 -- the target is 'Bool' via @odd :: Int -> Bool@.  Both wires carry two
 -- reachable values, and the halt value depends on which wire state the loop
@@ -719,11 +719,11 @@ eitherUniformityHypothesisOk =
 -- | Uniformity conclusion: feedback of the two open bodies has the same trace.
 eitherUniformityOk :: Bool
 eitherUniformityOk =
-  let srcClosed = feedback (Circ uniformitySourceOpen)
-      tgtClosed = feedback (Circ uniformityTargetOpen)
+  let srcClosed = feedback (Cell uniformitySourceOpen)
+      tgtClosed = feedback (Cell uniformityTargetOpen)
       traceOk =
         all
-          (\n -> fst (runCircFlowchart srcClosed n) == fst (runCircFlowchart tgtClosed n))
+          (\n -> fst (runCellFlowchart srcClosed n) == fst (runCellFlowchart tgtClosed n))
           [0, 1, 2, 3]
    in eitherUniformityHypothesisOk && traceOk
 
@@ -761,10 +761,10 @@ eitherSlidingOk =
           Left v -> absurd v
       lhsOpen = Body $ morphism h .> morphism f
       rhsOpen = Body $ morphism f .> morphism h
-      lhs = feedback (Circ lhsOpen)
-      rhs = feedback (Circ rhsOpen)
+      lhs = feedback (Cell lhsOpen)
+      rhs = feedback (Cell rhsOpen)
    in all
-        (\n -> fst (runCircFlowchart lhs n) == fst (runCircFlowchart rhs n))
+        (\n -> fst (runCellFlowchart lhs n) == fst (runCellFlowchart rhs n))
         [0, 1, 2, 3]
 
 -- * These carrier oracles
@@ -1179,13 +1179,13 @@ bisimCarrierIsoFinerOk =
 
 -- | Exact oracle over a bounded input space.
 --
--- Note: the intertwiner tests only exercise 'tensor' in its first slot (the
+-- Note: the two-cell tests only exercise 'tensor' in its first slot (the
 -- carrier map), with the second slot fed 'id'.  Coverage of 'tensor's payload
 -- slot belongs in "Axioma.Moore"; 'hcomposeObservationalOk' also exercises
 -- the joint behaviour of 'tensor' through horizontal composition.
 circTopic :: Verbosity -> IO [Bool]
 circTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Circ / bicategory of bodies oracles"
+  when (verbosity == Axioms) $ putStrLn "Cell / bicategory of bodies oracles"
   sequence
     [ checkV verbosity "counter-to-parity square commutes over bounded inputs" $
         and
@@ -1243,7 +1243,7 @@ circTopic verbosity = do
       checkV verbosity "Elgot fixed point" elgotFixedPointOk,
       checkV verbosity "Elgot naturality" elgotNaturalityOk,
       checkV verbosity "Either yanking (swap) halts with identity in two steps" eitherYankOk,
-      checkV verbosity "Either uniformity: feedback respects non-injective intertwiner" eitherUniformityOk,
+      checkV verbosity "Either uniformity: feedback respects non-injective two-cell" eitherUniformityOk,
       checkV verbosity "Either sliding (dinaturality) for isomorphism" eitherSlidingOk,
       checkV verbosity "These strength coherence (strength f == tensor id f)" theseStrengthCoherenceOk,
       checkV verbosity "These left unitor witness commutes" theseUnitorLeftOk,

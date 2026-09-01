@@ -52,7 +52,7 @@ Circuit.Channel — Poly-indexed Moore channels.
 Circuit.Poles       — Bi-polar channel ends (Out/In), boxes, copycat, race.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
-Circuit.Stamped     — Occurrence-token values.
+Circuit.Boundary    — Free boundary tokens and occurrence-stamped values.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use.

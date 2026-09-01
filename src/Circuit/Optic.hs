@@ -33,7 +33,7 @@
 -- Only 'identityPOptic' needs 'Unital', for the unitors.  Composition and the
 -- update action need nothing beyond 'Strength', because
 -- @'strength' f == 'Circuit.Tensor.tensor' 'Circuit.Category.id' f@ — a
--- coherence the @Axioma.Circ@ oracles check at @(,)@, 'Either' and 'These'.
+-- coherence the @Axioma.Cell@ oracles check at @(,)@, 'Either' and 'These'.
 -- This matters for base arrows that are premonoidal and therefore have
 -- 'Strength' but deliberately no 'Tensor' instance, such as @Circuit.Prob@.
 module Circuit.Optic
@@ -160,7 +160,7 @@ identityPOptic = POptic unitl' unitl
 -- is the fused case of optic composition.
 --
 -- Unit and associativity hold only up to the residual unitor and associator,
--- exactly as for 'Circuit.Circ.Circ'; the observational statements are in
+-- exactly as for 'Circuit.Cell.Cell'; the observational statements are in
 -- @Axioma.Optic@.
 --
 -- >>> popticUpdate (composePOptic inner outer) (+ 1) ((3, True), "hi")

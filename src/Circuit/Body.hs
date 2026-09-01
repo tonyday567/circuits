@@ -156,7 +156,7 @@ instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
 
 -- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
 -- @t ch ch'@.  This is the body-level building block of horizontal 2-cell
--- algebra (for example in "Circuit.Circ").
+-- algebra (for example in "Circuit.Cell").
 --
 -- The composite is
 --

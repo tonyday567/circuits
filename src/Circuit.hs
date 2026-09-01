@@ -86,7 +86,7 @@ module Circuit
     module Circuit.Body,
     module Circuit.Boundary,
     module Circuit.Category,
-    module Circuit.Circ,
+    module Circuit.Cell,
     module Circuit.Dagger,
     module Circuit.FinRel,
     module Circuit.Hyper,
@@ -103,7 +103,6 @@ module Circuit
     module Circuit.SMC,
     module Circuit.Shared,
     module Circuit.Span,
-    module Circuit.Stamped,
     module Circuit.Stream,
     module Circuit.Syntax,
     module Circuit.Tensor,
@@ -116,7 +115,7 @@ import Circuit.Bimonoid
 import Circuit.Body
 import Circuit.Boundary
 import Circuit.Category
-import Circuit.Circ
+import Circuit.Cell
 import Circuit.Dagger
 import Circuit.FinRel
 import Circuit.Hyper
@@ -133,7 +132,6 @@ import Circuit.Pullback
 import Circuit.SMC
 import Circuit.Shared
 import Circuit.Span
-import Circuit.Stamped
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor

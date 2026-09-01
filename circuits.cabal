@@ -50,7 +50,7 @@ library
     Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
-    Circuit.Circ
+    Circuit.Cell
     Circuit.Dagger
     Circuit.FinRel
     Circuit.Hyper
@@ -67,7 +67,6 @@ library
     Circuit.Shared
     Circuit.SMC
     Circuit.Span
-    Circuit.Stamped
     Circuit.Stream
     Circuit.Syntax
     Circuit.Tensor
@@ -84,7 +83,7 @@ executable circuits-axioma
   main-is: circuits-axioma.hs
   hs-source-dirs: app
   other-modules:
-    Axioma.Circ
+    Axioma.Cell
     Axioma.Common
     Axioma.Effect
     Axioma.FinRel

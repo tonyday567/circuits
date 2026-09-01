@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Axioma.Circ (circTopic)
+import Axioma.Cell (circTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Effect (effectTopic)
 import Axioma.FinRel (finRelTopic)
