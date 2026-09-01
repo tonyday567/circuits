@@ -70,6 +70,7 @@ library
     Circuit.Span
     Circuit.Stream
     Circuit.Syntax
+    Circuit.TCell
     Circuit.Tensor
     Circuit.Trace
     Circuit.Traced
