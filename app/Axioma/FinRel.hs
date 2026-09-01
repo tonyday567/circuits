@@ -73,25 +73,46 @@ zero2 :: FinRel () N2
 zero2 = zero
 
 unitl1' :: FinRel N1 ((), N1)
-unitl1' = unitl'FinRel
+unitl1' = wiring id
 
 unitr1' :: FinRel N1 (N1, ())
-unitr1' = unitr'FinRel
+unitr1' = wiring id
 
 unitl2' :: FinRel N2 ((), N2)
-unitl2' = unitl'FinRel
+unitl2' = wiring id
 
 unitr2' :: FinRel N2 (N2, ())
-unitr2' = unitr'FinRel
+unitr2' = wiring id
 
 unitr0 :: FinRel ((), ()) ()
-unitr0 = unitrFinRel
+unitr0 = wiring id
 
 discard0 :: FinRel () ()
 discard0 = discard
 
 zero0 :: FinRel () ()
 zero0 = zero
+
+-- | Swap the two @n@-wire blocks of @(n, n)@.
+swapFinRel ::
+  forall n.
+  (KnownNat n) =>
+  FinRel (FinObj n, FinObj n) (FinObj n, FinObj n)
+swapFinRel = wiring $ \i ->
+  let n = fromIntegral (natVal (Proxy @n))
+   in if i < n then n + i else i - n
+
+assocFinRel ::
+  forall n.
+  (KnownNat n) =>
+  FinRel ((FinObj n, FinObj n), FinObj n) (FinObj n, (FinObj n, FinObj n))
+assocFinRel = wiring id
+
+assoc'FinRel ::
+  forall n.
+  (KnownNat n) =>
+  FinRel (FinObj n, (FinObj n, FinObj n)) ((FinObj n, FinObj n), FinObj n)
+assoc'FinRel = wiring id
 
 -- | Dagger(FinRel) collapse witness: 'Copy' on the dagger requires
 -- 'Merge' on the base, so the back of @copy@ is @plus@.  The
@@ -151,9 +172,9 @@ finRelTopic verbosity = do
       checkV verbosity "bialgebra discard-plus (n=2)" $
         discard2 `compFinRel` plus2 == unitr0 `compFinRel` parFinRel discard2 discard2,
       checkV verbosity "bialgebra zero-copy (n=1)" $
-        copy1 `compFinRel` zero1 == parFinRel zero1 zero1 `compFinRel` unitr'FinRel,
+        copy1 `compFinRel` zero1 == parFinRel zero1 zero1 `compFinRel` (wiring id :: FinRel () ((), ())),
       checkV verbosity "bialgebra zero-copy (n=2)" $
-        copy2 `compFinRel` zero2 == parFinRel zero2 zero2 `compFinRel` unitr'FinRel,
+        copy2 `compFinRel` zero2 == parFinRel zero2 zero2 `compFinRel` (wiring id :: FinRel () ((), ())),
       checkV verbosity "bialgebra discard-zero" $
         compFinRel discard0 zero0 == (finId :: FinRel () ()),
       -- scalar arithmetic over GF(2)

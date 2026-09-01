@@ -64,6 +64,7 @@ library
     Circuit.Poly
     Circuit.Process
     Circuit.Pullback
+    Circuit.Rel
     Circuit.Shared
     Circuit.SMC
     Circuit.Span

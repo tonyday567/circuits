@@ -100,6 +100,7 @@ module Circuit
     module Circuit.Poly,
     module Circuit.Process,
     module Circuit.Pullback,
+    module Circuit.Rel,
     module Circuit.SMC,
     module Circuit.Shared,
     module Circuit.Span,
@@ -129,6 +130,7 @@ import Circuit.Poles
 import Circuit.Poly
 import Circuit.Process
 import Circuit.Pullback
+import Circuit.Rel
 import Circuit.SMC
 import Circuit.Shared
 import Circuit.Span

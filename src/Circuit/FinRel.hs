@@ -33,20 +33,7 @@ module Circuit.FinRel
     finId,
     compFinRel,
     parFinRel,
-    unitlFinRel,
-    unitl'FinRel,
-    unitrFinRel,
-    unitr'FinRel,
-    swapFinRel,
-    assocFinRel,
-    assoc'FinRel,
-    slideFinRel,
-    strengthFinRel,
     traceFinRel,
-    finCopy,
-    finDiscard,
-    finPlus,
-    finZero,
     finScalar,
     wiring,
   )
@@ -346,30 +333,6 @@ compFinRel (FinRel pOut m rowsB) (FinRel n pIn rowsA) =
 
 -- * Monoidal / traced structure
 
-unitlFinRel ::
-  forall a.
-  (KnownDim a) =>
-  FinRel ((), a) a
-unitlFinRel = mkWiring (dimVal (Proxy @a)) (dimVal (Proxy @a)) id
-
-unitl'FinRel ::
-  forall a.
-  (KnownDim a) =>
-  FinRel a ((), a)
-unitl'FinRel = mkWiring (dimVal (Proxy @a)) (dimVal (Proxy @a)) id
-
-unitrFinRel ::
-  forall a.
-  (KnownDim a) =>
-  FinRel (a, ()) a
-unitrFinRel = mkWiring (dimVal (Proxy @a)) (dimVal (Proxy @a)) id
-
-unitr'FinRel ::
-  forall a.
-  (KnownDim a) =>
-  FinRel a (a, ())
-unitr'FinRel = mkWiring (dimVal (Proxy @a)) (dimVal (Proxy @a)) id
-
 parFinRel ::
   forall a b c d.
   FinRel a b ->
@@ -382,59 +345,6 @@ parFinRel (FinRel n p rowsA) (FinRel m q rowsB) =
         map (rowA . splitAt n) rowsA
           ++ map (rowB . splitAt m) rowsB
    in FinRel (n + m) (p + q) (rref rows)
-
-swapFinRel ::
-  forall a b.
-  (KnownDim a, KnownDim b) =>
-  FinRel (a, b) (b, a)
-swapFinRel =
-  let n = dimVal (Proxy @a)
-      m = dimVal (Proxy @b)
-   in mkWiring (n + m) (m + n) $ \i ->
-        if i < n then m + i else i - n
-
-assocFinRel ::
-  forall a b c.
-  (KnownDim a, KnownDim b, KnownDim c) =>
-  FinRel ((a, b), c) (a, (b, c))
-assocFinRel =
-  let n = dimVal (Proxy @a)
-      m = dimVal (Proxy @b)
-      l = dimVal (Proxy @c)
-   in mkWiring (n + m + l) (n + m + l) id
-
-assoc'FinRel ::
-  forall a b c.
-  (KnownDim a, KnownDim b, KnownDim c) =>
-  FinRel (a, (b, c)) ((a, b), c)
-assoc'FinRel =
-  let n = dimVal (Proxy @a)
-      m = dimVal (Proxy @b)
-      l = dimVal (Proxy @c)
-   in mkWiring (n + m + l) (n + m + l) id
-
-slideFinRel ::
-  forall a b c.
-  (KnownDim a, KnownDim b, KnownDim c) =>
-  FinRel (a, (b, c)) (b, (a, c))
-slideFinRel =
-  let n = dimVal (Proxy @a)
-      m = dimVal (Proxy @b)
-      l = dimVal (Proxy @c)
-   in mkWiring (n + m + l) (m + n + l) $ \i ->
-        if i < n
-          then m + i
-          else
-            if i < n + m
-              then i - n
-              else i
-
-strengthFinRel ::
-  forall a b c.
-  (KnownDim a) =>
-  FinRel b c ->
-  FinRel (a, b) (a, c)
-strengthFinRel = parFinRel finId
 
 traceFinRel ::
   forall a b c.
