@@ -46,9 +46,9 @@ library
   exposed-modules:
     Circuit
     Circuit.Axioma.Test
-    Circuit.Boundary
     Circuit.Bimonoid
     Circuit.Body
+    Circuit.Boundary
     Circuit.Category
     Circuit.Cell
     Circuit.Dagger

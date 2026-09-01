@@ -82,13 +82,18 @@ module Circuit.Cell
     leftWhisker,
     hcompose,
     whiskerSq,
+
+    -- * TraceG bridges
+    cellToTraceG,
+    traceGToCell,
   )
 where
 
 import Circuit.Body (Body (..), mergeChannel)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
+import Circuit.Trace (TraceG (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -333,6 +338,29 @@ feedback ::
   Cell t arr a b
 feedback (Cell (Body f)) = Cell $ Body $ assoc .> f .> assoc'
 
+-- * TraceG bridges
+
+-- | View a carrier-hidden 'Cell' as a single-knot 'TraceG'.
+cellToTraceG :: Cell t arr a b -> TraceG t arr a b
+cellToTraceG (Cell (Body f)) = KnotG f
+
+-- | Fold a 'TraceG' into a 'Cell'.
+--
+-- * 'LiftG' becomes a stateless cell with unit carrier.
+-- * 'ComposeG' becomes carrier-tensoring 'cascade'.
+-- * 'KnotG' is already a cell.
+traceGToCell ::
+  forall t arr a b.
+  (Strength t arr) =>
+  TraceG t arr a b ->
+  Cell t arr a b
+traceGToCell (LiftG f) =
+  let g :: arr (t (Unit t) a) (t (Unit t) b)
+      g = strength f
+   in Cell (Body g)
+traceGToCell (ComposeG g f) = cascade (traceGToCell g) (traceGToCell f)
+traceGToCell (KnotG f) = Cell (Body f)
+
 -- * Elgot dagger
 
 -- | Build the Elgot coalgebra @[Left, f]@ from a loop body @f :: a -> Either a b@.
@@ -450,3 +478,29 @@ instance (Strength t arr) => Category (Cell t arr) where
   (.) :: forall a b c. Cell t arr b c -> Cell t arr a b -> Cell t arr a c
   (.) = cascade
   {-# INLINE (.) #-}
+
+-- | Associator for 'Cell'.
+--
+-- The base associator acts on the payload while the hidden carrier is
+-- threaded through unchanged.
+instance (Strength t arr) => Assoc t (Cell t arr) where
+  assoc = Cell (Body (strength assoc))
+  assoc' = Cell (Body (strength assoc'))
+
+-- | Slide for 'Cell'.
+instance (Strength t arr) => Slide t (Cell t arr) where
+  slide = Cell (Body (strength slide))
+
+-- | Tensorial strength for 'Cell'.
+--
+-- The hidden carrier is slid past the extra scaffolding, the payload morphism
+-- is strengthened in the base category, and the carrier is slid back.
+instance (Strength t arr) => Strength t (Cell t arr) where
+  strength (Cell (Body f)) = Cell (Body (slide .> strength f .> slide))
+
+-- | The trace for 'Cell'.
+--
+-- 'feedback' is exactly 'yank' at the carrier-hidden layer: a feedback wire
+-- @s@ threaded on both boundaries is moved into the existential carrier.
+instance (Strength t arr) => Yank t (Cell t arr) where
+  yank = feedback
