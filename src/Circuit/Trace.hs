@@ -32,11 +32,6 @@ module Circuit.Trace
     Trace,
     base,
 
-    -- * GADT traced category
-    TraceG (..),
-    evalG,
-    runTraceG,
-
     -- * Trace signature
     SigYank (..),
   )
@@ -99,36 +94,3 @@ instance (Assoc t arr, Slide t arr, Strength t arr, Yank t arr) => Strength t (T
 
 instance (Yank t arr) => Yank t (Syntax (SigCompose :+: SigYank t) arr) where
   yank body = Oper (R (YankBody body))
-
--- * GADT version
-
--- | GADT version of 'Trace' where feedback hides a base arrow directly.
---
--- Unlike 'Trace', which uses the free 'Syntax' construction and can yank an
--- arbitrary sub-term, 'TraceG' only ties a knot around a single base arrow.
--- Composition is explicit.
-data TraceG t arr a b where
-  LiftG :: arr a b -> TraceG t arr a b
-  ComposeG :: TraceG t arr b c -> TraceG t arr a b -> TraceG t arr a c
-  KnotG :: arr (t ch a) (t ch b) -> TraceG t arr a b
-
-instance (Category arr) => Category (TraceG t arr) where
-  id = LiftG id
-  (.) = ComposeG
-
--- | Fold 'TraceG' into any traced category.
-evalG ::
-  (Yank t arr') =>
-  (forall x y. arr x y -> arr' x y) ->
-  TraceG t arr a b ->
-  arr' a b
-evalG h (LiftG f) = h f
-evalG h (ComposeG g f) = evalG h g . evalG h f
-evalG h (KnotG f) = yank (h f)
-
--- | Fold 'TraceG' back into its base category.
-runTraceG ::
-  (Yank t arr) =>
-  TraceG t arr a b ->
-  arr a b
-runTraceG = evalG id

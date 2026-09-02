@@ -82,17 +82,12 @@ module Circuit.Cell
     leftWhisker,
     hcompose,
     whiskerSq,
-
-    -- * TraceG bridges
-    cellToTraceG,
-    traceGToCell,
   )
 where
 
 import Circuit.Body (Body (..), mergeChannel)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Tensor (Tensor (..), Unit, Unital (..))
-import Circuit.Trace (TraceG (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
@@ -337,29 +332,6 @@ feedback ::
   Cell t arr (t s a) (t s b) ->
   Cell t arr a b
 feedback (Cell (Body f)) = Cell $ Body $ assoc .> f .> assoc'
-
--- * TraceG bridges
-
--- | View a carrier-hidden 'Cell' as a single-knot 'TraceG'.
-cellToTraceG :: Cell t arr a b -> TraceG t arr a b
-cellToTraceG (Cell (Body f)) = KnotG f
-
--- | Fold a 'TraceG' into a 'Cell'.
---
--- * 'LiftG' becomes a stateless cell with unit carrier.
--- * 'ComposeG' becomes carrier-tensoring 'cascade'.
--- * 'KnotG' is already a cell.
-traceGToCell ::
-  forall t arr a b.
-  (Strength t arr) =>
-  TraceG t arr a b ->
-  Cell t arr a b
-traceGToCell (LiftG f) =
-  let g :: arr (t (Unit t) a) (t (Unit t) b)
-      g = strength f
-   in Cell (Body g)
-traceGToCell (ComposeG g f) = cascade (traceGToCell g) (traceGToCell f)
-traceGToCell (KnotG f) = Cell (Body f)
 
 -- * Elgot dagger
 
