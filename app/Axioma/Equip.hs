@@ -1,6 +1,6 @@
--- | Cell / bicategory of bodies oracles.
-module Axioma.Cell
-  ( circTopic,
+-- | Arrow-equipment oracles: squares, feedback-category laws, and carriers.
+module Axioma.Equip
+  ( equipTopic,
   )
 where
 
@@ -1182,9 +1182,9 @@ bisimCarrierIsoFinerOk =
 -- carrier map), with the second slot fed 'id'.  Coverage of 'tensor's payload
 -- slot belongs in "Axioma.Moore"; 'hcomposeObservationalOk' also exercises
 -- the joint behaviour of 'tensor' through horizontal composition.
-circTopic :: Verbosity -> IO [Bool]
-circTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Cell / bicategory of bodies oracles"
+equipTopic :: Verbosity -> IO [Bool]
+equipTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "Arrow-equipment oracles: squares, feedback laws, and carriers"
   sequence
     [ checkV verbosity "counter-to-parity square commutes over bounded inputs" $
         and

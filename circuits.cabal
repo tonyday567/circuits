@@ -83,9 +83,9 @@ executable circuits-axioma
   hs-source-dirs: app
   other-modules:
     Axioma.Bisim
-    Axioma.Cell
     Axioma.Common
     Axioma.Effect
+    Axioma.Equip
     Axioma.FinRel
     Axioma.Moore
     Axioma.Optic

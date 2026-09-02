@@ -1,8 +1,8 @@
 module Main (main) where
 
-import Axioma.Cell (circTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Effect (effectTopic)
+import Axioma.Equip (equipTopic)
 import Axioma.FinRel (finRelTopic)
 import Axioma.Moore (mooreTopic)
 import Axioma.Optic (opticTopic)
@@ -16,7 +16,7 @@ import Prelude hiding (id, (.))
 
 data Topic
   = All
-  | Circ
+  | Equip
   | Moore
   | Effect
   | FinRel
@@ -29,7 +29,7 @@ data Topic
 
 topicName :: Topic -> String
 topicName All = "all"
-topicName Circ = "circ"
+topicName Equip = "equip"
 topicName Moore = "moore"
 topicName Effect = "effect"
 topicName FinRel = "finrel"
@@ -41,7 +41,7 @@ topicName Span = "span"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
-topicDesc Circ = "Circ bicategory and intertwiner oracles"
+topicDesc Equip = "Arrow-equipment oracles: squares, feedback laws, and carriers"
 topicDesc Moore = "Moore machine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
@@ -99,7 +99,7 @@ opts =
     )
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
-runTopic Circ = circTopic
+runTopic Equip = equipTopic
 runTopic Moore = mooreTopic
 runTopic Effect = effectTopic
 runTopic FinRel = finRelTopic
@@ -111,7 +111,7 @@ runTopic Span = spanTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Circ, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span]
+allTopics = [Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span]
 
 greenCircle :: String
 greenCircle = "🟢"
