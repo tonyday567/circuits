@@ -37,17 +37,20 @@ module Circuit.Trace
   )
 where
 
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose (..),
     Syntax (..),
-    eval,
     (:+:) (..),
   )
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Circuit.Syntax (eval)
+-- >>> import Circuit.Traced (Strength (..), Yank (..))
 
 -- Trace signature
 
@@ -89,8 +92,37 @@ instance (Category arr, Assoc t arr) => Assoc t (Trace t arr) where
 instance (Category arr, Slide t arr) => Slide t (Trace t arr) where
   slide = base slide
 
-instance (Assoc t arr, Slide t arr, Strength t arr, Yank t arr) => Strength t (Trace t arr) where
-  strength f = base (strength (eval f))
+-- | Tensorial strength for the free traced category, structurally.
+--
+-- The operation is pushed inside the syntax rather than evaluated:
+--
+-- * a lifted base arrow is strengthened at the base;
+-- * a composition strengthens both halves;
+-- * a yanked body is slid so the scaffolding sits outside the loop,
+--   strengthened, and yanked — the free form of the traced-category strength
+--   axiom (an independent payload wire is invisible to the trace).
+--
+-- Nothing here evaluates, so the base category is never asked to be traced:
+-- the free traced category really is free over an untraced base.
+--
+-- The structural fold agrees with evaluating first and strengthening at the
+-- base (a mutation of the slide placement would swap loop wire and payload,
+-- changing the answer):
+--
+-- >>> let f = (\(s, x) -> (x, s + x)) :: (Int, Int) -> (Int, Int)
+-- >>> let t = yank (base f) :: Trace (,) (->) Int Int
+-- >>> eval (strength t) (7, 3)
+-- (7,6)
+-- >>> strength (eval t) (7, 3)
+-- (7,6)
+instance (Category arr, Slide t arr, Strength t arr) => Strength t (Trace t arr) where
+  strength (Lift f) = base (strength f)
+  strength (Oper (L (SigCompose g f))) = strength g . strength f
+  strength (Oper (R (YankBody body))) = yank (base slide .> strength body .> base slide)
 
-instance (Yank t arr) => Yank t (Syntax (SigCompose :+: SigYank t) arr) where
+-- | Yank for the free traced category: a constructor, not an evaluation.
+--
+-- The constraints are exactly what the superclass ('Strength') needs
+-- structurally; the base category is not required to be traced.
+instance (Category arr, Slide t arr, Strength t arr) => Yank t (Syntax (SigCompose :+: SigYank t) arr) where
   yank body = Oper (R (YankBody body))
