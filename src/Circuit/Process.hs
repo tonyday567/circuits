@@ -96,7 +96,7 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Boundary (Boundary (..))
 import Circuit.Category (Category (..))
-import Circuit.Moore (Moore, mooreMorphism, monoDir, monoIn, toEvalMoore)
+import Circuit.Moore (Moore, monoDir, monoIn, mooreMorphism, toEvalMoore)
 import Circuit.Poles (Poles)
 import Circuit.Poles qualified as Poles
 import Circuit.Poly (Eval (..), Mono)

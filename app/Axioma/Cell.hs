@@ -6,7 +6,6 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), mergeChannel, runFlowchart)
-import Circuit.Process (runBody)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Cell
@@ -29,6 +28,7 @@ import Circuit.Cell
     whiskerSq,
   )
 import Circuit.Poles (Poles (..), box, iomap, poles0)
+import Circuit.Process (runBody)
 import Circuit.Tensor (Action (..), Distributive (..), Tensor (..), Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Control.Monad (when)
@@ -617,6 +617,35 @@ eitherCascadeAssocOk =
 -- there is no separate seed.
 runElgot :: (a -> Either a b) -> Int -> a -> (Maybe b, Int)
 runElgot f fuel a0 = runFlowchart (elgotFeedbackBody f) fuel a0
+
+-- | Direct fuel-bounded 'Either' iteration: feed 'Left' back in, 'Right'
+-- halts, fuel decrements per step.  Returns the result (if any) and the
+-- number of steps taken, in the same shape as 'runFlowchart'.
+runEitherIter :: (a -> Either a b) -> Int -> a -> (Maybe b, Int)
+runEitherIter f fuel0 a0 = go fuel0 0 a0
+  where
+    go 0 steps _ = (Nothing, steps)
+    go n steps a = case f a of
+      Left a' -> go (n - 1) (steps + 1) a'
+      Right b -> (Just b, steps + 1)
+
+-- | Capture oracle: the Elgot gadget is the 'Either' yank in costume.
+--
+-- 'runFlowchart' over 'elgotFeedbackBody' agrees with direct fuel-bounded
+-- 'Either' iteration, result and step count alike.  Comparing the step count
+-- keeps iteration-count mutations visible: a variant that counts down by two
+-- ('Left (n - 2)') takes a different number of steps and is distinguished.
+-- The low-fuel case exercises exhaustion (both sides return 'Nothing' with
+-- the fuel spent).
+elgotDirectOk :: Bool
+elgotDirectOk =
+  let f :: Int -> Either Int Int
+      f n = if n <= 0 then Right (n * 10) else Left (n - 1)
+      g :: Int -> Either Int Int
+      g n = if n >= 10 then Right n else Left (n + 3)
+   in all (\n -> runFlowchart (elgotFeedbackBody f) 20 n == runEitherIter f 20 n) [-5 .. 8]
+        && all (\n -> runFlowchart (elgotFeedbackBody g) 20 n == runEitherIter g 20 n) [-5 .. 15]
+        && runFlowchart (elgotFeedbackBody f) 5 8 == runEitherIter f 5 8
 
 -- | A1 Fixed point: @f^\\dagger(a) = [id, f^\\dagger](f(a))@.
 --
@@ -1242,6 +1271,7 @@ circTopic verbosity = do
       checkV verbosity "Either cascade associativity" eitherCascadeAssocOk,
       checkV verbosity "Elgot fixed point" elgotFixedPointOk,
       checkV verbosity "Elgot naturality" elgotNaturalityOk,
+      checkV verbosity "Elgot gadget agrees with direct Either iteration" elgotDirectOk,
       checkV verbosity "Either yanking (swap) halts with identity in two steps" eitherYankOk,
       checkV verbosity "Either uniformity: feedback respects non-injective two-cell" eitherUniformityOk,
       checkV verbosity "Either sliding (dinaturality) for isomorphism" eitherSlidingOk,

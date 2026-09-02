@@ -72,7 +72,7 @@ module Circuit.Optic
   )
 where
 
-import Circuit.Category (Category, (<.), (.>))
+import Circuit.Category (Category, (.>), (<.))
 import Circuit.Poles (Poles, iomap)
 import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
 import Circuit.Process (PProcess (..))
