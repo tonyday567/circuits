@@ -15,9 +15,9 @@
 --
 -- == Relationship to the rest of the library
 --
--- 'POptic' is the curried form of 'Circuit.Poles.iomap': a pointed optic is
--- exactly a pair of actions on channel poles, 'Circuit.Poles.prefixIn' on the
--- conjoint and 'Circuit.Poles.suffixOut' on the companion.  'popticPoles' is
+-- 'POptic' is the curried form of 'Circuit.Equip.iomap': a pointed optic is
+-- exactly a pair of actions on channel poles, 'Circuit.Equip.prefixIn' on the
+-- conjoint and 'Circuit.Equip.suffixOut' on the companion.  'popticPoles' is
 -- that identification, and it costs nothing to state.
 --
 -- The objects of the optic category are boundary /pairs/, which the local
@@ -73,7 +73,7 @@ module Circuit.Optic
 where
 
 import Circuit.Category (Category, (.>), (<.))
-import Circuit.Poles (Poles, iomap)
+import Circuit.Equip (Poles, iomap)
 import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
 import Circuit.Process (PProcess (..))
 import Circuit.Tensor (Unit, Unital (..))
@@ -82,7 +82,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Optic
--- >>> import Circuit.Poles (Poles, poles0, splay0)
+-- >>> import Circuit.Equip (Poles, poles0, splay0)
 -- >>> import Circuit.Poly (applyLens)
 -- >>> import Prelude hiding (id, (.))
 -- >>> :{
@@ -160,8 +160,8 @@ identityPOptic = POptic unitl' unitl
 -- is the fused case of optic composition.
 --
 -- Unit and associativity hold only up to the residual unitor and associator,
--- exactly as for 'Circuit.Cell.Cell'; the observational statements are in
--- @Axioma.Optic@.
+-- exactly as for the squares in "Circuit.Equip"; the observational statements
+-- are in @Axioma.Optic@.
 --
 -- >>> popticUpdate (composePOptic inner outer) (+ 1) ((3, True), "hi")
 -- ((4,True),"hi")
@@ -230,9 +230,9 @@ opticUpdate (Optic o) = popticUpdate o
 
 -- | The action of a pointed optic on channel poles.
 --
--- This is 'Circuit.Poles.iomap' with its two arguments read as the legs of an
+-- This is 'Circuit.Equip.iomap' with its two arguments read as the legs of an
 -- optic: 'popticForward' prefixes the conjoint, 'popticBackward' suffixes the
--- companion.  Since "Circuit.Poles" already describes that pair as "the left
+-- companion.  Since "Circuit.Equip" already describes that pair as "the left
 -- action of @arr@ on @In@ poles" and "the right action of @arr@ on @Out@
 -- poles", a pointed optic /is/ a morphism of that enriched profunctor.
 --

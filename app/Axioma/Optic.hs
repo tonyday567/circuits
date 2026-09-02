@@ -11,6 +11,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (Category (..), (.>))
+import Circuit.Equip (Poles, poles0, splay0)
 import Circuit.Optic
   ( Optic (..),
     POptic (..),
@@ -24,7 +25,6 @@ import Circuit.Optic
     popticPoles,
     popticUpdate,
   )
-import Circuit.Poles (Poles, poles0, splay0)
 import Control.Monad (when)
 import Data.Void (Void)
 import Prelude hiding (id, (.))

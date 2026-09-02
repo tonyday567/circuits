@@ -90,8 +90,8 @@ module Circuit.Moore
 where
 
 import Circuit.Body (Body (..))
-import Circuit.Poles (HasDual (..), Poles (..))
-import Circuit.Poles qualified as Poles
+import Circuit.Equip (HasDual (..), Poles (..))
+import Circuit.Equip qualified as Poles
 import Circuit.Poly
   ( Dir,
     Eval (..),

@@ -9,14 +9,15 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Body (Body (..))
-import Circuit.Boundary (Boundary (..), Stamped (..), isMark, isPayload)
 import Circuit.Category (K (..), id, runK, (.))
 import Circuit.Dagger (Dagger (..), transpose)
-import Circuit.Poles
-  ( HasDual (..),
+import Circuit.Equip
+  ( Boundary (..),
+    HasDual (..),
     In (..),
     Out (..),
     Poles (..),
+    Stamped (..),
     box,
     close,
     companionTight,
@@ -24,6 +25,8 @@ import Circuit.Poles
     compose0,
     conjointTight,
     copycat,
+    isMark,
+    isPayload,
     open,
     plug,
     poles,
@@ -35,7 +38,7 @@ import Circuit.Poles
     suffixOut,
     (>:>),
   )
-import Circuit.Poles qualified as Poles
+import Circuit.Equip qualified as Poles
 import Circuit.Process (PProcess (..), asProcess, fold, markPProcess, scan, scanPProcess)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)

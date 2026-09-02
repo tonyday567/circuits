@@ -1,35 +1,33 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Free channel poles over a base arrow, plus concrete box helpers.
+-- | The arrow-equipment surface: channel poles, squares, and boundary tokens.
 --
--- A channel has exactly two poles:
+-- In the proarrow-equipment reading of the library the tight arrows are the
+-- base @arr@ morphisms and the loose arrows are 'Circuit.Body.Body' values
+-- (a body @arr (t ch a) (t ch b)@ with its carrier @ch@ exposed).  This
+-- module holds the equipment furniture:
 --
---   * @Out@ — the companion (read / emit pole), covariant in the payload.
---   * @In@  — the conjoint (write / commit pole), contravariant in the payload.
+-- * companions and conjoints: the 'Out' (read) and 'In' (write) channel
+--   poles, paired as 'Poles';
+-- * squares: the indexed 2-cell 'Sq' — a carrier map @α : ch -> ch'@ making
+--   the Mealy square commute — its existential closure 'TwoCell', and the
+--   unitor, associator and whiskering witnesses;
+-- * boundary tokens: 'Boundary' (mark or payload) and 'Stamped'
+--   (occurrence-stamped values).
 --
--- @Poles@ is the record that pairs one @In@ with one @Out@.  The poles are
--- defined purely in terms of the base arrow @arr@.
---
--- 'open' produces a matched pair; 'close' plugs the pair back together by
--- feeding the @Out@ into the @In@.
---
--- A /symmetric/ pole @Poles arr a a@ with @close (conjoint p) (companion p) = id@
--- is the copycat strategy for the multiplicative excluded middle @A ⅋ A⊥@:
--- it routes traffic between the two poles without ever deciding which side is
--- true.  For the unit object use 'open' (also exported as 'copycat').
---
--- == Relationship to 'Circuit.Moore'
---
--- @Poles@ is the bi-polar / effectful API: it is the right tool for
--- @K IO/STM@ process plumbing where the channel is a write pole paired
--- with a read pole.  For pure @(->)@ Moore-style machines indexed by a
--- polynomial, prefer 'Circuit.Moore'.
-module Circuit.Poles
+-- The bicategory laws of the loose side hold only up to invertible 'Sq'
+-- witnesses: carriers @ch ⊗ (ch' ⊗ ch'')@ and @(ch ⊗ ch') ⊗ ch''@ are
+-- different Haskell types, so on-the-nose associativity is impossible.  The
+-- proof artifact is the two-cell itself; the falsification artifact is
+-- observational, via 'Circuit.Body.mergeChannel' and the
+-- 'Circuit.Process.Process' runner.
+module Circuit.Equip
   ( -- * Channel poles (bi-polar contract)
     Out (..),
     In (..),
@@ -77,8 +75,7 @@ module Circuit.Poles
 
     -- * Dualising object / unit poles (requires constant morphisms)
     HasDual (..),
-
-    -- * Copycat / multiplicative excluded middle
+    open,
     copycat,
 
     -- * Boxes
@@ -88,25 +85,60 @@ module Circuit.Poles
     -- * Additive connectives
     pair,
     race,
+
+    -- * Indexed 2-cell (carrier map + commuting square)
+    Sq (..),
+    idSq,
+    vcomp,
+
+    -- * Existential closure of Sq
+    TwoCell (..),
+    withTwoCell,
+
+    -- * The two paths whose equality is the square
+    downThenAcross,
+    acrossThenDown,
+
+    -- * Structural proof witnesses (unitors and associator)
+    unitorLeft,
+    unitorRight,
+    unitorLeftSq,
+    unitorRightSq,
+    associator,
+    associatorSq,
+
+    -- * Horizontal 2-cell algebra
+    rightWhisker,
+    leftWhisker,
+    hcompose,
+    whiskerSq,
+
+    -- * Boundary tokens
+    Boundary (..),
+    isMark,
+    isPayload,
+    Stamped (..),
   )
 where
 
 import Circuit.Bimonoid (Copy (copy))
-import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
-import Circuit.Tensor (Bias (..), Tensor, Unit)
+import Circuit.Body (Body (..), mergeChannel)
+import Circuit.Category (Category (..), FunctionLike (..), K (..), Pointed (..), (.>))
+import Circuit.Tensor (Bias (..), Tensor (..), Unit, Unital (..))
 import Circuit.Tensor qualified as Tensor
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
-import Data.Bifunctor (bimap)
-import Data.Kind (Type)
+import Circuit.Traced (Assoc (..), Strength (..))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XTypeApplications
--- >>> import Circuit.Category ((.>))
--- >>> import Circuit.Poles
--- >>> import Circuit.Tensor (Bias (..))
+-- >>> import Circuit.Body (Body (..))
+-- >>> import Circuit.Category (K (..), runK, (.>))
+-- >>> import Circuit.Equip
+-- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Syntax (eval)
--- >>> import Circuit.Category (K(..), runK)
+-- >>> import Circuit.Tensor (Bias (..))
 -- >>> import Data.Maybe (isNothing)
 
 -- * Channel poles — the companion and conjoint of the identity functor.
@@ -575,11 +607,6 @@ boxAsymmetric p =
 
 -- * Additive connectives
 
--- $setup
--- >>> import Circuit.Poles
--- >>> import Circuit.Layer (run)
--- >>> import Data.Maybe (isNothing)
-
 -- | Additive conjunction: both sub-poles receive the same input and their
 -- outputs are paired.
 --
@@ -628,3 +655,315 @@ race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
     pick RightFirst (x, y) = if isSilent y then x else y
+
+-- * HasDual instances for Body
+
+-- | Unit poles for @Body (,) s (->)@ at the unit object @()@.
+--
+-- The companion discards its input and returns @()@; the conjoint delegates
+-- to the companion. Yanking recovers the identity on @()@.
+instance HasDual () (Body (,) s (->)) where
+  open =
+    let outU = Out $ \_ -> Body $ \(s, _) -> (s, ())
+        inU = In $ \o -> emit o inU
+     in Poles inU outU
+
+-- | Unit poles for @Body (,) s (K m)@.
+--
+-- Same shape as the @(->)@ instance, but the companion returns @()@ in the
+-- monad and threads the ambient state through unchanged.
+instance (Monad m) => HasDual () (Body (,) s (K m)) where
+  open =
+    let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
+        inU = In $ \o -> emit o inU
+     in Poles inU outU
+
+-- | Unit poles for @Body Either s (->)@ at the unit object @Void@.
+--
+-- The coproduct case needs a distinguished element of the carrier @s@: on a
+-- @Right x@ input the companion must return @Left s@ for some @s@, and there
+-- is no ambient state to use.  'Pointed' captures exactly that, which is
+-- weaker than 'Monoid'.  This is the structural pointedness requirement that
+-- makes @Either@ differ from @(,)@.
+instance (Pointed s) => HasDual Void (Body Either s (->)) where
+  open =
+    let outU = Out $ \_ -> Body $ \case
+          Left s -> Left s
+          Right _ -> Left point
+        inU = In $ \_ -> Body $ \case
+          Left s -> Left s
+          Right v -> absurd v
+     in Poles inU outU
+
+-- | Unit poles for @Body Either s (K m)@ at @Void@.
+instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
+  open =
+    let outU = Out $ \_ -> Body $ K $ \case
+          Left s -> pure (Left s)
+          Right _ -> pure (Left point)
+        inU = In $ \_ -> Body $ K $ \case
+          Left s -> pure (Left s)
+          Right v -> absurd v
+     in Poles inU outU
+
+-- * Squares
+
+-- | Square (indexed 2-cell).  The carrier maps compose; the middle body must
+-- match (a caller side condition).
+data Sq t arr ch ch' a b = Sq
+  { -- | Map between carriers.
+    carrierMap :: arr ch ch',
+    -- | Source body, over the source carrier.
+    sqSrc :: Body t ch arr a b,
+    -- | Target body, over the target carrier.
+    sqTgt :: Body t ch' arr a b
+  }
+
+-- | Identity square on a body.
+idSq :: (Category arr) => Body t ch arr a b -> Sq t arr ch ch a b
+idSq b = Sq id b b
+
+-- | Vertical composition of squares.
+--
+-- The middle body must match; this is a caller side condition.
+vcomp ::
+  (Category arr) =>
+  Sq t arr ch' ch'' a b ->
+  Sq t arr ch ch' a b ->
+  Sq t arr ch ch'' a b
+vcomp g f = Sq (carrierMap f .> carrierMap g) (sqSrc f) (sqTgt g)
+
+-- | Existential closure of 'Sq', for stating "there exists a 2-cell".
+data TwoCell t arr a b where
+  TwoCell :: Sq t arr ch ch' a b -> TwoCell t arr a b
+
+-- | Eliminator for the existential carrier types of a 'TwoCell'.
+withTwoCell ::
+  TwoCell t arr a b ->
+  (forall ch ch'. Sq t arr ch ch' a b -> r) ->
+  r
+withTwoCell (TwoCell sq) k = k sq
+
+-- | Go down (carrier map) then across (target body).
+--
+-- A nondegenerate two-cell witness: counter state quotiented by parity.
+-- The payload is 'Char' so the carrier slot and payload slot are type-distinct;
+-- slot confusion is a type error.  These examples exercise both parities and
+-- both reset branches.  A paired perturbation doctest on 'acrossThenDown'
+-- shows the equality can fail, so these agreement cases are not vacuous.
+--
+-- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if odd n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let parity = (Body $ \(b, r) -> let b' = not r && not b in (b', if b' then 'x' else 'y')) :: Body (,) Bool (->) Bool Char
+-- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Char
+-- >>> downThenAcross sq (4, False)
+-- (True,'x')
+-- >>> downThenAcross sq (4, True)
+-- (False,'y')
+-- >>> downThenAcross sq (5, False)
+-- (False,'y')
+downThenAcross ::
+  (Tensor t arr) =>
+  Sq t arr ch ch' a b ->
+  arr (t ch a) (t ch' b)
+downThenAcross sq = tensor (carrierMap sq) id .> morphism (sqTgt sq)
+
+-- | Go across (source body) then down (carrier map).
+--
+-- Agreement cases for the same witness:
+--
+-- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if odd n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let parity = (Body $ \(b, r) -> let b' = not r && not b in (b', if b' then 'x' else 'y')) :: Body (,) Bool (->) Bool Char
+-- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Char
+-- >>> acrossThenDown sq (4, False)
+-- (True,'x')
+-- >>> acrossThenDown sq (4, True)
+-- (False,'y')
+-- >>> acrossThenDown sq (5, False)
+-- (False,'y')
+--
+-- Perturbation: observe even-ness instead of odd-ness.  The two paths now
+-- disagree, which proves the agreement cases above are not vacuous.
+--
+-- >>> let badCounter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if even n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let bad = Sq odd badCounter parity :: Sq (,) (->) Int Bool Bool Char
+-- >>> downThenAcross bad (4, False)
+-- (True,'x')
+-- >>> acrossThenDown bad (4, False)
+-- (True,'y')
+acrossThenDown ::
+  (Tensor t arr) =>
+  Sq t arr ch ch' a b ->
+  arr (t ch a) (t ch' b)
+acrossThenDown sq = morphism (sqSrc sq) .> tensor (carrierMap sq) id
+
+-- | Indexed left unitor square.
+unitorLeftSq ::
+  (Unital t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Sq t arr (t (Unit t) ch) ch a b
+unitorLeftSq b = Sq unitl (mergeChannel b (Body id)) b
+
+-- | Left unitor witness: composing a body with the identity at the unit carrier
+-- is isomorphic to the original body.
+unitorLeft ::
+  (Unital t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  TwoCell t arr a b
+unitorLeft b = TwoCell (unitorLeftSq b)
+
+-- | Indexed right unitor square.
+unitorRightSq ::
+  (Unital t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  Sq t arr (t ch (Unit t)) ch a b
+unitorRightSq b = Sq unitr (mergeChannel (Body id) b) b
+
+-- | Right unitor witness.
+unitorRight ::
+  (Unital t arr, Strength t arr) =>
+  Body t ch arr a b ->
+  TwoCell t arr a b
+unitorRight b = TwoCell (unitorRightSq b)
+
+-- | Indexed associator square.
+associatorSq ::
+  (Strength t arr) =>
+  Body t ch3 arr c d ->
+  Body t ch2 arr b c ->
+  Body t ch1 arr a b ->
+  Sq t arr (t (t ch1 ch2) ch3) (t ch1 (t ch2 ch3)) a d
+associatorSq h g f =
+  Sq
+    assoc
+    (mergeChannel h (mergeChannel g f))
+    (mergeChannel (mergeChannel h g) f)
+
+-- | Associator witness: carrier bracketing of three composed bodies is
+-- isomorphic up to the associator of the tensor.
+associator ::
+  (Strength t arr) =>
+  Body t ch3 arr c d ->
+  Body t ch2 arr b c ->
+  Body t ch1 arr a b ->
+  TwoCell t arr a d
+associator h g f = TwoCell (associatorSq h g f)
+
+-- | Right whisker: tensor a square with an identity-on-boundaries 1-cell on
+-- the right.
+rightWhisker ::
+  (Tensor t arr, Strength t arr) =>
+  Sq t arr ch ch' a b ->
+  Body t d arr b c ->
+  Sq t arr (t ch d) (t ch' d) a c
+rightWhisker sq r =
+  Sq
+    (tensor (carrierMap sq) id)
+    (mergeChannel r (sqSrc sq))
+    (mergeChannel r (sqTgt sq))
+
+-- | Left whisker: tensor an identity-on-boundaries 1-cell on the left of a
+-- square.
+leftWhisker ::
+  (Tensor t arr, Strength t arr) =>
+  Body t d arr a' a ->
+  Sq t arr ch ch' a b ->
+  Sq t arr (t d ch) (t d ch') a' b
+leftWhisker l sq =
+  Sq
+    (tensor id (carrierMap sq))
+    (mergeChannel (sqSrc sq) l)
+    (mergeChannel (sqTgt sq) l)
+
+-- | Horizontal composition of two squares.
+hcompose ::
+  (Tensor t arr, Strength t arr) =>
+  Sq t arr ch2 ch2' b c ->
+  Sq t arr ch1 ch1' a b ->
+  Sq t arr (t ch1 ch2) (t ch1' ch2') a c
+hcompose sq2 sq1 =
+  Sq
+    (tensor (carrierMap sq1) (carrierMap sq2))
+    (mergeChannel (sqSrc sq2) (sqSrc sq1))
+    (mergeChannel (sqTgt sq2) (sqTgt sq1))
+
+-- | Boundary whisker: apply tight maps to the input and output boundaries of a
+-- square.  This is the `Sq` side of the interchange law; the `Poles` side is
+-- `iomap` on the Moore-split representation.
+whiskerSq ::
+  (Tensor t arr) =>
+  arr a' a ->
+  arr b b' ->
+  Sq t arr ch ch' a b ->
+  Sq t arr ch ch' a' b'
+whiskerSq f g sq =
+  Sq
+    (carrierMap sq)
+    (Body $ tensor id f .> morphism (sqSrc sq) .> tensor id g)
+    (Body $ tensor id f .> morphism (sqTgt sq) .> tensor id g)
+
+-- * Boundary tokens
+
+-- | The free boundary @K + payload@.
+--
+-- A token on the boundary is either a mark from a finite alphabet @k@ or a
+-- payload value @a@.  This is the level-0 grammar of process boundaries:
+-- marks are the control tokens, payloads are the data.
+--
+-- 'fmap' acts only on the payload side; marks are carried through unchanged.
+--
+-- >>> fmap length (Payload "hi")
+-- Payload 2
+-- >>> fmap length (Mark "halt")
+-- Mark "halt"
+data Boundary k a
+  = -- | Control token from the finite mark alphabet.
+    Mark k
+  | -- | Data-carrying payload.
+    Payload a
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor Boundary where
+  bimap f _ (Mark k) = Mark (f k)
+  bimap _ g (Payload a) = Payload (g a)
+
+-- | True iff the token is a 'Mark'.
+isMark :: Boundary k a -> Bool
+isMark (Mark _) = True
+isMark (Payload _) = False
+
+-- | True iff the token is a 'Payload'.
+isPayload :: Boundary k a -> Bool
+isPayload (Mark _) = False
+isPayload (Payload _) = True
+
+-- | Occurrence-tokens for values.
+--
+-- A 'Stamped' value pairs an occurrence token (a /stamp/) with a payload.
+-- The stamp is an observation receipt: an id, a timestamp, a line number,
+-- or any other token that names the occurrence without changing the
+-- payload's meaning.
+--
+-- === Free theorem
+--
+-- The stamp is untouched by payload mapping:
+--
+-- @
+-- stamp (fmap f s) = stamp s
+-- stamped (fmap f s) = f (stamped s)
+-- @
+--
+-- >>> let s = Stamped 42 "hello"
+-- >>> stamp (fmap reverse s)
+-- 42
+-- >>> stamped (fmap reverse s)
+-- "olleh"
+data Stamped r a = Stamped
+  { -- | Occurrence token / receipt.  Not touched by 'fmap'.
+    stamp :: r,
+    -- | The labelled payload.
+    stamped :: a
+  }
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor Stamped where
+  bimap f g (Stamped r a) = Stamped (f r) (g a)

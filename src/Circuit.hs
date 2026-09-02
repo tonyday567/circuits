@@ -84,10 +84,9 @@
 module Circuit
   ( module Circuit.Bimonoid,
     module Circuit.Body,
-    module Circuit.Boundary,
     module Circuit.Category,
-    module Circuit.Cell,
     module Circuit.Dagger,
+    module Circuit.Equip,
     module Circuit.FinRel,
     module Circuit.Hyper,
     module Circuit.Layer,
@@ -96,7 +95,6 @@ module Circuit
     module Circuit.Net,
     module Circuit.Optic,
     module Circuit.Par,
-    module Circuit.Poles,
     module Circuit.Poly,
     module Circuit.Process,
     module Circuit.Pullback,
@@ -114,10 +112,9 @@ where
 
 import Circuit.Bimonoid
 import Circuit.Body
-import Circuit.Boundary
 import Circuit.Category
-import Circuit.Cell
 import Circuit.Dagger
+import Circuit.Equip
 import Circuit.FinRel
 import Circuit.Hyper
 import Circuit.Layer
@@ -126,7 +123,6 @@ import Circuit.Moore
 import Circuit.Net
 import Circuit.Optic
 import Circuit.Par
-import Circuit.Poles
 import Circuit.Poly
 import Circuit.Process
 import Circuit.Pullback

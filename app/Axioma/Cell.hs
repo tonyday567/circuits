@@ -4,30 +4,28 @@ module Axioma.Cell
   )
 where
 
+import Axioma.Bisim (bisimilarStates, isBisimulation, maxBisimulation)
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), mergeChannel, runFlowchart)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
-import Circuit.Cell
-  ( Cell (..),
+import Circuit.Equip
+  ( Poles (..),
     Sq (..),
     acrossThenDown,
     associatorSq,
-    bisimilarStates,
+    box,
     downThenAcross,
-    elgotFeedbackBody,
-    feedback,
     hcompose,
-    isBisimulation,
+    iomap,
     leftWhisker,
-    maxBisimulation,
+    poles0,
     rightWhisker,
     unitorLeftSq,
     unitorRightSq,
     vcomp,
     whiskerSq,
   )
-import Circuit.Poles (Poles (..), box, iomap, poles0)
 import Circuit.Process (runBody)
 import Circuit.Tensor (Action (..), Distributive (..), Tensor (..), Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
@@ -379,19 +377,16 @@ whiskerSqSquareOk =
 -- * Feedback-category law oracles
 
 --
--- These check the guarded feedback operator from "Circuit.Cell" against the
+-- These check the guarded feedback operator 'feedbackBody' against the
 -- feedback-category axioms of Di Lavore et al., "Span(Graph): a Canonical
 -- Feedback Algebra of Open Transition Systems" (arXiv:2010.10069), §3.1:
 -- A1 tightening, A2 vanishing, A3 joining, A4 strength/superposing, A5 sliding
 -- (isomorphisms only).  Yanking is /not/ an axiom; we assert that it fails.
 
--- | The body-level action of 'feedback': reassociate so the feedback wire
--- becomes part of the hidden carrier.
-feedbackBody :: Body (,) ch (->) (s, a) (s, b) -> Body (,) (ch, s) (->) a b
-feedbackBody (Body f) =
-  Body $ \((ch, s), a) ->
-    let (ch', (s', b)) = f (ch, (s, a))
-     in ((ch', s'), b)
+-- | Body-level feedback: reassociate so the feedback wire becomes part of
+-- the carrier, which grows from @ch@ to @t ch s@ and stays explicit.
+feedbackBody :: (Assoc t arr) => Body t ch arr (t s a) (t s b) -> Body t (t ch s) arr a b
+feedbackBody (Body f) = Body (assoc .> f .> assoc')
 
 -- | Parallel (tensor) composition of two bodies at the body level.  This is
 -- the pointed counterpart to the tensor of loose 1-cells used in the
@@ -613,39 +608,18 @@ eitherCascadeAssocOk =
 
 -- | Helper: run the Elgot dagger of @f :: a -> Either a b@ with a fuel bound.
 --
--- A flowchart has no stored state, so the input @a0@ is the only initial value;
--- there is no separate seed.
+-- The dagger is direct fuel-bounded 'Either' iteration: feed 'Left' back in,
+-- 'Right' halts, fuel decrements per step.  (The retired elgot gadget was
+-- pinned against this runner before deletion — same result, same step count.)
+-- A flowchart has no stored state, so the input @a0@ is the only initial
+-- value; there is no separate seed.
 runElgot :: (a -> Either a b) -> Int -> a -> (Maybe b, Int)
-runElgot f fuel a0 = runFlowchart (elgotFeedbackBody f) fuel a0
-
--- | Direct fuel-bounded 'Either' iteration: feed 'Left' back in, 'Right'
--- halts, fuel decrements per step.  Returns the result (if any) and the
--- number of steps taken, in the same shape as 'runFlowchart'.
-runEitherIter :: (a -> Either a b) -> Int -> a -> (Maybe b, Int)
-runEitherIter f fuel0 a0 = go fuel0 0 a0
+runElgot f fuel0 a0 = go fuel0 0 a0
   where
     go 0 steps _ = (Nothing, steps)
     go n steps a = case f a of
       Left a' -> go (n - 1) (steps + 1) a'
       Right b -> (Just b, steps + 1)
-
--- | Capture oracle: the Elgot gadget is the 'Either' yank in costume.
---
--- 'runFlowchart' over 'elgotFeedbackBody' agrees with direct fuel-bounded
--- 'Either' iteration, result and step count alike.  Comparing the step count
--- keeps iteration-count mutations visible: a variant that counts down by two
--- ('Left (n - 2)') takes a different number of steps and is distinguished.
--- The low-fuel case exercises exhaustion (both sides return 'Nothing' with
--- the fuel spent).
-elgotDirectOk :: Bool
-elgotDirectOk =
-  let f :: Int -> Either Int Int
-      f n = if n <= 0 then Right (n * 10) else Left (n - 1)
-      g :: Int -> Either Int Int
-      g n = if n >= 10 then Right n else Left (n + 3)
-   in all (\n -> runFlowchart (elgotFeedbackBody f) 20 n == runEitherIter f 20 n) [-5 .. 8]
-        && all (\n -> runFlowchart (elgotFeedbackBody g) 20 n == runEitherIter g 20 n) [-5 .. 15]
-        && runFlowchart (elgotFeedbackBody f) 5 8 == runEitherIter f 5 8
 
 -- | A1 Fixed point: @f^\\dagger(a) = [id, f^\\dagger](f(a))@.
 --
@@ -695,10 +669,6 @@ eitherYankOk =
 
 -- * Uniformity / dinaturality oracles for Either feedback
 
--- | Helper: run a 'Cell Either' morphism as a fuel-bounded flowchart.
-runCellFlowchart :: Cell Either (->) Int Int -> Int -> (Maybe Int, Int)
-runCellFlowchart c n = case c of Cell b -> runFlowchart b 10 n
-
 -- | Helper: extract the payload function of a body whose carrier is 'Void'.
 -- Such a body is essentially a function on its payload, because @Either Void x@
 -- is isomorphic to @x@.
@@ -715,8 +685,8 @@ runVoidBody b a = case morphism b (Right a) of
 -- "invariant under collapse to a point".
 --
 -- The bodies are /open/: the feedback wire appears in the payload, so they
--- can be passed to 'feedback'.  After feedback the hidden carrier is
--- @Either Void (Either s a) ≅ Either s a@.
+-- can be passed to 'feedbackBody'.  After feedback the carrier is
+-- @Either Void (Either s a) ≅ Either s a@, explicit in the type.
 uniformitySourceOpen :: Body Either Void (->) (Either Int Int) (Either Int Int)
 uniformitySourceOpen =
   Body $ \case
@@ -748,11 +718,11 @@ eitherUniformityHypothesisOk =
 -- | Uniformity conclusion: feedback of the two open bodies has the same trace.
 eitherUniformityOk :: Bool
 eitherUniformityOk =
-  let srcClosed = feedback (Cell uniformitySourceOpen)
-      tgtClosed = feedback (Cell uniformityTargetOpen)
+  let srcClosed = feedbackBody uniformitySourceOpen
+      tgtClosed = feedbackBody uniformityTargetOpen
       traceOk =
         all
-          (\n -> fst (runCellFlowchart srcClosed n) == fst (runCellFlowchart tgtClosed n))
+          (\n -> fst (runFlowchart srcClosed 10 n) == fst (runFlowchart tgtClosed 10 n))
           [0, 1, 2, 3]
    in eitherUniformityHypothesisOk && traceOk
 
@@ -790,10 +760,10 @@ eitherSlidingOk =
           Left v -> absurd v
       lhsOpen = Body $ morphism h .> morphism f
       rhsOpen = Body $ morphism f .> morphism h
-      lhs = feedback (Cell lhsOpen)
-      rhs = feedback (Cell rhsOpen)
+      lhs = feedbackBody lhsOpen
+      rhs = feedbackBody rhsOpen
    in all
-        (\n -> fst (runCellFlowchart lhs n) == fst (runCellFlowchart rhs n))
+        (\n -> fst (runFlowchart lhs 10 n) == fst (runFlowchart rhs 10 n))
         [0, 1, 2, 3]
 
 -- * These carrier oracles
@@ -1271,7 +1241,6 @@ circTopic verbosity = do
       checkV verbosity "Either cascade associativity" eitherCascadeAssocOk,
       checkV verbosity "Elgot fixed point" elgotFixedPointOk,
       checkV verbosity "Elgot naturality" elgotNaturalityOk,
-      checkV verbosity "Elgot gadget agrees with direct Either iteration" elgotDirectOk,
       checkV verbosity "Either yanking (swap) halts with identity in two steps" eitherYankOk,
       checkV verbosity "Either uniformity: feedback respects non-injective two-cell" eitherUniformityOk,
       checkV verbosity "Either sliding (dinaturality) for isomorphism" eitherSlidingOk,

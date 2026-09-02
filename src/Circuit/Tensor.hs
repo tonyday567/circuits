@@ -82,7 +82,7 @@ import Prelude hiding (id, (.))
 -- | Bias for ordered choice in scheduling and additive disjunction.
 --
 -- 'LeftFirst' and 'RightFirst' are used by shared-medium fusion in
--- "Circuit.Shared" and by additive disjunction in "Circuit.Poles".
+-- "Circuit.Shared" and by additive disjunction in "Circuit.Equip".
 data Bias = LeftFirst | RightFirst
   deriving (Eq, Show)
 

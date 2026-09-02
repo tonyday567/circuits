@@ -94,11 +94,10 @@ where
 import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
-import Circuit.Boundary (Boundary (..))
 import Circuit.Category (Category (..))
+import Circuit.Equip (Boundary (..), Poles)
+import Circuit.Equip qualified as Poles
 import Circuit.Moore (Moore, monoDir, monoIn, mooreMorphism, toEvalMoore)
-import Circuit.Poles (Poles)
-import Circuit.Poles qualified as Poles
 import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))

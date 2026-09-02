@@ -48,10 +48,9 @@ library
     Circuit.Axioma.Test
     Circuit.Bimonoid
     Circuit.Body
-    Circuit.Boundary
     Circuit.Category
-    Circuit.Cell
     Circuit.Dagger
+    Circuit.Equip
     Circuit.FinRel
     Circuit.Hyper
     Circuit.Layer
@@ -60,7 +59,6 @@ library
     Circuit.Net
     Circuit.Optic
     Circuit.Par
-    Circuit.Poles
     Circuit.Poly
     Circuit.Process
     Circuit.Pullback
@@ -84,6 +82,7 @@ executable circuits-axioma
   main-is: circuits-axioma.hs
   hs-source-dirs: app
   other-modules:
+    Axioma.Bisim
     Axioma.Cell
     Axioma.Common
     Axioma.Effect

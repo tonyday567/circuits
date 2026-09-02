@@ -45,11 +45,9 @@ module Circuit.Body
   )
 where
 
-import Circuit.Category (Category (..), K (..), Pointed (..), (.>))
-import Circuit.Poles (HasDual (..), In (..), Out (..), Poles (..))
+import Circuit.Category (Category (..), (.>))
 import Circuit.Tensor (Tensor (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
-import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -102,61 +100,11 @@ runFlowchart (Body f) fuel0 a0 = go fuel0 0 (Right a0)
         Left ch' -> go (n - 1) (steps + 1) (Left ch')
         Right b -> (Just b, steps + 1)
 
--- * HasDual instances for Body
-
--- | Unit poles for @Body (,) s (->)@ at the unit object @()@.
---
--- The companion discards its input and returns @()@; the conjoint delegates
--- to the companion. Yanking recovers the identity on @()@.
-instance HasDual () (Body (,) s (->)) where
-  open =
-    let outU = Out $ \_ -> Body $ \(s, _) -> (s, ())
-        inU = In $ \o -> emit o inU
-     in Poles inU outU
-
--- | Unit poles for @Body (,) s (K m)@.
---
--- Same shape as the @(->)@ instance, but the companion returns @()@ in the
--- monad and threads the ambient state through unchanged.
-instance (Monad m) => HasDual () (Body (,) s (K m)) where
-  open =
-    let outU = Out $ \_ -> Body $ K $ \(s, _) -> pure (s, ())
-        inU = In $ \o -> emit o inU
-     in Poles inU outU
-
--- | Unit poles for @Body Either s (->)@ at the unit object @Void@.
---
--- The coproduct case needs a distinguished element of the carrier @s@: on a
--- @Right x@ input the companion must return @Left s@ for some @s@, and there
--- is no ambient state to use.  'Pointed' captures exactly that, which is
--- weaker than 'Monoid'.  This is the structural pointedness requirement that
--- makes @Either@ differ from @(,)@.
-instance (Pointed s) => HasDual Void (Body Either s (->)) where
-  open =
-    let outU = Out $ \_ -> Body $ \case
-          Left s -> Left s
-          Right _ -> Left point
-        inU = In $ \_ -> Body $ \case
-          Left s -> Left s
-          Right v -> absurd v
-     in Poles inU outU
-
--- | Unit poles for @Body Either s (K m)@ at @Void@.
-instance (Monad m, Pointed s) => HasDual Void (Body Either s (K m)) where
-  open =
-    let outU = Out $ \_ -> Body $ K $ \case
-          Left s -> pure (Left s)
-          Right _ -> pure (Left point)
-        inU = In $ \_ -> Body $ K $ \case
-          Left s -> pure (Left s)
-          Right v -> absurd v
-     in Poles inU outU
-
 -- * Carrier-tensoring composition
 
 -- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
 -- @t ch ch'@.  This is the body-level building block of horizontal 2-cell
--- algebra (for example in "Circuit.Cell").
+-- algebra (for example in "Circuit.Equip").
 --
 -- The composite is
 --
