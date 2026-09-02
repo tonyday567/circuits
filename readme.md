@@ -80,7 +80,7 @@ graph LR
   Trace["Circuit.Trace"]
   Hyper["Circuit.Hyper"]
   Dagger["Circuit.Dagger"]
-  Poles["Circuit.Poles"]
+  Equip["Circuit.Equip"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
   Moore["Circuit.Moore"]

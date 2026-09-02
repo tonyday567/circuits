@@ -1,6 +1,6 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), Body (knot-body category), and the Layer tower, plus Process/System/Poles/Shared polynomial machinery.
+description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), Body (knot-body category), and the Layer tower, plus Process/System/Equip/Shared polynomial machinery.
 ---
 
 # circuits — field guide
@@ -49,10 +49,10 @@ Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
 Circuit.Moore       — Moore machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
 Circuit.Channel — Poly-indexed Moore channels.
-Circuit.Poles       — Bi-polar channel ends (Out/In), boxes, copycat, race.
+Circuit.Equip       — Arrow equipment: channel poles (Out/In, Poles), squares
+                      (Sq/TwoCell), and boundary tokens (Boundary/Stamped).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
-Circuit.Boundary    — Free boundary tokens and occurrence-stamped values.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use.
