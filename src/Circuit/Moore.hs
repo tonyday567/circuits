@@ -302,7 +302,7 @@ mooreWriteStateBody sys = Body $ \(s, d) ->
 -- supplied probe direction. This works only when the read can be reasonably
 -- approximated by a single probe direction; for an honest MachineP observation
 -- prefer 'machinePToPoles'.
-machinePToPolesWithProbe :: Dir p -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
+machinePToPolesWithProbe :: Dir p -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
 machinePToPolesWithProbe probe sys =
   Poles
     (mooreWriteStateBody sys)
@@ -313,7 +313,7 @@ machinePToPolesWithProbe probe sys =
 -- The state carrier is the machine's state @s@.  The write pole steps with the
 -- supplied direction and posts the new state; the read pole observes the
 -- carrier without stepping, using the supplied observation function.
-machinePToPoles :: (s -> Pos p) -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
+machinePToPoles :: (s -> Pos p) -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
 machinePToPoles ex sys =
   Poles
     (mooreWriteStateBody sys)

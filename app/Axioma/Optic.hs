@@ -193,9 +193,9 @@ opticTopic verbosity = do
           ),
       -- poles action
       checkV verbosity "opticPolesP suffixes the backward leg onto the companion" $
-        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
          in companion (opticPolesP firstLens p) "hi" == (7, "hi"),
       checkV verbosity "opticPolesP read pole agrees with the backward leg" $
-        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
          in companion (opticPolesP firstLens p) "hi" == opticBackwardP firstLens ("hi", 7)
     ]

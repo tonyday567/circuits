@@ -26,6 +26,10 @@ module Circuit.Equip
     close,
     plug,
 
+    -- * Payload-split poles
+    plugSplit,
+    closeSplit,
+
     -- * Unit-pole convenience
     poles0,
     polesK,
@@ -97,7 +101,7 @@ where
 
 import Circuit.Bimonoid (Copy (copy))
 import Circuit.Body (Body (..), mergeChannel)
-import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
+import Circuit.Category (Category (..), CoK (..), FunctionLike (..), K (..), (.>))
 import Circuit.Tensor (Bias (..), Tensor (..), Unit, Unital (..))
 import Circuit.Tensor qualified as Tensor
 import Circuit.Traced (Assoc (..), Strength (..))
@@ -108,60 +112,88 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XTypeApplications
 -- >>> import Circuit.Body (Body (..))
--- >>> import Circuit.Category (K (..), runK, (.>))
+-- >>> import Circuit.Category (CoK (..), K (..), runK, (.>))
 -- >>> import Circuit.Equip
 -- >>> import Circuit.Layer (run)
 -- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Tensor (Bias (..))
+-- >>> import Data.Functor.Identity (Identity (..))
 -- >>> import Data.Maybe (isNothing)
 
 -- * Channel poles — the companion and conjoint of the identity functor.
 
 -- | A matched pair of channel poles with explicit carrier types.
 --
--- @conjoint :: arr a ch@ is the write leg: it consumes the input payload and
--- produces the write channel.  @companion :: arr ch' b@ is the read leg: it
--- consumes the read channel and produces the output payload.
+-- @conjoint@ is the write leg: it consumes the input payload and produces
+-- the write channel, in base @arrW@.  @companion@ is the read leg: it
+-- consumes the read channel and produces the output payload, in base @arrR@.
+-- The diagonal @arrW ~ arrR@ recovers single-base poles; split bases host a
+-- co-Kleisli write leg against a Kleisli read leg (see 'closeSplit').
 --
 -- When @ch ~ ch'@ the two poles share a carrier; 'close' plugs them with the
 -- identity.  When @ch /= ch'@, 'plug' inserts an explicit translation between
 -- the write channel and the read channel.
-data Poles ch ch' arr a b = Poles
+data Poles ch ch' arrW arrR a b = Poles
   { -- | Write leg (conjoint), producing the write channel @ch@.
-    conjoint :: arr a ch,
+    conjoint :: arrW a ch,
     -- | Read leg (companion), consuming the read channel @ch'@.
-    companion :: arr ch' b
+    companion :: arrR ch' b
   }
 
 -- | Generalised polar plug.
 --
 -- 'plug' inserts a translation @m :: arr ch ch'@ between the write leg and the
--- read leg of a 'Poles', producing a morphism @arr a b@.
+-- read leg of a single-base 'Poles', producing a morphism @arr a b@.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
 -- >>> plug id p ()
 -- 42
-plug :: (Category arr) => arr ch ch' -> Poles ch ch' arr a b -> arr a b
+plug :: (Category arr) => arr ch ch' -> Poles ch ch' arr arr a b -> arr a b
 plug m p = conjoint p .> m .> companion p
 
 -- | Close a self-channelled 'Poles' with the identity translation.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) Int Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) Int Int
 -- >>> close p 0
 -- 42
-close :: (Category arr) => Poles ch ch arr a a -> arr a a
+close :: (Category arr) => Poles ch ch arr arr a a -> arr a a
 close = plug id
+
+-- | Close a payload-split pole through a pure translation.
+--
+-- The write leg is co-Kleisli (@c a -> ch@), the read leg is Kleisli
+-- (@ch' -> m b@), and the translation between the carriers is a plain
+-- function — the neutral middle.  The result is the biKleisli arrow
+-- @c a -> m b@: an Input comonad on the payload side, an Output monad on
+-- the result side, factorised through an explicit carrier.
+--
+-- >>> let p = Poles (CoK runIdentity) (K (Identity . (+1))) :: Poles Int Int (CoK Identity) (K Identity) Int Int
+-- >>> closeSplit p (Identity 5)
+-- Identity 6
+--
+-- At the @(->)@-@(->)@ corner the split close agrees with 'close':
+--
+-- >>> let q = Poles id (+1) :: Poles Int Int (->) (->) Int Int
+-- >>> close q 5
+-- 6
+plugSplit :: (ch -> ch') -> Poles ch ch' (CoK c) (K m) a b -> c a -> m b
+plugSplit g p ca = runK (companion p) (g (runCoK (conjoint p) ca))
+
+-- | Close a self-channelled payload-split pole with the identity
+-- translation.
+closeSplit :: Poles ch ch (CoK c) (K m) a b -> c a -> m b
+closeSplit = plugSplit id
 
 -- * Unit-pole convenience
 
 -- | Build a unit-channel pole from a write morphism and a read morphism.
 --
--- @poles0 write receive = Poles write receive :: Poles () () arr a b@.
+-- @poles0 write receive = Poles write receive :: Poles () () arr arr a b@.
 poles0 ::
   forall arr a b.
   arr a () ->
   arr () b ->
-  Poles () () arr a b
+  Poles () () arr arr a b
 poles0 = Poles
 {-# INLINE poles0 #-}
 
@@ -173,18 +205,18 @@ polesK ::
   forall m a b.
   (a -> m ()) ->
   m b ->
-  Poles () () (K m) a b
+  Poles () () (K m) (K m) a b
 polesK write receive = Poles (K write) (K $ const receive)
 
 -- | Extract the primitive write and read actions from a unit-channel pole.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
 -- >>> let (w, r) = splay0 p
 -- >>> (w (), r ())
 -- ((),42)
 splay0 ::
   forall arr a b.
-  Poles () () arr a b ->
+  Poles () () arr arr a b ->
   (arr a (), arr () b)
 splay0 p = (conjoint p, companion p)
 
@@ -193,19 +225,20 @@ splay0 p = (conjoint p, companion p)
 -- | Sequential composition of 'Poles'.
 --
 -- The read leg of the first pole is chained through the payload to the write
--- leg of the second pole.  No channel alignment is required for this
--- sequential composition; alignment is only needed when the composite is
--- required to sit at a uniform carrier.
+-- leg of the second pole.  The middle chain lives in one base @arrM@, so the
+-- second pole is diagonal; the outer write base @arrW@ is free.  No channel
+-- alignment is required for this sequential composition; alignment is only
+-- needed when the composite is required to sit at a uniform carrier.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) Int Int
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) Int Int
 -- >>> box (compose p1 p2) ()
 -- 2
 compose ::
-  (Category arr) =>
-  Poles ch1 ch1' arr a b ->
-  Poles ch1' ch1' arr b c ->
-  Poles ch1 ch1' arr a c
+  (Category arrM) =>
+  Poles ch1 ch1' arrW arrM a b ->
+  Poles ch1' ch1' arrM arrM b c ->
+  Poles ch1 ch1' arrW arrM a c
 compose p1 p2 =
   Poles
     (conjoint p1)
@@ -213,20 +246,20 @@ compose p1 p2 =
 
 -- | Forward-composition operator.  @p1 >:> p2 = compose p1 p2@.
 (>:>) ::
-  (Category arr) =>
-  Poles ch1 ch1' arr a b ->
-  Poles ch1' ch1' arr b c ->
-  Poles ch1 ch1' arr a c
+  (Category arrM) =>
+  Poles ch1 ch1' arrW arrM a b ->
+  Poles ch1' ch1' arrM arrM b c ->
+  Poles ch1 ch1' arrW arrM a c
 p1 >:> p2 = compose p1 p2
 
 infixr 1 >:>
 
 -- | Convenience synonym for 'compose' on unit-channel poles.
 compose0 ::
-  (Category arr) =>
-  Poles () () arr a b ->
-  Poles () () arr b c ->
-  Poles () () arr a c
+  (Category arrM) =>
+  Poles () () arrW arrM a b ->
+  Poles () () arrM arrM b c ->
+  Poles () () arrW arrM a c
 compose0 = compose
 {-# INLINE compose0 #-}
 
@@ -234,16 +267,16 @@ compose0 = compose
 
 -- | Parallel composition of 'Poles' over a tensor @t@.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) () Int
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) () Int
 -- >>> plug id (polesTensor p1 p2) ((),())
 -- (1,2)
 polesTensor ::
   forall t arr ch1 ch1' ch2 ch2' a b c d.
   (Tensor t arr) =>
-  Poles ch1 ch1' arr a b ->
-  Poles ch2 ch2' arr c d ->
-  Poles (t ch1 ch2) (t ch1' ch2') arr (t a c) (t b d)
+  Poles ch1 ch1' arr arr a b ->
+  Poles ch2 ch2' arr arr c d ->
+  Poles (t ch1 ch2) (t ch1' ch2') arr arr (t a c) (t b d)
 polesTensor p1 p2 =
   Poles
     (Tensor.tensor (conjoint p1) (conjoint p2))
@@ -253,31 +286,31 @@ polesTensor p1 p2 =
 
 -- | Precompose the input and postcompose the output.
 iomap ::
-  forall arr a a' b b' ch ch'.
-  (Category arr) =>
-  arr a' a ->
-  arr b b' ->
-  Poles ch ch' arr a b ->
-  Poles ch ch' arr a' b'
+  forall arrW arrR a a' b b' ch ch'.
+  (Category arrW, Category arrR) =>
+  arrW a' a ->
+  arrR b b' ->
+  Poles ch ch' arrW arrR a b ->
+  Poles ch ch' arrW arrR a' b'
 iomap f g (Poles i o) = Poles (f .> i) (o .> g)
 
 -- | Precompose the input.
 imap ::
-  forall arr a a' b ch ch'.
-  (Category arr) =>
-  arr a' a ->
-  Poles ch ch' arr a b ->
-  Poles ch ch' arr a' b
-imap f = iomap f id
+  forall arrW arrR a a' b ch ch'.
+  (Category arrW) =>
+  arrW a' a ->
+  Poles ch ch' arrW arrR a b ->
+  Poles ch ch' arrW arrR a' b
+imap f (Poles i o) = Poles (f .> i) o
 
 -- | Postcompose the output.
 omap ::
-  forall arr a b b' ch ch'.
-  (Category arr) =>
-  arr b b' ->
-  Poles ch ch' arr a b ->
-  Poles ch ch' arr a b'
-omap = iomap id
+  forall arrW arrR a b b' ch ch'.
+  (Category arrR) =>
+  arrR b b' ->
+  Poles ch ch' arrW arrR a b ->
+  Poles ch ch' arrW arrR a b'
+omap g (Poles i o) = Poles i (o .> g)
 
 -- * Unit poles and copycat
 
@@ -286,40 +319,40 @@ omap = iomap id
 -- The write leg discards its input; the read leg discards its channel.
 -- Yanking recovers the identity on @()@.
 --
--- >>> let p = open :: Poles () () (->) () ()
+-- >>> let p = open :: Poles () () (->) (->) () ()
 -- >>> close p ()
 -- ()
-open :: (Category arr) => Poles () () arr () ()
+open :: (Category arr) => Poles () () arr arr () ()
 open = Poles id id
 
 -- | The copycat strategy at any carrier.
 --
 -- With identity legs, closing is the identity on the carrier.
 --
--- >>> close (copycat :: Poles Bool Bool (->) Bool Bool) True
+-- >>> close (copycat :: Poles Bool Bool (->) (->) Bool Bool) True
 -- True
-copycat :: (Category arr) => Poles ch ch arr ch ch
+copycat :: (Category arr) => Poles ch ch arr arr ch ch
 copycat = Poles id id
 
 -- * Boxes
 
 -- | Close a unit-channel 'Poles' to a plain morphism.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
 -- >>> box p ()
 -- 42
-box :: (Category arr) => Poles () () arr a b -> arr a b
+box :: (Category arr) => Poles () () arr arr a b -> arr a b
 box = plug id
 
 -- | Asymmetric box with the channel exposed on opposite sides.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
 -- >>> boxAsymmetric p ((), ())
 -- ((),42)
 boxAsymmetric ::
   forall t arr ch ch' a b.
   (Tensor t arr) =>
-  Poles ch ch' arr a b ->
+  Poles ch ch' arr arr a b ->
   arr (t a ch') (t ch b)
 boxAsymmetric p = Tensor.tensor (conjoint p) (companion p)
 
@@ -328,16 +361,16 @@ boxAsymmetric p = Tensor.tensor (conjoint p) (companion p)
 -- | Additive conjunction: both sub-poles receive the same input and their
 -- outputs are paired.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) () Int
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) () Int
 -- >>> plug id (pair p1 p2) ()
 -- (1,2)
 pair ::
   forall arr ch1 ch1' ch2 ch2' a b c.
   (Tensor (,) arr, Copy arr a) =>
-  Poles ch1 ch1' arr a b ->
-  Poles ch2 ch2' arr a c ->
-  Poles (ch1, ch2) (ch1', ch2') arr a (b, c)
+  Poles ch1 ch1' arr arr a b ->
+  Poles ch2 ch2' arr arr a c ->
+  Poles (ch1, ch2) (ch1', ch2') arr arr a (b, c)
 pair p1 p2 =
   Poles
     (copy .> Tensor.tensor (conjoint p1) (conjoint p2))
@@ -350,8 +383,8 @@ pair p1 p2 =
 -- chooses which side to prefer when both are non-silent. The picking logic is
 -- lifted into the base arrow via 'FunctionLike'.
 --
--- >>> let eL = Poles (const ()) (const (Just 1)) :: Poles () () (->) () (Maybe Int)
--- >>> let eR = Poles (const ()) (const (Just 2)) :: Poles () () (->) () (Maybe Int)
+-- >>> let eL = Poles (const ()) (const (Just 1)) :: Poles () () (->) (->) () (Maybe Int)
+-- >>> let eR = Poles (const ()) (const (Just 2)) :: Poles () () (->) (->) () (Maybe Int)
 -- >>> plug id (race isNothing LeftFirst eL eR) ()
 -- Just 1
 -- >>> plug id (race isNothing RightFirst eL eR) ()
@@ -361,9 +394,9 @@ race ::
   (Tensor (,) arr, Copy arr a, FunctionLike arr) =>
   (b -> Bool) ->
   Bias ->
-  Poles ch1 ch1' arr a b ->
-  Poles ch2 ch2' arr a b ->
-  Poles (ch1, ch2) (ch1', ch2') arr a b
+  Poles ch1 ch1' arr arr a b ->
+  Poles ch2 ch2' arr arr a b ->
+  Poles (ch1, ch2) (ch1', ch2') arr arr a b
 race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
@@ -378,7 +411,7 @@ race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
 --
 -- >>> box (companionTight (const 42 :: () -> Int)) ()
 -- 42
-companionTight :: (Category arr) => arr a b -> Poles a a arr a b
+companionTight :: (Category arr) => arr a b -> Poles a a arr arr a b
 companionTight f = Poles id f
 
 -- | The conjoint of a tight arrow.
@@ -388,7 +421,7 @@ companionTight f = Poles id f
 --
 -- >>> box (conjointTight (const () :: Int -> ())) 7
 -- ()
-conjointTight :: (Category arr) => arr a b -> Poles b b arr a b
+conjointTight :: (Category arr) => arr a b -> Poles b b arr arr a b
 conjointTight f = Poles f id
 
 -- * Squares

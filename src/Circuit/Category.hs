@@ -29,6 +29,8 @@ module Circuit.Category
     (|>),
     (<|),
     K (..),
+    Comonad (..),
+    CoK (..),
     Op (..),
     FunctionLike (..),
     Pointed (..),
@@ -36,8 +38,12 @@ module Circuit.Category
 where
 
 import Control.Monad ((<=<))
+import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Data.Functor.Identity (Identity (..))
 
 -- | A category without object constraints.
 --
@@ -91,6 +97,43 @@ newtype K m a b = K {runK :: a -> m b}
 instance (Monad m) => Category (K m) where
   id = K pure
   K f . K g = K (f <=< g)
+
+-- | A comonad, named locally.
+--
+-- As with 'Category', the laws are an audit concern rather than a discharge
+-- concern: 'extract' and 'duplicate' should satisfy the comonad laws, and
+-- the oracles for that live in the axioma suite, not here.
+class (Functor w) => Comonad w where
+  -- | Extract the value at the current position.
+  extract :: w a -> a
+
+  -- | Present the space of contexts: each position expands to a position of
+  -- positions.
+  duplicate :: w a -> w (w a)
+
+  -- | Extend a context-dependent computation over a comonadic value.
+  extend :: (w a -> b) -> w a -> w b
+  extend f wa = fmap f (duplicate wa)
+
+-- | The identity comonad.
+instance Comonad Identity where
+  extract = runIdentity
+  duplicate = Identity
+
+-- | Co-Kleisli arrows of a comonad, named locally.
+--
+-- The dual seat of 'K'.  Note that @Op (K m)@ is a Kleisli arrow reversed
+-- (@b -> m a@), not a co-Kleisli arrow (@c a -> b@): the flip reverses the
+-- arrow but not the modality, so @CoK@ is genuinely new furniture.
+--
+-- >>> let f = CoK (\(Identity a) -> a + 1) :: CoK Identity Int Int
+-- >>> runCoK f (Identity 4)
+-- 5
+newtype CoK c a b = CoK {runCoK :: c a -> b}
+
+instance (Comonad c) => Category (CoK c) where
+  id = CoK extract
+  CoK g . CoK f = CoK (\ca -> g (extend f ca))
 
 -- | The opposite category: morphisms are reversed.
 --

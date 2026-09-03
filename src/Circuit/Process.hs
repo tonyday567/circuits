@@ -205,14 +205,14 @@ markProcess isHalt (Process inject step extract) =
 -- * Channel-pole processes
 
 -- | Build a pointed process from channel poles.
-polesToProcessP :: Poles s s (Body (,) s (->)) a b -> s -> ProcessP s a b
+polesToProcessP :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> ProcessP s a b
 polesToProcessP p s0 =
   let Body write = conjoint p
       Body receive = companion p
    in ProcessP s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
 
 -- | Run channel poles over a list of inputs.
-runPoles :: Poles s s (Body (,) s (->)) a b -> s -> [a] -> [b]
+runPoles :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> [a] -> [b]
 runPoles p s0 xs = scanProcessP (polesToProcessP p s0) xs
 
 -- * Functorial plumbing

@@ -150,14 +150,14 @@ mergeChannelRightIdOk xs =
 -- | MachineP-split 'Poles' for the counter body.  The write pole updates state
 -- and posts the new state into the carrier; the read pole observes the carrier
 -- and emits a 'Char'.
-counterPoles :: Poles Int Int (Body (,) Int (->)) Bool Char
+counterPoles :: Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) Bool Char
 counterPoles = Poles write readBody
   where
     write = Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', n')
     readBody = Body $ \(n, ch) -> (n, if odd ch then 'x' else 'y')
 
 -- | MachineP-split 'Poles' for the parity body.
-parityPoles :: Poles Bool Bool (Body (,) Bool (->)) Bool Char
+parityPoles :: Poles Bool Bool (Body (,) Bool (->)) (Body (,) Bool (->)) Bool Char
 parityPoles = Poles write readBody
   where
     write = Body $ \(b, r) -> let b' = not r && not b in (b', b')

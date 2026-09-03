@@ -235,14 +235,14 @@ opticUpdate (Optic o) = opticUpdateP o
 -- postcomposes the companion.  A pointed optic /is/ a morphism of that
 -- enriched profunctor.
 --
--- >>> let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+-- >>> let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
 -- >>> companion (opticPolesP firstLens p) "hi"
 -- (7,"hi")
 opticPolesP ::
   (Category arr) =>
   OpticP t ch arr a b s r ->
-  Poles ch ch arr (t ch a) (t ch b) ->
-  Poles ch ch arr s r
+  Poles ch ch arr arr (t ch a) (t ch b) ->
+  Poles ch ch arr arr s r
 opticPolesP (OpticP f b) = iomap f b
 {-# INLINE opticPolesP #-}
 
