@@ -3,17 +3,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | A Moore machine fibered over a polynomial interface @p@.
+-- | A MachineP machine fibered over a polynomial interface @p@.
 --
 -- @
---   newtype Moore t s arr p = Moore (Body t s arr (Dir p) (Pos p))
+--   newtype MachineP t s arr p = MachineP (Body t s arr (Dir p) (Pos p))
 -- @
 --
 -- * The base is the state @s@.
 -- * The fiber/interface is the polynomial @p@, with positions 'Pos' p and
 --   directions 'Dir' p.
 -- * The span shape is @s <- (s, Dir p) -> Pos p@.
--- * "Moore" because the observable output 'Pos' p depends on the state @s@,
+-- * "MachineP" because the observable output 'Pos' p depends on the state @s@,
 --   not directly on the current input direction. The direction is consumed to
 --   compute the next state; then the position is read from that state.
 --
@@ -24,40 +24,40 @@
 --   Pos (Mono i o) = o
 -- @
 --
--- so @Moore (,) s (->) (Mono i o)@ collapses to the ordinary Moore body
--- @(s, i) -> (s, o)@. The 'moore' constructor together with 'monoIn' /
+-- so @MachineP (,) s (->) (Mono i o)@ collapses to the ordinary MachineP body
+-- @(s, i) -> (s, o)@. The 'machineP' constructor together with 'monoIn' /
 -- 'monoDir' makes this explicit.
 --
 -- For a general polynomial @p@, 'Pos' p and 'Dir' p can be branching: the
--- polynomial layer handles sums and products of interfaces, so 'Moore' is a
--- Moore machine that can branch, offer choices, or run parallel interfaces,
+-- polynomial layer handles sums and products of interfaces, so 'MachineP' is a
+-- MachineP machine that can branch, offer choices, or run parallel interfaces,
 -- all while 'Circuit.Body.Body' handles the state transition.
 --
--- In the BLLL picture (Katis–Sabadini–Walters), an F-Moore machine is an
--- F-algebra @F E -> E@ plus an output @E -> O@. 'Moore' fits this with
+-- In the BLLL picture (Katis–Sabadini–Walters), an F-MachineP machine is an
+-- F-algebra @F E -> E@ plus an output @E -> O@. 'MachineP' fits this with
 -- state object @E = s@, endofunctor @F = (-) ⊗ Dir p@, transition
 -- @d : s ⊗ Dir p -> s@, and output @obs : s -> Pos p@ bundled with the
 -- transition in the 'Circuit.Body.Body'.
 --
 -- 'Circuit.Process.Process' is the pointed monomial special case: where
--- @Process@ is the existential form @∃s. (s, s -> a -> s, s -> b)@, 'Moore'
+-- @Process@ is the existential form @∃s. (s, s -> a -> s, s -> b)@, 'MachineP'
 -- is the polynomial-lens form of the same idea, with @p@ describing the
 -- interactive interface.
 --
--- This module defines the 'Moore' type, conversions between eval and arrow
+-- This module defines the 'MachineP' type, conversions between eval and arrow
 -- forms, wiring combinators, and higher-level execution combinators.
 module Circuit.Moore
-  ( -- * Moore machines
-    Moore (..),
-    TMoore (..),
-    moore,
-    mooreMorphism,
-    mooreToTMoore,
+  ( -- * MachineP machines
+    MachineP (..),
+    Machine (..),
+    machineP,
+    machineMorphismP,
+    machinePToMachine,
 
     -- * Eval / arrow conversion
     MooreEval (..),
-    fromEvalMoore,
-    toEvalMoore,
+    fromEvalMachineP,
+    toEvalMachineP,
     step,
 
     -- * Monomial helpers
@@ -65,27 +65,27 @@ module Circuit.Moore
     monoIn,
 
     -- * Tensor wiring
-    parWiring,
+    parWiringMachineP,
 
-    -- * Channel-pole view of Moore machines
-    mooreToPoles,
-    mooreToPolesWithProbe,
+    -- * Channel-pole view of MachineP machines
+    machinePToPoles,
+    machinePToPolesWithProbe,
 
     -- * Comultiplication / duplication
-    duplicateMoore,
+    duplicateMachineP,
 
     -- * Branches
-    branchMoore,
-    runMooreSum,
-    branchMooreHet,
-    runMooreSumHet,
+    branchMachineP,
+    runMachinePSum,
+    branchMachinePHet,
+    runMachinePSumHet,
     SumStep (..),
 
     -- * Coalgebras
     Coalgebra (..),
     coalgebraToMoore,
     composeCoalgebra,
-    mooreToCoalgebraMono,
+    machinePToCoalgebraMono,
   )
 where
 
@@ -114,16 +114,16 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Category (Op (..))
 -- >>> import Circuit.Poly (Eval (..), Mono, Morphism, lens, applyLens)
--- >>> import Circuit.Moore (Moore, moore, mooreMorphism, MooreEval (..), toEvalMoore, fromEvalMoore, monoDir, monoIn, parWiring)
+-- >>> import Circuit.Moore (MachineP, machineP, machineMorphismP, MooreEval (..), toEvalMachineP, fromEvalMachineP, monoDir, monoIn, parWiringMachineP)
 -- >>> import Data.Void (absurd)
 
--- | A Moore machine with interface @p@, carrier @s@, over base arrow @arr@,
+-- | A MachineP machine with interface @p@, carrier @s@, over base arrow @arr@,
 -- parameterised by the state-pairing tensor @t@.
 --
 -- Uncurried netlist form: the state and the current input direction are fed
 -- together under @t@, and the result is the next state together with the current
 -- output position.  For the monomial @Mono i o@ and @t = (,)@ this is exactly
--- the Moore body @arr (s, i) (s, o)@ after collapsing the unit positions.
+-- the MachineP body @arr (s, i) (s, o)@ after collapsing the unit positions.
 --
 -- In the equipment-optics vocabulary this is the span
 --
@@ -136,41 +136,41 @@ import Prelude hiding (id, (.))
 -- The input direction is part of the apex together with the residual.
 --
 -- The opposite arrow @Circuit.Category.Op arr@ is also supported, so
--- @Moore t s (Op (->)) p@ is a first-class codata body.  Together with the
+-- @MachineP t s (Op (->)) p@ is a first-class codata body.  Together with the
 -- forward @(->)@ case this reproduces the @Fam(Set^op)@ rung of polynomial
 -- equipment.
 --
--- >>> let sys = moore (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Moore (,) Int (->) (Mono Int Int)
--- >>> mooreMorphism sys (3, Right 5)
+-- >>> let sys = machineP (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
+-- >>> machineMorphismP sys (3, Right 5)
 -- (8,(6,()))
-newtype Moore (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly)
-  = Moore (Body t s arr (Dir p) (Pos p))
+newtype MachineP (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly)
+  = MachineP (Body t s arr (Dir p) (Pos p))
 
--- | A Moore machine with hidden carrier, represented as a trace over the
+-- | A MachineP machine with hidden carrier, represented as a trace over the
 -- polynomial interface.
 --
--- This is the unpointed counterpart of 'Moore': the state carrier is not a
+-- This is the unpointed counterpart of 'MachineP': the state carrier is not a
 -- type parameter; instead it is folded into the feedback wire of the trace.
--- 'mooreToTMoore' embeds a pointed 'Moore' into this form by closing the state
+-- 'machinePToMachine' embeds a pointed 'MachineP' into this form by closing the state
 -- channel with 'yank'.
-newtype TMoore (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) (p :: Poly)
-  = TMoore (Trace t arr (Dir p) (Pos p))
+newtype Machine (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) (p :: Poly)
+  = Machine (Trace t arr (Dir p) (Pos p))
 
--- | Convert a pointed 'Moore' into a hidden-state 'TMoore' by closing the state
+-- | Convert a pointed 'MachineP' into a hidden-state 'Machine' by closing the state
 -- feedback wire.
-mooreToTMoore ::
+machinePToMachine ::
   (Circuit.Traced.Yank t arr) =>
-  Moore t s arr p ->
-  TMoore t arr p
-mooreToTMoore (Moore (Body f)) = TMoore (yank (base f))
+  MachineP t s arr p ->
+  Machine t arr p
+machinePToMachine (MachineP (Body f)) = Machine (yank (base f))
 
--- | Construct a cartesian 'Moore' from its underlying arrow.
-moore :: arr (s, Dir p) (s, Pos p) -> Moore (,) s arr p
-moore = Moore . Body
+-- | Construct a cartesian 'MachineP' from its underlying arrow.
+machineP :: arr (s, Dir p) (s, Pos p) -> MachineP (,) s arr p
+machineP = MachineP . Body
 
--- | Inspect a cartesian 'Moore' as its underlying arrow.
-mooreMorphism :: Moore (,) s arr p -> arr (s, Dir p) (s, Pos p)
-mooreMorphism (Moore (Body f)) = f
+-- | Inspect a cartesian 'MachineP' as its underlying arrow.
+machineMorphismP :: MachineP (,) s arr p -> arr (s, Dir p) (s, Pos p)
+machineMorphismP (MachineP (Body f)) = f
 
 -- | Extract the monomial direction from its 'Either Void' encoding.
 monoDir :: Dir (Mono i o) -> i
@@ -181,33 +181,33 @@ monoDir (Left v) = absurd v
 monoIn :: i -> Dir (Mono i o)
 monoIn = Right
 
--- | Convert an eval-form @(->)@ Moore machine into the arrow form.
-fromEvalMoore :: (MooreEval p) => (s -> Eval p s) -> Moore (,) s (->) p
-fromEvalMoore f = moore $ \(s, d) ->
+-- | Convert an eval-form @(->)@ MachineP machine into the arrow form.
+fromEvalMachineP :: (MooreEval p) => (s -> Eval p s) -> MachineP (,) s (->) p
+fromEvalMachineP f = machineP $ \(s, d) ->
   let (pos, next) = evalToMoore (f s)
    in (next d, pos)
 
--- | Convert an arrow-form @(->)@ Moore machine back into eval form.
+-- | Convert an arrow-form @(->)@ MachineP machine back into eval form.
 --
--- This is a Moore observation: the position is read from the state alone, with
+-- This is a MachineP observation: the position is read from the state alone, with
 -- the direction supplied only to compute the next state.  Correctness therefore
--- requires that the machine be Moore at the call site — the position must not
+-- requires that the machine be MachineP at the call site — the position must not
 -- depend on the direction.  Internally the direction is 'probeDir', which is
 -- lazily unused for the polynomial shapes where it is defined; any strict
 -- forcing of the direction (a bang pattern, 'seq', or a strict tuple in a
--- user-written body) will turn 'toEvalMoore' into a runtime error rather than
+-- user-written body) will turn 'toEvalMachineP' into a runtime error rather than
 -- a wrong answer.
-toEvalMoore :: forall p s. (MooreEval p) => Moore (,) s (->) p -> s -> Eval p s
-toEvalMoore sys s = evalFromMoore pos (\d -> fst (mooreMorphism sys (s, d)))
+toEvalMachineP :: forall p s. (MooreEval p) => MachineP (,) s (->) p -> s -> Eval p s
+toEvalMachineP sys s = evalFromMoore pos (\d -> fst (machineMorphismP sys (s, d)))
   where
-    pos = snd (mooreMorphism sys (s, probeDir @p))
+    pos = snd (machineMorphismP sys (s, probeDir @p))
 
 -- | Run one step: observe the current @p@-output from state @s@.
-step :: (MooreEval p) => Moore (,) s (->) p -> s -> Eval p s
-step = toEvalMoore
+step :: (MooreEval p) => MachineP (,) s (->) p -> s -> Eval p s
+step = toEvalMachineP
 
 -- | Helpers for translating between the 'Eval' presentation and the arrow
--- presentation of a @(->)@ Moore machine.  These extend the netlist view to 'Sum'.
+-- presentation of a @(->)@ MachineP machine.  These extend the netlist view to 'Sum'.
 class MooreEval (p :: Poly) where
   evalToMoore :: Eval p x -> (Pos p, Dir p -> x)
   evalFromMoore :: Pos p -> (Dir p -> x) -> Eval p x
@@ -274,117 +274,117 @@ instance {-# OVERLAPPING #-} MooreEval (Mono i o) where
 offFibre :: a
 offFibre = error "off-fibre direction"
 
--- | Place two Moore machines side by side: interface @p ⊗ q@, state @(s, t)@.
+-- | Place two MachineP machines side by side: interface @p ⊗ q@, state @(s, t)@.
 --
 -- This is the entry point for acyclic wiring over the Dirichlet tensor —
 -- boxes in parallel, pins assigned jointly.  The wired interface can be
 -- mapped with 'parT' (wire-then-map).
-parWiring :: Moore (,) s (->) p -> Moore (,) t (->) q -> Moore (,) (s, t) (->) (PTensor p q)
-parWiring sp sq =
-  moore $ \((s, t), (dp, dq)) ->
-    let (s', posP) = mooreMorphism sp (s, dp)
-        (t', posQ) = mooreMorphism sq (t, dq)
+parWiringMachineP :: MachineP (,) s (->) p -> MachineP (,) t (->) q -> MachineP (,) (s, t) (->) (PTensor p q)
+parWiringMachineP sp sq =
+  machineP $ \((s, t), (dp, dq)) ->
+    let (s', posP) = machineMorphismP sp (s, dp)
+        (t', posQ) = machineMorphismP sq (t, dq)
      in ((s', t'), (posP, posQ))
 
--- * Channel-pole view of Moore machines
+-- * Channel-pole view of MachineP machines
 
--- | Shared write pole for a @(->)@ Moore machine over @(,)@: run the step and
+-- | Shared write pole for a @(->)@ MachineP machine over @(,)@: run the step and
 -- post the new state into the carrier.
-mooreWriteStateBody :: Moore (,) s (->) p -> Body (,) s (->) (Dir p) s
+mooreWriteStateBody :: MachineP (,) s (->) p -> Body (,) s (->) (Dir p) s
 mooreWriteStateBody sys = Body $ \(s, d) ->
-  let (s', _) = mooreMorphism sys (s, d)
+  let (s', _) = machineMorphismP sys (s, d)
    in (s', s')
 
--- | Convert a @(->)@ 'Moore' into companion/conjoint channel poles over @Body@.
+-- | Convert a @(->)@ 'MachineP' into companion/conjoint channel poles over @Body@.
 --
 -- The write pole runs the step and posts the new state into the carrier; the
 -- read pole fabricates an observation by re-stepping the machine with the
 -- supplied probe direction. This works only when the read can be reasonably
--- approximated by a single probe direction; for an honest Moore observation
--- prefer 'mooreToPoles'.
-mooreToPolesWithProbe :: Dir p -> Moore (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
-mooreToPolesWithProbe probe sys =
+-- approximated by a single probe direction; for an honest MachineP observation
+-- prefer 'machinePToPoles'.
+machinePToPolesWithProbe :: Dir p -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
+machinePToPolesWithProbe probe sys =
   Poles
     (mooreWriteStateBody sys)
-    (Body $ \(_, ch) -> mooreMorphism sys (ch, probe))
+    (Body $ \(_, ch) -> machineMorphismP sys (ch, probe))
 
--- | Convert a pointed 'Moore' into companion/conjoint channel poles over @Body@.
+-- | Convert a pointed 'MachineP' into companion/conjoint channel poles over @Body@.
 --
 -- The state carrier is the machine's state @s@.  The write pole steps with the
 -- supplied direction and posts the new state; the read pole observes the
 -- carrier without stepping, using the supplied observation function.
-mooreToPoles :: (s -> Pos p) -> Moore (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
-mooreToPoles ex sys =
+machinePToPoles :: (s -> Pos p) -> MachineP (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
+machinePToPoles ex sys =
   Poles
     (mooreWriteStateBody sys)
     (Body $ \(s, ch) -> (s, ex ch))
 
--- | Comultiplication for an /observable/ Moore machine: the output position is the
--- state. The result is a Moore machine over the two-step interface
+-- | Comultiplication for an /observable/ MachineP machine: the output position is the
+-- state. The result is a MachineP machine over the two-step interface
 -- @Mono o s ◁ Mono o s@, so that feeding a pair of inputs @(o1, o2)@ runs the
 -- original machine for two steps.
-duplicateMoore :: Moore (,) s (->) (Mono o s) -> Moore (,) s (->) ('Comp (Mono o s) (Mono o s))
-duplicateMoore sys =
-  fromEvalMoore $ \s ->
-    let runMono s' = case toEvalMoore sys s' of EP (EK o, EE f) -> (o, f)
+duplicateMachineP :: MachineP (,) s (->) (Mono o s) -> MachineP (,) s (->) ('Comp (Mono o s) (Mono o s))
+duplicateMachineP sys =
+  fromEvalMachineP $ \s ->
+    let runMono s' = case toEvalMachineP sys s' of EP (EK o, EE f) -> (o, f)
         (s0, nextStep) = runMono s
         nextEval o =
           let (s1, step1) = runMono (nextStep o)
            in EP (EK s1, EE step1)
      in nestedToComp (EP (EK s0, EE nextEval))
 
--- | Build a Moore machine whose interface is the coproduct of two monomial interfaces.
+-- | Build a MachineP machine whose interface is the coproduct of two monomial interfaces.
 --
 -- The carrier state selects the active branch at each step.  This is the
 -- level-2 grammar operator on the span fragment: choice lives in the
 -- polynomial interface ('Sum') rather than in the carrier-level 'if'.
-branchMoore ::
+branchMachineP ::
   (s -> Bool) ->
-  Moore (,) s (->) (Mono i o) ->
-  Moore (,) s (->) (Mono i o) ->
-  Moore (,) s (->) ('Sum (Mono i o) (Mono i o))
-branchMoore cond sysL sysR =
-  fromEvalMoore $ \s ->
+  MachineP (,) s (->) (Mono i o) ->
+  MachineP (,) s (->) (Mono i o) ->
+  MachineP (,) s (->) ('Sum (Mono i o) (Mono i o))
+branchMachineP cond sysL sysR =
+  fromEvalMachineP $ \s ->
     if cond s
-      then ES (Left (toEvalMoore sysL s))
-      else ES (Right (toEvalMoore sysR s))
+      then ES (Left (toEvalMachineP sysL s))
+      else ES (Right (toEvalMachineP sysR s))
 
--- | Run a Moore machine with a homogeneous sum-of-monomials interface.
-runMooreSum ::
-  Moore (,) s (->) ('Sum (Mono i o) (Mono i o)) ->
+-- | Run a MachineP machine with a homogeneous sum-of-monomials interface.
+runMachinePSum ::
+  MachineP (,) s (->) ('Sum (Mono i o) (Mono i o)) ->
   s ->
   (Either o o, i -> s)
-runMooreSum sys s = case toEvalMoore sys s of
+runMachinePSum sys s = case toEvalMachineP sys s of
   ES (Left (EP (EK o, EE f))) -> (Left o, f)
   ES (Right (EP (EK o, EE f))) -> (Right o, f)
 
--- | A single step of a heterogeneous sum-interface Moore machine.  The GADT encodes
+-- | A single step of a heterogeneous sum-interface MachineP machine.  The GADT encodes
 -- the position-dependent input type: the left branch consumes an @i1@, the
 -- right branch consumes an @i2@.
 data SumStep s o1 i1 o2 i2 where
   SumStepL :: o1 -> (i1 -> s) -> SumStep s o1 i1 o2 i2
   SumStepR :: o2 -> (i2 -> s) -> SumStep s o1 i1 o2 i2
 
--- | Build a Moore machine whose interface is the coproduct of two /different/
+-- | Build a MachineP machine whose interface is the coproduct of two /different/
 -- monomial interfaces.  The carrier state selects the active branch at each
 -- step.
-branchMooreHet ::
+branchMachinePHet ::
   (s -> Bool) ->
-  Moore (,) s (->) (Mono i1 o1) ->
-  Moore (,) s (->) (Mono i2 o2) ->
-  Moore (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2))
-branchMooreHet cond sysL sysR =
-  fromEvalMoore $ \s ->
+  MachineP (,) s (->) (Mono i1 o1) ->
+  MachineP (,) s (->) (Mono i2 o2) ->
+  MachineP (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2))
+branchMachinePHet cond sysL sysR =
+  fromEvalMachineP $ \s ->
     if cond s
-      then ES (Left (toEvalMoore sysL s))
-      else ES (Right (toEvalMoore sysR s))
+      then ES (Left (toEvalMachineP sysL s))
+      else ES (Right (toEvalMachineP sysR s))
 
--- | Run a heterogeneous sum-interface Moore machine.
-runMooreSumHet ::
-  Moore (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2)) ->
+-- | Run a heterogeneous sum-interface MachineP machine.
+runMachinePSumHet ::
+  MachineP (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2)) ->
   s ->
   SumStep s o1 i1 o2 i2
-runMooreSumHet sys s = case toEvalMoore sys s of
+runMachinePSumHet sys s = case toEvalMachineP sys s of
   ES (Left (EP (EK o, EE f))) -> SumStepL o f
   ES (Right (EP (EK o, EE f))) -> SumStepR o f
 
@@ -399,18 +399,18 @@ data Coalgebra s p q = Coalgebra
     upd :: s -> Eval p s -> Eval q s
   }
 
--- | Run a @Coalgebra s 'Y q@ as a 'Moore' over @q@.
-coalgebraToMoore :: (MooreEval q) => Coalgebra s 'Y q -> Moore (,) s (->) q
-coalgebraToMoore coal = fromEvalMoore $ \s -> upd coal s (EY s)
+-- | Run a @Coalgebra s 'Y q@ as a 'MachineP' over @q@.
+coalgebraToMoore :: (MooreEval q) => Coalgebra s 'Y q -> MachineP (,) s (->) q
+coalgebraToMoore coal = fromEvalMachineP $ \s -> upd coal s (EY s)
 
--- | Convert a monomial 'Moore' into a @Coalgebra s 'Y (Mono i o)@.
-mooreToCoalgebraMono :: Moore (,) s (->) (Mono i o) -> Coalgebra s 'Y (Mono i o)
-mooreToCoalgebraMono sys =
+-- | Convert a monomial 'MachineP' into a @Coalgebra s 'Y (Mono i o)@.
+machinePToCoalgebraMono :: MachineP (,) s (->) (Mono i o) -> Coalgebra s 'Y (Mono i o)
+machinePToCoalgebraMono sys =
   Coalgebra
     { act = \s ->
-        let runMono s' = case toEvalMoore sys s' of EP (EK o, EE _) -> o
+        let runMono s' = case toEvalMachineP sys s' of EP (EK o, EE _) -> o
          in Point (EP (EK (runMono s), EE (const ()))),
-      upd = \s _ -> toEvalMoore sys s
+      upd = \s _ -> toEvalMachineP sys s
     }
 
 -- | Sequential composition of two closed coalgebras via the composition product.

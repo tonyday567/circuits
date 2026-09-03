@@ -10,8 +10,7 @@ import Circuit.Body (Body (..), mergeChannel, runFlowchart)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Equip
-  ( Cell (..),
-    Poles (..),
+  ( Poles (..),
     Sq (..),
     acrossThenDown,
     associatorSq,
@@ -108,8 +107,8 @@ cascadeStreamOk :: [Int] -> Bool
 cascadeStreamOk xs =
   let s1 = 0
       s2 = -5
-   in runBody (mergeChannel maxBody sumBody) (Cell (s1, s2)) xs
-        == runBody maxBody (Cell s2) (runBody sumBody (Cell s1) xs)
+   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
+        == runBody maxBody s2 (runBody sumBody s1 xs)
 
 -- | Associativity oracle: 'mergeChannel' is associative on input lists.  All
 -- three bodies are input- and state-sensitive; @doublerBody@ was removed
@@ -124,8 +123,8 @@ cascadeAssocOk xs =
       s1 = 7
       s2 = 0
       s3 = -5
-   in runBody (mergeChannel h (mergeChannel g f)) (Cell ((s1, s2), s3)) xs
-        == runBody (mergeChannel (mergeChannel h g) f) (Cell (s1, (s2, s3))) xs
+   in runBody (mergeChannel h (mergeChannel g f)) ((s1, s2), s3) xs
+        == runBody (mergeChannel (mergeChannel h g) f) (s1, (s2, s3)) xs
 
 -- | 'mergeChannel' agrees with the independent reference implementation.
 -- Distinct seeds catch seed mis-pairing.
@@ -133,22 +132,22 @@ mergeChannelAgreesOk :: [Int] -> Bool
 mergeChannelAgreesOk xs =
   let s1 = 2
       s2 = -3
-   in runBody (mergeChannel maxBody sumBody) (Cell (s1, s2)) xs
-        == runBody (_mergeChannelReference maxBody sumBody) (Cell (s1, s2)) xs
+   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
+        == runBody (_mergeChannelReference maxBody sumBody) (s1, s2) xs
 
 -- | Left identity for carrier-tensoring composition.
 mergeChannelLeftIdOk :: [Int] -> Bool
 mergeChannelLeftIdOk xs =
   let s = 7
-   in runBody (mergeChannel sumBody (Body id)) (Cell ((), s)) xs == runBody sumBody (Cell s) xs
+   in runBody (mergeChannel sumBody (Body id)) ((), s) xs == runBody sumBody s xs
 
 -- | Right identity for carrier-tensoring composition.
 mergeChannelRightIdOk :: [Int] -> Bool
 mergeChannelRightIdOk xs =
   let s = 7
-   in runBody (mergeChannel (Body id) sumBody) (Cell (s, ())) xs == runBody sumBody (Cell s) xs
+   in runBody (mergeChannel (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
 
--- | Moore-split 'Poles' for the counter body.  The write pole updates state
+-- | MachineP-split 'Poles' for the counter body.  The write pole updates state
 -- and posts the new state into the carrier; the read pole observes the carrier
 -- and emits a 'Char'.
 counterPoles :: Poles Int Int (Body (,) Int (->)) Bool Char
@@ -157,7 +156,7 @@ counterPoles = Poles write readBody
     write = Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', n')
     readBody = Body $ \(n, ch) -> (n, if odd ch then 'x' else 'y')
 
--- | Moore-split 'Poles' for the parity body.
+-- | MachineP-split 'Poles' for the parity body.
 parityPoles :: Poles Bool Bool (Body (,) Bool (->)) Bool Char
 parityPoles = Poles write readBody
   where
@@ -182,7 +181,7 @@ bodyF = Body $ \(s, a) -> (s, boundaryF a)
 bodyG :: Body (,) s (->) Char String
 bodyG = Body $ \(s, c) -> (s, boundaryG c)
 
--- | The Moore-split 'Poles' representations agree with the original Mealy
+-- | The MachineP-split 'Poles' representations agree with the original Mealy
 -- bodies over the full bounded state space.
 polesMatchBodyOk :: Bool
 polesMatchBodyOk =
@@ -231,12 +230,12 @@ leftWhiskerBody = Body $ \(s, a) -> (s + a, odd s)
 rightWhiskerObservationalOk :: [Bool] -> Bool
 rightWhiskerObservationalOk rs =
   let sq = rightWhisker counterToParitySq rightWhiskerBody
-      counterOuts = runBody counterBody (Cell 3) rs
-      hOutsSrc = runBody rightWhiskerBody (Cell (-2)) counterOuts
-      sqOutsSrc = runBody (sqSrc sq) (Cell (3, -2)) rs
-      parityOuts = runBody parityBody (Cell False) rs
-      hOutsTgt = runBody rightWhiskerBody (Cell (-2)) parityOuts
-      sqOutsTgt = runBody (sqTgt sq) (Cell (False, -2)) rs
+      counterOuts = runBody counterBody 3 rs
+      hOutsSrc = runBody rightWhiskerBody (-2) counterOuts
+      sqOutsSrc = runBody (sqSrc sq) (3, -2) rs
+      parityOuts = runBody parityBody False rs
+      hOutsTgt = runBody rightWhiskerBody (-2) parityOuts
+      sqOutsTgt = runBody (sqTgt sq) (False, -2) rs
    in sqOutsSrc == hOutsSrc && sqOutsTgt == hOutsTgt
 
 -- | Square-preservation check: right whisker yields a commuting square.
@@ -251,12 +250,12 @@ rightWhiskerSquareOk =
 leftWhiskerObservationalOk :: [Int] -> Bool
 leftWhiskerObservationalOk xs =
   let sq = leftWhisker leftWhiskerBody counterToParitySq
-      lOutsSrc = runBody leftWhiskerBody (Cell 1) xs
-      counterOuts = runBody counterBody (Cell 4) lOutsSrc
-      sqOutsSrc = runBody (sqSrc sq) (Cell (1, 4)) xs
-      lOutsTgt = runBody leftWhiskerBody (Cell 1) xs
-      parityOuts = runBody parityBody (Cell True) lOutsTgt
-      sqOutsTgt = runBody (sqTgt sq) (Cell (1, True)) xs
+      lOutsSrc = runBody leftWhiskerBody 1 xs
+      counterOuts = runBody counterBody 4 lOutsSrc
+      sqOutsSrc = runBody (sqSrc sq) (1, 4) xs
+      lOutsTgt = runBody leftWhiskerBody 1 xs
+      parityOuts = runBody parityBody True lOutsTgt
+      sqOutsTgt = runBody (sqTgt sq) (1, True) xs
    in sqOutsSrc == counterOuts && sqOutsTgt == parityOuts
 
 -- | Square-preservation check: left whisker yields a commuting square.
@@ -271,12 +270,12 @@ leftWhiskerSquareOk =
 hcomposeObservationalOk :: [Bool] -> Bool
 hcomposeObservationalOk rs =
   let sq = hcompose echoSq counterToParitySq
-      counterOuts = runBody counterBody (Cell 2) rs
-      echoOutsSrc = runBody echoBody (Cell (-3)) counterOuts
-      sqOutsSrc = runBody (sqSrc sq) (Cell (2, -3)) rs
-      parityOuts = runBody parityBody (Cell False) rs
-      echoOutsTgt = runBody echoParityBody (Cell True) parityOuts
-      sqOutsTgt = runBody (sqTgt sq) (Cell (False, True)) rs
+      counterOuts = runBody counterBody 2 rs
+      echoOutsSrc = runBody echoBody (-3) counterOuts
+      sqOutsSrc = runBody (sqSrc sq) (2, -3) rs
+      parityOuts = runBody parityBody False rs
+      echoOutsTgt = runBody echoParityBody True parityOuts
+      sqOutsTgt = runBody (sqTgt sq) (False, True) rs
    in sqOutsSrc == echoOutsSrc && sqOutsTgt == echoOutsTgt
 
 -- | Square-preservation check: horizontal composition yields a commuting square.
@@ -415,7 +414,7 @@ runningSumFB = Body $ \((), (s, a)) -> let s' = s + a in ((), (s', s'))
 -- sums [1,3,6] on input [1,2,3].
 runningSumFeedbackOk :: Bool
 runningSumFeedbackOk =
-  runBody (feedbackBody runningSumFB) (Cell ((), 0)) [1, 2, 3] == [1, 3, 6]
+  runBody (feedbackBody runningSumFB) ((), 0) [1, 2, 3] == [1, 3, 6]
 
 -- | Body used in the vanishing law: increment the payload while carrying the
 -- unit feedback wire.
@@ -429,8 +428,8 @@ vanishingDirectBody = Body $ \((), a) -> ((), a + 1)
 -- | A2 Vanishing: feedback over the unit object @()@ is the identity.
 vanishingOk :: Bool
 vanishingOk =
-  runBody (feedbackBody vanishingFBody) (Cell ((), ())) [1, 2, 3]
-    == runBody vanishingDirectBody (Cell ()) [1, 2, 3]
+  runBody (feedbackBody vanishingFBody) ((), ()) [1, 2, 3]
+    == runBody vanishingDirectBody () [1, 2, 3]
 
 -- | Post-feedback map used in the tightening law: add ten to the output.
 tighteningHBody :: Body (,) () (->) Int Int
@@ -442,8 +441,8 @@ tighteningOk =
   let idS = idBody :: Body (,) () (->) Int Int
       lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `mergeChannel` runningSumFB)
       rhs = tighteningHBody `mergeChannel` feedbackBody runningSumFB
-   in runBody lhs (Cell (((), ((), ())), 0)) [1, 2, 3]
-        == runBody rhs (Cell (((), 0), ())) [1, 2, 3]
+   in runBody lhs (((), ((), ())), 0) [1, 2, 3]
+        == runBody rhs (((), 0), ()) [1, 2, 3]
 
 -- | Body used in the joining law: two accumulators @(s,t)@ with output @t'@.
 joiningFBody :: Body (,) () (->) ((Int, Int), Int) ((Int, Int), Int)
@@ -467,8 +466,8 @@ joiningOk =
       joiningFBOnce = feedbackBody joiningReassocBody
       joiningFBTwice :: Body (,) (((), Int), Int) (->) Int Int
       joiningFBTwice = feedbackBody joiningFBOnce
-   in runBody joiningFBTwice (Cell (((), 0), 0)) [1, 2, 3]
-        == runBody (feedbackBody joiningFBody) (Cell ((), (0, 0))) [1, 2, 3]
+   in runBody joiningFBTwice (((), 0), 0) [1, 2, 3]
+        == runBody (feedbackBody joiningFBody) ((), (0, 0)) [1, 2, 3]
 
 -- | Body used in the superposing law: add 100 to the parallel stream.
 superposingGBody :: Body (,) () (->) Int Int
@@ -487,8 +486,8 @@ superposingOk :: Bool
 superposingOk =
   let lhs = feedbackBody superposingLhsBody
       rhs = feedbackBody runningSumFB `tensorBody` superposingGBody
-   in runBody lhs (Cell (((), ()), 0)) [(1, 10), (2, 20), (3, 30)]
-        == runBody rhs (Cell (((), 0), ())) [(1, 10), (2, 20), (3, 30)]
+   in runBody lhs (((), ()), 0) [(1, 10), (2, 20), (3, 30)]
+        == runBody rhs (((), 0), ()) [(1, 10), (2, 20), (3, 30)]
 
 -- | Isomorphism used in the sliding law: shift state by one.
 slidingHBody :: Body (,) () (->) Int Int
@@ -505,8 +504,8 @@ slidingOk =
   let hTensorId = slidingHBody `tensorBody` idBody
       lhs = feedbackBody (slidingFBody `mergeChannel` hTensorId)
       rhs = feedbackBody (hTensorId `mergeChannel` slidingFBody)
-   in runBody lhs (Cell ((((), ()), ()), 0)) [1, 2, 3]
-        == runBody rhs (Cell (((), ((), ())), 1)) [1, 2, 3]
+   in runBody lhs ((((), ()), ()), 0) [1, 2, 3]
+        == runBody rhs (((), ((), ())), 1) [1, 2, 3]
 
 -- | Braid on @(s, s)@ used to show yanking fails.
 feedbackBraidBody :: Body (,) () (->) (Int, Int) (Int, Int)
@@ -517,8 +516,8 @@ feedbackBraidBody = Body $ \((), (x, y)) -> ((), (y, x))
 yankingFailsOk :: Bool
 yankingFailsOk =
   let fbBraid = feedbackBody feedbackBraidBody
-   in runBody fbBraid (Cell ((), 0)) [1, 2, 3] /= [1, 2, 3]
-        && runBody fbBraid (Cell ((), 0)) [1, 2, 3] == [0, 1, 2]
+   in runBody fbBraid ((), 0) [1, 2, 3] /= [1, 2, 3]
+        && runBody fbBraid ((), 0) [1, 2, 3] == [0, 1, 2]
 
 -- * Either carrier oracles
 
@@ -1154,8 +1153,8 @@ bisimNonEquivalentOk =
 -- identical outputs.
 bisimStreamOk :: Bool
 bisimStreamOk =
-  runBody bisim3Body (Cell 0) [False, True, False, False, True]
-    == runBody bisim2Body (Cell 0) [False, True, False, False, True]
+  runBody bisim3Body 0 [False, True, False, False, True]
+    == runBody bisim2Body 0 [False, True, False, False, True]
 
 -- | Carrier-isomorphism implies bisimulation, but not conversely.  Two
 -- isomorphic two-state machines (states relabelled @10,11@ vs @0,1@) are
@@ -1223,7 +1222,7 @@ equipTopic verbosity = do
       checkV verbosity "associator witness commutes" associatorOk,
       checkV verbosity "strength coherence (strength f == tensor id f)" strengthCoherenceOk,
       checkV verbosity "boundary whisker preserves the square" whiskerSqSquareOk,
-      checkV verbosity "Moore-split poles agree with the Mealy bodies" polesMatchBodyOk,
+      checkV verbosity "MachineP-split poles agree with the Mealy bodies" polesMatchBodyOk,
       checkV verbosity "interchange law (source)" $
         all interchangeSourceOk [(n, r) | n <- carrierRange, r <- [0, 1, 2, 3]],
       checkV verbosity "interchange law (target)" $

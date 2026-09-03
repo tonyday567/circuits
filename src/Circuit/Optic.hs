@@ -9,15 +9,15 @@
 -- @
 --
 -- where @⊙@ is a monoidal action.  In @circuits@ the action is the tensor @t@
--- itself.  'POptic' is the /integrand/ — the residual @ch@ is in the type, so
+-- itself.  'OpticP' is the /integrand/ — the residual @ch@ is in the type, so
 -- this is the residual-remembering rung.  'Optic' hides it, which is the
 -- coend without the quotient.
 --
 -- == Relationship to the rest of the library
 --
--- 'POptic' is the curried form of 'Circuit.Equip.iomap': a pointed optic is
--- exactly a pair of actions on channel poles, 'popticForward' precomposing the
--- conjoint and 'popticBackward' postcomposing the companion.  'popticPoles' is
+-- 'OpticP' is the curried form of 'Circuit.Equip.iomap': a pointed optic is
+-- exactly a pair of actions on channel poles, 'opticForwardP' precomposing the
+-- conjoint and 'opticBackwardP' postcomposing the companion.  'opticPolesP' is
 -- that identification, and it costs nothing to state.
 --
 -- The objects of the optic category are boundary /pairs/, which the local
@@ -25,57 +25,57 @@
 -- already solves that problem: @'Circuit.Poly.Mono' i o@ packages a boundary
 -- pair as a single @Poly@, and @instance Category Morphism@ is the wiki's
 -- "category for free".  So this module does not duplicate that instance; it
--- maps into it, with 'opticAsLens', 'lensAsOptic', 'popticAsLens' and
--- 'lensAsPOptic'.
+-- maps into it, with 'opticAsLens', 'lensAsOptic', 'opticAsLensP' and
+-- 'lensAsOpticP'.
 --
 -- == Constraints
 --
--- Only 'identityPOptic' needs 'Unital', for the unitors.  Composition and the
+-- Only 'identityOpticP' needs 'Unital', for the unitors.  Composition and the
 -- update action need nothing beyond 'Strength', because
 -- @'strength' f == 'Circuit.Tensor.tensor' 'Circuit.Category.id' f@ — a
--- coherence the @Axioma.Cell@ oracles check at @(,)@, 'Either' and 'These'.
+-- coherence the Axioma oracles check at @(,)@, 'Either' and 'These'.
 -- This matters for base arrows that are premonoidal and therefore have
 -- 'Strength' but deliberately no 'Tensor' instance, such as @Circuit.Prob@.
 module Circuit.Optic
   ( -- * Pointed mixed optic
-    POptic (..),
+    OpticP (..),
 
     -- * Mixed optic with hidden residual
     Optic (..),
     withOptic,
 
     -- * Pointed composition
-    identityPOptic,
-    composePOptic,
+    identityOpticP,
+    composeOpticP,
 
     -- * Hidden composition
     identityOptic,
     composeOptic,
 
     -- * Action on morphisms
-    popticUpdate,
+    opticUpdateP,
     opticUpdate,
 
     -- * Action on channel poles
-    popticPoles,
+    opticPolesP,
 
     -- * Bridge to the polynomial lens
     asOptic,
-    popticAsLens,
+    opticAsLensP,
     opticAsLens,
-    lensAsPOptic,
+    lensAsOpticP,
     lensAsOptic,
 
     -- * Bridge to pointed processes
-    pprocessAsLens,
-    lensAsPProcess,
+    processAsLensP,
+    lensAsProcessP,
   )
 where
 
 import Circuit.Category (Category, (.>), (<.))
-import Circuit.Equip (Cell, Poles, iomap)
+import Circuit.Equip (Poles, iomap)
 import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
-import Circuit.Process (PProcess (..))
+import Circuit.Process (ProcessP (..))
 import Circuit.Tensor (Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Prelude hiding (id, (.))
@@ -86,34 +86,34 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Poly (applyLens)
 -- >>> import Prelude hiding (id, (.))
 -- >>> :{
--- let firstLens :: POptic (,) String (->) Int Int (Int, String) (Int, String)
---     firstLens = POptic (\(n, s) -> (s, n)) (\(s, n) -> (n, s))
---     outer :: POptic (,) String (->) (Int, Bool) (Int, Bool) ((Int, Bool), String) ((Int, Bool), String)
---     outer = POptic (\(p, s) -> (s, p)) (\(s, p) -> (p, s))
---     inner :: POptic (,) Bool (->) Int Int (Int, Bool) (Int, Bool)
---     inner = POptic (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
---     prismLeft :: POptic Either String (->) Int Int (Either Int String) (Either Int String)
+-- let firstLens :: OpticP (,) String (->) Int Int (Int, String) (Int, String)
+--     firstLens = OpticP (\(n, s) -> (s, n)) (\(s, n) -> (n, s))
+--     outer :: OpticP (,) String (->) (Int, Bool) (Int, Bool) ((Int, Bool), String) ((Int, Bool), String)
+--     outer = OpticP (\(p, s) -> (s, p)) (\(s, p) -> (p, s))
+--     inner :: OpticP (,) Bool (->) Int Int (Int, Bool) (Int, Bool)
+--     inner = OpticP (\(n, b) -> (b, n)) (\(b, n) -> (n, b))
+--     prismLeft :: OpticP Either String (->) Int Int (Either Int String) (Either Int String)
 --     prismLeft =
---       POptic
+--       OpticP
 --         (\case { Left n -> Right n; Right s -> Left s })
 --         (\case { Left s -> Right s; Right n -> Left n })
 -- :}
 
 -- | A pointed mixed optic from @(s,r)@ to @(a,b)@ with residual @ch@.
 --
--- * @popticForward :: arr s (t ch a)@ splits the domain left boundary into the
+-- * @opticForwardP :: arr s (t ch a)@ splits the domain left boundary into the
 --   residual and the codomain left boundary.
--- * @popticBackward :: arr (t ch b) r@ recombines the residual with the
+-- * @opticBackwardP :: arr (t ch b) r@ recombines the residual with the
 --   codomain right boundary.
 --
 -- For @t = (,)@ and @arr = (->)@ this is the concrete lens pair
 -- @s -> (ch, a)@ and @(ch, b) -> r@.  For @t = 'Either'@ it is a prism: the
 -- residual is the branch that did not match.
-data POptic t ch arr a b s r = POptic
+data OpticP t ch arr a b s r = OpticP
   { -- | Forward direction: introduce the residual and the codomain left boundary.
-    popticForward :: arr s (t ch a),
+    opticForwardP :: arr s (t ch a),
     -- | Backward direction: consume the residual and the codomain right boundary.
-    popticBackward :: arr (t ch b) r
+    opticBackwardP :: arr (t ch b) r
   }
 
 -- | A mixed optic with the residual existentially hidden.
@@ -126,12 +126,12 @@ data POptic t ch arr a b s r = POptic
 -- @'Circuit.Tensor.Unit' 'Either' = 'Data.Void.Void'@ and the corresponding
 -- pointed-body identity does not.
 data Optic t arr a b s r where
-  Optic :: POptic t ch arr a b s r -> Optic t arr a b s r
+  Optic :: OpticP t ch arr a b s r -> Optic t arr a b s r
 
 -- | Eliminator for the existential residual type.
 withOptic ::
   Optic t arr a b s r ->
-  (forall ch. POptic t ch arr a b s r -> x) ->
+  (forall ch. OpticP t ch arr a b s r -> x) ->
   x
 withOptic (Optic o) k = k o
 
@@ -140,9 +140,9 @@ withOptic (Optic o) k = k o
 --
 -- This is the only operation in the module that needs 'Unital' rather than
 -- 'Strength', and it needs only the unitors.
-identityPOptic :: (Unital t arr) => POptic t (Unit t) arr a b a b
-identityPOptic = POptic unitl' unitl
-{-# INLINE identityPOptic #-}
+identityOpticP :: (Unital t arr) => OpticP t (Unit t) arr a b a b
+identityOpticP = OpticP unitl' unitl
+{-# INLINE identityOpticP #-}
 
 -- | Vertical composition of pointed mixed optics.
 --
@@ -163,38 +163,38 @@ identityPOptic = POptic unitl' unitl
 -- exactly as for the squares in "Circuit.Equip"; the observational statements
 -- are in @Axioma.Optic@.
 --
--- >>> popticUpdate (composePOptic inner outer) (+ 1) ((3, True), "hi")
+-- >>> opticUpdateP (composeOpticP inner outer) (+ 1) ((3, True), "hi")
 -- ((4,True),"hi")
 --
--- The same result by nesting the updates — functoriality of 'popticUpdate':
+-- The same result by nesting the updates — functoriality of 'opticUpdateP':
 --
--- >>> popticUpdate outer (popticUpdate inner (+ 1)) ((3, True), "hi")
+-- >>> opticUpdateP outer (opticUpdateP inner (+ 1)) ((3, True), "hi")
 -- ((4,True),"hi")
-composePOptic ::
+composeOpticP ::
   (Strength t arr) =>
-  POptic t ch2 arr u v a b ->
-  POptic t ch1 arr a b s r ->
-  POptic t (t ch1 ch2) arr u v s r
-composePOptic (POptic f2 b2) (POptic f1 b1) =
-  POptic
+  OpticP t ch2 arr u v a b ->
+  OpticP t ch1 arr a b s r ->
+  OpticP t (t ch1 ch2) arr u v s r
+composeOpticP (OpticP f2 b2) (OpticP f1 b1) =
+  OpticP
     (f1 .> strength f2 .> assoc')
     (assoc .> strength b2 .> b1)
-{-# INLINE composePOptic #-}
+{-# INLINE composeOpticP #-}
 
--- | 'identityPOptic' with the residual hidden.
+-- | 'identityOpticP' with the residual hidden.
 identityOptic :: (Unital t arr) => Optic t arr a b a b
-identityOptic = Optic identityPOptic
+identityOptic = Optic identityOpticP
 {-# INLINE identityOptic #-}
 
--- | 'composePOptic' with the residuals hidden.  Once hidden, the bracketing
--- that makes 'composePOptic' associative only up to the associator is no longer
+-- | 'composeOpticP' with the residuals hidden.  Once hidden, the bracketing
+-- that makes 'composeOpticP' associative only up to the associator is no longer
 -- observable in the type.
 composeOptic ::
   (Strength t arr) =>
   Optic t arr u v a b ->
   Optic t arr a b s r ->
   Optic t arr u v s r
-composeOptic (Optic o2) (Optic o1) = Optic (composePOptic o2 o1)
+composeOptic (Optic o2) (Optic o1) = Optic (composeOpticP o2 o1)
 {-# INLINE composeOptic #-}
 
 -- | Apply a pointed optic to a plain base-arrow morphism.
@@ -202,52 +202,52 @@ composeOptic (Optic o2) (Optic o1) = Optic (composePOptic o2 o1)
 -- A lens turns a focus-update into a whole-update; a prism turns a
 -- branch-update into a sum-update.
 --
--- >>> popticUpdate firstLens (+ 1) (3, "hello")
+-- >>> opticUpdateP firstLens (+ 1) (3, "hello")
 -- (4,"hello")
 --
--- >>> (popticUpdate prismLeft (+ 1) (Left 3), popticUpdate prismLeft (+ 1) (Right "hi"))
+-- >>> (opticUpdateP prismLeft (+ 1) (Left 3), opticUpdateP prismLeft (+ 1) (Right "hi"))
 -- (Left 4,Right "hi")
 --
--- Lawfulness is not enforced.  @'popticUpdate' o 'Circuit.Category.id' ==
+-- Lawfulness is not enforced.  @'opticUpdateP' o 'Circuit.Category.id' ==
 -- 'Circuit.Category.id'@ is the round-trip condition, and a well-typed optic
 -- can fail it; @Axioma.Optic@ carries a witness that it can.
-popticUpdate ::
+opticUpdateP ::
   (Strength t arr) =>
-  POptic t ch arr a b s r ->
+  OpticP t ch arr a b s r ->
   arr a b ->
   arr s r
-popticUpdate (POptic f b) m = f .> strength m .> b
-{-# INLINE popticUpdate #-}
+opticUpdateP (OpticP f b) m = f .> strength m .> b
+{-# INLINE opticUpdateP #-}
 
--- | 'popticUpdate' through the existential.
+-- | 'opticUpdateP' through the existential.
 opticUpdate ::
   (Strength t arr) =>
   Optic t arr a b s r ->
   arr a b ->
   arr s r
-opticUpdate (Optic o) = popticUpdate o
+opticUpdate (Optic o) = opticUpdateP o
 {-# INLINE opticUpdate #-}
 
 -- | The action of a pointed optic on channel poles.
 --
 -- This is 'Circuit.Equip.iomap' with its two arguments read as the legs of an
--- optic: 'popticForward' precomposes the conjoint, 'popticBackward'
+-- optic: 'opticForwardP' precomposes the conjoint, 'opticBackwardP'
 -- postcomposes the companion.  A pointed optic /is/ a morphism of that
 -- enriched profunctor.
 --
 -- >>> let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
--- >>> companion (popticPoles firstLens p) "hi"
+-- >>> companion (opticPolesP firstLens p) "hi"
 -- (7,"hi")
-popticPoles ::
+opticPolesP ::
   (Category arr) =>
-  POptic t ch arr a b s r ->
+  OpticP t ch arr a b s r ->
   Poles ch ch arr (t ch a) (t ch b) ->
   Poles ch ch arr s r
-popticPoles (POptic f b) = iomap f b
-{-# INLINE popticPoles #-}
+opticPolesP (OpticP f b) = iomap f b
+{-# INLINE opticPolesP #-}
 
 -- | Hide the residual of a pointed optic.
-asOptic :: POptic t ch arr a b s r -> Optic t arr a b s r
+asOptic :: OpticP t ch arr a b s r -> Optic t arr a b s r
 asOptic = Optic
 {-# INLINE asOptic #-}
 
@@ -257,44 +257,44 @@ asOptic = Optic
 -- into @s -> (a, b -> r)@, which is exactly
 -- @'Circuit.Poly.applyLens' :: 'Morphism' ('Mono' r s) ('Mono' b a) -> s -> (a, b -> r)@.
 --
--- >>> let (a, put) = applyLens (popticAsLens firstLens) (3, "hello") in (a, put 9)
+-- >>> let (a, put) = applyLens (opticAsLensP firstLens) (3, "hello") in (a, put 9)
 -- (3,(9,"hello"))
-popticAsLens :: POptic (,) ch (->) a b s r -> Lens s r a b
-popticAsLens (POptic f g) =
+opticAsLensP :: OpticP (,) ch (->) a b s r -> Lens s r a b
+opticAsLensP (OpticP f g) =
   lens (\s -> snd (f s)) (\s b -> g (fst (f s), b))
 
 -- | A cartesian optic as a polynomial lens.
 opticAsLens :: Optic (,) (->) a b s r -> Lens s r a b
-opticAsLens (Optic o) = popticAsLens o
+opticAsLens (Optic o) = opticAsLensP o
 
 -- | A polynomial lens as a cartesian pointed optic.
 --
 -- The residual is reconstructed as the continuation type @b -> r@ — the
--- classical "existential is a function" encoding.  So @'lensAsPOptic'
--- . 'popticAsLens'@ changes the residual and is only an identity after the
+-- classical "existential is a function" encoding.  So @'lensAsOpticP'
+-- . 'opticAsLensP'@ changes the residual and is only an identity after the
 -- coend quotient; @Axioma.Optic@ checks that it is an identity
 -- observationally, which is that quotient in action.
-lensAsPOptic :: Lens s r a b -> POptic (,) (b -> r) (->) a b s r
-lensAsPOptic m =
-  POptic
+lensAsOpticP :: Lens s r a b -> OpticP (,) (b -> r) (->) a b s r
+lensAsOpticP m =
+  OpticP
     (\s -> let (a, k) = applyLens m s in (k, a))
     (\(k, b) -> k b)
 
 -- | A polynomial lens as a cartesian optic.
 lensAsOptic :: Lens s r a b -> Optic (,) (->) a b s r
-lensAsOptic = Optic <. lensAsPOptic
+lensAsOptic = Optic <. lensAsOpticP
 
 -- | A pointed monomial process as a polynomial lens.
-pprocessAsLens :: PProcess s i o -> Lens s s o i
-pprocessAsLens pp = lens get put
+processAsLensP :: ProcessP s i o -> Lens s s o i
+processAsLensP pp = lens get put
   where
-    get s = pprocessExtract pp s
-    put s = pprocessStep pp s
+    get s = processExtractP pp s
+    put s = processStepP pp s
 
 -- | Build a pointed process from a polynomial lens and a seed.
-lensAsPProcess :: Lens s s o i -> Cell s -> PProcess s i o
-lensAsPProcess m s0 =
-  PProcess
+lensAsProcessP :: Lens s s o i -> s -> ProcessP s i o
+lensAsProcessP m s0 =
+  ProcessP
     s0
     (\s i -> snd (applyLens m s) i)
     (\s -> fst (applyLens m s))

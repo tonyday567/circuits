@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 
--- | Poles, Additive Poles, Stamped, Boundary, and markPProcess oracles.
+-- | Poles, Additive Poles, Stamped, Boundary, and markProcessP oracles.
 module Axioma.Poles
   ( polesTopic,
   )
@@ -12,7 +12,6 @@ import Circuit.Category (K (..), id, runK, (.), (.>))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Equip
   ( Boundary (..),
-    Cell (..),
     Poles (..),
     Stamped (..),
     box,
@@ -32,7 +31,7 @@ import Circuit.Equip
     (>:>),
   )
 import Circuit.Equip qualified as Poles
-import Circuit.Process (PProcess (..), asProcess, fold, markPProcess, scan, scanPProcess)
+import Circuit.Process (ProcessP (..), asProcess, fold, markProcessP, scan, scanProcessP)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
@@ -42,7 +41,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]
 polesTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markPProcess oracles"
+  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markProcessP oracles"
   sequence
     [ -- Poles oracles
       checkV verbosity "box recovers the composed morphism on a unit pole" $
@@ -113,29 +112,29 @@ polesTopic verbosity = do
         let p = fmap length (Payload "hi" :: Boundary String String)
          in isPayload p && p == Payload 2,
       -- Mark system (circuits-residual §7)
-      checkV verbosity "markPProcess steps payloads through the inner system" $
-        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
-            sys = markPProcess (== "HALT") innerP
+      checkV verbosity "markProcessP steps payloads through the inner system" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
-      checkV verbosity "markPProcess halts on a halt mark and emits Nothing thereafter" $
-        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
-            sys = markPProcess (== "HALT") innerP
+      checkV verbosity "markProcessP halts on a halt mark and emits Nothing thereafter" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
-      checkV verbosity "markPProcess treats non-halt marks as no-ops" $
-        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
-            sys = markPProcess (== "HALT") innerP
+      checkV verbosity "markProcessP treats non-halt marks as no-ops" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
-      checkV verbosity "markPProcess halts immediately when the first input is a halt mark" $
-        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
-            sys = markPProcess (== "HALT") innerP
+      checkV verbosity "markProcessP halts immediately when the first input is a halt mark" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
-      checkV verbosity "markPProcess round-trips through Process" $
-        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
-            sys = markPProcess (== "HALT") innerP
+      checkV verbosity "markProcessP round-trips through Process" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
       -- equipment-law oracles

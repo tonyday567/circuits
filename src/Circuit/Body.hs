@@ -11,7 +11,7 @@
 -- @
 --
 -- Both the channel and the payload enter together, and both exit together.
--- 'Circuit.Moore.Moore' specializes this shape to a Moore machine over a
+-- 'Circuit.Moore.MachineP' specializes this shape to a MachineP machine over a
 -- polynomial interface; 'Circuit.Process.Process' is the pointed monomial
 -- special case of that.
 --
