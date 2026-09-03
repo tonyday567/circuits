@@ -48,8 +48,7 @@ Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
                       delay/register, Body conversions.
 Circuit.Moore       — Moore machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.Channel — Poly-indexed Moore channels.
-Circuit.Equip       — Arrow equipment: channel poles (Out/In, Poles), squares
+Circuit.Equip       — Arrow equipment: channel poles (Poles), squares
                       (Sq/TwoCell), and boundary tokens (Boundary/Stamped).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
