@@ -95,7 +95,7 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
-import Circuit.Equip (Boundary (..), Poles)
+import Circuit.Equip (Boundary (..), Poles (..))
 import Circuit.Equip qualified as Poles
 import Circuit.Moore (Moore, monoDir, monoIn, mooreMorphism, toEvalMoore)
 import Circuit.Poly (Eval (..), Mono)
@@ -205,13 +205,14 @@ markProcess isHalt (Process inject step extract) =
 -- * Channel-pole processes
 
 -- | Build a pointed process from channel poles.
-polesToPProcess :: Poles (Body (,) s (->)) a b -> s -> PProcess s a b
+polesToPProcess :: Poles s s (Body (,) s (->)) a b -> s -> PProcess s a b
 polesToPProcess p s0 =
-  let (Body write, Body receive) = Poles.splay0 p
-   in PProcess s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, ())))
+  let Body write = conjoint p
+      Body receive = companion p
+   in PProcess s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
 
 -- | Run channel poles over a list of inputs.
-runPoles :: Poles (Body (,) s (->)) a b -> s -> [a] -> [b]
+runPoles :: Poles s s (Body (,) s (->)) a b -> s -> [a] -> [b]
 runPoles p s0 xs = scanPProcess (polesToPProcess p s0) xs
 
 -- * Functorial plumbing

@@ -16,8 +16,8 @@
 -- == Relationship to the rest of the library
 --
 -- 'POptic' is the curried form of 'Circuit.Equip.iomap': a pointed optic is
--- exactly a pair of actions on channel poles, 'Circuit.Equip.prefixIn' on the
--- conjoint and 'Circuit.Equip.suffixOut' on the companion.  'popticPoles' is
+-- exactly a pair of actions on channel poles, 'popticForward' precomposing the
+-- conjoint and 'popticBackward' postcomposing the companion.  'popticPoles' is
 -- that identification, and it costs nothing to state.
 --
 -- The objects of the optic category are boundary /pairs/, which the local
@@ -82,7 +82,7 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Optic
--- >>> import Circuit.Equip (Poles, poles0, splay0)
+-- >>> import Circuit.Equip (Poles (..))
 -- >>> import Circuit.Poly (applyLens)
 -- >>> import Prelude hiding (id, (.))
 -- >>> :{
@@ -231,19 +231,18 @@ opticUpdate (Optic o) = popticUpdate o
 -- | The action of a pointed optic on channel poles.
 --
 -- This is 'Circuit.Equip.iomap' with its two arguments read as the legs of an
--- optic: 'popticForward' prefixes the conjoint, 'popticBackward' suffixes the
--- companion.  Since "Circuit.Equip" already describes that pair as "the left
--- action of @arr@ on @In@ poles" and "the right action of @arr@ on @Out@
--- poles", a pointed optic /is/ a morphism of that enriched profunctor.
+-- optic: 'popticForward' precomposes the conjoint, 'popticBackward'
+-- postcomposes the companion.  A pointed optic /is/ a morphism of that
+-- enriched profunctor.
 --
--- >>> let p = poles0 (const ()) (const ("hi", 7)) :: Poles (->) (String, Int) (String, Int)
--- >>> snd (splay0 (popticPoles firstLens p)) ()
+-- >>> let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+-- >>> companion (popticPoles firstLens p) "hi"
 -- (7,"hi")
 popticPoles ::
   (Category arr) =>
   POptic t ch arr a b s r ->
-  Poles arr (t ch a) (t ch b) ->
-  Poles arr s r
+  Poles ch ch arr (t ch a) (t ch b) ->
+  Poles ch ch arr s r
 popticPoles (POptic f b) = iomap f b
 {-# INLINE popticPoles #-}
 

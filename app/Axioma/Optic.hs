@@ -11,7 +11,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Equip (Poles, poles0, splay0)
+import Circuit.Equip (Poles (..))
 import Circuit.Optic
   ( Optic (..),
     POptic (..),
@@ -193,9 +193,9 @@ opticTopic verbosity = do
           ),
       -- poles action
       checkV verbosity "popticPoles suffixes the backward leg onto the companion" $
-        let p = poles0 (const ()) (const ("hi", 7)) :: Poles (->) (String, Int) (String, Int)
-         in snd (splay0 (popticPoles firstLens p)) () == (7, "hi"),
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+         in companion (popticPoles firstLens p) "hi" == (7, "hi"),
       checkV verbosity "popticPoles read pole agrees with the backward leg" $
-        let p = poles0 (const ()) (const ("hi", 7)) :: Poles (->) (String, Int) (String, Int)
-         in snd (splay0 (popticPoles firstLens p)) () == popticBackward firstLens ("hi", 7)
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (String, Int) (String, Int)
+         in companion (popticPoles firstLens p) "hi" == popticBackward firstLens ("hi", 7)
     ]

@@ -90,7 +90,7 @@ module Circuit.Moore
 where
 
 import Circuit.Body (Body (..))
-import Circuit.Equip (HasDual (..), Poles (..))
+import Circuit.Equip (Poles (..))
 import Circuit.Equip qualified as Poles
 import Circuit.Poly
   ( Dir,
@@ -288,34 +288,36 @@ parWiring sp sq =
 
 -- * Channel-pole view of Moore machines
 
--- | Shared write pole for a @(->)@ Moore machine over @(,)@: run the step and discard
--- the output position.
-mooreWriteBody :: Moore (,) s (->) p -> Body (,) s (->) (Dir p) ()
-mooreWriteBody sys = Body $ \(s, d) -> (fst (mooreMorphism sys (s, d)), ())
+-- | Shared write pole for a @(->)@ Moore machine over @(,)@: run the step and
+-- post the new state into the carrier.
+mooreWriteStateBody :: Moore (,) s (->) p -> Body (,) s (->) (Dir p) s
+mooreWriteStateBody sys = Body $ \(s, d) ->
+  let (s', _) = mooreMorphism sys (s, d)
+   in (s', s')
 
 -- | Convert a @(->)@ 'Moore' into companion/conjoint channel poles over @Body@.
 --
--- The write pole runs the step and discards the output position; the read pole
--- fabricates an observation by re-stepping the machine with the supplied probe
--- direction. This works only when the read can be reasonably approximated by a
--- single probe direction; for an honest Moore observation prefer
--- 'mooreToPoles'.
-mooreToPolesWithProbe :: Dir p -> Moore (,) s (->) p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
+-- The write pole runs the step and posts the new state into the carrier; the
+-- read pole fabricates an observation by re-stepping the machine with the
+-- supplied probe direction. This works only when the read can be reasonably
+-- approximated by a single probe direction; for an honest Moore observation
+-- prefer 'mooreToPoles'.
+mooreToPolesWithProbe :: Dir p -> Moore (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
 mooreToPolesWithProbe probe sys =
-  Poles.poles0
-    (mooreWriteBody sys)
-    (Body $ \(s, ()) -> mooreMorphism sys (s, probe))
+  Poles
+    (mooreWriteStateBody sys)
+    (Body $ \(_, ch) -> mooreMorphism sys (ch, probe))
 
 -- | Convert a pointed 'Moore' into companion/conjoint channel poles over @Body@.
 --
 -- The state carrier is the machine's state @s@.  The write pole steps with the
--- supplied direction; the read pole observes the current state without stepping,
--- using the supplied observation function.
-mooreToPoles :: (s -> Pos p) -> Moore (,) s (->) p -> Poles (Body (,) s (->)) (Dir p) (Pos p)
+-- supplied direction and posts the new state; the read pole observes the
+-- carrier without stepping, using the supplied observation function.
+mooreToPoles :: (s -> Pos p) -> Moore (,) s (->) p -> Poles s s (Body (,) s (->)) (Dir p) (Pos p)
 mooreToPoles ex sys =
-  Poles.poles0
-    (mooreWriteBody sys)
-    (Body $ \(s, ()) -> (s, ex s))
+  Poles
+    (mooreWriteStateBody sys)
+    (Body $ \(s, ch) -> (s, ex ch))
 
 -- | Comultiplication for an /observable/ Moore machine: the output position is the
 -- state. The result is a Moore machine over the two-step interface

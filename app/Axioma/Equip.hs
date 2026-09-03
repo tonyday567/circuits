@@ -14,12 +14,11 @@ import Circuit.Equip
     Sq (..),
     acrossThenDown,
     associatorSq,
-    box,
     downThenAcross,
     hcompose,
     iomap,
     leftWhisker,
-    poles0,
+    plug,
     rightWhisker,
     unitorLeftSq,
     unitorRightSq,
@@ -149,19 +148,20 @@ mergeChannelRightIdOk xs =
    in runBody (mergeChannel (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
 
 -- | Moore-split 'Poles' for the counter body.  The write pole updates state
--- and discards the payload; the read pole observes state and emits a 'Char'.
-counterPoles :: Poles (Body (,) Int (->)) Bool Char
-counterPoles = poles0 write readBody
+-- and posts the new state into the carrier; the read pole observes the carrier
+-- and emits a 'Char'.
+counterPoles :: Poles Int Int (Body (,) Int (->)) Bool Char
+counterPoles = Poles write readBody
   where
-    write = Body $ \(n, r) -> (if r then 0 else n + 1, ())
-    readBody = Body $ \(n, ()) -> (n, if odd n then 'x' else 'y')
+    write = Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', n')
+    readBody = Body $ \(n, ch) -> (n, if odd ch then 'x' else 'y')
 
 -- | Moore-split 'Poles' for the parity body.
-parityPoles :: Poles (Body (,) Bool (->)) Bool Char
-parityPoles = poles0 write readBody
+parityPoles :: Poles Bool Bool (Body (,) Bool (->)) Bool Char
+parityPoles = Poles write readBody
   where
-    write = Body $ \(b, r) -> (not r && not b, ())
-    readBody = Body $ \(b, ()) -> (b, if b then 'x' else 'y')
+    write = Body $ \(b, r) -> let b' = not r && not b in (b', b')
+    readBody = Body $ \(b, ch) -> (b, if ch then 'x' else 'y')
 
 -- | Plain boundary maps for the interchange test.  They are type-changing so
 -- that swapping them is a type error and applying them twice is not an
@@ -186,24 +186,24 @@ bodyG = Body $ \(s, c) -> (s, boundaryG c)
 polesMatchBodyOk :: Bool
 polesMatchBodyOk =
   all
-    (\(n, r) -> morphism (box @() counterPoles) (n, r) == morphism counterBody (n, r))
+    (\(n, r) -> morphism (plug Cat.id counterPoles) (n, r) == morphism counterBody (n, r))
     [(n, r) | n <- carrierRange, r <- [False, True]]
     && all
-      (\(b, r) -> morphism (box @() parityPoles) (b, r) == morphism parityBody (b, r))
+      (\(b, r) -> morphism (plug Cat.id parityPoles) (b, r) == morphism parityBody (b, r))
       [(b, r) | b <- [False, True], r <- [False, True]]
 
 -- | Interchange law, source side: boundary whisker on 'Sq' equals 'iomap' on
 -- the 'Poles' representation.
 interchangeSourceOk :: (Int, Int) -> Bool
 interchangeSourceOk (n, r) =
-  let polesSide = box @() (iomap bodyF bodyG counterPoles)
+  let polesSide = plug Cat.id (iomap bodyF bodyG counterPoles)
       bodySide = sqSrc (whiskerSq boundaryF boundaryG counterToParitySq)
    in morphism polesSide (n, r) == morphism bodySide (n, r)
 
 -- | Interchange law, target side.
 interchangeTargetOk :: (Bool, Int) -> Bool
 interchangeTargetOk (b, r) =
-  let polesSide = box @() (iomap bodyF bodyG parityPoles)
+  let polesSide = plug Cat.id (iomap bodyF bodyG parityPoles)
       bodySide = sqTgt (whiskerSq boundaryF boundaryG counterToParitySq)
    in morphism polesSide (b, r) == morphism bodySide (b, r)
 
