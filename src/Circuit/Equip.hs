@@ -48,6 +48,11 @@ module Circuit.Equip
     open,
     copycat,
 
+    -- * Unit cells
+    Cell (..),
+    unitCell,
+    pointedCell,
+
     -- * Boxes
     box,
     boxAsymmetric,
@@ -97,7 +102,7 @@ where
 
 import Circuit.Bimonoid (Copy (copy))
 import Circuit.Body (Body (..), mergeChannel)
-import Circuit.Category (Category (..), FunctionLike (..), K (..), (.>))
+import Circuit.Category (Category (..), FunctionLike (..), K (..), Pointed (..), (.>))
 import Circuit.Tensor (Bias (..), Tensor (..), Unit, Unital (..))
 import Circuit.Tensor qualified as Tensor
 import Circuit.Traced (Assoc (..), Strength (..))
@@ -300,6 +305,25 @@ open = Poles id id
 -- True
 copycat :: (Category arr) => Poles ch ch arr ch ch
 copycat = Poles id id
+
+-- * Unit cells
+
+-- | A value of the carrier type used to seed a run.
+--
+-- Pointing is required exactly when a carrier must be instantiated and no input
+-- boundary supplies it.  Closed runners (e.g. 'Circuit.Trace.run' on a fixed
+-- point, or 'Circuit.Process.scan' on a self-seeding 'Process') take no 'Cell';
+-- the absence of a 'Cell' argument in their type is the assertion.
+newtype Cell a = Cell {unCell :: a}
+  deriving (Eq, Show, Functor)
+
+-- | The unit cell at @()@.
+unitCell :: Cell ()
+unitCell = Cell ()
+
+-- | Canonical cell for a pointed object.
+pointedCell :: (Pointed a) => Cell a
+pointedCell = Cell point
 
 -- * Boxes
 

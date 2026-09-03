@@ -12,6 +12,7 @@ import Circuit.Category (K (..), id, runK, (.), (.>))
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Equip
   ( Boundary (..),
+    Cell (..),
     Poles (..),
     Stamped (..),
     box,
@@ -113,27 +114,27 @@ polesTopic verbosity = do
          in isPayload p && p == Payload 2,
       -- Mark system (circuits-residual §7)
       checkV verbosity "markPProcess steps payloads through the inner system" $
-        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
             sys = markPProcess (== "HALT") innerP
             p = asProcess sys
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
       checkV verbosity "markPProcess halts on a halt mark and emits Nothing thereafter" $
-        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
             sys = markPProcess (== "HALT") innerP
             p = asProcess sys
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
       checkV verbosity "markPProcess treats non-halt marks as no-ops" $
-        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
             sys = markPProcess (== "HALT") innerP
             p = asProcess sys
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
       checkV verbosity "markPProcess halts immediately when the first input is a halt mark" $
-        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
             sys = markPProcess (== "HALT") innerP
             p = asProcess sys
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
       checkV verbosity "markPProcess round-trips through Process" $
-        let innerP = PProcess 0 (+) id :: PProcess Int Int Int
+        let innerP = PProcess (Cell 0) (+) id :: PProcess Int Int Int
             sys = markPProcess (== "HALT") innerP
             p = asProcess sys
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,

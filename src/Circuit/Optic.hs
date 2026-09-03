@@ -73,7 +73,7 @@ module Circuit.Optic
 where
 
 import Circuit.Category (Category, (.>), (<.))
-import Circuit.Equip (Poles, iomap)
+import Circuit.Equip (Cell, Poles, iomap)
 import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
 import Circuit.Process (PProcess (..))
 import Circuit.Tensor (Unit, Unital (..))
@@ -292,7 +292,7 @@ pprocessAsLens pp = lens get put
     put s = pprocessStep pp s
 
 -- | Build a pointed process from a polynomial lens and a seed.
-lensAsPProcess :: Lens s s o i -> s -> PProcess s i o
+lensAsPProcess :: Lens s s o i -> Cell s -> PProcess s i o
 lensAsPProcess m s0 =
   PProcess
     s0

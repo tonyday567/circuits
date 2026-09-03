@@ -20,6 +20,7 @@ import Axioma.Common
 import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body (..))
 import Circuit.Category (id, (.), (.>))
+import Circuit.Equip (Cell (..))
 import Circuit.Layer (run)
 import Circuit.Net qualified as Net
 import Circuit.Process (PProcess (..), Process (..), asProcess, delay, encodeList, fold, foldPProcess, mealy, register, runBody, runMealy, scan, scanPProcess)
@@ -43,17 +44,17 @@ data PS = Empty | Held Int
 
 -- | Mealy process that forwards every input.
 linearP :: Process Int (Maybe Int)
-linearP = mealy () (\() a -> ((), Just a))
+linearP = mealy (Cell ()) (\() a -> ((), Just a))
 
 -- | Mealy process that sums consecutive pairs.
 pairSumP :: Process Int (Maybe Int)
-pairSumP = mealy Empty $ \s x -> case s of
+pairSumP = mealy (Cell Empty) $ \s x -> case s of
   Empty -> (Held x, Nothing)
   Held y -> (Empty, Just (x + y))
 
 -- | Mealy process that emits the count of inputs seen so far.
 countP :: Process () (Maybe Int)
-countP = mealy 0 (\n _ -> let n' = n + 1 in (n', Just n'))
+countP = mealy (Cell 0) (\n _ -> let n' = n + 1 in (n', Just n'))
 
 processTopic :: Verbosity -> IO [Bool]
 processTopic verbosity = do
@@ -73,10 +74,10 @@ processTopic verbosity = do
         isNothing (fold sumP []),
       -- PProcess oracles
       checkV verbosity "PProcess scan matches Process scan" $
-        let pp = PProcess 0 (+) id
+        let pp = PProcess (Cell 0) (+) id
          in scanPProcess pp [1, 2, 3 :: Int] == [1, 3, 6],
       checkV verbosity "PProcess fold matches Process fold" $
-        let pp = PProcess 0 (+) id
+        let pp = PProcess (Cell 0) (+) id
          in foldPProcess pp [1, 2, 3 :: Int] == Just 6,
       checkV verbosity "Process scan == run . encodeList" $
         Syn.eval (encodeList sumP) [1, 2, 3] == scan sumP [1, 2, 3],
@@ -85,10 +86,10 @@ processTopic verbosity = do
       checkV verbosity "Process Yank Either yanking" $
         scan (yank swapEitherP) [1, 2, 3] == [1, 2, 3],
       checkV verbosity "Process register (EWMA)" $
-        scan (ewma 0.5 0.0) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
+        scan (ewma 0.5 (Cell 0.0)) [1.0, 1.0, 1.0] == [0.5, 0.75, 0.875],
       checkV verbosity "Process register == trace . strength . delay (EWMA)" $
         let body = ewmaBody 0.5
-            s0 = 0.0
+            s0 = Cell 0.0
             xs = [1.0, 1.0, 1.0]
             swapP (Process i st ex) =
               Process (i . Tuple.swap) (\s -> st s . Tuple.swap) (Tuple.swap . ex)
@@ -97,7 +98,7 @@ processTopic verbosity = do
       -- Body runner
       checkV verbosity "runBody agrees with a known body" $
         let sumBody = Body $ \(s, a) -> (s + a, s + a)
-         in runBody sumBody 0 [1, 2, 3 :: Int] == [1, 3, 6],
+         in runBody sumBody (Cell 0) [1, 2, 3 :: Int] == [1, 3, 6],
       -- Process as a base arrow for Trace / Net / Shared
       checkV verbosity "Process lifts into Trace (,) Process" $
         scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]

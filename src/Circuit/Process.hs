@@ -95,7 +95,7 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
-import Circuit.Equip (Boundary (..), Poles (..))
+import Circuit.Equip (Boundary (..), Cell (..), Poles (..))
 import Circuit.Equip qualified as Poles
 import Circuit.Moore (Moore, monoDir, monoIn, mooreMorphism, toEvalMoore)
 import Circuit.Poly (Eval (..), Mono)
@@ -134,7 +134,7 @@ data Process a b where
 -- rather than computed from the first input. Every tick is uniform: state in,
 -- input in, state out, output out.
 data PProcess s a b = PProcess
-  { pprocessSeed :: s,
+  { pprocessSeed :: Cell s,
     pprocessStep :: s -> a -> s,
     pprocessExtract :: s -> b
   }
@@ -143,20 +143,20 @@ data PProcess s a b = PProcess
 -- first input creates the initial state via 'pprocessStep'.
 asProcess :: PProcess s a b -> Process a b
 asProcess (PProcess s0 step extract) =
-  Process (\a -> step s0 a) step extract
+  Process (\a -> step (unCell s0) a) step extract
 {-# INLINEABLE asProcess #-}
 
 -- * Moore conversions
 
 -- | Convert a monomial @(->)@ Moore machine into a pointed process.
-asPProcess :: Moore (,) s (->) (Mono i o) -> s -> PProcess s i o
+asPProcess :: Moore (,) s (->) (Mono i o) -> Cell s -> PProcess s i o
 asPProcess sys s0 = PProcess s0 step' extract'
   where
     step' s i = case toEvalMoore sys s of EP (EK _, EE f) -> f i
     extract' s = case toEvalMoore sys s of EP (EK o, EE _) -> o
 
 -- | Convert a monomial @(->)@ Moore machine into a process.
-mooreAsProcess :: Moore (,) s (->) (Mono i o) -> s -> Process i o
+mooreAsProcess :: Moore (,) s (->) (Mono i o) -> Cell s -> Process i o
 mooreAsProcess sys s0 = asProcess (asPProcess sys s0)
 
 -- * Boundary machines
@@ -168,7 +168,7 @@ markPProcess ::
   PProcess (Either s s) (Boundary k a) (Maybe b)
 markPProcess isHalt (PProcess s0 step extract) =
   PProcess
-    (Left s0)
+    (Cell (Left (unCell s0)))
     ( \case
         Left s -> \case
           Payload a -> Left (step s a)
@@ -205,14 +205,14 @@ markProcess isHalt (Process inject step extract) =
 -- * Channel-pole processes
 
 -- | Build a pointed process from channel poles.
-polesToPProcess :: Poles s s (Body (,) s (->)) a b -> s -> PProcess s a b
+polesToPProcess :: Poles s s (Body (,) s (->)) a b -> Cell s -> PProcess s a b
 polesToPProcess p s0 =
   let Body write = conjoint p
       Body receive = companion p
    in PProcess s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
 
 -- | Run channel poles over a list of inputs.
-runPoles :: Poles s s (Body (,) s (->)) a b -> s -> [a] -> [b]
+runPoles :: Poles s s (Body (,) s (->)) a b -> Cell s -> [a] -> [b]
 runPoles p s0 xs = scanPProcess (polesToPProcess p s0) xs
 
 -- * Functorial plumbing
@@ -510,7 +510,7 @@ scan = scanStream
 -- Output at each step is 'pprocessExtract' of the state /after/ consuming the
 -- input, matching the 'Process' semantics of 'scan'.
 scanPProcess :: PProcess s a b -> [a] -> [b]
-scanPProcess pp = go (pprocessSeed pp)
+scanPProcess pp = go (unCell (pprocessSeed pp))
   where
     go _ [] = []
     go s (a : as) =
@@ -521,7 +521,7 @@ scanPProcess pp = go (pprocessSeed pp)
 -- | Run a pointed process over a list, producing the outputs /and/ the final
 -- state in a single pass.
 runPProcess :: PProcess s a b -> [a] -> ([b], s)
-runPProcess pp xs = go (pprocessSeed pp) xs []
+runPProcess pp xs = go (unCell (pprocessSeed pp)) xs []
   where
     go s [] acc = (reverse acc, s)
     go s (a : as) acc =
@@ -555,7 +555,7 @@ fold = foldStream
 
 -- | Run a pointed process over a list, returning the final output (if any).
 foldPProcess :: PProcess s a b -> [a] -> Maybe b
-foldPProcess pp = go (pprocessSeed pp)
+foldPProcess pp = go (unCell (pprocessSeed pp))
   where
     go _ [] = Nothing
     go s [a] = Just (pprocessExtract pp (pprocessStep pp s a))
@@ -611,8 +611,8 @@ encodeList = encodeStream
 --
 -- The output may depend on the current input. The channel internally stores the
 -- most recent output so that the Moore-style 'Process' interface is preserved.
-mealy :: ch -> (ch -> a -> (ch, Maybe b)) -> Process a (Maybe b)
-mealy ch0 step = Process inject step' extract
+mealy :: Cell ch -> (ch -> a -> (ch, Maybe b)) -> Process a (Maybe b)
+mealy (Cell ch0) step = Process inject step' extract
   where
     inject a =
       let (ch, mb) = step ch0 a
@@ -659,8 +659,8 @@ runMealy = runMealyStream
 -- Output is @s0@ on the first tick and the input from the previous tick
 -- thereafter. This is the primitive that makes 'register' productive: the
 -- feedback wire is observable one tick late.
-delay :: s -> Process s s
-delay s0 = Process (const s0) (const id) id
+delay :: Cell s -> Process s s
+delay (Cell s0) = Process (const s0) (const id) id
 
 -- | Cross-tick register feedback.
 --
@@ -678,8 +678,8 @@ delay s0 = Process (const s0) (const id) id
 -- (e.g. affine/stateless feedback such as @ewmaBody@), the same wiring can
 -- be expressed by swapping the feedback wire into the active position,
 -- applying 'strength' ('delay' s0), and tracing.
-register :: s -> Process (a, s) (b, s) -> Process a b
-register s0 (Process i st ex) = Process i' st' ex'
+register :: Cell s -> Process (a, s) (b, s) -> Process a b
+register (Cell s0) (Process i st ex) = Process i' st' ex'
   where
     i' a = i (a, s0)
     st' s a = st s (a, snd (ex s))
@@ -691,8 +691,8 @@ register s0 (Process i st ex) = Process i' st' ex'
 --
 -- The body state @s@ becomes the process state, paired with the most recent
 -- output so that the Moore-style @extract@ can be defined.
-bodyToProcess :: Body (,) s (->) a b -> s -> Process a b
-bodyToProcess (Body f) s0 = Process inject step extract
+bodyToProcess :: Body (,) s (->) a b -> Cell s -> Process a b
+bodyToProcess (Body f) (Cell s0) = Process inject step extract
   where
     inject a = f (s0, a)
     step (s, _) a' = f (s, a')
@@ -700,6 +700,6 @@ bodyToProcess (Body f) s0 = Process inject step extract
 {-# INLINEABLE bodyToProcess #-}
 
 -- | Run a cartesian body over a list of inputs.
-runBody :: Body (,) s (->) a b -> s -> [a] -> [b]
+runBody :: Body (,) s (->) a b -> Cell s -> [a] -> [b]
 runBody body s0 = scan (bodyToProcess body s0)
 {-# INLINEABLE runBody #-}

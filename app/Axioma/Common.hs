@@ -27,6 +27,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
+import Circuit.Equip (Cell (..))
 import Circuit.Process (Process (..), delay, register)
 import Data.Tuple qualified as Tuple
 import GHC.TypeNats (KnownNat, natVal)
@@ -80,7 +81,7 @@ ewmaBody alpha =
     (\s -> (s, s))
 
 -- | Exponentially weighted moving average with initial feedback.
-ewma :: Double -> Double -> Process Double Double
+ewma :: Double -> Cell Double -> Process Double Double
 ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Shared-medium body: adds the input to the shared state and echoes it.
