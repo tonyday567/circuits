@@ -96,10 +96,10 @@ instance Lolli (,) (->) where
 -- * @!A@ has a contraction half ('BangCopy') and a weakening half
 --   ('BangWeaken').  Linear logic requires both; affine logic requires
 --   only weakening.
--- * @?A@ currently exposes only its unit rule ('WhyNotIntro'); the ⅋-monoid
---   multiplication on @?A@ (@WhyNotMerge@) is missing. In the vocabulary of
---   'Circuit.Dagger', @?A@ is currently 'Circuit.Bimonoid.CoAffine'-only (the unit @Zero@)
---   and the missing half is 'Circuit.Bimonoid.CoRelevant' (the merge @Merge@).
+-- * @?A@ has its unit rule ('WhyNotIntro') and its ⅋-monoid structure
+--   ('WhyNotMonoid': 'mergeE' and 'zeroE').  In the vocabulary of
+--   'Circuit.Bimonoid', these are the 'Circuit.Bimonoid.CoAffine' half
+--   (the unit) and the 'Circuit.Bimonoid.CoRelevant' half (the merge).
 class (Tensor t arr) => Exponential t arr where
   type Bang t arr a :: Type
   type WhyNot t arr a = result | result -> a
