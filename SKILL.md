@@ -189,9 +189,6 @@ Solid examples to learn from: `parser.md`, `while.md`, `pipes.md`.
 
 - **circuits-parser** — `Trace Either (->)` with `These` output for
   backtracking parsers.
-- **circuits-io** — `Trace (Kleisli IO) Either` with delimited continuations
-  for resource-bracketed IO loops, producer/consumer channels, and the
-  circuits-io frontier.
 - **circuits-meter** — one-line performance metering.
 - **circuits-ad** — backpropagation as transpose.
 
