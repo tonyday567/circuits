@@ -168,7 +168,7 @@ splitTopic verbosity = do
         tracedToWr (Traced length) == Wr (0, "" :: String),
       checkV verbosity "list bridge folds; identity-to-list is free but the round trip loses the tails" $
         listToIdentity [Sum 1, Sum 2, Sum 3] == Identity (Sum 6)
-          && identityToList (listToIdentity [Sum 1, Sum 2, Sum 3]) == [Sum 6],
+          && identityToList (listToIdentity [Sum 1, Sum 2, Sum 3]) == [Sum 6 :: Sum Int],
       checkV verbosity "plugBridge at Identity agrees with close at (->)" $
         let split =
               Poles (K (Identity . (+ 1))) (CoK runIdentity) ::
