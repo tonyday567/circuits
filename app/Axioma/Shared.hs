@@ -294,6 +294,19 @@ sharedTopic verbosity = do
       checkV verbosity "braid witnesses centrality wrt state-touching body at a point" $
         let input = (0, ((1, 2), (3, 4))) :: (Int, ((Int, Int), (Int, Int)))
          in bodyCentral (liftBody (\(a, b) -> (b, a))) sharedAddFPair input,
+      -- The discriminator for the two readings of schedule order-dependence.
+      -- Both bodies below read and write the shared channel, yet the orders
+      -- agree because the bodies commute.  A reading on which the order
+      -- difference is intrinsic to the shared medium predicts disagreement
+      -- here; the centrality reading predicts agreement.
+      checkV verbosity "commuting channel-touching bodies are order-invisible under sharedBy (discriminator)" $
+        let addF :: (Int, Int) -> (Int, Int)
+            addF (s, a) = (s + a, a)
+            addG :: (Int, Int) -> (Int, Int)
+            addG (s, c) = (s + c, c)
+            input = (0, (3, 5)) :: (Int, (Int, Int))
+         in sharedBy (Schedule (,Both LeftFirst) :: Schedule Int) addF addG input
+              == sharedBy (Schedule (,Both RightFirst) :: Schedule Int) addF addG input,
       checkV verbosity "sharedBy L gates right body (output is This only)" $
         let k1 = markerBody 1
             k2 = markerBody 2

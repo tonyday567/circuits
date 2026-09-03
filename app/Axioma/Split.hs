@@ -19,9 +19,12 @@ where
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (CoK (..), Comonad (..), K (..))
 import Circuit.Equip (Poles (..), close, plugBridge)
+import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
+import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
 import Data.Functor.Identity (Identity (..))
 import Data.Monoid (Sum (..))
+import Data.These (These (..))
 
 -- * Hand-rolled pairs
 
@@ -122,6 +125,13 @@ listToIdentity = Identity . mconcat
 identityToList :: Identity a -> [a]
 identityToList = pure . runIdentity
 
+-- * Bridge vs schedule
+
+-- | One step of a body as a carrier-split pole: the write leg is the body's
+-- State action; the read leg is 'extract' of the 'Store' the bridge builds.
+stepPole :: ((s, a) -> (s, b)) -> Poles b b (K (State s)) (CoK (Store s)) a b
+stepPole f = Poles (K (\a -> State (\s -> let (s', b) = f (s, a) in (b, s')))) (CoK extract)
+
 -- * Sampled observation
 
 -- | Sampled observation of a 'Store': the home position plus the
@@ -169,5 +179,24 @@ splitTopic verbosity = do
         let st = Store (* 2) 3 :: Store Int Int
             samples = [0 .. 4]
          in obsStore samples (extract (duplicate st)) == obsStore samples st
-              && obsStore samples (extend extract st) == obsStore samples st
+              && obsStore samples (extend extract st) == obsStore samples st,
+      checkV verbosity "bridge close recovers the step's output at the seed" $
+        let f :: (Int, Int) -> (Int, Int); f (s, a) = (s + a, s * 2)
+         in plugBridge (stateToStore 3) (stepPole f) 5 == snd (f (3, 5))
+              && plugBridge (stateToStore 4) (stepPole f) 5 == snd (f (4, 5)),
+      checkV verbosity "fixed-seed bridge freezes the channel; sharedBy threads it" $
+        let f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s + a, s)
+            closeAt0 a = plugBridge (stateToStore 0) (stepPole f) a
+            sched = Schedule (,Both LeftFirst) :: Schedule Int
+         in closeAt0 5 == 0
+              && closeAt0 7 == 0
+              && sharedBy sched f f (0, (5, 7)) == (12, These 0 5),
+      checkV verbosity "a schedule is a machine on the channel" $
+        let alt = Schedule (\s -> (s + 1, if even s then PickL else PickR)) :: Schedule Int
+            (s1, p1) = chooseS alt 0
+            (s2, p2) = chooseS alt s1
+            (s3, p3) = chooseS alt s2
+            (s4, p4) = chooseS alt s3
+         in [p1, p2, p3, p4] == [PickL, PickR, PickL, PickR] && s4 == 4
     ]

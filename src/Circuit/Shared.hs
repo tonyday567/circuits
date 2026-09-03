@@ -95,8 +95,10 @@ class (Tensor t arr) => Shared t arr where
 -- run only the chosen body and emit a partial 'This'/'That' product; the
 -- other body's input is discarded.  @Both LeftFirst@ / @Both RightFirst@ run
 -- both bodies, threading the shared state in the chosen order, and emit a
--- total 'These' product.  When both bodies read and write @s@, the two orders
--- are observationally different — this is the ⅋-vs-⊗ distinction.
+-- total 'These' product.  The two orders are observationally different
+-- exactly when the bodies do not commute on the shared channel — premonoidal
+-- non-centrality, witnessed in @Axioma.Shared@: two commuting adders are
+-- order-invisible even though both read and write @s@.
 instance Shared (,) (->) where
   sharedBy sched f g (s, (a, c)) =
     let (s', pick) = chooseS sched s
