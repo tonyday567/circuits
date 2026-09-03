@@ -93,6 +93,7 @@ executable circuits-axioma
     Axioma.Process
     Axioma.Shared
     Axioma.Span
+    Axioma.Split
 
   build-depends:
     base >=4.20 && <5,

@@ -10,6 +10,7 @@ import Axioma.Poles (polesTopic)
 import Axioma.Process (processTopic)
 import Axioma.Shared (sharedTopic)
 import Axioma.Span (spanTopic)
+import Axioma.Split (splitTopic)
 import Control.Category ((.))
 import Options.Applicative
 import Prelude hiding (id, (.))
@@ -25,6 +26,7 @@ data Topic
   | Process
   | Shared
   | Span
+  | Split
   deriving (Show, Eq, Bounded, Enum)
 
 topicName :: Topic -> String
@@ -38,6 +40,7 @@ topicName Poles = "poles"
 topicName Process = "process"
 topicName Shared = "shared"
 topicName Span = "span"
+topicName Split = "split"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
@@ -50,6 +53,7 @@ topicDesc Poles = "Poles, Stamped, Boundary, and markProcessP oracles"
 topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
 topicDesc Span = "Finite-span equipment oracles"
+topicDesc Split = "Split-pole bridge oracles: carrier placements between K m and CoK c"
 
 topicParser :: Parser Topic
 topicParser =
@@ -108,10 +112,11 @@ runTopic Poles = polesTopic
 runTopic Process = processTopic
 runTopic Shared = sharedTopic
 runTopic Span = spanTopic
+runTopic Split = splitTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span]
+allTopics = [Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span, Split]
 
 greenCircle :: String
 greenCircle = "🟢"

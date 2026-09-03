@@ -30,6 +30,10 @@ module Circuit.Equip
     plugSplit,
     closeSplit,
 
+    -- * Carrier-split poles
+    plugBridge,
+    closeBridge,
+
     -- * Unit-pole convenience
     poles0,
     polesK,
@@ -183,6 +187,24 @@ plugSplit g p ca = runK (companion p) (g (runCoK (conjoint p) ca))
 -- translation.
 closeSplit :: Poles ch ch (CoK c) (K m) a b -> c a -> m b
 closeSplit = plugSplit id
+
+-- | Close a carrier-split pole through a bridge.
+--
+-- The write leg is Kleisli (@a -> m ch@), the read leg is co-Kleisli
+-- (@c ch' -> b@), and closing demands a bridge @m ch -> c ch'@ between the
+-- monad and the comonad.  Unlike 'plugSplit', the translation between the
+-- carriers is not a plain function: the bridge subsumes it, and the bridge
+-- is where any seed or choice the carrier needs must be supplied.
+--
+-- >>> let p = Poles (K (Identity . (+1))) (CoK runIdentity) :: Poles Int Int (K Identity) (CoK Identity) Int Int
+-- >>> plugBridge id p 5
+-- 6
+plugBridge :: (m ch -> c ch') -> Poles ch ch' (K m) (CoK c) a b -> a -> b
+plugBridge bridge p a = runCoK (companion p) (bridge (runK (conjoint p) a))
+
+-- | 'plugBridge' at a self-channelled carrier.
+closeBridge :: (m ch -> c ch) -> Poles ch ch (K m) (CoK c) a b -> a -> b
+closeBridge bridge = plugBridge bridge
 
 -- * Unit-pole convenience
 
