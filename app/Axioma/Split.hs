@@ -11,6 +11,14 @@
 -- @m ch -> c ch'@ between the monad and the comonad.  This module
 -- hand-rolls the candidate pairs and records, as oracles, what each bridge
 -- demands and what each loses.
+--
+-- Necessity: a natural bridge @beta :: m ~> c@ forces a natural run
+-- @extract . beta :: m ~> Identity@ (the monad is copointed) and a natural
+-- point @beta . pure :: Identity ~> c@ (the comonad is pointed).  The four
+-- probe pairs below are the instances of that condition.  Conversely, any
+-- (run, point) pair composes to a bridge — the factored form is sufficient
+-- — but the factored bridge may be unfaithful even when a faithful one
+-- exists (the Wr/Env oracle).
 module Axioma.Split
   ( splitTopic,
   )
@@ -23,6 +31,9 @@ import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
 import Data.Functor.Identity (Identity (..))
+import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Monoid (Sum (..))
 import Data.These (These (..))
 
@@ -132,6 +143,47 @@ identityToList = pure . runIdentity
 stepPole :: ((s, a) -> (s, b)) -> Poles b b (K (State s)) (CoK (Store s)) a b
 stepPole f = Poles (K (\a -> State (\s -> let (s', b) = f (s, a) in (b, s')))) (CoK extract)
 
+-- * The indexed bridge
+
+-- | The channel-indexed reading of 'stateToStore': the seed was always an
+-- index supplied by the channel.  Total — no 'Pointed' needed; the position
+-- is the pre-step channel value.
+stateToStoreIx :: s -> State s a -> Store s a
+stateToStoreIx = stateToStore
+
+-- | One body step as an indexed bridge close: the write leg is the body's
+-- State action, the bridge reads the pre-state, and the post-state is the
+-- write side's own threading.
+closeStep :: ((s, a) -> (s, b)) -> s -> a -> (b, s)
+closeStep f s0 a =
+  let action = State (\s -> let (s', b) = f (s, a) in (b, s'))
+      (b, s') = runState action s0
+      b' = extract (stateToStoreIx s0 action)
+   in (b', s')
+
+-- | Iterate a body over an input stream, threading the channel through the
+-- indexed bridge — the unfrozen run.
+runSplitIx :: ((s, a) -> (s, b)) -> s -> [a] -> [b]
+runSplitIx f s0 = go s0
+  where
+    go _ [] = []
+    go s (a : as) = let (b, s') = closeStep f s a in b : go s' as
+
+-- * The fifth probe
+
+-- | Maybe-to-NonEmpty needs a default — the pointedness the monad side
+-- lacks.  (At 'Void' there is no default and no bridge at all.)
+maybeToNonEmpty :: a -> Maybe a -> NonEmpty a
+maybeToNonEmpty d = maybe (d :| []) (:| [])
+
+-- | NonEmpty-to-Maybe is free.
+nonEmptyToMaybe :: NonEmpty a -> Maybe a
+nonEmptyToMaybe = Just . NE.head
+
+instance Comonad NonEmpty where
+  extract = NE.head
+  duplicate = NE.fromList . fmap NE.fromList . List.tails . NE.toList
+
 -- * Sampled observation
 
 -- | Sampled observation of a 'Store': the home position plus the
@@ -198,5 +250,40 @@ splitTopic verbosity = do
             (s2, p2) = chooseS alt s1
             (s3, p3) = chooseS alt s2
             (s4, p4) = chooseS alt s3
-         in [p1, p2, p3, p4] == [PickL, PickR, PickL, PickR] && s4 == 4
+         in [p1, p2, p3, p4] == [PickL, PickR, PickL, PickR] && s4 == 4,
+      checkV verbosity "fifth probe (Maybe, NonEmpty): forward needs a default, reverse is free" $
+        maybeToNonEmpty 0 (Just 4) == (4 :| [])
+          && maybeToNonEmpty 0 Nothing == (0 :| [])
+          && nonEmptyToMaybe (7 :| [8, 9]) == Just 7
+          && (nonEmptyToMaybe . maybeToNonEmpty 0) Nothing == Just (0 :: Int),
+      checkV verbosity "the factored bridge loses what the direct bridge keeps (Wr/Env)" $
+        let run (Wr (a, _)) = a
+            point a = wrToEnv (Wr (a, mempty))
+            factored = point . run
+            w = Wr (42, "log") :: Wr String Int
+         in factored w == Env ("", 42)
+              && wrToEnv w == Env ("log", 42)
+              && factored w /= wrToEnv w,
+      checkV verbosity "indexed bridge close reproduces the direct step" $
+        let f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s + a, s)
+         in closeStep f 3 5 == (3, 8)
+              && closeStep f 0 7 == (0, 7),
+      checkV verbosity "the run is the bridge, unfrozen: iterated indexed closes thread the channel" $
+        let f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s + a, s)
+            frozen a = plugBridge (stateToStore 0) (stepPole f) a
+         in runSplitIx f 0 [5, 7, 11] == [0, 5, 12]
+              && map frozen [5, 7, 11] == [0, 0, 0],
+      checkV verbosity "sharedBy Both factors as two indexed closes threaded by the write side" $
+        let f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s + a, s)
+            g :: (Int, Int) -> (Int, Int)
+            g (s, c) = (s * 2, c)
+            sched = Schedule (,Both LeftFirst) :: Schedule Int
+         in sharedBy sched f g (0, (5, 7))
+              == ( let (b, s1) = closeStep f 0 5
+                       (d, s2) = closeStep g s1 7
+                    in (s2, These b d)
+                 )
     ]

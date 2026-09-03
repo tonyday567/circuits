@@ -178,5 +178,22 @@ mooreTopic verbosity = do
             let sys = mkMoore t id :: MachineP (,) Bool (->) (Mono Bool Bool),
             s0 <- [False, True],
             ps <- allPairStreams
-          ]
+          ],
+      -- The comonoid reading: comonoids in (Poly, ◁, y) are small
+      -- categories — counit is identities, comultiplication is composition.
+      -- The lift of 'duplicateMachineP' to a machine exists exactly when the
+      -- transition is an action of the direction monoid.
+      checkV verbosity "comonoid lift: a monoid-action transition passes the action laws" $
+        let t s n = s + n :: Int
+            states = [-2 .. 2]
+            dirs = [0 .. 3]
+         in and [t s 0 == s | s <- states]
+              && and [t s (n + m) == t (t s n) m | s <- states, n <- dirs, m <- dirs],
+      checkV verbosity "comonoid lift: a non-action transition has no identity direction (falsifier)" $
+        let xorT s o = s /= o
+            constF _s _o = False
+            constT _s _o = True
+            bools = [False, True]
+            hasIdentity f = or [and [f s o0 == s | s <- bools] | o0 <- bools]
+         in hasIdentity xorT && not (hasIdentity constF) && not (hasIdentity constT)
     ]
