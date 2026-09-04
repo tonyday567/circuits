@@ -10,6 +10,7 @@ where
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.), (.>))
+import Circuit.Container (SomePos (..), posAt, posOf)
 import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Equip
   ( Boundary (..),
@@ -32,7 +33,7 @@ import Circuit.Equip
     (>:>),
   )
 import Circuit.Equip qualified as Poles
-import Circuit.Moore (MachineP, MooreEval (..), branchMachineP, machineMorphismP, machineP, machinePToPolesChs, toEvalMachineP)
+import Circuit.Moore (MachineP, MooreEval (..), branchMachineP, machineMorphismP, machineP, machinePToPolesAt, machinePToPolesChs, toEvalMachineP)
 import Circuit.Poly (Chs, ChsWritable (..), Dir, Mono, Poly (..), Pos)
 import Circuit.Process (ProcessP (..), asProcess, fold, markProcessP, scan, scanProcessP)
 import Circuit.Tensor (Bias (..))
@@ -138,6 +139,67 @@ polesTopic verbosity = do
             rightCh = Right ((), ()) :: Chs ('Sum (Mono Int Int) (Mono Int Int))
          in morphism r (4, leftCh) == morphism r (4, rightCh)
               && morphism r (3, leftCh) == morphism r (3, rightCh),
+      -- Honest-grade oracles (poly-containers phase C): the carrier is a
+      -- SomePos position, so no observation argument is needed.
+      checkV verbosity "machinePToPolesAt write leg posts posAt of the stepped position" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s, ()))
+            stepDbl (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
+            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machinePToPolesAt sys
+            inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
+            posOfSome (SomePos i) = posOf i
+            run _ [] acc = acc
+            run s (d : ds) acc =
+              let (s', pos) = machineMorphismP sys (s, d)
+                  (s'', ch) = morphism (conjoint p) (s, d)
+               in run s' ds (acc && s'' == s' && posOfSome ch == pos)
+         in run 1 inputs True,
+      checkV verbosity "the position carrier feeds the read leg: honest poles distinguish the branches" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s, ()))
+            stepDbl (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
+            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machinePToPolesAt sys
+            r = companion p
+            leftCar = posAt @('Sum (Mono Int Int) (Mono Int Int)) (Left (4, ()))
+            rightCar = posAt @('Sum (Mono Int Int) (Mono Int Int)) (Right (4, ()))
+         in morphism r (4, leftCar) /= morphism r (4, rightCar)
+              && morphism r (3, leftCar) /= morphism r (3, rightCar),
+      checkV verbosity "position recovery: the carrier alone determines the read" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s, ()))
+            stepDbl (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
+            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machinePToPolesAt sys
+            inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
+            posOfSome (SomePos i) = posOf i
+            collect _ [] acc = acc
+            collect s (d : ds) acc =
+              let (s', _) = machineMorphismP sys (s, d)
+                  (_, ch) = morphism (conjoint p) (s, d)
+               in collect s' ds (ch : acc)
+            check [] acc = acc
+            check (ch : chs) acc =
+              let (_, posA) = morphism (companion p) (0, ch)
+                  (_, posB) = morphism (companion p) (99, ch)
+               in check chs (acc && posA == posOfSome ch && posB == posA)
+         in check (reverse (collect 1 inputs [])) True,
       -- Stamped oracles
       checkV verbosity "Stamped fmap preserves stamp (Int token)" $
         let s = Stamped 7 ("hello" :: String)
