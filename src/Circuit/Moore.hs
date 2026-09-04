@@ -153,6 +153,9 @@ newtype MachineP (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p 
 -- type parameter; instead it is folded into the feedback wire of the trace.
 -- 'machinePToMachine' embeds a pointed 'MachineP' into this form by closing the state
 -- channel with 'yank'.
+--
+-- This is the closure discharge of pointing: the run takes no seed, and that
+-- is visible in the type. See 'Circuit.Equip.UnitCell' for the taxonomy.
 newtype Machine (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) (p :: Poly)
   = Machine (Trace t arr (Dir p) (Pos p))
 

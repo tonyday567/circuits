@@ -122,6 +122,10 @@ import Prelude hiding (id, (.))
 -- triple @inject / step / extract@. Keeping the triple as the primitive (rather
 -- than fusing @extract@ into the step) preserves the streaming-statistics
 -- invariant that the first output is @extract (inject x)@, before any step.
+--
+-- This is the input discharge of pointing: the initial state is created from
+-- the first input. See 'Circuit.Equip.UnitCell' for the explicit discharge
+-- and the taxonomy.
 data Process a b where
   Process ::
     forall s a b.
@@ -135,6 +139,9 @@ data Process a b where
 -- This is the same data as 'Process' except the initial state @s0@ is exposed
 -- rather than computed from the first input. Every tick is uniform: state in,
 -- input in, state out, output out.
+--
+-- This is the explicit discharge of pointing — the seed as data. See
+-- 'Circuit.Equip.UnitCell'.
 data ProcessP s a b = ProcessP
   { processSeedP :: s,
     processStepP :: s -> a -> s,

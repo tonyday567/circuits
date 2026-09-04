@@ -177,6 +177,10 @@ instance (Monad m) => FunctionLike (K m) where
 -- of 'Body Either': on a payload input the companion must produce a carrier
 -- value, and there is no ambient state to use.  'Monoid' is over-strong for
 -- this purpose, since only the identity element is needed.
+--
+-- This is the EM side of pointing — an algebra of the @Maybe@ monad,
+-- structure on the object. The runner-facing presentation of the same
+-- pointing is the unit cell in "Circuit.Equip".
 class Pointed a where
   point :: a
 

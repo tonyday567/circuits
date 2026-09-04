@@ -364,37 +364,34 @@ copycat = Poles id id
 
 -- * Unit cells
 
--- | A unit cell: the carrier-instantiating crossing, named.
+-- | A unit cell: an arrow out of the monoidal unit, @arr (Unit t) ch@.
 --
--- A unit cell is an arrow out of the monoidal unit — a way to produce a
--- carrier value when no input supplies one. In the equipment reading it is
--- the tight shadow of a loose arrow from the unit object: the seeding
--- crossing @Unit t -> ch@ that every open layer otherwise reinvents at a
--- different post:
+-- Pointing is forced exactly where a carrier must be instantiated and no
+-- input supplies it. There are three discharges, and this type is the
+-- explicit one:
 --
---   the seed argument of 'Circuit.Process.runBody',
---   the initial state of a 'Circuit.Moore.MachineP' run,
---   the seed field of 'Circuit.Process.ProcessP',
---   the 'Circuit.Category.Pointed' class,
---   the unit pole 'open' at the monoidal unit.
+-- * input: the first payload seeds the carrier — 'Circuit.Process.asProcess'
+--   removes the seed of a 'Circuit.Process.ProcessP';
+-- * closure: the loop seeds itself — 'Circuit.Moore.machinePToMachine'
+--   removes the carrier of a 'Circuit.Moore.MachineP' via
+--   'Circuit.Trace.yank', and the seed is gone from the type;
+-- * explicit: the seed is data, handed to runners such as
+--   'Circuit.Process.runBodyCell' and 'Circuit.Process.asProcessPCell'.
 --
--- This is the Kleisli-side standardization of the pointing principle: the
--- 'Pointed' class is the EM structure (an algebra of the @Maybe@ monad,
--- carried by the object), and the unit cell is the same pointing presented
--- as a value that producers hand to runners. Scaffolding may hide; a cell
--- is where a meeting point gets named.
+-- The same pointing is independently present at each open post: the seed
+-- argument of 'Circuit.Process.runBody', the initial state of a
+-- 'Circuit.Moore.MachineP' run, the seed field of 'Circuit.Process.ProcessP',
+-- the 'Circuit.Category.Pointed' class, the unit pole 'open'. 'Pointed' is
+-- the EM side (an algebra of the @Maybe@ monad, structure on the object);
+-- 'UnitCell' is the same pointing as a value.
 --
--- Constraint map — where a cell is forced. Loregian's limit landscape: every
--- missing colimit in the process equipment is a carrier that would have to
--- be pointed or singleton. Operationally: a cell is required exactly where
--- a carrier must be instantiated and no input supplies it.
---
---   open layers need a cell: body runners, machine runs, 'ProcessP',
---     'Either'-carried unit loops ('Circuit.Category.Pointed');
---   closed layers need none, asserted by type: 'Circuit.Trace.yank' folds
---     (self-seeding at @(,)@, starting from the input at 'Either'),
---     flowchart runners (the input is the whole configuration), and
---     'Circuit.Moore.machinePToMachine' (no seed parameter).
+-- Constraint map: a cell is required exactly where a carrier must be
+-- instantiated and no input supplies it (Loregian: every missing colimit
+-- in the process equipment is a carrier that would have to be pointed or
+-- singleton). Open layers need one: body runners, machine runs,
+-- 'ProcessP', 'Either'-carried unit loops. Closed layers need none, by
+-- type: 'yank' folds (self-seeding at @(,)@, starting from the input at
+-- 'Either'), flowchart runners, 'machinePToMachine'.
 newtype UnitCell (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) ch = UnitCell
   { runUnitCell :: arr (Unit t) ch
   }

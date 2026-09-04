@@ -157,6 +157,24 @@ alongside a payload, under a tensor `t`. It is the shared substrate of loops,
 processes, systems, and poles: the stateful machinery that `Trace` hides
 before tracing.
 
+**Pointing, three ways.** A stateful run needs an initial carrier value
+exactly when no input supplies one. There are three discharges.
+`ProcessP` and `MachineP` keep the seed explicit — it is data, and
+`UnitCell` names it. `asProcess` discharges the seed through the input: the
+first payload creates the initial state. `machinePToMachine` discharges it
+through closure: `yank` ties the state channel, and the absence of a seed
+parameter is visible in the type. The discharges are not interchangeable:
+closure agrees with an explicit seed only when the body never reads its
+initial state — the axioma oracles "closure discharge agrees with any seed
+on a seed-independent body" and "explicit discharge carries the seed the
+closure drops" pin the boundary.
+
+```haskell
+runBody body 0 inputs                              -- explicit: the seed as data
+scan (asProcess (ProcessP 0 step extract)) inputs  -- input: first payload seeds
+-- machinePToMachine sys :: Machine t arr p        -- closure: no seed in the type
+```
+
 **A deck of languages.** The GADTs form a chain of free constructions, each
 rung one enrichment of the last:
 

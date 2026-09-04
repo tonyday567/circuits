@@ -55,6 +55,16 @@ pairSumP = mealy Empty $ \s x -> case s of
 countP :: Process () (Maybe Int)
 countP = mealy 0 (\n _ -> let n' = n + 1 in (n', Just n'))
 
+-- | Body whose output never reads the carrier: the state counts, the
+-- output echoes the input.
+countBody :: Body (,) Int (->) Int Int
+countBody = Body $ \(s, a) -> (s + 1, a)
+
+-- | Body that reads its carrier: the output is the previous state — a
+-- one-tick delay.
+delayBody :: Body (,) Int (->) Int Int
+delayBody = Body $ \(s, a) -> (a, s)
+
 processTopic :: Verbosity -> IO [Bool]
 processTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Process, Body, Trace, Net, and Mealy oracles"
@@ -98,6 +108,16 @@ processTopic verbosity = do
       checkV verbosity "runBody agrees with a known body" $
         let sumBody = Body $ \(s, a) -> (s + a, s + a)
          in runBody sumBody 0 [1, 2, 3 :: Int] == [1, 3, 6],
+      -- Pointing discharge oracles
+      checkV verbosity "pointing: closure discharge agrees with any seed on a seed-independent body" $
+        let Body f = countBody
+         in map (yank f) [3, 5, 7] == [3, 5, 7]
+              && runBody countBody 0 [3, 5, 7] == [3, 5, 7]
+              && runBody countBody 99 [3, 5, 7] == [3, 5, 7],
+      checkV verbosity "pointing: explicit discharge carries the seed the closure drops" $
+        let Body f = delayBody
+         in runBody delayBody 0 [3, 5, 7] == [0, 3, 5]
+              && map (yank f) [3, 5, 7] == [3, 5, 7],
       -- Process as a base arrow for Trace / Net / Shared
       checkV verbosity "Process lifts into Trace (,) Process" $
         scan (Syn.eval (base sumP :: Trace (,) Process Int Int)) [1, 2, 3]

@@ -152,6 +152,15 @@ When a `Trace` body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
 returning. The convention is fixed by the class, not configurable.
 
+### pointing: three discharges
+
+A stateful run needs an initial carrier value exactly where no input supplies
+one. `Process` discharges pointing through the input (`asProcess`), `Machine`
+through closure (`machinePToMachine`), and `ProcessP` / `MachineP` keep the
+seed explicit (`UnitCell` names it). Do not collapse the pairs: closure agrees
+with an explicit seed only when the body never reads its initial state, which
+is why `delay` and `register` exist as explicit wiring.
+
 ### wrong tensor
 
 `Trace` is parametric in the tensor `t`. `(,)` and `Either` have different
