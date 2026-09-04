@@ -6,7 +6,6 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -54,10 +53,6 @@ module Circuit.Poly
     -- * Positions and directions
     Pos,
     Dir,
-
-    -- * Structured channels
-    Chs,
-    ChsWritable (..),
 
     -- * Netlist view
     Netlist (..),
@@ -160,30 +155,6 @@ type family Dir (p :: Poly) :: Type where
   Dir ('PTensor p q) = (Dir p, Dir q)
   Dir ('Comp p q) = (Dir p, Dir q)
 
--- | Structured channel of a polynomial.
---
--- 'Pos' and 'Dir' are the payload types of an interface; 'Chs' is the
--- /carrier/ a pole pair exposes while shuttling them — the flat grade of the
--- polynomial pole. 'Prod' gets a pair channel (both sub-interfaces alive),
--- 'Sum' gets an 'Either' channel (the mark of the branch taken), and the
--- atoms get the unit wire, so a monomial's channel is a pair of trivial
--- wires.  The additive connectives in "Circuit.Equip" ('Circuit.Equip.pair',
--- 'Circuit.Equip.race') are exactly the two binary 'Chs' cases.
---
--- Two honest bounds:
---
--- * 'Chs' is writable from the position ('chsOfPos'), but the position is
---   not recoverable from the channel — 'Dir'-style flatness surfacing at the
---   carrier.
--- * 'Chs' is deliberately undefined for the Dirichlet cases @'PTensor'@ and
---   @'Comp'@: their carriers are position-indexed already, not structural.
-type family Chs (p :: Poly) :: Type where
-  Chs 'Y = ()
-  Chs ('Const a) = ()
-  Chs ('Exp a) = ()
-  Chs ('Sum p q) = Either (Chs p) (Chs q)
-  Chs ('Prod p q) = (Chs p, Chs q)
-
 -- | Values of a polynomial functor @p@ evaluated at @x@.
 --
 -- The constructors mirror the polynomial grammar.  'EP' and 'ES' wrap the
@@ -272,37 +243,6 @@ instance Netlist ('Comp p q) where
 -- of the round-trip law @'fromNet' ('toNet' v) ≡ v@.
 netRoundTrip :: (Netlist p) => Eval p x -> Eval p x
 netRoundTrip v = uncurry fromNet (toNet v)
-
--- | The structured channel is writable from the position.
---
--- 'chsOfPos' is the flat-grade write: given the position a machine stepped
--- to, it produces the structured channel value.  Every structural
--- constructor admits it; the read direction — recovering the position from
--- the channel — is where the flat grade stops.  The honest grade
--- (position-indexed legs) is walled on the same missing @'Netlist'@
--- instance for @'Sum'@ that keeps 'Dir' flat.
---
--- >>> chsOfPos @('Sum (Mono Int Int) (Mono Int Int)) (Left (3, ()))
--- Left ((),())
--- >>> chsOfPos @('Prod (Mono Int Int) (Mono Int Int)) ((1, ()), (2, ()))
--- (((),()),((),()))
-class ChsWritable (p :: Poly) where
-  chsOfPos :: Pos p -> Chs p
-
-instance ChsWritable 'Y where
-  chsOfPos () = ()
-
-instance ChsWritable ('Const a) where
-  chsOfPos _ = ()
-
-instance ChsWritable ('Exp a) where
-  chsOfPos () = ()
-
-instance (ChsWritable p, ChsWritable q) => ChsWritable ('Sum p q) where
-  chsOfPos = either (Left . chsOfPos @p) (Right . chsOfPos @q)
-
-instance (ChsWritable p, ChsWritable q) => ChsWritable ('Prod p q) where
-  chsOfPos (i, j) = (chsOfPos @p i, chsOfPos @q j)
 
 -- | Left unitor for the Dirichlet tensor: @Y ⊗ p ≅ p@.
 --

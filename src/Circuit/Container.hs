@@ -18,8 +18,8 @@
 --
 -- The wall between the grades is 'Sum': a flat direction
 -- @Either (Dir p) (Dir q)@ cannot be narrowed to the branch the
--- position selected, which is why 'Netlist' has no @Sum@ instance and
--- 'Chs' is write-only.  The fibre depends on the position only
+-- position selected, which is why 'Netlist' has no @Sum@ instance.
+-- The fibre depends on the position only
 -- through its 'Sum'-branch choices — the constructor, never the
 -- payload — so a position splits into a promotable skeleton
 -- ('Branch') and a term-level payload ('PosK' carries it).  'DirAt'

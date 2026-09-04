@@ -70,7 +70,6 @@ module Circuit.Moore
     -- * Channel-pole view of MachineP machines
     machinePToPoles,
     machinePToPolesWithProbe,
-    machinePToPolesChs,
     machinePToPolesAt,
 
     -- * Comultiplication / duplication
@@ -96,16 +95,13 @@ import Circuit.Container (Located (..), SomePos (..), posAt, posOf)
 import Circuit.Equip (Poles (..))
 import Circuit.Equip qualified as Poles
 import Circuit.Poly
-  ( Chs,
-    ChsWritable,
-    Dir,
+  ( Dir,
     Eval (..),
     Mono,
     Morphism (..),
     Netlist,
     Poly (..),
     Pos,
-    chsOfPos,
     nestedToComp,
     runMorphism,
   )
@@ -120,9 +116,9 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Category (Op (..))
 -- >>> import Circuit.Equip (Poles (..))
--- >>> import Circuit.Poly (Chs, ChsWritable (..), Dir, Eval (..), Mono, Morphism, Poly (..), Pos, lens, applyLens)
+-- >>> import Circuit.Poly (Dir, Eval (..), Mono, Morphism, Poly (..), Pos, lens, applyLens)
 -- >>> import Circuit.Container (SomePos (..), posOf)
--- >>> import Circuit.Moore (MachineP, machineP, machineMorphismP, machinePToPolesChs, machinePToPolesAt, branchMachineP, MooreEval (..), toEvalMachineP, fromEvalMachineP, monoDir, monoIn, parWiringMachineP)
+-- >>> import Circuit.Moore (MachineP, machineP, machineMorphismP, machinePToPolesAt, branchMachineP, MooreEval (..), toEvalMachineP, fromEvalMachineP, monoDir, monoIn, parWiringMachineP)
 -- >>> import Circuit.Process (runBody)
 -- >>> import Data.Void (absurd)
 
@@ -331,51 +327,20 @@ machinePToPoles ex sys =
     (mooreWriteStateBody sys)
     (Body $ \(s, ch) -> (s, ex ch))
 
--- | Convert a 'MachineP' into companion/conjoint poles over the /structured/
--- channel 'Chs' p — the flat grade of the polynomial pole.
---
--- Compared to 'machinePToPoles' the state carrier is replaced by the
--- polynomial's own channel: the write leg steps with the supplied direction
--- and posts 'chsOfPos' of the new position; the read leg observes with the
--- supplied observation function.  The asymmetry is the finding: 'Chs' is
--- writable from the position, but the position is not recoverable from the
--- channel, so the read leg ignores the carrier it is handed.  Genuinely
--- position-indexed legs stay walled on the missing @'Netlist'@ instance for
--- @'Sum'@, the same wall 'Circuit.Poly' names for the netlist view.
---
--- The write leg on a branched machine: the structured channel records the
--- branch the position landed in.
---
--- >>> let inc = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s, ()))) :: MachineP (,) Int (->) (Mono Int Int)
--- >>> let dbl = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
--- >>> let br = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
--- >>> let p = machinePToPolesChs (\s -> fst (evalToMoore (toEvalMachineP br s))) br
--- >>> runBody (conjoint p) 1 [Left (Right 1), Right (Right 1), Left (Right 1)]
--- [Left ((),()),Right ((),()),Left ((),())]
-machinePToPolesChs ::
-  forall p s.
-  (ChsWritable p) =>
-  (s -> Pos p) ->
-  MachineP (,) s (->) p ->
-  Poles (Chs p) (Chs p) (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
-machinePToPolesChs ex sys =
-  Poles
-    (Body $ \(s, d) -> let (s', pos) = machineMorphismP sys (s, d) in (s', chsOfPos @p pos))
-    (Body $ \(s, _ch) -> (s, ex s))
-
 -- | Convert a 'MachineP' into companion/conjoint poles over the /position
 -- carrier/ 'SomePos' p — the honest grade of the polynomial pole.
 --
--- The flat grade ('machinePToPoles', 'machinePToPolesChs') needed an
+-- The flat grade ('machinePToPoles', 'machinePToPolesWithProbe') needed an
 -- observation argument because its carrier carried no position: the read
--- leg either consulted a supplied function or ignored the carrier entirely.
--- The 'SomePos' carrier /is/ a position, so no observation argument is
--- needed — the signature shrinks, which is the stamp of the honest grade.
+-- leg either consulted a supplied function or fabricated an observation by
+-- re-stepping.  The 'SomePos' carrier /is/ a position, so no observation
+-- argument is needed — the signature shrinks, which is the stamp of the
+-- honest grade.
 -- The write leg steps and posts 'posAt' of the new position; the read leg
 -- recovers the position from the carrier it is handed, without stepping.
 --
--- The same branched machine as 'machinePToPolesChs', now with the carrier
--- recording the position the step landed in:
+-- The write leg on a branched machine: the carrier records the branch and
+-- payload of the position the step landed in:
 --
 -- >>> let inc = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s, ()))) :: MachineP (,) Int (->) (Mono Int Int)
 -- >>> let dbl = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
