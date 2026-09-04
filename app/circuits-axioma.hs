@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Axioma.Common (Verbosity (..))
+import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
 import Axioma.Equip (equipTopic)
 import Axioma.FinRel (finRelTopic)
@@ -17,6 +18,7 @@ import Prelude hiding (id, (.))
 
 data Topic
   = All
+  | Container
   | Equip
   | Moore
   | Effect
@@ -31,6 +33,7 @@ data Topic
 
 topicName :: Topic -> String
 topicName All = "all"
+topicName Container = "container"
 topicName Equip = "equip"
 topicName Moore = "moore"
 topicName Effect = "effect"
@@ -44,6 +47,7 @@ topicName Split = "split"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
+topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Equip = "Arrow-equipment oracles: squares, feedback laws, and carriers"
 topicDesc Moore = "Moore machine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
@@ -103,6 +107,7 @@ opts =
     )
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
+runTopic Container = containerTopic
 runTopic Equip = equipTopic
 runTopic Moore = mooreTopic
 runTopic Effect = effectTopic
@@ -116,7 +121,7 @@ runTopic Split = splitTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span, Split]
+allTopics = [Container, Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span, Split]
 
 greenCircle :: String
 greenCircle = "🟢"

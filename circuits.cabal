@@ -49,6 +49,7 @@ library
     Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
+    Circuit.Container
     Circuit.Dagger
     Circuit.Equip
     Circuit.FinRel
@@ -84,6 +85,7 @@ executable circuits-axioma
   other-modules:
     Axioma.Bisim
     Axioma.Common
+    Axioma.Container
     Axioma.Effect
     Axioma.Equip
     Axioma.FinRel
