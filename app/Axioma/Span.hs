@@ -5,7 +5,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), mergeChannel)
+import Circuit.Body (Body (..), seqCompose)
 import Circuit.Process (runBody)
 import Circuit.Span
   ( Span (..),
@@ -107,7 +107,7 @@ spanTopic verbosity = do
             inputs = map spL [W1, W2, W3]
             qInputs = [O, I]
             Body direct = bodyFromSpan (q `composeS` p)
-            Body cascaded = mergeChannel (bodyFromSpan q) (bodyFromSpan p)
+            Body cascaded = seqCompose (bodyFromSpan q) (bodyFromSpan p)
          in all
               (\a -> snd (direct (inputs, a)) == snd (cascaded ((inputs, qInputs), a)))
               inputs

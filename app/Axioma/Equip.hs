@@ -6,7 +6,7 @@ where
 
 import Axioma.Bisim (bisimilarStates, isBisimulation, maxBisimulation)
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), mergeChannel, runFlowchart)
+import Circuit.Body (Body (..), runFlowchart, seqCompose)
 import Circuit.Category ((.>))
 import Circuit.Category qualified as Cat
 import Circuit.Equip
@@ -76,12 +76,12 @@ resetDriftSq :: Sq (,) (->) Int Bool Bool Char
 resetDriftSq = Sq odd resetDriftBody parityBody
 
 -- | Reference implementation of carrier-tensoring composition, kept as an
--- independent specification against which 'mergeChannel' is checked.
-_mergeChannelReference ::
+-- independent specification against which 'seqCompose' is checked.
+_seqComposeReference ::
   Body (,) s2 (->) b c ->
   Body (,) s1 (->) a b ->
   Body (,) (s1, s2) (->) a c
-_mergeChannelReference (Body g) (Body f) =
+_seqComposeReference (Body g) (Body f) =
   Body $ \((s1', s2'), a) ->
     let (s1'', b) = f (s1', a)
         (s2'', c) = g (s2', b)
@@ -98,7 +98,7 @@ maxBody = Body $ \(s, a) -> let s' = max s a in (s', s')
 delayBody :: Body (,) Int (->) Int Int
 delayBody = Body $ \(s, a) -> (a, s)
 
--- | Stream-composition oracle: 'mergeChannel' agrees with running two bodies
+-- | Stream-composition oracle: 'seqCompose' agrees with running two bodies
 -- in sequence on the input list.  @sumBody@ and @maxBody@ do not commute, so a
 -- reversed composition order is caught.
 --
@@ -107,10 +107,10 @@ cascadeStreamOk :: [Int] -> Bool
 cascadeStreamOk xs =
   let s1 = 0
       s2 = -5
-   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
+   in runBody (seqCompose maxBody sumBody) (s1, s2) xs
         == runBody maxBody s2 (runBody sumBody s1 xs)
 
--- | Associativity oracle: 'mergeChannel' is associative on input lists.  All
+-- | Associativity oracle: 'seqCompose' is associative on input lists.  All
 -- three bodies are input- and state-sensitive; @doublerBody@ was removed
 -- because it discarded its input and made the test vacuous.
 --
@@ -123,29 +123,29 @@ cascadeAssocOk xs =
       s1 = 7
       s2 = 0
       s3 = -5
-   in runBody (mergeChannel h (mergeChannel g f)) ((s1, s2), s3) xs
-        == runBody (mergeChannel (mergeChannel h g) f) (s1, (s2, s3)) xs
+   in runBody (seqCompose h (seqCompose g f)) ((s1, s2), s3) xs
+        == runBody (seqCompose (seqCompose h g) f) (s1, (s2, s3)) xs
 
--- | 'mergeChannel' agrees with the independent reference implementation.
+-- | 'seqCompose' agrees with the independent reference implementation.
 -- Distinct seeds catch seed mis-pairing.
-mergeChannelAgreesOk :: [Int] -> Bool
-mergeChannelAgreesOk xs =
+seqComposeAgreesOk :: [Int] -> Bool
+seqComposeAgreesOk xs =
   let s1 = 2
       s2 = -3
-   in runBody (mergeChannel maxBody sumBody) (s1, s2) xs
-        == runBody (_mergeChannelReference maxBody sumBody) (s1, s2) xs
+   in runBody (seqCompose maxBody sumBody) (s1, s2) xs
+        == runBody (_seqComposeReference maxBody sumBody) (s1, s2) xs
 
 -- | Left identity for carrier-tensoring composition.
-mergeChannelLeftIdOk :: [Int] -> Bool
-mergeChannelLeftIdOk xs =
+seqComposeLeftIdOk :: [Int] -> Bool
+seqComposeLeftIdOk xs =
   let s = 7
-   in runBody (mergeChannel sumBody (Body id)) ((), s) xs == runBody sumBody s xs
+   in runBody (seqCompose sumBody (Body id)) ((), s) xs == runBody sumBody s xs
 
 -- | Right identity for carrier-tensoring composition.
-mergeChannelRightIdOk :: [Int] -> Bool
-mergeChannelRightIdOk xs =
+seqComposeRightIdOk :: [Int] -> Bool
+seqComposeRightIdOk xs =
   let s = 7
-   in runBody (mergeChannel (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
+   in runBody (seqCompose (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
 
 -- | MachineP-split 'Poles' for the counter body.  The write pole updates state
 -- and posts the new state into the carrier; the read pole observes the carrier
@@ -346,7 +346,7 @@ unitorRightOk =
         [(n, r) | n <- carrierRange, r <- [False, True]]
 
 -- | Associator proof witness: carrier bracketing of three composed bodies is
--- isomorphic.  This also stress-tests 'mergeChannel' asymmetrically.
+-- isomorphic.  This also stress-tests 'seqCompose' asymmetrically.
 associatorOk :: Bool
 associatorOk =
   let sq = associatorSq maxBody sumBody delayBody
@@ -439,8 +439,8 @@ tighteningHBody = Body $ \((), x) -> ((), x + 10)
 tighteningOk :: Bool
 tighteningOk =
   let idS = idBody :: Body (,) () (->) Int Int
-      lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `mergeChannel` runningSumFB)
-      rhs = tighteningHBody `mergeChannel` feedbackBody runningSumFB
+      lhs = feedbackBody ((idS `tensorBody` tighteningHBody) `seqCompose` runningSumFB)
+      rhs = tighteningHBody `seqCompose` feedbackBody runningSumFB
    in runBody lhs (((), ((), ())), 0) [1, 2, 3]
         == runBody rhs (((), 0), ()) [1, 2, 3]
 
@@ -502,8 +502,8 @@ slidingFBody = Body $ \((), (t, a)) -> let s' = t + a in ((), (s', s'))
 slidingOk :: Bool
 slidingOk =
   let hTensorId = slidingHBody `tensorBody` idBody
-      lhs = feedbackBody (slidingFBody `mergeChannel` hTensorId)
-      rhs = feedbackBody (hTensorId `mergeChannel` slidingFBody)
+      lhs = feedbackBody (slidingFBody `seqCompose` hTensorId)
+      rhs = feedbackBody (hTensorId `seqCompose` slidingFBody)
    in runBody lhs ((((), ()), ()), 0) [1, 2, 3]
         == runBody rhs (((), ((), ())), 1) [1, 2, 3]
 
@@ -595,8 +595,8 @@ eitherHBody = Body $ \case
 -- @(ch1 + (ch2 + ch3))@, so the check is up to carrier isomorphism.
 eitherCascadeAssocOk :: Bool
 eitherCascadeAssocOk =
-  let lhs = mergeChannel eitherHBody (mergeChannel eitherGBody eitherFBody)
-      rhs = mergeChannel (mergeChannel eitherHBody eitherGBody) eitherFBody
+  let lhs = seqCompose eitherHBody (seqCompose eitherGBody eitherFBody)
+      rhs = seqCompose (seqCompose eitherHBody eitherGBody) eitherFBody
    in all
         ( \n ->
             fst (runFlowchart lhs 30 n)
@@ -1200,12 +1200,12 @@ equipTopic verbosity = do
         cascadeStreamOk [3, 1, 4, 1, 5],
       checkV verbosity "pointed cascade is associative on input lists" $
         cascadeAssocOk [3, 1, 4, 1, 5],
-      checkV verbosity "mergeChannel agrees with reference implementation" $
-        mergeChannelAgreesOk [3, 1, 4, 1, 5],
-      checkV verbosity "mergeChannel left identity" $
-        mergeChannelLeftIdOk [3, 1, 4, 1, 5],
-      checkV verbosity "mergeChannel right identity" $
-        mergeChannelRightIdOk [3, 1, 4, 1, 5],
+      checkV verbosity "seqCompose agrees with reference implementation" $
+        seqComposeAgreesOk [3, 1, 4, 1, 5],
+      checkV verbosity "seqCompose left identity" $
+        seqComposeLeftIdOk [3, 1, 4, 1, 5],
+      checkV verbosity "seqCompose right identity" $
+        seqComposeRightIdOk [3, 1, 4, 1, 5],
       checkV verbosity "right whisker agrees with stream composition" $
         rightWhiskerObservationalOk [False, True, True, False, True],
       checkV verbosity "right whisker preserves the square" rightWhiskerSquareOk,

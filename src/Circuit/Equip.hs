@@ -14,7 +14,7 @@
 -- * boundary tokens: 'Boundary' (mark or payload) and 'Stamped'
 --   (occurrence-stamped values).
 --
--- The loose side composes by 'Circuit.Body.mergeChannel' over the tensor,
+-- The loose side composes by 'Circuit.Body.seqCompose' over the tensor,
 -- and the would-be monoidal laws hold only after transporting carriers by
 -- the tensor's structural maps: carriers @ch ⊗ (ch' ⊗ ch'')@ and
 -- @(ch ⊗ ch') ⊗ ch''@ are different Haskell types, so on-the-nose
@@ -114,7 +114,7 @@ module Circuit.Equip
 where
 
 import Circuit.Bimonoid (Copy (copy))
-import Circuit.Body (Body (..), mergeChannel)
+import Circuit.Body (Body (..), seqCompose)
 import Circuit.Category (Category (..), CoK (..), FunctionLike (..), K (..), Pointed (..), (.>))
 import Circuit.Tensor (Bias (..), Tensor (..), Unit, Unital (..))
 import Circuit.Tensor qualified as Tensor
@@ -601,7 +601,7 @@ unitorLeftSq ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t (Unit t) ch) ch a b
-unitorLeftSq b = Sq unitl (mergeChannel b (Body id)) b
+unitorLeftSq b = Sq unitl (seqCompose b (Body id)) b
 
 -- | Left unitor witness: composing a body with the identity at the unit carrier
 -- is isomorphic to the original body.
@@ -616,7 +616,7 @@ unitorRightSq ::
   (Unital t arr, Strength t arr) =>
   Body t ch arr a b ->
   Sq t arr (t ch (Unit t)) ch a b
-unitorRightSq b = Sq unitr (mergeChannel (Body id) b) b
+unitorRightSq b = Sq unitr (seqCompose (Body id) b) b
 
 -- | Right unitor witness.
 unitorRight ::
@@ -635,8 +635,8 @@ associatorSq ::
 associatorSq h g f =
   Sq
     assoc
-    (mergeChannel h (mergeChannel g f))
-    (mergeChannel (mergeChannel h g) f)
+    (seqCompose h (seqCompose g f))
+    (seqCompose (seqCompose h g) f)
 
 -- | Associator witness: carrier bracketing of three composed bodies is
 -- isomorphic up to the associator of the tensor.
@@ -658,8 +658,8 @@ rightWhisker ::
 rightWhisker sq r =
   Sq
     (tensor (carrierMap sq) id)
-    (mergeChannel r (sqSrc sq))
-    (mergeChannel r (sqTgt sq))
+    (seqCompose r (sqSrc sq))
+    (seqCompose r (sqTgt sq))
 
 -- | Left whisker: tensor an identity-on-boundaries 1-cell on the left of a
 -- square.
@@ -671,8 +671,8 @@ leftWhisker ::
 leftWhisker l sq =
   Sq
     (tensor id (carrierMap sq))
-    (mergeChannel (sqSrc sq) l)
-    (mergeChannel (sqTgt sq) l)
+    (seqCompose (sqSrc sq) l)
+    (seqCompose (sqTgt sq) l)
 
 -- | Horizontal composition of two squares.
 hcompose ::
@@ -683,8 +683,8 @@ hcompose ::
 hcompose sq2 sq1 =
   Sq
     (tensor (carrierMap sq1) (carrierMap sq2))
-    (mergeChannel (sqSrc sq2) (sqSrc sq1))
-    (mergeChannel (sqTgt sq2) (sqTgt sq1))
+    (seqCompose (sqSrc sq2) (sqSrc sq1))
+    (seqCompose (sqTgt sq2) (sqTgt sq1))
 
 -- | Boundary whisker: apply tight maps to the input and output boundaries of a
 -- square.  This is the 'Sq' side of the interchange law; the 'Poles' side is

@@ -41,7 +41,7 @@ module Circuit.Body
     runFlowchart,
 
     -- * Carrier-tensoring composition
-    mergeChannel,
+    seqCompose,
   )
 where
 
@@ -102,7 +102,8 @@ runFlowchart (Body f) fuel0 a0 = go fuel0 0 (Right a0)
 
 -- * Carrier-tensoring composition
 
--- | Compose two bodies at carriers @ch@ and @ch'@ into a body at carrier
+-- | Sequential composition of two bodies: run the first, thread its output
+-- into the second, and carry both carriers together at the tensor
 -- @t ch ch'@.  This is the body-level building block of horizontal 2-cell
 -- algebra (for example in "Circuit.Equip").
 --
@@ -111,12 +112,12 @@ runFlowchart (Body f) fuel0 a0 = go fuel0 0 (Right a0)
 -- @
 --   assoc .> slide .> strength f .> slide .> strength g .> assoc'
 -- @
-mergeChannel ::
+seqCompose ::
   (Strength t arr) =>
   Body t ch' arr b c ->
   Body t ch arr a b ->
   Body t (t ch ch') arr a c
-mergeChannel g f =
+seqCompose g f =
   Body
     ( assoc
         .> slide
