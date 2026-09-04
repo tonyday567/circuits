@@ -14,12 +14,17 @@
 -- * boundary tokens: 'Boundary' (mark or payload) and 'Stamped'
 --   (occurrence-stamped values).
 --
--- The bicategory laws of the loose side hold only up to invertible 'Sq'
--- witnesses: carriers @ch ⊗ (ch' ⊗ ch'')@ and @(ch ⊗ ch') ⊗ ch''@ are
--- different Haskell types, so on-the-nose associativity is impossible.  The
--- proof artifact is the two-cell itself; the falsification artifact is
--- observational, via 'Circuit.Body.mergeChannel' and the
--- 'Circuit.Process.Process' runner.
+-- The loose side composes by 'Circuit.Body.mergeChannel' over the tensor,
+-- and the would-be monoidal laws hold only after transporting carriers by
+-- the tensor's structural maps: carriers @ch ⊗ (ch' ⊗ ch'')@ and
+-- @(ch ⊗ ch') ⊗ ch''@ are different Haskell types, so on-the-nose
+-- associativity is impossible.  A 'Sq' record bundles such a transport
+-- with two bodies; the commuting of the square is a caller side condition,
+-- checked for the named witnesses by sampled oracles in @Axioma.Equip@.
+-- What is not claimed: no globular 2-cells between bodies, no inverse
+-- witnesses, no triangle or pentagon — the loose side is not packaged as a
+-- pseudo-bicategory, only as a composition operator with named transports
+-- and per-instance checked equations.
 module Circuit.Equip
   ( -- * Channel poles
     Poles (..),
