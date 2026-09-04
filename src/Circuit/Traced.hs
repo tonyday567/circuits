@@ -51,6 +51,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Traced (Yank (..))
 -- >>> import Circuit.Tensor (unitl, unitl')
 -- >>> import Circuit.Category (K (..), runK)
+-- >>> import Circuit.Category (Op (..))
 -- >>> import Data.Void (Void)
 
 -- * Associator
@@ -583,3 +584,47 @@ instance {-# OVERLAPPING #-} Yank Either (K IO) where
                         )
           go (Right initial)
       )
+
+-- * Op — the co-trace
+
+-- | Yank for the opposite arrow: the co-trace.
+--
+-- Reversing the arrow reverses the body but not the loop: @yank (Op f)@ is
+-- @Op (yank f)@ — the same knot equation, read contravariantly. This
+-- completes the structural ladder: @TraceC t (Op arr)@ holds wherever
+-- @TraceC t arr@ does, so loops over codata bodies (@Body t ch (Op arr)@)
+-- close with the same lazy knot and iteration as data bodies.
+--
+-- The cartesian co-knot is the knot, verbatim:
+--
+-- >>> :{
+-- let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
+-- :}
+--
+-- >>> runOp (yank (Op powers)) () :: [Integer]
+-- [1,2,4,8,16]
+--
+-- Co-trace agreement: on a named body, co-yanking the flipped body is the
+-- knot itself.
+--
+-- >>> let acc (s, a) = (s + a, a * 2)
+-- >>> yank acc (5 :: Int)
+-- 10
+-- >>> runOp (yank (Op acc)) (5 :: Int)
+-- 10
+--
+-- The Either co-yank iterates with the same Left-feeds-back / Right-exits
+-- convention, driven by the contravariant body:
+--
+-- >>> :{
+-- let halveOrBump = \case
+--       Right n -> Left (n + 1)
+--       Left n | even n -> Right (n `div` 2)
+--              | otherwise -> Left (n + 1)
+-- :}
+--
+-- >>> runOp (yank (Op halveOrBump)) (5 :: Int)
+-- 3
+instance (Yank t arr) => Yank t (Op arr) where
+  yank :: forall a b c. Op arr (t a b) (t a c) -> Op arr b c
+  yank (Op f) = Op (yank f)
