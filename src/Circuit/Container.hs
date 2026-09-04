@@ -71,11 +71,19 @@ module Circuit.Container
     Located (..),
     Container (..),
     monoFibreFlat,
+
+    -- * Morphisms at the fibre
+    Bundle (..),
+    morphAtC,
+    parTC,
+
+    -- * The netlist bridge
+    netViaFibred,
   )
 where
 
-import Circuit.Category ((.), id)
-import Circuit.Poly (Dir, Eval (..), Mono, Poly (..), Pos)
+import Circuit.Category (id, (.))
+import Circuit.Poly (Dir, Eval (..), Mono, Morphism, Poly (..), Pos, runMorphism)
 import Data.Kind (Type)
 import Data.Type.Equality ((:~:) (..))
 import Data.Void (Void, absurd)
@@ -319,6 +327,55 @@ instance
     (SomePos pi, SomePos pj) -> Fibred (PosT pi pj) (\(dp, dq) -> f (toFlat pi dp, toFlat pj dq))
   fromFibred (Fibred (PosT i j) k) =
     ET (posOf i, posOf j) (\(d1, d2) -> k (narrow i d1, narrow j d2))
+
+-- | The flat netlist view, derived /through/ the fibred one: project
+-- the position, and compose the pin map with the total narrowing.
+--
+-- Wherever 'Netlist' holds, @p@ is @Sum@-free, so 'Container' and
+-- 'FlatFibre' both hold and this agrees with 'Circuit.Poly.toNet' —
+-- checked by oracle in \"Axioma.Container\", not asserted by a
+-- superclass.  The class tower stays unconstrained.
+netViaFibred :: (Container p, FlatFibre p) => Eval p x -> (Pos p, Dir p -> x)
+netViaFibred v = case toFibred v of
+  Fibred i k -> (posOf i, k . narrow i)
+
+-- | A morphism read at the fibre: the target position plus the
+-- pullback on pins, both at the skeleton.  The target may be a
+-- 'Sum' — which is exactly what 'Circuit.Poly.morphAt' cannot
+-- express, since it demands 'Netlist' of the target.
+--
+-- >>> let p = prism (\case Left n -> Left n; Right s -> Right (Right s)) Left :: Morphism (Mono (Either Int String) (Either Int String)) (Sum (Mono Int Int) (Mono (Either Int String) (Either Int String)))
+-- >>> case morphAtC p (PosP (PosK (Left 7)) PosE) of Bundle (PosL (PosP (PosK n) PosE)) k -> (n, k (Right 3))
+-- (7,Right (Left 3))
+data Bundle p p' b = forall b'. Bundle (PosAt p' b') (DirAt p' b' -> DirAt p b)
+
+-- | Read a 'Morphism' off at one position, fibred.  The morphism is
+-- run on the tautological assignment 'Fibred' i 'id'; the result
+-- 'toFibred's to a position at the target with the pin pullback.
+morphAtC ::
+  (Container p, Container p') =>
+  Morphism p p' ->
+  PosAt p b ->
+  Bundle p p' b
+morphAtC m i = case toFibred (runMorphism m v) of
+  Fibred j k -> Bundle j k
+  where
+    v = fromFibred (Fibred i id)
+
+-- | Functorial action of the Dirichlet tensor on container factors.
+-- Where 'Circuit.Poly.parT' demands 'Netlist' of all four factors,
+-- 'parTC' demands 'Container' — so a prism (or any morphism with a
+-- 'Sum' side) may appear as a factor, and the backward maps run at
+-- the fibre: off-fibre pins are not representable, by construction.
+parTC ::
+  (Container p, Container q, Container p', Container q') =>
+  Morphism p p' ->
+  Morphism q q' ->
+  Fibred (PTensor p q) x ->
+  Fibred (PTensor p' q') x
+parTC m n (Fibred (PosT i j) f) = case (morphAtC m i, morphAtC n j) of
+  (Bundle i' pullM, Bundle j' pullN) ->
+    Fibred (PosT i' j') (\(d1, d2) -> f (pullM d1, pullN d2))
 
 -- | The two grades agree definitionally on the monomial fragment: the
 -- fibre of @Mono i o@ is the flat direction, on the nose.  Accepted

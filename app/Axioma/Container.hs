@@ -18,8 +18,8 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Container
-import Circuit.Poly (Eval (..), Mono, Netlist (..), Poly (..), Pos)
-import Control.Category ((.), id)
+import Circuit.Poly (Eval (..), Mono, Morphism (Id), Netlist (..), Poly (..), Pos, prism)
+import Control.Category (id, (.))
 import Control.Monad (when)
 import Data.Maybe (fromJust, isNothing)
 import Data.Void (absurd)
@@ -140,6 +140,71 @@ gradeAgreementOk =
     v = EP (EK 5, EE (+ 1))
     (flatPos, net) = toNet v
 
+-- | 'netViaFibred' agrees with 'toNet' on the monomial — the B1
+-- bridge, checked not asserted.
+netAgreementOk :: Bool
+netAgreementOk =
+  nfPos == flatPos
+    && all (\d -> nfK (Right d) == net (Right d)) [0 .. 4 :: Int]
+  where
+    v :: Eval (Mono Int Int) Int
+    v = EP (EK 5, EE (+ 1))
+    (flatPos, net) = toNet v
+    (nfPos, nfK) = netViaFibred v
+
+-- | The same agreement at 'PTensor', where the bridge must narrow
+-- the stored flat function through 'FlatFibre'.
+netAgreementPTensorOk :: Bool
+netAgreementPTensorOk =
+  nfPos == flatPos
+    && all (\(d, ()) -> nfK (d, ()) == net (d, ())) [(Right n, ()) | n <- [0 .. 4 :: Int]]
+  where
+    v :: Eval (PTensor (Mono Int Int) Y) Int
+    v = ET ((5, ()), ()) (\(d, ()) -> either absurd id d)
+    (flatPos, net) = toNet v
+    (nfPos, nfK) = netViaFibred v
+
+-- | The B4 acceptance: a prism read at the fibre. 'morphAt' rejects
+-- this morphism — its target is a 'Sum', which has no 'Netlist'
+-- instance — so a green check here is exactly the thing that was
+-- impossible at HEAD.
+prismMorphAtOk :: Bool
+prismMorphAtOk =
+  case morphAtC p i of
+    Bundle (PosL j'@(PosP (PosK n) PosE)) k ->
+      n == 7
+        && skelOf j' == SP SK SE
+        && posOf j' == (7, ())
+        && k (Right 3) == Right (Left 3)
+    _ -> False
+  where
+    p ::
+      Morphism
+        (Mono (Either Int String) (Either Int String))
+        (Sum (Mono Int Int) (Mono (Either Int String) (Either Int String)))
+    p = prism (\case Left n -> Left n; Right s -> Right (Right s)) Left
+    i :: PosAt (Mono (Either Int String) (Either Int String)) (BP BK BE)
+    i = PosP (PosK (Left 7)) PosE
+
+-- | 'parTC' with a prism factor: the composite lives at the
+-- 'Sum'-in-the-target fibre, and the backward map lands on the
+-- matched branch's pins only.
+parTCAcceptOk :: Bool
+parTCAcceptOk =
+  case parTC p Id v of
+    Fibred (PosT (PosL (PosP (PosK n) PosE)) PosY) g -> n == 7 && g (Right 5, ()) == 5
+    _ -> False
+  where
+    p ::
+      Morphism
+        (Mono (Either Int String) (Either Int String))
+        (Sum (Mono Int Int) (Mono (Either Int String) (Either Int String)))
+    p = prism (\case Left n -> Left n; Right s -> Right (Right s)) Left
+    v :: Fibred (PTensor (Mono (Either Int String) (Either Int String)) Y) Int
+    v = Fibred (PosT i PosY) (\(d, ()) -> either absurd (either id (const 0)) d)
+    i :: PosAt (Mono (Either Int String) (Either Int String)) (BP BK BE)
+    i = PosP (PosK (Left 7)) PosE
+
 containerTopic :: Verbosity -> IO [Bool]
 containerTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Container oracles"
@@ -153,5 +218,9 @@ containerTopic verbosity = do
       checkV verbosity "posAt round trips both ways on a heterogeneous sum" locatedRoundTripOk,
       checkV verbosity "fromFlat . toFlat is identity on-fibre" sectionOk,
       checkV verbosity "off-fibre narrowing is Nothing" offFibreOk,
-      checkV verbosity "fibred and netlist views agree on the monomial" gradeAgreementOk
+      checkV verbosity "fibred and netlist views agree on the monomial" gradeAgreementOk,
+      checkV verbosity "netViaFibred agrees with toNet (Mono)" netAgreementOk,
+      checkV verbosity "netViaFibred agrees with toNet (PTensor)" netAgreementPTensorOk,
+      checkV verbosity "morphAtC reads a prism at the fibre" prismMorphAtOk,
+      checkV verbosity "parTC composes with a prism factor" parTCAcceptOk
     ]
