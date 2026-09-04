@@ -16,8 +16,9 @@ import Axioma.Common
     sharedDoubleP,
   )
 import Circuit.Category (id, (.), (.>))
-import Circuit.Process (Process (..))
-import Circuit.Shared (AlgShared, Pick (Both), Schedule (..), SigShared (..), sharedBy)
+import Circuit.Equip (Stamped (..))
+import Circuit.Process (Process (..), scanProcessP, scheduleAsProcessP)
+import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
@@ -381,5 +382,53 @@ sharedTopic verbosity = do
                         )
                     )
                 )
-         in eval term ((), ()) == That [2, 2, 2]
+         in eval term ((), ()) == That [2, 2, 2],
+      -- Receipt transcripts (equip-next phase 7): stamps are the schedule's
+      -- picks, payloads are the bodies' outputs.  The stamp at tick i is the
+      -- pick made at the pre-step state — the decision that caused the step.
+      -- The standalone mark machine reports a state's pick only after
+      -- stepping into it, so its stream is the transcript's stream shifted
+      -- one tick; the agreement is modulo that phase.
+      checkV verbosity "transcript stamps are the standalone pick stream (modulo the post-step phase)" $
+        let alt = Schedule (\s -> (s + 1, if odd s then PickL else PickR)) :: Schedule Int
+            f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s, a + 100)
+            g :: (Int, Int) -> (Int, Int)
+            g (s, c) = (s, c * 2)
+            ts = transcriptSharedBy alt f g 0 (replicate 4 (1, 1))
+            pick0 = snd (chooseS alt 0)
+            standalone = scanProcessP (scheduleAsProcessP 0 alt) (replicate 4 ())
+         in map stamp ts == init (pick0 : standalone),
+      -- The Both payloads are the bodies' solo runs only because these
+      -- bodies are state-independent; a state-touching body couples its run
+      -- to the shared channel (the centrality oracles above measure exactly
+      -- that coupling).
+      checkV verbosity "transcript payloads are the solo runs (state-independent bodies, Both schedule)" $
+        let bothFirst = Schedule (\s -> (s, Both LeftFirst)) :: Schedule Int
+            f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s, a + 100)
+            g :: (Int, Int) -> (Int, Int)
+            g (s, c) = (s, c * 2)
+            ts = transcriptSharedBy bothFirst f g 0 [(1, 10), (2, 20), (3, 30)]
+            solo :: ((s, a) -> (s, b)) -> s -> [a] -> [b]
+            solo _ _ [] = []
+            solo h s (x : xs) = let (s', y) = h (s, x) in y : solo h s' xs
+         in map stamp ts == [Both LeftFirst, Both LeftFirst, Both LeftFirst]
+              && map stamped ts
+                == zipWith These (solo f 0 [1, 2, 3]) (solo g 0 [10, 20, 30]),
+      -- The pointing conjecture (equip-next phase 7): marks/stamps are the
+      -- value-level shadow of unit cells, and the seeding crossing is the
+      -- first stamp.  Witness: two transcripts of the same system differing
+      -- only in the seed already differ in receipt at tick 0.
+      checkV verbosity "the seed is the first stamp: seed difference shows from tick 0" $
+        let alt = Schedule (\s -> (s + 1, if odd s then PickL else PickR)) :: Schedule Int
+            f :: (Int, Int) -> (Int, Int)
+            f (s, a) = (s, a + 100)
+            g :: (Int, Int) -> (Int, Int)
+            g (s, c) = (s, c * 2)
+            ts0 = transcriptSharedBy alt f g 0 (replicate 2 (1, 1))
+            ts1 = transcriptSharedBy alt f g 1 (replicate 2 (1, 1))
+         in map stamp ts0 == [PickR, PickL]
+              && map stamp ts1 == [PickL, PickR]
+              && ts0 /= ts1
     ]

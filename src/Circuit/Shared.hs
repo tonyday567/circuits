@@ -26,6 +26,9 @@ module Circuit.Shared
     -- * Shared fusion class
     Shared (..),
 
+    -- * Receipt transcripts
+    transcriptSharedBy,
+
     -- * Shared-medium fusion signature
     SigShared (..),
 
@@ -35,6 +38,7 @@ module Circuit.Shared
 where
 
 import Circuit.Category (Category (..), K (..))
+import Circuit.Equip (Stamped (..))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose,
@@ -140,6 +144,28 @@ instance (Monad m) => Shared (,) (K m) where
           (s''', b) <- f (s'', a)
           pure (s''', These b d)
   {-# INLINE sharedBy #-}
+
+-- | Run two bodies under a schedule, collecting a receipt transcript.
+--
+-- Each tick is stamped with the pick the schedule made at the pre-step
+-- state — the decision that caused this fusion step.  The payload is the
+-- fusion's partial output, provenance-tagged by 'These'.  A scheduled
+-- run's honest transcript is receipt-shaped throughout: the marks are the
+-- schedule's picks, the payloads are the bodies' outputs.
+transcriptSharedBy ::
+  Schedule s ->
+  ((s, a) -> (s, b)) ->
+  ((s, c) -> (s, d)) ->
+  s ->
+  [(a, c)] ->
+  [Stamped Pick (These b d)]
+transcriptSharedBy sched f g s0 = go s0
+  where
+    go _ [] = []
+    go s (x : xs) =
+      let pick = snd (chooseS sched s)
+          (s', out) = sharedBy sched f g (s, x)
+       in Stamped pick out : go s' xs
 
 -- Shared-medium fusion signature
 

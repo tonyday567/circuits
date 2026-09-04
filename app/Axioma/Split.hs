@@ -285,5 +285,37 @@ splitTopic verbosity = do
               == ( let (b, s1) = closeStep f 0 5
                        (d, s2) = closeStep g s1 7
                     in (s2, These b d)
-                 )
+                 ),
+      -- Bridge-image receipts (equip-next phase 7): the receipt is what
+      -- 'extract' of the bridged comonad can see — the image of the bridge.
+      -- Per bridge, two writes that differ only outside the image agree on
+      -- the receipt.  The four cases span the spectrum: the iso bridge keeps
+      -- everything, State/Store keeps the observation function at a seed,
+      -- Wr/Traced keeps nothing of the log, and the list bridge keeps only
+      -- the fold.
+      checkV verbosity "receipt at Wr/Env (iso): differing logs keep the receipt and the whole value" $
+        let w1 = Wr (42, "log-a") :: Wr String Int
+            w2 = Wr (42, "log-b")
+            e1 = wrToEnv w1
+            e2 = wrToEnv w2
+         in extract e1 == extract e2 && e1 /= e2,
+      checkV verbosity "receipt at State/Store: differing transitions with equal observations bridge to equal stores" $
+        let act1 = State (\s -> (s + 1, s)) :: State Int Int
+            act2 = State (\s -> (s + 1, 999))
+            receipt = extract . stateToStore 3
+         in receipt act1 == receipt act2
+              && obsStore [0, 1, 2] (stateToStore 3 act1) == obsStore [0, 1, 2] (stateToStore 3 act2)
+              && runState act1 0 /= runState act2 0,
+      checkV verbosity "receipt at Wr/Traced: writes differing only in the log bridge to the same comonad" $
+        let w1 = Wr (42, "log-a") :: Wr String Int
+            w2 = Wr (42, "log-b")
+            t1 = wrToTraced w1
+            t2 = wrToTraced w2
+         in map (runTraced t1) ["a", "b"] == map (runTraced t2) ["a", "b"]
+              && extract t1 == 42,
+      checkV verbosity "receipt at []/Identity: writes differing only in decomposition fold to the same receipt" $
+        let xs1 = [Sum 1, Sum 2, Sum 3]
+            xs2 = [Sum 6]
+            receipt = runIdentity . listToIdentity
+         in receipt xs1 == receipt xs2 && xs1 /= xs2
     ]

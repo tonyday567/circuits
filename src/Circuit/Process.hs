@@ -53,6 +53,7 @@ module Circuit.Process
     -- * Boundary machines
     markProcessP,
     markProcess,
+    scheduleAsProcessP,
 
     -- * Channel-pole processes
     polesToProcessP,
@@ -227,6 +228,21 @@ markProcess isHalt (Process inject step extract) =
         Left s -> Just (extract s)
         Right () -> Nothing
     )
+
+-- | A schedule as a standalone mark machine.
+--
+-- 'Pick' is a mark alphabet: each step receipts which poles crossed the
+-- medium, and the pick stream of a run is the run's decision transcript.
+-- The seed is the shared channel's initial value — the explicit discharge
+-- of pointing (see 'Circuit.Equip.UnitCell').
+--
+-- >>> import Circuit.Shared (Pick (..), Schedule (..))
+-- >>> let alt = Schedule (\s -> (s + 1, if odd s then PickL else PickR))
+-- >>> scanProcessP (scheduleAsProcessP 0 alt) [(), (), (), ()]
+-- [PickL,PickR,PickL,PickR]
+scheduleAsProcessP :: s -> Schedule s -> ProcessP s () Pick
+scheduleAsProcessP s0 sched =
+  ProcessP s0 (\s _ -> fst (chooseS sched s)) (\s -> snd (chooseS sched s))
 
 -- * Channel-pole processes
 
