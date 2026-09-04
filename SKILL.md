@@ -52,7 +52,8 @@ Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view
 Circuit.Equip       — Arrow equipment: channel poles (Poles, two base arrows
                       arrW/arrR with the diagonal as single-base; plugSplit /
                       closeSplit for CoK/K payload-split poles), squares
-                      (Sq/TwoCell), and boundary tokens (Boundary/Stamped).
+                      (Sq/TwoCell), boundary tokens (Boundary/Stamped), and
+                      unit cells (UnitCell — the seeding crossing Unit t -> ch).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
