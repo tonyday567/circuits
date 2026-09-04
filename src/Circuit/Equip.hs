@@ -56,6 +56,11 @@ module Circuit.Equip
     open,
     copycat,
 
+    -- * Unit cells
+    UnitCell (..),
+    unitCell,
+    pointedCell,
+
     -- * Boxes
     box,
     boxAsymmetric,
@@ -105,11 +110,12 @@ where
 
 import Circuit.Bimonoid (Copy (copy))
 import Circuit.Body (Body (..), mergeChannel)
-import Circuit.Category (Category (..), CoK (..), FunctionLike (..), K (..), (.>))
+import Circuit.Category (Category (..), CoK (..), FunctionLike (..), K (..), Pointed (..), (.>))
 import Circuit.Tensor (Bias (..), Tensor (..), Unit, Unital (..))
 import Circuit.Tensor qualified as Tensor
 import Circuit.Traced (Assoc (..), Strength (..))
 import Data.Bifunctor (Bifunctor (..))
+import Data.Kind (Type)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -355,6 +361,58 @@ open = Poles id id
 -- True
 copycat :: (Category arr) => Poles ch ch arr arr ch ch
 copycat = Poles id id
+
+-- * Unit cells
+
+-- | A unit cell: the carrier-instantiating crossing, named.
+--
+-- A unit cell is an arrow out of the monoidal unit — a way to produce a
+-- carrier value when no input supplies one. In the equipment reading it is
+-- the tight shadow of a loose arrow from the unit object: the seeding
+-- crossing @Unit t -> ch@ that every open layer otherwise reinvents at a
+-- different post:
+--
+--   the seed argument of 'Circuit.Process.runBody',
+--   the initial state of a 'Circuit.Moore.MachineP' run,
+--   the seed field of 'Circuit.Process.ProcessP',
+--   the 'Circuit.Category.Pointed' class,
+--   the unit pole 'open' at the monoidal unit.
+--
+-- This is the Kleisli-side standardization of the pointing principle: the
+-- 'Pointed' class is the EM structure (an algebra of the @Maybe@ monad,
+-- carried by the object), and the unit cell is the same pointing presented
+-- as a value that producers hand to runners. Scaffolding may hide; a cell
+-- is where a meeting point gets named.
+--
+-- Constraint map — where a cell is forced. Loregian's limit landscape: every
+-- missing colimit in the process equipment is a carrier that would have to
+-- be pointed or singleton. Operationally: a cell is required exactly where
+-- a carrier must be instantiated and no input supplies it.
+--
+--   open layers need a cell: body runners, machine runs, 'ProcessP',
+--     'Either'-carried unit loops ('Circuit.Category.Pointed');
+--   closed layers need none, asserted by type: 'Circuit.Trace.yank' folds
+--     (self-seeding at @(,)@, starting from the input at 'Either'),
+--     flowchart runners (the input is the whole configuration), and
+--     'Circuit.Moore.machinePToMachine' (no seed parameter).
+newtype UnitCell (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) ch = UnitCell
+  { runUnitCell :: arr (Unit t) ch
+  }
+
+-- | Package an arrow out of the unit as a cell. For @(->)@ this is a seed
+-- function @() -> ch@; for 'K' arrows, a carrier produced under the effect.
+--
+-- >>> runUnitCell (unitCell (const 3) :: UnitCell (,) (->) Int) ()
+-- 3
+unitCell :: arr (Unit t) ch -> UnitCell t arr ch
+unitCell = UnitCell
+
+-- | A 'Circuit.Category.Pointed' carrier has the canonical cell.
+--
+-- >>> runUnitCell (pointedCell :: UnitCell (,) (->) ()) ()
+-- ()
+pointedCell :: (Pointed ch) => UnitCell (,) (->) ch
+pointedCell = UnitCell (\() -> point)
 
 -- * Boxes
 

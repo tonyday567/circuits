@@ -48,6 +48,7 @@ module Circuit.Process
     -- * MachineP conversions
     asProcessP,
     machinePAsProcess,
+    asProcessPCell,
 
     -- * Boundary machines
     markProcessP,
@@ -88,6 +89,7 @@ module Circuit.Process
     -- * Body conversions and runners
     bodyToProcess,
     runBody,
+    runBodyCell,
   )
 where
 
@@ -95,7 +97,7 @@ import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
-import Circuit.Equip (Boundary (..), Poles (..))
+import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..), unitCell)
 import Circuit.Equip qualified as Poles
 import Circuit.Moore (MachineP, machineMorphismP, monoDir, monoIn, toEvalMachineP)
 import Circuit.Poly (Eval (..), Mono)
@@ -158,6 +160,23 @@ asProcessP sys s0 = ProcessP s0 step' extract'
 -- | Convert a monomial @(->)@ MachineP machine into a process.
 machinePAsProcess :: MachineP (,) s (->) (Mono i o) -> s -> Process i o
 machinePAsProcess sys s0 = asProcess (asProcessP sys s0)
+
+-- | Point a monomial machine with a 'Circuit.Equip.UnitCell' instead of a
+-- bare seed.
+--
+-- Agrees with the ad-hoc seed runner:
+--
+-- >>> import Circuit.Moore (MachineP, machineP)
+-- >>> import Circuit.Poly (Mono)
+-- >>> import Circuit.Equip (unitCell)
+-- >>> import Data.Void (absurd)
+-- >>> let sys = machineP (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
+-- >>> scanProcessP (asProcessP sys 3) [1, 2]
+-- [8,12]
+-- >>> scanProcessP (asProcessPCell sys (unitCell (const 3))) [1, 2]
+-- [8,12]
+asProcessPCell :: MachineP (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> ProcessP s i o
+asProcessPCell sys (UnitCell f) = asProcessP sys (f ())
 
 -- * Boundary machines
 
@@ -703,3 +722,17 @@ bodyToProcess (Body f) s0 = Process inject step extract
 runBody :: Body (,) s (->) a b -> s -> [a] -> [b]
 runBody body s0 = scan (bodyToProcess body s0)
 {-# INLINEABLE runBody #-}
+
+-- | Run a body from a 'Circuit.Equip.UnitCell' instead of a bare seed.
+--
+-- Agrees with the ad-hoc seed runner:
+--
+-- >>> import Circuit.Body (Body (..))
+-- >>> import Circuit.Equip (unitCell)
+-- >>> let adder = Body (\(s, a) -> (s + a, s)) :: Body (,) Int (->) Int Int
+-- >>> runBody adder 3 [1, 2, 3]
+-- [3,4,6]
+-- >>> runBodyCell adder (unitCell (const 3)) [1, 2, 3]
+-- [3,4,6]
+runBodyCell :: Body (,) s (->) a b -> UnitCell (,) (->) s -> [a] -> [b]
+runBodyCell body (UnitCell f) = runBody body (f ())
