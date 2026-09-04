@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | Poles, Additive Poles, Stamped, Boundary, and markProcessP oracles.
 module Axioma.Poles
@@ -31,12 +32,14 @@ import Circuit.Equip
     (>:>),
   )
 import Circuit.Equip qualified as Poles
+import Circuit.Moore (MachineP, MooreEval (..), branchMachineP, machineMorphismP, machineP, machinePToPolesChs, toEvalMachineP)
+import Circuit.Poly (Chs, ChsWritable (..), Dir, Mono, Poly (..), Pos)
 import Circuit.Process (ProcessP (..), asProcess, fold, markProcessP, scan, scanProcessP)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (isNothing)
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]
@@ -98,6 +101,43 @@ polesTopic verbosity = do
             eR = Poles (const ()) (const (Just 2))
          in plug id (Poles.race isNothing LeftFirst eL eR) () == Just 2
               && plug id (Poles.race isNothing RightFirst eL eR) () == Just 2,
+      -- Polynomial structured-channel oracles (equip-next phase 6)
+      checkV verbosity "machinePToPolesChs write leg posts chsOfPos of the stepped position" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s, ()))
+            stepDbl (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
+            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            ex s = fst (evalToMoore (toEvalMachineP sys s))
+            p = machinePToPolesChs ex sys
+            inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
+            run _ [] acc = acc
+            run s (d : ds) acc =
+              let (s', pos) = machineMorphismP sys (s, d)
+                  (s'', ch) = morphism (conjoint p) (s, d)
+               in run s' ds (acc && s'' == s' && ch == chsOfPos @('Sum (Mono Int Int) (Mono Int Int)) pos)
+         in run 1 inputs True,
+      checkV verbosity "the flat channel does not feed the read leg: companion ignores the carrier" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s, ()))
+            stepDbl (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
+            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            ex s = fst (evalToMoore (toEvalMachineP sys s))
+            p = machinePToPolesChs ex sys
+            r = companion p
+            leftCh = Left ((), ()) :: Chs ('Sum (Mono Int Int) (Mono Int Int))
+            rightCh = Right ((), ()) :: Chs ('Sum (Mono Int Int) (Mono Int Int))
+         in morphism r (4, leftCh) == morphism r (4, rightCh)
+              && morphism r (3, leftCh) == morphism r (3, rightCh),
       -- Stamped oracles
       checkV verbosity "Stamped fmap preserves stamp (Int token)" $
         let s = Stamped 7 ("hello" :: String)

@@ -70,6 +70,7 @@ module Circuit.Moore
     -- * Channel-pole view of MachineP machines
     machinePToPoles,
     machinePToPolesWithProbe,
+    machinePToPolesChs,
 
     -- * Comultiplication / duplication
     duplicateMachineP,
@@ -93,13 +94,16 @@ import Circuit.Body (Body (..))
 import Circuit.Equip (Poles (..))
 import Circuit.Equip qualified as Poles
 import Circuit.Poly
-  ( Dir,
+  ( Chs,
+    ChsWritable,
+    Dir,
     Eval (..),
     Mono,
     Morphism (..),
     Netlist,
     Poly (..),
     Pos,
+    chsOfPos,
     nestedToComp,
     runMorphism,
   )
@@ -113,8 +117,10 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Category (Op (..))
--- >>> import Circuit.Poly (Eval (..), Mono, Morphism, lens, applyLens)
--- >>> import Circuit.Moore (MachineP, machineP, machineMorphismP, MooreEval (..), toEvalMachineP, fromEvalMachineP, monoDir, monoIn, parWiringMachineP)
+-- >>> import Circuit.Equip (Poles (..))
+-- >>> import Circuit.Poly (Chs, ChsWritable (..), Dir, Eval (..), Mono, Morphism, Poly (..), Pos, lens, applyLens)
+-- >>> import Circuit.Moore (MachineP, machineP, machineMorphismP, machinePToPolesChs, branchMachineP, MooreEval (..), toEvalMachineP, fromEvalMachineP, monoDir, monoIn, parWiringMachineP)
+-- >>> import Circuit.Process (runBody)
 -- >>> import Data.Void (absurd)
 
 -- | A MachineP machine with interface @p@, carrier @s@, over base arrow @arr@,
@@ -321,6 +327,38 @@ machinePToPoles ex sys =
   Poles
     (mooreWriteStateBody sys)
     (Body $ \(s, ch) -> (s, ex ch))
+
+-- | Convert a 'MachineP' into companion/conjoint poles over the /structured/
+-- channel 'Chs' p — the flat grade of the polynomial pole.
+--
+-- Compared to 'machinePToPoles' the state carrier is replaced by the
+-- polynomial's own channel: the write leg steps with the supplied direction
+-- and posts 'chsOfPos' of the new position; the read leg observes with the
+-- supplied observation function.  The asymmetry is the finding: 'Chs' is
+-- writable from the position, but the position is not recoverable from the
+-- channel, so the read leg ignores the carrier it is handed.  Genuinely
+-- position-indexed legs stay walled on the missing @'Netlist'@ instance for
+-- @'Sum'@, the same wall 'Circuit.Poly' names for the netlist view.
+--
+-- The write leg on a branched machine: the structured channel records the
+-- branch the position landed in.
+--
+-- >>> let inc = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s, ()))) :: MachineP (,) Int (->) (Mono Int Int)
+-- >>> let dbl = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
+-- >>> let br = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+-- >>> let p = machinePToPolesChs (\s -> fst (evalToMoore (toEvalMachineP br s))) br
+-- >>> runBody (conjoint p) 1 [Left (Right 1), Right (Right 1), Left (Right 1)]
+-- [Left ((),()),Right ((),()),Left ((),())]
+machinePToPolesChs ::
+  forall p s.
+  (ChsWritable p) =>
+  (s -> Pos p) ->
+  MachineP (,) s (->) p ->
+  Poles (Chs p) (Chs p) (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
+machinePToPolesChs ex sys =
+  Poles
+    (Body $ \(s, d) -> let (s', pos) = machineMorphismP sys (s, d) in (s', chsOfPos @p pos))
+    (Body $ \(s, _ch) -> (s, ex s))
 
 -- | Comultiplication for an /observable/ MachineP machine: the output position is the
 -- state. The result is a MachineP machine over the two-step interface
