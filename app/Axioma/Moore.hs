@@ -6,14 +6,15 @@ module Axioma.Moore
   )
 where
 
-import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Moore (Machine (..), MachineP, duplicateMachineP, fromEvalMachineP, machinePToMachine, monoIn, toEvalMachineP)
+import Axioma.Common (Verbosity (..), checkIOV, checkV)
+import Circuit.Moore (Machine (..), MachineP, duplicateMachineP, fromEvalMachineP, machineP, machinePToMachine, monoIn, toEvalMachineP)
 import Circuit.Par (Par (..), distL, distR)
 import Circuit.Poly (Eval (..), Mono, Poly (..))
 import Circuit.Syntax (eval)
 import Control.Category (id)
+import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (replicateM, when)
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 mkMoore :: (s -> a -> s) -> (s -> b) -> MachineP (,) s (->) (Mono a b)
@@ -111,6 +112,27 @@ mooreTopic verbosity = do
         let sys = mkMoore (\_s d -> d) id :: MachineP (,) Int (->) (Mono Int Int)
             Machine tr = machinePToMachine sys
          in eval tr (Right 42 :: Either Void Int) == (42 :: Int, ()),
+      -- toEvalMachineP Moore-ness side condition (Circuit.Moore:200-212).
+      -- The conversion reads the position by probing with 'probeDir', which
+      -- is an error thunk for the shapes where it is defined. A Moore body
+      -- never forces the direction value, so a bounded run of probes must
+      -- complete; a strict body forces the probe and the conversion becomes
+      -- a runtime error rather than a wrong answer. Mutation room: if the
+      -- conversion ever forces the probe (or probeDir is made strict), the
+      -- bounded run below crashes the whole topic.
+      checkV verbosity "toEvalMachineP never forces the probe direction on a Moore body (bounded run)" $
+        let sys = mkMoore (\s i -> s + i) (\s -> s * 2) :: MachineP (,) Int (->) (Mono Int Int)
+            states = iterate (\s -> stepM sys s 1) 0
+            steps = [peekM sys s | s <- take 64 states]
+         in head steps == 0 && last steps == 126,
+      checkIOV verbosity "toEvalMachineP on a strict body is a runtime error, not a wrong answer" $ do
+        let strictSys :: MachineP (,) Int (->) (Mono Int Int)
+            strictSys =
+              machineP $ \case
+                (s, Right i) -> i `seq` (s + i, (s, ()))
+                (_, Left v) -> absurd v
+        result <- try (evaluate (peekM strictSys 5)) :: IO (Either SomeException Int)
+        pure (case result of Left _ -> True; Right _ -> False),
       -- duplicateMachineP laws.  Two notes on what is NOT here:
       -- \* right identity collapses into left identity: the counit is
       --   observation, and at an observable machine observation is the
