@@ -15,7 +15,7 @@ import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Category (Category (..), (.>))
 import Circuit.Equip (Poles (..), plug)
-import Circuit.Moore (MachineP, machineMorphismP, machineP, machinePToPoles)
+import Circuit.Machine (Machine, machine, machineMorphism, machineToPoles)
 import Circuit.Optic
   ( Optic (..),
     OpticP (..),
@@ -204,18 +204,18 @@ opticTopic verbosity = do
         let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
          in companion (opticPolesP firstLens p) "hi" == opticBackwardP firstLens ("hi", 7),
       -- Equipment-optic coherence: the companion/conjoint poles of a
-      -- MachineP are the opticPolesP action of the diagonal machine optic
+      -- Machine are the opticPolesP action of the diagonal machine optic
       -- (residual = machine state) on the stepping base pole.  The two
-      -- sides are defined independently — machinePToPoles hand-rolls its
-      -- legs in Circuit.Moore, the optic path assembles iomap primitives —
+      -- sides are defined independently — machineToPoles hand-rolls its
+      -- legs in Circuit.Machine, the optic path assembles iomap primitives —
       -- so the witness pins a real configuration: a mutation to either
       -- side's leg wiring (probe read, unstepped write) fails the sample
       -- agreement.
-      checkV verbosity "machinePToPoles agrees with the opticPolesP action of the diagonal machine optic" $
+      checkV verbosity "machineToPoles agrees with the opticPolesP action of the diagonal machine optic" $
         let stepInc (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
             optic ::
               OpticP (,) Int (Body (,) Int (->)) (Dir (Mono Int Int)) () (Dir (Mono Int Int)) (Pos (Mono Int Int))
             optic =
@@ -226,9 +226,9 @@ opticTopic verbosity = do
               Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) (Int, Dir (Mono Int Int)) (Int, ())
             base =
               Poles
-                (Body (\(s', (s'', d)) -> (fst (machineMorphismP inc (s'', d)), fst (machineMorphismP inc (s'', d)))))
+                (Body (\(s', (s'', d)) -> (fst (machineMorphism inc (s'', d)), fst (machineMorphism inc (s'', d)))))
                 (Body (\(s, ch) -> (s, (ch, ()))))
-            lhs = machinePToPoles (\s -> (s * 2, ())) inc
+            lhs = machineToPoles (\s -> (s * 2, ())) inc
             rhs = opticPolesP optic base
             sample1 = morphism (plug id lhs) (3, Right 5) :: (Int, (Int, ()))
             sample2 = morphism (plug id rhs) (3, Right 5) :: (Int, (Int, ()))

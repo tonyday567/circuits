@@ -139,7 +139,7 @@ instance (Comonad c) => Category (CoK c) where
 --
 -- @Op arr a b@ is the same hom-set as @arr b a@.  This is the arrow used to
 -- make the @Set^op@ rung of the polynomial equipment explicit inside
--- 'Circuit.Body' and 'Circuit.Moore'.
+-- 'Circuit.Body' and 'Circuit.Machine'.
 newtype Op arr a b = Op {runOp :: arr b a}
 
 instance (Category arr) => Category (Op arr) where

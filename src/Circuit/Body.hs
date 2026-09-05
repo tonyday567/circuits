@@ -11,8 +11,8 @@
 -- @
 --
 -- Both the channel and the payload enter together, and both exit together.
--- 'Circuit.Moore.MachineP' specializes this shape to a MachineP machine over a
--- polynomial interface; 'Circuit.Process.Process' is the pointed monomial
+-- 'Circuit.Machine.Machine' specializes this shape to a machine over a
+-- polynomial interface; 'Circuit.Process.Mealy' is the pointed monomial
 -- special case of that.
 --
 -- == Anatomy
@@ -38,7 +38,7 @@
 --
 -- Closing a body into a trace is the one Body-to-Trace direction:
 -- @yank (base (morphism b))@ traces the carrier out, as in
--- 'Circuit.Moore.machinePToMachine'.  There is no Trace-to-Body direction,
+-- 'Circuit.Machine.machineToClosed'.  There is no Trace-to-Body direction,
 -- by design: 'Body' is the deliberately untraced carrier.  Finite spans
 -- are the lookup-table special case — see 'Circuit.Span.bodyFromSpan' and
 -- 'Circuit.Span.spanFromBody'.

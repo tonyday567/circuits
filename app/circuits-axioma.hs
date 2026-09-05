@@ -5,7 +5,7 @@ import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
 import Axioma.Equip (equipTopic)
 import Axioma.FinRel (finRelTopic)
-import Axioma.Moore (mooreTopic)
+import Axioma.Machine (machineTopic)
 import Axioma.Optic (opticTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Process (processTopic)
@@ -20,7 +20,7 @@ data Topic
   = All
   | Container
   | Equip
-  | Moore
+  | Machine
   | Effect
   | FinRel
   | Optic
@@ -35,7 +35,7 @@ topicName :: Topic -> String
 topicName All = "all"
 topicName Container = "container"
 topicName Equip = "equip"
-topicName Moore = "moore"
+topicName Machine = "machine"
 topicName Effect = "effect"
 topicName FinRel = "finrel"
 topicName Optic = "optic"
@@ -49,11 +49,11 @@ topicDesc :: Topic -> String
 topicDesc All = "run all topics"
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Equip = "Arrow-equipment oracles: squares, feedback laws, and carriers"
-topicDesc Moore = "Moore machine oracles"
+topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
 topicDesc Optic = "Mixed equipment-optic oracles"
-topicDesc Poles = "Poles, Stamped, Boundary, and markProcessP oracles"
+topicDesc Poles = "Poles, Stamped, Boundary, and markProcess oracles"
 topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
 topicDesc Span = "Finite-span equipment oracles"
@@ -109,7 +109,7 @@ opts =
 runTopic :: Topic -> Verbosity -> IO [Bool]
 runTopic Container = containerTopic
 runTopic Equip = equipTopic
-runTopic Moore = mooreTopic
+runTopic Machine = machineTopic
 runTopic Effect = effectTopic
 runTopic FinRel = finRelTopic
 runTopic Optic = opticTopic
@@ -121,7 +121,7 @@ runTopic Split = splitTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Equip, Effect, FinRel, Moore, Optic, Poles, Process, Shared, Span, Split]
+allTopics = [Container, Equip, Effect, FinRel, Machine, Optic, Poles, Process, Shared, Span, Split]
 
 greenCircle :: String
 greenCircle = "🟢"

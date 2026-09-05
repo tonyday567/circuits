@@ -92,7 +92,7 @@ module Circuit
     module Circuit.Hyper,
     module Circuit.Layer,
     module Circuit.Linear,
-    module Circuit.Moore,
+    module Circuit.Machine,
     module Circuit.Net,
     module Circuit.Optic,
     module Circuit.Par,
@@ -121,7 +121,7 @@ import Circuit.FinRel
 import Circuit.Hyper
 import Circuit.Layer
 import Circuit.Linear
-import Circuit.Moore
+import Circuit.Machine
 import Circuit.Net
 import Circuit.Optic
 import Circuit.Par

@@ -56,7 +56,7 @@ library
     Circuit.Hyper
     Circuit.Layer
     Circuit.Linear
-    Circuit.Moore
+    Circuit.Machine
     Circuit.Net
     Circuit.Optic
     Circuit.Par
@@ -89,7 +89,7 @@ executable circuits-axioma
     Axioma.Effect
     Axioma.Equip
     Axioma.FinRel
-    Axioma.Moore
+    Axioma.Machine
     Axioma.Optic
     Axioma.Poles
     Axioma.Process

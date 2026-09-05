@@ -27,7 +27,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.Process (Process (..), delay, register)
+import Circuit.Process (Mealy (..), delay, register)
 import Data.Tuple qualified as Tuple
 import GHC.TypeNats (KnownNat, natVal)
 import Prelude hiding (curry, id, uncurry, (.))
@@ -57,36 +57,36 @@ checkIOV Axioms name act = do
 checkIOV _ _ act = act
 
 -- | Simple additive process for oracles.
-sumP :: Process Int Int
-sumP = Process id (+) id
+sumP :: Mealy Int Int
+sumP = Mealy id (+) id
 
 -- | Pair braid for the (,) trace yanking oracle.
-swapPairP :: Process (Int, Int) (Int, Int)
-swapPairP = Process id (\_ x -> x) (\(a, b) -> (b, a))
+swapPairP :: Mealy (Int, Int) (Int, Int)
+swapPairP = Mealy id (\_ x -> x) (\(a, b) -> (b, a))
 
 -- | Either braid for the Either trace yanking oracle.
-swapEitherP :: Process (Either Int Int) (Either Int Int)
-swapEitherP = Process id (\_ x -> x) swapEither
+swapEitherP :: Mealy (Either Int Int) (Either Int Int)
+swapEitherP = Mealy id (\_ x -> x) swapEither
   where
     swapEither (Left a) = Right a
     swapEither (Right b) = Left b
 
 -- | EWMA body: stateless affine box with feedback.
-ewmaBody :: Double -> Process (Double, Double) (Double, Double)
+ewmaBody :: Double -> Mealy (Double, Double) (Double, Double)
 ewmaBody alpha =
-  Process
+  Mealy
     (\(x, prev) -> alpha * x + (1 - alpha) * prev)
     (\s (x, _) -> alpha * x + (1 - alpha) * s)
     (\s -> (s, s))
 
 -- | Exponentially weighted moving average with initial feedback.
-ewma :: Double -> Double -> Process Double Double
+ewma :: Double -> Double -> Mealy Double Double
 ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Shared-medium body: adds the input to the shared state and echoes it.
-sharedAddP :: Process (Int, Int) (Int, Int)
-sharedAddP = Process (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
+sharedAddP :: Mealy (Int, Int) (Int, Int)
+sharedAddP = Mealy (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
 
 -- | Shared-medium body: doubles the shared state and echoes the input.
-sharedDoubleP :: Process (Int, Int) (Int, Int)
-sharedDoubleP = Process (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
+sharedDoubleP :: Mealy (Int, Int) (Int, Int)
+sharedDoubleP = Mealy (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))

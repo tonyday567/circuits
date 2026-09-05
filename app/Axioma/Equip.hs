@@ -147,7 +147,7 @@ seqComposeRightIdOk xs =
   let s = 7
    in runBody (seqCompose (Body id) sumBody) (s, ()) xs == runBody sumBody s xs
 
--- | MachineP-split 'Poles' for the counter body.  The write pole updates state
+-- | Machine-split 'Poles' for the counter body.  The write pole updates state
 -- and posts the new state into the carrier; the read pole observes the carrier
 -- and emits a 'Char'.
 counterPoles :: Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) Bool Char
@@ -156,7 +156,7 @@ counterPoles = Poles write readBody
     write = Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', n')
     readBody = Body $ \(n, ch) -> (n, if odd ch then 'x' else 'y')
 
--- | MachineP-split 'Poles' for the parity body.
+-- | Machine-split 'Poles' for the parity body.
 parityPoles :: Poles Bool Bool (Body (,) Bool (->)) (Body (,) Bool (->)) Bool Char
 parityPoles = Poles write readBody
   where
@@ -181,7 +181,7 @@ bodyF = Body $ \(s, a) -> (s, boundaryF a)
 bodyG :: Body (,) s (->) Char String
 bodyG = Body $ \(s, c) -> (s, boundaryG c)
 
--- | The MachineP-split 'Poles' representations agree with the original Mealy
+-- | The Machine-split 'Poles' representations agree with the original Mealy
 -- bodies over the full bounded state space.
 polesMatchBodyOk :: Bool
 polesMatchBodyOk =
@@ -1180,7 +1180,7 @@ bisimCarrierIsoFinerOk =
 --
 -- Note: the two-cell tests only exercise 'tensor' in its first slot (the
 -- carrier map), with the second slot fed 'id'.  Coverage of 'tensor's payload
--- slot belongs in "Axioma.Moore"; 'hcomposeObservationalOk' also exercises
+-- slot belongs in "Axioma.Machine"; 'hcomposeObservationalOk' also exercises
 -- the joint behaviour of 'tensor' through horizontal composition.
 equipTopic :: Verbosity -> IO [Bool]
 equipTopic verbosity = do
@@ -1222,7 +1222,7 @@ equipTopic verbosity = do
       checkV verbosity "associator witness commutes" associatorOk,
       checkV verbosity "strength coherence (strength f == tensor id f)" strengthCoherenceOk,
       checkV verbosity "boundary whisker preserves the square" whiskerSqSquareOk,
-      checkV verbosity "MachineP-split poles agree with the Mealy bodies" polesMatchBodyOk,
+      checkV verbosity "Machine-split poles agree with the Mealy bodies" polesMatchBodyOk,
       checkV verbosity "interchange law (source)" $
         all interchangeSourceOk [(n, r) | n <- carrierRange, r <- [0, 1, 2, 3]],
       checkV verbosity "interchange law (target)" $

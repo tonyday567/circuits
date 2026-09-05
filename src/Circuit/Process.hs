@@ -5,13 +5,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | A pointed stateful process from @a@ to @b@.
+-- | Stateful stream processes: the unpointed 'Mealy' carrier and the
+-- pointed 'Process' carrier.
 --
 -- @
--- data Process a b = forall s. Process (a -> s) (s -> a -> s) (s -> b)
+-- data Mealy a b = forall s. Mealy (a -> s) (s -> a -> s) (s -> b)
+-- data Process s a b = Process s (s -> a -> s) (s -> b)
 -- @
 --
--- 'Process' is the circuits-native carrier for streaming state machines: the
+-- 'Mealy' is the circuits-native carrier for streaming state machines: the
 -- interface is a monomial @a -> b@ stream transformer and the initial state is
 -- supplied by the first input. The underlying span-shaped carrier is
 -- 'Circuit.Body.Body'.
@@ -20,13 +22,20 @@
 -- * @step@ updates the state given the current input.
 -- * @extract@ produces the output from the current state.
 --
--- This is intended to replace the hand-rolled state-machine arrow: stats
--- packages become boxes @Process a b@, while the arrow itself lives in the
--- substrate next to 'Circuit.Trace' and 'Circuit.Net'.
+-- 'Process' is the same machine with the seed made explicit: the state type
+-- @s@ is a parameter and every tick is uniform (state in, input in, state
+-- out, output out). 'asMealy' forgets the seed, mapping a pointed process
+-- to its unpointed shadow; 'Circuit.Machine.asProcess' and
+-- 'Circuit.Machine.machineAsMealy' mediate the monomial corner with
+-- polynomial machines.
+--
+-- This pair is intended to replace the hand-rolled state-machine arrow: stats
+-- packages become boxes @Mealy a b@ / @Process s a b@, while the arrow itself
+-- lives in the substrate next to 'Circuit.Trace' and 'Circuit.Net'.
 --
 -- The semantics are intentionally tied to the circuits substrate:
 --
--- * 'scan' is the reference runner over lists.
+-- * 'scan' / 'scanProcess' are the reference runners over lists.
 -- * 'scanStream' generalizes this to any 'Uncons' input and 'Cons' output.
 -- * 'encodeList' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
 --   lists; the two runners are verified equivalent by oracle.
@@ -35,29 +44,29 @@
 --
 -- = Pointed systems
 --
--- The pointed-MachineP view of a stateful morphism lives in 'Circuit.Moore', which
--- builds polynomial interfaces on top of this monomial carrier.
+-- The pointed-machine view of a stateful morphism lives in 'Circuit.Machine',
+-- which builds polynomial interfaces on top of this monomial carrier.
 module Circuit.Process
   ( -- * Stream transformer (monomial special case)
-    Process (..),
+    Mealy (..),
 
     -- * Pointed process (explicit seed)
-    ProcessP (..),
-    asProcess,
+    Process (..),
+    asMealy,
 
-    -- * MachineP conversions
-    asProcessP,
-    machinePAsProcess,
-    asProcessPCell,
-    pprocessAsMoore,
+    -- * Machine conversions
+    asProcess,
+    machineAsMealy,
+    asProcessCell,
+    processAsMachine,
 
     -- * Boundary machines
-    markProcessP,
     markProcess,
-    scheduleAsProcessP,
+    markMealy,
+    scheduleAsProcess,
 
     -- * Channel-pole processes
-    polesToProcessP,
+    polesToProcess,
     runPoles,
 
     -- * Functorial plumbing
@@ -69,12 +78,12 @@ module Circuit.Process
 
     -- * Runners
     scan,
-    scanProcessP,
-    runProcessP,
-    finalProcessP,
+    scanProcess,
+    runProcess,
+    finalProcess,
     scanStream,
     fold,
-    foldProcessP,
+    foldProcess,
     foldStream,
     encodeList,
     encodeStream,
@@ -89,9 +98,9 @@ module Circuit.Process
     register,
 
     -- * Body conversions and runners
-    processPToBody,
-    processToSomeBody,
-    bodyToProcess,
+    processToBody,
+    mealyToSomeBody,
+    bodyToMealy,
     runBody,
     runBodyCell,
   )
@@ -103,7 +112,7 @@ import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
 import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..), unitCell)
 import Circuit.Equip qualified as Poles
-import Circuit.Moore (MachineP, machineMorphismP, machineP, monoDir, monoIn, toEvalMachineP)
+import Circuit.Machine (Machine, machine, machineMorphism, monoDir, monoIn, toEvalMachine)
 import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
@@ -130,103 +139,103 @@ import Prelude hiding (id, (.))
 -- This is the input discharge of pointing: the initial state is created from
 -- the first input. See 'Circuit.Equip.UnitCell' for the explicit discharge
 -- and the taxonomy.
-data Process a b where
-  Process ::
+data Mealy a b where
+  Mealy ::
     forall s a b.
     (a -> s) ->
     (s -> a -> s) ->
     (s -> b) ->
-    Process a b
+    Mealy a b
 
 -- | A pointed process with an explicit seed.
 --
--- This is the same data as 'Process' except the initial state @s0@ is exposed
+-- This is the same data as 'Mealy' except the initial state @s0@ is exposed
 -- rather than computed from the first input. Every tick is uniform: state in,
 -- input in, state out, output out.
 --
 -- This is the explicit discharge of pointing — the seed as data. See
 -- 'Circuit.Equip.UnitCell'.
-data ProcessP s a b = ProcessP
-  { processSeedP :: s,
-    processStepP :: s -> a -> s,
-    processExtractP :: s -> b
+data Process s a b = Process
+  { processSeed :: s,
+    processStep :: s -> a -> s,
+    processExtract :: s -> b
   }
 
--- | Forget the explicit seed of a 'ProcessP', yielding a 'Process' whose
--- first input creates the initial state via 'processStepP'.
-asProcess :: ProcessP s a b -> Process a b
-asProcess (ProcessP s0 step extract) =
-  Process (\a -> step s0 a) step extract
-{-# INLINEABLE asProcess #-}
+-- | Forget the explicit seed of a 'Process', yielding a 'Mealy' whose
+-- first input creates the initial state via 'processStep'.
+asMealy :: Process s a b -> Mealy a b
+asMealy (Process s0 step extract) =
+  Mealy (\a -> step s0 a) step extract
+{-# INLINEABLE asMealy #-}
 
--- * MachineP conversions
+-- * Machine conversions
 
--- | Convert a monomial @(->)@ MachineP machine into a pointed process.
-asProcessP :: MachineP (,) s (->) (Mono i o) -> s -> ProcessP s i o
-asProcessP sys s0 = ProcessP s0 step' extract'
+-- | Convert a monomial @(->)@ machine into a pointed process.
+asProcess :: Machine (,) s (->) (Mono i o) -> s -> Process s i o
+asProcess sys s0 = Process s0 step' extract'
   where
-    step' s i = case toEvalMachineP sys s of EP (EK _, EE f) -> f i
-    extract' s = case toEvalMachineP sys s of EP (EK o, EE _) -> o
+    step' s i = case toEvalMachine sys s of EP (EK _, EE f) -> f i
+    extract' s = case toEvalMachine sys s of EP (EK o, EE _) -> o
 
--- | Convert a monomial @(->)@ MachineP machine into a process.
-machinePAsProcess :: MachineP (,) s (->) (Mono i o) -> s -> Process i o
-machinePAsProcess sys s0 = asProcess (asProcessP sys s0)
+-- | Convert a monomial @(->)@ machine into a process.
+machineAsMealy :: Machine (,) s (->) (Mono i o) -> s -> Mealy i o
+machineAsMealy sys s0 = asMealy (asProcess sys s0)
 
 -- | Point a monomial machine with a 'Circuit.Equip.UnitCell' instead of a
 -- bare seed.
 --
 -- Agrees with the ad-hoc seed runner:
 --
--- >>> import Circuit.Moore (MachineP, machineP)
+-- >>> import Circuit.Machine (Machine, machine)
 -- >>> import Circuit.Poly (Mono)
 -- >>> import Circuit.Equip (unitCell)
 -- >>> import Data.Void (absurd)
--- >>> let sys = machineP (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
--- >>> scanProcessP (asProcessP sys 3) [1, 2]
+-- >>> let sys = machine (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> scanProcess (asProcess sys 3) [1, 2]
 -- [8,12]
--- >>> scanProcessP (asProcessPCell sys (unitCell (const 3))) [1, 2]
+-- >>> scanProcess (asProcessCell sys (unitCell (const 3))) [1, 2]
 -- [8,12]
-asProcessPCell :: MachineP (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> ProcessP s i o
-asProcessPCell sys (UnitCell f) = asProcessP sys (f ())
+asProcessCell :: Machine (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> Process s i o
+asProcessCell sys (UnitCell f) = asProcess sys (f ())
 
--- | Convert a pointed process into a monomial 'MachineP' machine.
+-- | Convert a pointed process into a monomial 'Machine' machine.
 --
 -- The position is read from the /new/ state — the process output of the
 -- state after consuming the direction.  The state evolution agrees with
--- 'asProcessP'; the observation is the one-tick shift of a machine built
--- directly with 'machineP'.
+-- 'asProcess'; the observation is the one-tick shift of a machine built
+-- directly with 'machine'.
 --
--- >>> import Circuit.Moore (MachineP, machineMorphismP, machineP)
+-- >>> import Circuit.Machine (Machine, machineMorphism, machine)
 -- >>> import Circuit.Poly (Mono)
 -- >>> import Data.Void (absurd)
--- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
--- >>> scanProcessP acc [1, 2, 3]
+-- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
+-- >>> scanProcess acc [1, 2, 3]
 -- [1,3,6]
--- >>> machineMorphismP (pprocessAsMoore acc) (0, Right 1)
+-- >>> machineMorphism (processAsMachine acc) (0, Right 1)
 -- (1,(1,()))
 --
--- Round trip through 'asProcessP': the transition is unchanged and the
+-- Round trip through 'asProcess': the transition is unchanged and the
 -- position comes from the new state (@16 = 8 * 2@, not the pre-step @6@).
 --
--- >>> let sys = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
--- >>> machineMorphismP (pprocessAsMoore (asProcessP sys 3)) (3, Right 5)
+-- >>> let sys = machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> machineMorphism (processAsMachine (asProcess sys 3)) (3, Right 5)
 -- (8,(16,()))
-pprocessAsMoore :: ProcessP s i o -> MachineP (,) s (->) (Mono i o)
-pprocessAsMoore pp =
-  machineP $ \(s, d) ->
-    let s' = processStepP pp s (monoDir d)
-     in (s', (processExtractP pp s', ()))
-{-# INLINEABLE pprocessAsMoore #-}
+processAsMachine :: Process s i o -> Machine (,) s (->) (Mono i o)
+processAsMachine pp =
+  machine $ \(s, d) ->
+    let s' = processStep pp s (monoDir d)
+     in (s', (processExtract pp s', ()))
+{-# INLINEABLE processAsMachine #-}
 
 -- * Boundary machines
 
 -- | Mark-driven halt combinator for pointed processes.
-markProcessP ::
+markProcess ::
   (k -> Bool) ->
-  ProcessP s a b ->
-  ProcessP (Either s s) (Boundary k a) (Maybe b)
-markProcessP isHalt (ProcessP s0 step extract) =
-  ProcessP
+  Process s a b ->
+  Process (Either s s) (Boundary k a) (Maybe b)
+markProcess isHalt (Process s0 step extract) =
+  Process
     (Left s0)
     ( \case
         Left s -> \case
@@ -240,15 +249,15 @@ markProcessP isHalt (ProcessP s0 step extract) =
     )
 
 -- | Mark-driven halt combinator for processes.
-markProcess ::
+markMealy ::
   (k -> Bool) ->
-  Process a b ->
-  Process (Boundary k a) (Maybe b)
-markProcess isHalt (Process inject step extract) =
-  Process
+  Mealy a b ->
+  Mealy (Boundary k a) (Maybe b)
+markMealy isHalt (Mealy inject step extract) =
+  Mealy
     ( \case
         Payload a -> Left (inject a)
-        Mark k -> if isHalt k then Right () else Left (inject (error "markProcess: initial mark without payload"))
+        Mark k -> if isHalt k then Right () else Left (inject (error "markMealy: initial mark without payload"))
     )
     ( \case
         Left s -> \case
@@ -270,79 +279,79 @@ markProcess isHalt (Process inject step extract) =
 --
 -- >>> import Circuit.Shared (Pick (..), Schedule (..))
 -- >>> let alt = Schedule (\s -> (s + 1, if odd s then PickL else PickR))
--- >>> scanProcessP (scheduleAsProcessP 0 alt) [(), (), (), ()]
+-- >>> scanProcess (scheduleAsProcess 0 alt) [(), (), (), ()]
 -- [PickL,PickR,PickL,PickR]
-scheduleAsProcessP :: s -> Schedule s -> ProcessP s () Pick
-scheduleAsProcessP s0 sched =
-  ProcessP s0 (\s _ -> fst (chooseS sched s)) (\s -> snd (chooseS sched s))
+scheduleAsProcess :: s -> Schedule s -> Process s () Pick
+scheduleAsProcess s0 sched =
+  Process s0 (\s _ -> fst (chooseS sched s)) (\s -> snd (chooseS sched s))
 
 -- * Channel-pole processes
 
 -- | Build a pointed process from channel poles.
-polesToProcessP :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> ProcessP s a b
-polesToProcessP p s0 =
+polesToProcess :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> Process s a b
+polesToProcess p s0 =
   let Body write = conjoint p
       Body receive = companion p
-   in ProcessP s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
+   in Process s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
 
 -- | Run channel poles over a list of inputs.
 runPoles :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> [a] -> [b]
-runPoles p s0 xs = scanProcessP (polesToProcessP p s0) xs
+runPoles p s0 xs = scanProcess (polesToProcess p s0) xs
 
 -- * Functorial plumbing
 
 -- | 'fmap' postcomposes a pure function on the output of a process.
-instance Functor (Process a) where
-  fmap f (Process i st ex) = Process i st (f . ex)
+instance Functor (Mealy a) where
+  fmap f (Mealy i st ex) = Mealy i st (f . ex)
   {-# INLINEABLE fmap #-}
 
 -- | 'pure' produces a constant process; '<*>' pairs states and applies the
 -- left output to the right output.
-instance Applicative (Process a) where
-  pure b = Process (const ()) (\_ _ -> ()) (const b)
+instance Applicative (Mealy a) where
+  pure b = Mealy (const ()) (\_ _ -> ()) (const b)
   {-# INLINEABLE pure #-}
-  Process i1 st1 ex1 <*> Process i2 st2 ex2 =
-    Process
+  Mealy i1 st1 ex1 <*> Mealy i2 st2 ex2 =
+    Mealy
       (\a -> (i1 a, i2 a))
       (\(s1, s2) a -> (st1 s1 a, st2 s2 a))
       (\(s1, s2) -> ex1 s1 (ex2 s2))
   {-# INLINEABLE (<*>) #-}
 
 -- | Precompose a pure function before a process.
-before :: Process b c -> (a -> b) -> Process a c
-before (Process i st ex) f = Process (i . f) (\s a -> st s (f a)) ex
+before :: Mealy b c -> (a -> b) -> Mealy a c
+before (Mealy i st ex) f = Mealy (i . f) (\s a -> st s (f a)) ex
 {-# INLINEABLE before #-}
 
 -- | Postcompose a pure function after a process.
-after :: Process a b -> (b -> c) -> Process a c
-after (Process i st ex) f = Process i st (f . ex)
+after :: Mealy a b -> (b -> c) -> Mealy a c
+after (Mealy i st ex) f = Mealy i st (f . ex)
 {-# INLINEABLE after #-}
 
 -- | Run two processes on the same input and combine their outputs.
-parWith :: (x -> y -> z) -> Process a x -> Process a y -> Process a z
+parWith :: (x -> y -> z) -> Mealy a x -> Mealy a y -> Mealy a z
 parWith = liftA2
 {-# INLINEABLE parWith #-}
 
 -- | Run three processes on the same input and combine their outputs.
-parWith3 :: (x -> y -> z -> w) -> Process a x -> Process a y -> Process a z -> Process a w
+parWith3 :: (x -> y -> z -> w) -> Mealy a x -> Mealy a y -> Mealy a z -> Mealy a w
 parWith3 = liftA3
 {-# INLINEABLE parWith3 #-}
 
 -- | Run four processes on the same input and combine their outputs.
-parWith4 :: (w -> x -> y -> z -> r) -> Process a w -> Process a x -> Process a y -> Process a z -> Process a r
+parWith4 :: (w -> x -> y -> z -> r) -> Mealy a w -> Mealy a x -> Mealy a y -> Mealy a z -> Mealy a r
 parWith4 f p1 p2 p3 p4 = liftA2 (\w (x, y, z) -> f w x y z) p1 (liftA3 (,,) p2 p3 p4)
 {-# INLINEABLE parWith4 #-}
 
 -- * Category
 
-instance Category Process where
-  id :: Process a a
-  id = Process id const id
+instance Category Mealy where
+  id :: Mealy a a
+  id = Mealy id const id
   {-# INLINE id #-}
 
-  (.) :: Process b c -> Process a b -> Process a c
-  Process i2 st2 ex2 . Process i1 st1 ex1 =
-    Process
+  (.) :: Mealy b c -> Mealy a b -> Mealy a c
+  Mealy i2 st2 ex2 . Mealy i1 st1 ex1 =
+    Mealy
       (\a -> let s1 = i1 a in (s1, i2 (ex1 s1)))
       ( \(s1, s2) a ->
           let s1' = st1 s1 a
@@ -354,29 +363,29 @@ instance Category Process where
 
 -- Assoc / Slide / Strength / Yank for (,)
 --
--- These instances make Process a traced monoidal category under the cartesian
+-- These instances make Mealy a traced monoidal category under the cartesian
 -- tensor. The yank ties a lazy self-referential knot and is productive only
 -- when the body is non-strict in the feedback channel. Strict accumulators
 -- (e.g. moving averages) diverge under the (,) yank; use Either-trace 'run'
 -- or the 'register' combinator for those.
 
-instance Assoc (,) Process where
-  assoc = Process id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
-  assoc' = Process id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
+instance Assoc (,) Mealy where
+  assoc = Mealy id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
+  assoc' = Mealy id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
 
-instance Slide (,) Process where
-  slide = Process id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
+instance Slide (,) Mealy where
+  slide = Mealy id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
-instance Strength (,) Process where
-  strength (Process i st ex) =
-    Process
+instance Strength (,) Mealy where
+  strength (Mealy i st ex) =
+    Mealy
       (\(~(a, b)) -> (a, i b))
       (\(~(_, s)) (~(a', b)) -> (a', st s b))
       (\(~(a, s)) -> (a, ex s))
 
-instance Yank (,) Process where
-  yank (Process i st ex) =
-    Process
+instance Yank (,) Mealy where
+  yank (Mealy i st ex) =
+    Mealy
       (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
       ( \s b ->
           let (s', _a) = fix (\ ~(s'', a') -> (st s (a', b), fst (ex s'')))
@@ -388,26 +397,26 @@ instance Yank (,) Process where
 
 -- Tensor / Action / Shared for (,)
 --
--- These instances make @Process@ a cartesian monoidal category in its own
+-- These instances make @Mealy@ a cartesian monoidal category in its own
 -- right, so it can serve as a base category for shared-medium fusion and
--- for @Trace (,) Process@.
+-- for @Trace (,) Mealy@.
 
-instance Unital (,) Process where
-  unitl = Process snd (\_ (_, a) -> a) id
-  unitl' = Process id const ((),)
-  unitr = Process fst (\_ (a, ()) -> a) id
-  unitr' = Process id const (,())
+instance Unital (,) Mealy where
+  unitl = Mealy snd (\_ (_, a) -> a) id
+  unitl' = Mealy id const ((),)
+  unitr = Mealy fst (\_ (a, ()) -> a) id
+  unitr' = Mealy id const (,())
 
-instance Tensor (,) Process where
-  tensor (Process i1 st1 ex1) (Process i2 st2 ex2) =
-    Process
+instance Tensor (,) Mealy where
+  tensor (Mealy i1 st1 ex1) (Mealy i2 st2 ex2) =
+    Mealy
       (bimap i1 i2)
       (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
       (bimap ex1 ex2)
   {-# INLINE tensor #-}
 
-instance Action (,) Process where
-  braid = Process id (const id) sw
+instance Action (,) Mealy where
+  braid = Mealy id (const id) sw
     where
       sw (a, b) = (b, a)
   {-# INLINE braid #-}
@@ -418,9 +427,9 @@ instance Action (,) Process where
 -- chooses which body advances; the gated body's input is discarded and it does
 -- not step. Each process is injected lazily on its first firing, so a body that
 -- is never scheduled consumes no inputs and produces no outputs.
-instance Shared (,) Process where
-  sharedBy sched (Process iL stL exL) (Process iR stR exR) =
-    Process inject step extract
+instance Shared (,) Mealy where
+  sharedBy sched (Mealy iL stL exL) (Mealy iR stR exR) =
+    Mealy inject step extract
     where
       inject (s, (a, c)) =
         let (s', pick) = chooseS sched s
@@ -485,33 +494,33 @@ instance Shared (,) Process where
 
 -- Assoc / Slide / Strength / Yank for Either
 --
--- These instances make Process a traced monoidal category under the Either
+-- These instances make Mealy a traced monoidal category under the Either
 -- tensor. The yank is per-tick Conway/Elgot settle: Right injects a value,
 -- Left feeds intermediate state back within the same tick until Right exits.
--- This is the instance required by 'Net Either Process' knot bodies.
+-- This is the instance required by 'Net Either Mealy' knot bodies.
 
-instance Assoc Either Process where
-  assoc = Process id (\_ x -> x) assocEither
+instance Assoc Either Mealy where
+  assoc = Mealy id (\_ x -> x) assocEither
     where
       assocEither (Left (Left a)) = Left a
       assocEither (Left (Right b)) = Right (Left b)
       assocEither (Right c) = Right (Right c)
-  assoc' = Process id (\_ x -> x) assocEither'
+  assoc' = Mealy id (\_ x -> x) assocEither'
     where
       assocEither' (Left a) = Left (Left a)
       assocEither' (Right (Left b)) = Left (Right b)
       assocEither' (Right (Right c)) = Right c
 
-instance Slide Either Process where
-  slide = Process id (\_ x -> x) slideEither
+instance Slide Either Mealy where
+  slide = Mealy id (\_ x -> x) slideEither
     where
       slideEither (Left a) = Right (Left a)
       slideEither (Right (Left b)) = Left b
       slideEither (Right (Right c)) = Right (Right c)
 
-instance Strength Either Process where
-  strength (Process i st ex) =
-    Process
+instance Strength Either Mealy where
+  strength (Mealy i st ex) =
+    Mealy
       (\case Left a -> (Nothing, Left a); Right b -> let s0 = i b in (Just s0, Right (ex s0)))
       ( \(ms, _) -> \case
           Left a -> (ms, Left a)
@@ -521,8 +530,8 @@ instance Strength Either Process where
       )
       snd
 
-instance Yank Either Process where
-  yank (Process i st ex) = Process i' st' ex'
+instance Yank Either Mealy where
+  yank (Mealy i st ex) = Mealy i' st' ex'
     where
       settle m = case ex m of
         Left s -> settle (st m (Left s))
@@ -536,17 +545,17 @@ instance Yank Either Process where
 
 -- * Bimonoid instances (pointwise lift)
 
-instance (Copy (->) a) => Copy Process a where
-  copy = Process id (\_ x -> x) Bm.copy
+instance (Copy (->) a) => Copy Mealy a where
+  copy = Mealy id (\_ x -> x) Bm.copy
 
-instance Discard Process a where
-  discard = Process id (\_ x -> x) (const ())
+instance Discard Mealy a where
+  discard = Mealy id (\_ x -> x) (const ())
 
-instance (Merge (->) a) => Merge Process a where
-  plus = Process id (\_ x -> x) Bm.plus
+instance (Merge (->) a) => Merge Mealy a where
+  plus = Mealy id (\_ x -> x) Bm.plus
 
-instance (Zero (->) a) => Zero Process a where
-  zero = Process id (\_ x -> x) Bm.zero
+instance (Zero (->) a) => Zero Mealy a where
+  zero = Mealy id (\_ x -> x) Bm.zero
 
 -- * Runners
 
@@ -555,8 +564,8 @@ instance (Zero (->) a) => Zero Process a where
 --
 -- The first element seeds the hidden channel via @inject@; each subsequent
 -- element steps it via @step@; each output is @extract@ of the current channel.
-scanStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> f -> g
-scanStream (Process inject step extract) = goInit
+scanStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a b -> f -> g
+scanStream (Mealy inject step extract) = goInit
   where
     nilG :: g
     nilG = consNil @g @b
@@ -575,42 +584,42 @@ scanStream (Process inject step extract) = goInit
       These a rest -> let s' = step s a in consG (extract s') (go s' rest)
 
 -- | List specialization of 'scanStream'.
-scan :: Process a b -> [a] -> [b]
+scan :: Mealy a b -> [a] -> [b]
 scan = scanStream
 {-# INLINE scan #-}
 
 -- | Run a pointed process over a list, starting from its stored seed.
 --
--- Output at each step is 'processExtractP' of the state /after/ consuming the
--- input, matching the 'Process' semantics of 'scan'.
-scanProcessP :: ProcessP s a b -> [a] -> [b]
-scanProcessP pp = go (processSeedP pp)
+-- Output at each step is 'processExtract' of the state /after/ consuming the
+-- input, matching the 'Mealy' semantics of 'scan'.
+scanProcess :: Process s a b -> [a] -> [b]
+scanProcess pp = go (processSeed pp)
   where
     go _ [] = []
     go s (a : as) =
-      let s' = processStepP pp s a
-       in processExtractP pp s' : go s' as
-{-# INLINEABLE scanProcessP #-}
+      let s' = processStep pp s a
+       in processExtract pp s' : go s' as
+{-# INLINEABLE scanProcess #-}
 
 -- | Run a pointed process over a list, producing the outputs /and/ the final
 -- state in a single pass.
-runProcessP :: ProcessP s a b -> [a] -> ([b], s)
-runProcessP pp xs = go (processSeedP pp) xs []
+runProcess :: Process s a b -> [a] -> ([b], s)
+runProcess pp xs = go (processSeed pp) xs []
   where
     go s [] acc = (reverse acc, s)
     go s (a : as) acc =
-      let s' = processStepP pp s a
-       in go s' as (processExtractP pp s' : acc)
-{-# INLINEABLE runProcessP #-}
+      let s' = processStep pp s a
+       in go s' as (processExtract pp s' : acc)
+{-# INLINEABLE runProcess #-}
 
 -- | Final state after consuming a list of inputs.
-finalProcessP :: ProcessP s a b -> [a] -> s
-finalProcessP pp = snd . runProcessP pp
-{-# INLINEABLE finalProcessP #-}
+finalProcess :: Process s a b -> [a] -> s
+finalProcess pp = snd . runProcess pp
+{-# INLINEABLE finalProcess #-}
 
 -- | Run a process over a stream, returning the final output (if any).
-foldStream :: (Uncons f a) => Process a b -> f -> Maybe b
-foldStream (Process inject step extract) = goInit
+foldStream :: (Uncons f a) => Mealy a b -> f -> Maybe b
+foldStream (Mealy inject step extract) = goInit
   where
     goInit f = case uncons f of
       That _ -> Nothing
@@ -623,18 +632,18 @@ foldStream (Process inject step extract) = goInit
       These a rest -> go (step s a) rest
 
 -- | List specialization of 'foldStream'.
-fold :: Process a b -> [a] -> Maybe b
+fold :: Mealy a b -> [a] -> Maybe b
 fold = foldStream
 {-# INLINE fold #-}
 
 -- | Run a pointed process over a list, returning the final output (if any).
-foldProcessP :: ProcessP s a b -> [a] -> Maybe b
-foldProcessP pp = go (processSeedP pp)
+foldProcess :: Process s a b -> [a] -> Maybe b
+foldProcess pp = go (processSeed pp)
   where
     go _ [] = Nothing
-    go s [a] = Just (processExtractP pp (processStepP pp s a))
-    go s (a : as) = go (processStepP pp s a) as
-{-# INLINEABLE foldProcessP #-}
+    go s [a] = Just (processExtract pp (processStep pp s a))
+    go s (a : as) = go (processStep pp s a) as
+{-# INLINEABLE foldProcess #-}
 
 -- | Encode a process as a stream-level 'Trace' over arbitrary 'Uncons'/'Cons'
 -- streams.
@@ -642,8 +651,8 @@ foldProcessP pp = go (processSeedP pp)
 -- This is the definitional runner: 'scanStream' is 'Circuit.Syntax.eval'
 -- composed with 'encodeStream'. The feedback channel carries
 -- @(Maybe channel, remaining input, accumulated output)@.
-encodeStream :: forall f a g b. (Uncons f a, Cons g b) => Process a b -> Trace Either (->) f g
-encodeStream (Process inject step extract) = yank (base b)
+encodeStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a b -> Trace Either (->) f g
+encodeStream (Mealy inject step extract) = yank (base b)
   where
     Body b =
       Body $ \case
@@ -675,18 +684,18 @@ encodeStream (Process inject step extract) = yank (base b)
     consG = cons
 
 -- | List specialization of 'encodeStream'.
-encodeList :: Process a b -> Trace Either (->) [a] [b]
+encodeList :: Mealy a b -> Trace Either (->) [a] [b]
 encodeList = encodeStream
 {-# INLINE encodeList #-}
 
 -- * Mealy-style processes
 
--- | Build a 'Process' from a Mealy-style step.
+-- | Build a 'Mealy' from a Mealy-style step.
 --
 -- The output may depend on the current input. The channel internally stores the
--- most recent output so that the MachineP-style 'Process' interface is preserved.
-mealy :: ch -> (ch -> a -> (ch, Maybe b)) -> Process a (Maybe b)
-mealy ch0 step = Process inject step' extract
+-- most recent output so that the Machine-style 'Mealy' interface is preserved.
+mealy :: ch -> (ch -> a -> (ch, Maybe b)) -> Mealy a (Maybe b)
+mealy ch0 step = Mealy inject step' extract
   where
     inject a =
       let (ch, mb) = step ch0 a
@@ -697,9 +706,9 @@ mealy ch0 step = Process inject step' extract
     extract = snd
 {-# INLINEABLE mealy #-}
 
--- | Collect the emitted outputs of a 'Process (Maybe b)' over any stream.
-runMealyStream :: forall f a g b. (Uncons f a, Cons g b) => Process a (Maybe b) -> f -> g
-runMealyStream (Process inject step extract) = goInit
+-- | Collect the emitted outputs of a 'Mealy (Maybe b)' over any stream.
+runMealyStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a (Maybe b) -> f -> g
+runMealyStream (Mealy inject step extract) = goInit
   where
     nilG :: g
     nilG = consNil @g @b
@@ -722,7 +731,7 @@ runMealyStream (Process inject step extract) = goInit
       These a rest -> let ch' = step ch a in emit ch' (go ch' rest)
 
 -- | List specialization of 'runMealyStream'.
-runMealy :: Process a (Maybe b) -> [a] -> [b]
+runMealy :: Mealy a (Maybe b) -> [a] -> [b]
 runMealy = runMealyStream
 {-# INLINEABLE runMealy #-}
 
@@ -733,18 +742,18 @@ runMealy = runMealyStream
 -- Output is @s0@ on the first tick and the input from the previous tick
 -- thereafter. This is the primitive that makes 'register' productive: the
 -- feedback wire is observable one tick late.
-delay :: s -> Process s s
-delay s0 = Process (const s0) (const id) id
+delay :: s -> Mealy s s
+delay s0 = Mealy (const s0) (const id) id
 
 -- | Cross-tick register feedback.
 --
--- Given an initial feedback value @s0@ and a process @Process (a, s) (b, s)@,
+-- Given an initial feedback value @s0@ and a process @Mealy (a, s) (b, s)@,
 -- close the @s@ wire so that the @s@ produced at one tick is fed back as
 -- input at the next tick. This is the productive, strict-accumulator-safe
 -- analogue of the cartesian trace: the delay is explicit in the wiring
 -- rather than implicit in a lazy knot.
 --
--- Compare with the cartesian 'yank' on 'Process', which ties a lazy knot
+-- Compare with the cartesian 'yank' on 'Mealy', which ties a lazy knot
 -- and diverges for strict state; 'register' keeps strict state cells sound
 -- by making the one-tick delay observable.
 --
@@ -752,8 +761,8 @@ delay s0 = Process (const s0) (const id) id
 -- (e.g. affine/stateless feedback such as @ewmaBody@), the same wiring can
 -- be expressed by swapping the feedback wire into the active position,
 -- applying 'strength' ('delay' s0), and tracing.
-register :: s -> Process (a, s) (b, s) -> Process a b
-register s0 (Process i st ex) = Process i' st' ex'
+register :: s -> Mealy (a, s) (b, s) -> Mealy a b
+register s0 (Mealy i st ex) = Mealy i' st' ex'
   where
     i' a = i (a, s0)
     st' s a = st s (a, snd (ex s))
@@ -765,49 +774,49 @@ register s0 (Process i st ex) = Process i' st' ex'
 --
 -- The body state is the process state and the output is the process output
 -- of the state after consuming the input, so 'runBody' from the seed
--- reproduces 'scanProcessP'.
+-- reproduces 'scanProcess'.
 --
--- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
--- >>> runBody (processPToBody acc) 0 [1, 2, 3]
+-- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
+-- >>> runBody (processToBody acc) 0 [1, 2, 3]
 -- [1,3,6]
-processPToBody :: ProcessP s a b -> Body (,) s (->) a b
-processPToBody pp =
+processToBody :: Process s a b -> Body (,) s (->) a b
+processToBody pp =
   Body $ \(s, a) ->
-    let s' = processStepP pp s a
-     in (s', processExtractP pp s')
-{-# INLINEABLE processPToBody #-}
+    let s' = processStep pp s a
+     in (s', processExtract pp s')
+{-# INLINEABLE processToBody #-}
 
--- | Eliminate a 'Process' by exposing its hidden state as a cartesian body.
+-- | Eliminate a 'Mealy' by exposing its hidden state as a cartesian body.
 --
--- The continuation receives the seeding function ('Process' inject) together
+-- The continuation receives the seeding function ('Mealy' inject) together
 -- with the body threading the hidden state: 'runBody' seeded by
 -- @inject a0@ reproduces 'scan' after its first output.
 --
--- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
--- >>> scan (asProcess acc) [0, 1, 2, 3]
+-- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
+-- >>> scan (asMealy acc) [0, 1, 2, 3]
 -- [0,1,3,6]
--- >>> processToSomeBody (asProcess acc) (\inj b -> runBody b (inj 0) [1, 2, 3])
+-- >>> mealyToSomeBody (asMealy acc) (\inj b -> runBody b (inj 0) [1, 2, 3])
 -- [1,3,6]
-processToSomeBody :: Process a b -> (forall s. (a -> s) -> Body (,) s (->) a b -> r) -> r
-processToSomeBody (Process inject step extract) k =
+mealyToSomeBody :: Mealy a b -> (forall s. (a -> s) -> Body (,) s (->) a b -> r) -> r
+mealyToSomeBody (Mealy inject step extract) k =
   k inject (Body $ \(s, a) -> let s' = step s a in (s', extract s'))
-{-# INLINEABLE processToSomeBody #-}
+{-# INLINEABLE mealyToSomeBody #-}
 
--- | View a cartesian body as a 'Process'.
+-- | View a cartesian body as a 'Mealy'.
 --
 -- The body state @s@ becomes the process state, paired with the most recent
--- output so that the MachineP-style @extract@ can be defined.
-bodyToProcess :: Body (,) s (->) a b -> s -> Process a b
-bodyToProcess (Body f) s0 = Process inject step extract
+-- output so that the Machine-style @extract@ can be defined.
+bodyToMealy :: Body (,) s (->) a b -> s -> Mealy a b
+bodyToMealy (Body f) s0 = Mealy inject step extract
   where
     inject a = f (s0, a)
     step (s, _) a' = f (s, a')
     extract = snd
-{-# INLINEABLE bodyToProcess #-}
+{-# INLINEABLE bodyToMealy #-}
 
 -- | Run a cartesian body over a list of inputs.
 runBody :: Body (,) s (->) a b -> s -> [a] -> [b]
-runBody body s0 = scan (bodyToProcess body s0)
+runBody body s0 = scan (bodyToMealy body s0)
 {-# INLINEABLE runBody #-}
 
 -- | Run a body from a 'Circuit.Equip.UnitCell' instead of a bare seed.

@@ -17,7 +17,7 @@ import Axioma.Common
   )
 import Circuit.Category (K (..), Op (..), id, runK, runOp, (.), (.>))
 import Circuit.Equip (Stamped (..))
-import Circuit.Process (Process (..), scanProcessP, scheduleAsProcessP)
+import Circuit.Process (Mealy (..), scanProcess, scheduleAsProcess)
 import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
@@ -513,7 +513,7 @@ sharedTopic verbosity = do
             g (s, c) = (s, c * 2)
             ts = transcriptSharedBy alt f g 0 (replicate 4 (1, 1))
             pick0 = snd (chooseS alt 0)
-            standalone = scanProcessP (scheduleAsProcessP 0 alt) (replicate 4 ())
+            standalone = scanProcess (scheduleAsProcess 0 alt) (replicate 4 ())
          in map stamp ts == init (pick0 : standalone),
       -- The Both payloads are the bodies' solo runs only because these
       -- bodies are state-independent; a state-touching body couples its run

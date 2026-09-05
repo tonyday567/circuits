@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | The arrow-equipment surface: channel poles, squares, and boundary tokens.
@@ -10,6 +11,8 @@
 --
 -- * channel poles: 'Poles', the companion/conjoint pair of an identity
 --   with an explicit carrier @ch@;
+-- * polar ends: 'In' and 'Out', the conjoint and companion of the
+--   identity functor as rank-2 poles, paired by 'PolesIO';
 -- * squares: the indexed 2-cell 'Sq' and its existential closure 'TwoCell';
 -- * boundary tokens: 'Boundary' (mark or payload) and 'Stamped'
 --   (occurrence-stamped values).
@@ -56,6 +59,15 @@ module Circuit.Equip
     iomap,
     imap,
     omap,
+
+    -- * Polar ends (companion / conjoint of the identity)
+    Out (..),
+    In (..),
+    PolesIO (..),
+    closeIO,
+    plugIO,
+    prefixIn,
+    suffixOut,
 
     -- * Unit poles and copycat
     open,
@@ -134,6 +146,11 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Tensor (Bias (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 -- >>> import Data.Maybe (isNothing)
+-- >>> :{
+-- let copycatIO :: PolesIO (->) () ()
+--     copycatIO = PolesIO { conjointIO = In (\o a -> emit o (conjointIO copycatIO) a)
+--                         , companionIO = Out (\_ _ -> ()) }
+-- :}
 
 -- * Channel poles — the companion and conjoint of the identity functor.
 
@@ -345,6 +362,94 @@ omap ::
   Poles ch ch' arrW arrR a b'
 omap g (Poles i o) = Poles i (o .> g)
 
+-- * Polar ends — the companion and conjoint of the identity functor.
+
+-- | @Out@ is the companion of the identity functor.  Covariant in @a@
+-- (sits in the output position).
+--
+-- The rank-2 field quantifies over the opposing pole's payload: an
+-- @Out arr a@ produces an @a@ once supplied with any 'In' pole.
+newtype Out arr a = Out
+  { -- | Emit through the companion, supplying the other pole.
+    emit :: forall x. In arr x -> arr x a
+  }
+
+-- | @In@ is the conjoint of the identity functor.  Contravariant in
+-- @a@ (sits in the input position).
+--
+-- Dually, an @In arr a@ consumes an @a@ once supplied with any 'Out'
+-- pole.
+newtype In arr a = In
+  { -- | Commit through the conjoint, supplying the other pole.
+    commit :: forall x. Out arr x -> arr a x
+  }
+
+-- | A matched pair of channel poles: one 'In' and one 'Out'.
+--
+-- The conjoint ('conjointIO') consumes payloads of type @a@; the
+-- companion ('companionIO') produces payloads of type @b@.  For
+-- symmetric channels such as queues @a = b@.
+--
+-- Together with 'prefixIn' and 'suffixOut', @PolesIO@ carries an
+-- /enriched/ profunctor structure over the base category @arr@:
+-- 'prefixIn' is the left action of @arr@ on 'In' poles, and 'suffixOut'
+-- is the right action of @arr@ on 'Out' poles.
+data PolesIO arr a b = PolesIO
+  { -- | Write pole (producer), the conjoint.
+    conjointIO :: In arr a,
+    -- | Read pole (consumer), the companion.
+    companionIO :: Out arr b
+  }
+
+-- | Plug an 'In' and an 'Out' of the same payload type together.
+--
+-- 'closeIO' feeds the 'Out' into the 'In' pole, producing a morphism
+-- @arr a a@ from the paired payload type.
+--
+-- >>> closeIO (conjointIO copycatIO) (companionIO copycatIO) ()
+-- ()
+closeIO :: In arr a -> Out arr a -> arr a a
+closeIO i o = commit i o
+
+-- | Generalised polar plug.
+--
+-- 'plugIO' feeds an @Out arr b@ into an @In arr a@, producing a morphism
+-- @arr a b@.  It is the counit of the polar pairing without the
+-- same-type restriction of 'closeIO': every 'In' pole is already a
+-- polymorphic consumer of 'Out' poles, so this is the underlying
+-- 'commit' exposed.
+--
+-- >>> let out42 = suffixOut (companionIO copycatIO) (const 42) :: Out (->) Int
+-- >>> let inS = prefixIn (const ()) (conjointIO copycatIO) :: In (->) String
+-- >>> plugIO inS out42 "hello"
+-- 42
+plugIO :: In arr a -> Out arr b -> arr a b
+plugIO i o = commit i o
+
+-- | Precompose an @arr@-morphism with an 'In' pole.
+--
+-- Given @f :: arr a b@ and an 'In' pole at type @b@, produce an 'In'
+-- pole at type @a@.  Running the resulting pole first executes @f@ and
+-- then commits through the original pole.
+--
+-- This is the left (contravariant) action of the base category on 'In'
+-- poles.  Specialised to unit poles it is the canonical way to build
+-- effectful write poles.
+prefixIn :: forall arr a b. (Category arr) => arr a b -> In arr b -> In arr a
+prefixIn f i = In $ \(o :: Out arr x) -> f .> commit i o
+
+-- | Postcompose an @arr@-morphism with an 'Out' pole.
+--
+-- Given an 'Out' pole at type @a@ and @g :: arr a b@, produce an 'Out'
+-- pole at type @b@.  Running the resulting pole first emits through the
+-- original pole and then executes @g@ on the emitted value.
+--
+-- This is the right (covariant) action of the base category on 'Out'
+-- poles.  Specialised to unit poles it is the canonical way to build
+-- effectful read poles.
+suffixOut :: forall arr a b. (Category arr) => Out arr a -> arr a b -> Out arr b
+suffixOut o g = Out $ \(i :: In arr x) -> emit o i .> g
+
 -- * Unit poles and copycat
 
 -- | Unit poles at the monoidal unit @()@.
@@ -375,17 +480,17 @@ copycat = Poles id id
 -- input supplies it. There are three discharges, and this type is the
 -- explicit one:
 --
--- * input: the first payload seeds the carrier — 'Circuit.Process.asProcess'
---   removes the seed of a 'Circuit.Process.ProcessP';
--- * closure: the loop seeds itself — 'Circuit.Moore.machinePToMachine'
---   removes the carrier of a 'Circuit.Moore.MachineP' via
+-- * input: the first payload seeds the carrier — 'Circuit.Process.asMealy'
+--   removes the seed of a 'Circuit.Process.Process';
+-- * closure: the loop seeds itself — 'Circuit.Machine.machineToClosed'
+--   removes the carrier of a 'Circuit.Machine.Machine' via
 --   'Circuit.Trace.yank', and the seed is gone from the type;
 -- * explicit: the seed is data, handed to runners such as
---   'Circuit.Process.runBodyCell' and 'Circuit.Process.asProcessPCell'.
+--   'Circuit.Process.runBodyCell' and 'Circuit.Process.asProcessCell'.
 --
 -- The same pointing is independently present at each open post: the seed
 -- argument of 'Circuit.Process.runBody', the initial state of a
--- 'Circuit.Moore.MachineP' run, the seed field of 'Circuit.Process.ProcessP',
+-- 'Circuit.Machine.Machine' run, the seed field of 'Circuit.Process.Process',
 -- the 'Circuit.Category.Pointed' class, the unit pole 'open'. 'Pointed' is
 -- the EM side (an algebra of the @Maybe@ monad, structure on the object);
 -- 'UnitCell' is the same pointing as a value.
@@ -394,9 +499,9 @@ copycat = Poles id id
 -- instantiated and no input supplies it (Loregian: every missing colimit
 -- in the process equipment is a carrier that would have to be pointed or
 -- singleton). Open layers need one: body runners, machine runs,
--- 'ProcessP', 'Either'-carried unit loops. Closed layers need none, by
+-- 'Process', 'Either'-carried unit loops. Closed layers need none, by
 -- type: 'yank' folds (self-seeding at @(,)@, starting from the input at
--- 'Either'), flowchart runners, 'machinePToMachine'.
+-- 'Either'), flowchart runners, 'machineToClosed'.
 newtype UnitCell (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) ch = UnitCell
   { runUnitCell :: arr (Unit t) ch
   }

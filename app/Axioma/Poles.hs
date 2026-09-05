@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Poles, Additive Poles, Stamped, Boundary, and markProcessP oracles.
+-- | Poles, Additive Poles, Stamped, Boundary, and markProcess oracles.
 module Axioma.Poles
   ( polesTopic,
   )
@@ -34,9 +34,9 @@ import Circuit.Equip
     (>:>),
   )
 import Circuit.Equip qualified as Poles
-import Circuit.Moore (MachineP, MooreEval (..), branchMachineP, machineMorphismP, machineP, machinePToPolesAt)
+import Circuit.Machine (Machine, MachineEval (..), branchMachine, machine, machineMorphism, machineToPolesAt)
 import Circuit.Poly (Dir, Mono, Poly (..), Pos)
-import Circuit.Process (Process (..), ProcessP (..), asProcess, fold, markProcess, markProcessP, scan, scanProcessP)
+import Circuit.Process (Mealy (..), Process (..), asMealy, fold, markMealy, markProcess, scan, scanProcess)
 import Circuit.Tensor (Bias (..))
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (void, when)
@@ -47,7 +47,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]
 polesTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markProcessP oracles"
+  when (verbosity == Axioms) $ putStrLn "Poles, Stamped, Boundary, and markProcess oracles"
   sequence
     [ -- Poles oracles
       checkV verbosity "box recovers the composed morphism on a unit pole" $
@@ -109,22 +109,22 @@ polesTopic verbosity = do
       -- finding is captured at commit 0b1663e and on loom/poly-containers.
       -- Honest-grade oracles (poly-containers phase C): the carrier is a
       -- SomePos position, so no observation argument is needed.
-      checkV verbosity "machinePToPolesAt write leg posts posAt of the stepped position" $
+      checkV verbosity "machineToPolesAt write leg posts posAt of the stepped position" $
         let stepInc (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s, ()))
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
-            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
-            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
-            p = machinePToPolesAt sys
+            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
+            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machineToPolesAt sys
             inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
             posOfSome (SomePos i) = posOf i
             run _ [] acc = acc
             run s (d : ds) acc =
-              let (s', pos) = machineMorphismP sys (s, d)
+              let (s', pos) = machineMorphism sys (s, d)
                   (s'', ch) = morphism (conjoint p) (s, d)
                in run s' ds (acc && s'' == s' && posOfSome ch == pos)
          in run 1 inputs True,
@@ -135,10 +135,10 @@ polesTopic verbosity = do
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
-            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
-            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
-            p = machinePToPolesAt sys
+            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
+            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machineToPolesAt sys
             r = companion p
             leftCar = posAt @('Sum (Mono Int Int) (Mono Int Int)) (Left (4, ()))
             rightCar = posAt @('Sum (Mono Int Int) (Mono Int Int)) (Right (4, ()))
@@ -151,15 +151,15 @@ polesTopic verbosity = do
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
-            dbl = machineP stepDbl :: MachineP (,) Int (->) (Mono Int Int)
-            sys = branchMachineP odd inc dbl :: MachineP (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
-            p = machinePToPolesAt sys
+            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
+            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
+            p = machineToPolesAt sys
             inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
             posOfSome (SomePos i) = posOf i
             collect _ [] acc = acc
             collect s (d : ds) acc =
-              let (s', _) = machineMorphismP sys (s, d)
+              let (s', _) = machineMorphism sys (s, d)
                   (_, ch) = morphism (conjoint p) (s, d)
                in collect s' ds (ch : acc)
             check [] acc = acc
@@ -182,48 +182,48 @@ polesTopic verbosity = do
         let p = fmap length (Payload "hi" :: Boundary String String)
          in isPayload p && p == Payload 2,
       -- Mark system (circuits-residual §7)
-      checkV verbosity "markProcessP steps payloads through the inner system" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-            p = asProcess sys
+      checkV verbosity "markProcess steps payloads through the inner system" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+            p = asMealy sys
          in scan p (map Payload [1, 2, 3]) == [Just 1, Just 3, Just 6],
-      checkV verbosity "markProcessP halts on a halt mark and emits Nothing thereafter" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-            p = asProcess sys
+      checkV verbosity "markProcess halts on a halt mark and emits Nothing thereafter" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+            p = asMealy sys
          in scan p [Payload 1, Payload 2, Mark "HALT", Payload 3] == [Just 1, Just 3, Nothing, Nothing],
-      checkV verbosity "markProcessP treats non-halt marks as no-ops" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-            p = asProcess sys
+      checkV verbosity "markProcess treats non-halt marks as no-ops" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+            p = asMealy sys
          in scan p [Payload 1, Mark "NOOP", Payload 2] == [Just 1, Just 1, Just 3],
-      checkV verbosity "markProcessP halts immediately when the first input is a halt mark" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-            p = asProcess sys
+      checkV verbosity "markProcess halts immediately when the first input is a halt mark" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+            p = asMealy sys
          in scan p [Mark "HALT", Payload 1] == [Nothing, Nothing],
-      checkV verbosity "markProcessP round-trips through Process" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-            p = asProcess sys
+      checkV verbosity "markProcess round-trips through Mealy" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+            p = asMealy sys
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
-      -- The documented asymmetry (Process.hs:219): the unpointed
-      -- 'markProcess' has no seed, so an initial mark without payload reaches
-      -- 'error "markProcess: initial mark without payload"' — a runtime
-      -- error, not a silent default. 'markProcessP' exists precisely to
+      -- The documented asymmetry (Process.hs:251): the unpointed
+      -- 'markMealy' has no seed, so an initial mark without payload reaches
+      -- 'error "markMealy: initial mark without payload"' — a runtime
+      -- error, not a silent default. 'markProcess' exists precisely to
       -- remove that: its seed is already live, so a non-halt mark is a no-op
       -- from the very first input. Mutation room: delete the error branch in
-      -- 'markProcess' (mapping the initial mark to a made-up state) and the
+      -- 'markMealy' (mapping the initial mark to a made-up state) and the
       -- first oracle silently passes while the asymmetry is gone.
-      checkIOV verbosity "markProcess errors on an initial mark without payload" $ do
-        let inner = Process id (+) id :: Process Int Int
-            p = markProcess (== "HALT") inner
+      checkIOV verbosity "markMealy errors on an initial mark without payload" $ do
+        let inner = Mealy id (+) id :: Mealy Int Int
+            p = markMealy (== "HALT") inner
         result <- try (evaluate (fromMaybe 0 (head (scan p [Mark "NOOP"])))) :: IO (Either SomeException Int)
         pure (case result of Left _ -> True; Right _ -> False),
-      checkV verbosity "markProcessP seeds past the initial-mark asymmetry" $
-        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
-            sys = markProcessP (== "HALT") innerP
-         in scanProcessP sys [Mark "NOOP", Payload 1, Mark "HALT", Payload 2]
+      checkV verbosity "markProcess seeds past the initial-mark asymmetry" $
+        let innerP = Process 0 (+) id :: Process Int Int Int
+            sys = markProcess (== "HALT") innerP
+         in scanProcess sys [Mark "NOOP", Payload 1, Mark "HALT", Payload 2]
               == [Just 0, Just 1, Nothing, Nothing],
       -- equipment-law oracles
       checkV verbosity "plug id is a homomorphism for stateful Poles over Body" $

@@ -45,9 +45,9 @@ Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules.
 Circuit.Par         — Multiplicative disjunction ⅋, Bot, linear distributors.
 Circuit.Linear      — Linear-logic connectives: Lolli, Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
-Circuit.Process     — Process base arrow (Moore machine), scan/fold, mealy,
-                      delay/register, Body conversions.
-Circuit.Moore       — Moore machines over polynomial interfaces.
+Circuit.Process     — Mealy base arrow (input-seeded), pointed Process,
+                      scan/fold, mealy, delay/register, Body conversions.
+Circuit.Machine     — machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
 Circuit.Equip       — Arrow equipment: channel poles (Poles, two base arrows
                       arrW/arrR with the diagonal as single-base; plugSplit /
@@ -155,8 +155,8 @@ returning. The convention is fixed by the class, not configurable.
 ### pointing: three discharges
 
 A stateful run needs an initial carrier value exactly where no input supplies
-one. `Process` discharges pointing through the input (`asProcess`), `Machine`
-through closure (`machinePToMachine`), and `ProcessP` / `MachineP` keep the
+one. `Mealy` discharges pointing through the input (`asMealy`), `Closed`
+through closure (`machineToClosed`), and `Process` / `Machine` keep the
 seed explicit (`UnitCell` names it). Do not collapse the pairs: closure agrees
 with an explicit seed only when the body never reads its initial state, which
 is why `delay` and `register` exist as explicit wiring.
