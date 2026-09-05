@@ -22,7 +22,7 @@ import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), shar
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (Bias (..), Tensor (..), superpose)
+import Circuit.Tensor (Action (..), Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace, base)
 import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Control.Monad (when)
@@ -205,6 +205,21 @@ sharedTopic verbosity = do
       checkV verbosity "Channel These slide . slide == id where types permit" $
         let x = These 'a' (These 'b' 'c' :: These Char Char)
          in (slide . slide) x == (x :: These Char (These Char Char)),
+      -- Slide decomposition (Traced module header): the slide is the
+      -- half-braid built from the associator and the symmetry,
+      -- slide = assoc' .> tensor braid id .> assoc. Coherence witness at
+      -- (->) for (,) and Either with distinct scalars per position: a
+      -- one-scalar mutation of any factor breaks the equation.
+      checkV verbosity "slide decomposes as assoc' . tensor braid id . assoc at (,)" $
+        let decompose :: (Int, (Int, Int)) -> (Int, (Int, Int))
+            decompose = assoc' .> tensor braid id .> assoc
+            inputs = [(1, (2, 3)), (0, (5, 7))]
+         in all (\x -> decompose x == slide x) inputs,
+      checkV verbosity "slide decomposes as assoc' . tensor braid id . assoc at Either" $
+        let decompose :: Either Int (Either Bool Char) -> Either Bool (Either Int Char)
+            decompose = assoc' .> tensor braid id .> assoc
+            inputs = [Left 1, Right (Left True), Right (Right 'c')]
+         in all (\x -> decompose x == slide x) inputs,
       -- Yank These falsifier: the both-branch forces a discard.
       --
       -- A candidate yank for These must choose, in the These a c case,
