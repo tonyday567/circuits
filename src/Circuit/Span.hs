@@ -28,13 +28,13 @@ module Circuit.Span
 where
 
 import Circuit.Body (Body (..))
-import Control.Category (id, (.))
+import Circuit.Category (id, (.))
 import Data.Maybe (fromMaybe)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Span
--- >>> import Control.Category (id)
+-- >>> import Circuit.Category (id)
 -- >>> import Prelude hiding (id, (.))
 
 -- | A finite span with apex @x@ hidden existentially.

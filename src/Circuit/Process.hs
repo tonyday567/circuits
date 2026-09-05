@@ -25,9 +25,8 @@
 -- 'Process' is the same machine with the seed made explicit: the state type
 -- @s@ is a parameter and every tick is uniform (state in, input in, state
 -- out, output out). 'asMealy' forgets the seed, mapping a pointed process
--- to its unpointed shadow; 'Circuit.Machine.asProcess' and
--- 'Circuit.Machine.machineAsMealy' mediate the monomial corner with
--- polynomial machines.
+-- to its unpointed shadow; 'asProcess' and 'machineAsMealy' (both exported
+-- from this module) mediate the monomial corner with polynomial machines.
 --
 -- This pair is intended to replace the hand-rolled state-machine arrow: stats
 -- packages become boxes @Mealy a b@ / @Process s a b@, while the arrow itself
@@ -59,6 +58,10 @@ module Circuit.Process
     machineAsMealy,
     asProcessCell,
     processAsMachine,
+
+    -- * Bridge to the polynomial lens
+    processAsLens,
+    lensAsProcess,
 
     -- * Boundary machines
     markProcess,
@@ -108,7 +111,7 @@ import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
 import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..))
 import Circuit.Machine (Machine, machine, monoDir, toEvalMachine)
-import Circuit.Poly (Eval (..), Mono)
+import Circuit.Poly (Eval (..), Lens, Mono, applyLens, lens)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
 import Circuit.Syntax (Syntax (Lift))
@@ -123,6 +126,8 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Process
 -- >>> import Prelude hiding (id, (.))
+-- >>> import Circuit.Category (id, (.))
+-- >>> import Circuit.Tensor (Unital (..))
 
 -- | A stateful process from @a@ to @b@.
 --
@@ -192,6 +197,26 @@ machineAsMealy sys s0 = asMealy (asProcess sys s0)
 -- [8,12]
 asProcessCell :: Machine (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> Process s i o
 asProcessCell sys (UnitCell f) = asProcess sys (f ())
+
+-- | A pointed monomial process as a polynomial lens.
+--
+-- These two bridges live here rather than in "Circuit.Optic" so that the
+-- foundational optic module does not depend on the application module:
+-- 'Circuit.Optic' holds the integrand machinery, 'Process' holds the
+-- process interconversions.
+processAsLens :: Process s i o -> Lens s s o i
+processAsLens pp = lens get put
+  where
+    get s = processExtract pp s
+    put s = processStep pp s
+
+-- | Build a pointed process from a polynomial lens and a seed.
+lensAsProcess :: Lens s s o i -> s -> Process s i o
+lensAsProcess m s0 =
+  Process
+    s0
+    (\s i -> snd (applyLens m s) i)
+    (\s -> fst (applyLens m s))
 
 -- | Convert a pointed process into a monomial 'Machine' machine.
 --
@@ -324,9 +349,22 @@ after (Mealy i st ex) f = Mealy i st (f . ex)
 
 -- * Category
 
+-- | The 'Category' instance: composition runs the two state machines in
+-- lockstep.  The identity echoes the /current/ input — the step is
+-- @\\_ x -> x@, not a latch.  (A @const@ step here made the identity
+-- repeat the first input, and @'id' . f@ freeze @f@'s first output.)
+-- Composition is behaviourally transparent: @'id' . 'delay' 0@ scans
+-- exactly like @'delay' 0@ alone.
+--
+-- >>> scan (id :: Mealy Int Int) [1, 2, 3]
+-- [1,2,3]
+-- >>> scan (id . delay 0) [1, 2, 3] == scan (delay 0) [1, 2, 3]
+-- True
+-- >>> scan (delay 0) [1, 2, 3]
+-- [0,2,3]
 instance Category Mealy where
   id :: Mealy a a
-  id = Mealy id const id
+  id = Mealy id (\_ x -> x) id
   {-# INLINE id #-}
 
   (.) :: Mealy b c -> Mealy a b -> Mealy a c
@@ -381,11 +419,19 @@ instance Yank (,) Mealy where
 -- right, so it can serve as a base category for shared-medium fusion and
 -- for @Trace (,) Mealy@.
 
+-- | The cartesian unit isomorphisms.  Each introduction echoes the current
+-- input alongside the unit — same @_\\_ x -> x@ step discipline as the
+-- 'Category' identity.
+--
+-- >>> scan (unitl' :: Mealy Int ((), Int)) [1, 2, 3]
+-- [((),1),((),2),((),3)]
+-- >>> scan (unitr' :: Mealy Int (Int, ())) [1, 2, 3]
+-- [(1,()),(2,()),(3,())]
 instance Unital (,) Mealy where
   unitl = Mealy snd (\_ (_, a) -> a) id
-  unitl' = Mealy id const ((),)
+  unitl' = Mealy id (\_ x -> x) ((),)
   unitr = Mealy fst (\_ (a, ()) -> a) id
-  unitr' = Mealy id const (,())
+  unitr' = Mealy id (\_ x -> x) (,())
 
 instance Tensor (,) Mealy where
   tensor (Mealy i1 st1 ex1) (Mealy i2 st2 ex2) =

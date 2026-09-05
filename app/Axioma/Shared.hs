@@ -17,7 +17,7 @@ import Circuit.Equip (Stamped (..))
 import Circuit.Process (scanProcess, scheduleAsProcess)
 import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
-import Circuit.Syntax (Syntax (..), eval)
+import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace)
@@ -332,6 +332,33 @@ sharedTopic verbosity = do
             fallback = tensor (eval x) (eval y)
          in eval (superpose x y) (Left 3) == fallback (Left 3)
               && eval (superpose x y) (Right 5) == fallback (Right 5),
+      -- superpose normalisation (Circuit.Tensor): fusion must be decided by
+      -- the Knot ENF, not by the literal surface shape. A loop with a
+      -- lifted arrow in front (yank f . Lift g) was the shape that fell
+      -- through to independent evaluation; normalised it is one Knot and
+      -- must fuse. The structural clause is the sharing witness (the
+      -- fallback is a Lift, the fused form is a yank); the extensional
+      -- clause pins it to the lawful independent evaluation.
+      checkV verbosity "superpose normalises composed shapes: yank f . Lift g still fuses" $
+        let k1 :: ([Int], Int) -> ([Int], [Int])
+            k1 (ns, x) = (1 : ns, take 3 ns ++ [x])
+            composed :: Trace (,) (->) Int [Int]
+            composed = yank (Lift k1) . Lift (+ 100)
+         in case superpose composed (Lift (* 2) :: Trace (,) (->) Int Int) of
+              Oper (R (YankBody _)) -> True
+              _ -> False,
+      checkV verbosity "superpose composed shape agrees with independent evaluation" $
+        let k1 :: ([Int], Int) -> ([Int], [Int])
+            k1 (ns, x) = (1 : ns, take 3 ns ++ [x])
+            composed :: Trace (,) (->) Int [Int]
+            composed = yank (Lift k1) . Lift (+ 100)
+            other :: Trace (,) (->) Int Int
+            other = Lift (* 2)
+            fused :: (Int, Int) -> ([Int], Int)
+            fused = eval (superpose composed other)
+            independent :: (Int, Int) -> ([Int], Int)
+            independent = eval (tensor composed other)
+         in fused (3, 4) == independent (3, 4),
       checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2

@@ -53,17 +53,12 @@ module Circuit.Optic
     -- * Bridge to the polynomial lens
     opticAsLens,
     lensAsOptic,
-
-    -- * Bridge to pointed processes
-    processAsLens,
-    lensAsProcess,
   )
 where
 
 import Circuit.Category (Category, (.>), (<.))
 import Circuit.Equip (Poles, iomap)
 import Circuit.Poly (Lens, applyLens, lens)
-import Circuit.Process (Process (..))
 import Circuit.Tensor (Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Strength (..))
 import Prelude hiding (id, (.))
@@ -218,18 +213,3 @@ lensAsOptic m =
   Optic
     (\s -> let (a, k) = applyLens m s in (k, a))
     (\(k, b) -> k b)
-
--- | A pointed monomial process as a polynomial lens.
-processAsLens :: Process s i o -> Lens s s o i
-processAsLens pp = lens get put
-  where
-    get s = processExtract pp s
-    put s = processStep pp s
-
--- | Build a pointed process from a polynomial lens and a seed.
-lensAsProcess :: Lens s s o i -> s -> Process s i o
-lensAsProcess m s0 =
-  Process
-    s0
-    (\s i -> snd (applyLens m s) i)
-    (\s -> fst (applyLens m s))

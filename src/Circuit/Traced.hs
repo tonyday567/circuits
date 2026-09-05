@@ -53,6 +53,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Circuit.Category (Op (..))
 -- >>> import Data.Void (Void)
+-- >>> import Data.These (These (..))
 
 -- * Associator
 
@@ -395,6 +396,52 @@ instance Yank Either (->) where
       go x = case f x of
         Right c -> c
         Left a -> go (Left a)
+
+-- * These tensor — scheduled interleaving
+
+-- | The These yank schedules.  'This' feeds the residual back for another
+-- tick; 'That' halts with its payload, which is the trace's result;
+-- 'These' also halts with its payload, offering the final residual for
+-- inspection as it exits.  Only the residual channel is fed back — the
+-- payload slot is per-tick, exactly as with the @(,)@ and 'Either'
+-- instances, where the @c@ component is likewise never fed back.  This is
+-- the inclusive generalisation of the Either loop — 'Left' ~ 'This'
+-- (continue), 'Right' ~ 'That' / 'These' (exit) — and it completes the
+-- third feedback peer advertised in "Circuit.Body"'s anatomy.
+--
+-- The loop is iteration, not a lazy knot, so unlike the @(,)@ instance it
+-- needs no 'Control.Monad.Fix.mfix'.  Following the Either precedent there
+-- is no @K m@ instance: effectful iteration over 'These' has no caller yet.
+--
+-- >>> :{
+-- let step = \case
+--       That x | x > (0 :: Int) -> This (x - 1)
+--              | otherwise -> That x
+--       This 0 -> That 0
+--       This s -> These (s - 1) s
+-- :}
+--
+-- >>> yank step 3
+-- 2
+--
+-- The body may also emit payload and residual together to exit with the
+-- payload while advertising the state it would have continued with:
+--
+-- >>> yank (\case That x -> This x; This s -> These (s + 1) (s * 10)) (7 :: Int)
+-- 70
+--
+-- Vanishing (a): tracing over the unit does nothing.  The unit is
+-- 'Data.Void.Void' for the 'These' tensor.
+--
+-- >>> yank (unitl' . (+ 1) . unitl :: These Void Int -> These Void Int) 5
+-- 6
+instance Yank These (->) where
+  yank f b = go (That b)
+    where
+      go x = case f x of
+        That c -> c
+        This s -> go (This s)
+        These _ c -> c
 
 -- * K m — monoidal structure
 

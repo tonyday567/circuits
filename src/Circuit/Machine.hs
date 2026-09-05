@@ -99,6 +99,7 @@ module Circuit.Machine
 where
 
 import Circuit.Body (Body (..))
+import Circuit.Category ((.))
 import Circuit.Container (Located (..), SomePos (..), posAt, posOf)
 import Circuit.Equip (Poles (..))
 import Circuit.Poly
@@ -115,7 +116,6 @@ import Circuit.Poly
 import Circuit.Syntax (Syntax (Lift))
 import Circuit.Trace (Trace)
 import Circuit.Traced (Yank, yank)
-import Control.Category ((.))
 import Data.Kind (Type)
 import Data.Void (absurd)
 import Prelude hiding (id, (.))

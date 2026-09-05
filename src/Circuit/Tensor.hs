@@ -20,9 +20,12 @@
 -- The goal is to keep the core 'Trace' syntax and 'Circuit.Syntax.eval' fold
 -- independent of these structural details.
 --
--- Note: the monomorphic 'assocL' and 'assocR' helpers below reassociate
--- /leftward/ and /rightward/ respectively — the opposite direction to
--- 'Circuit.Traced.assoc' and 'Circuit.Traced.assoc''.
+-- Note: the monomorphic 'reassocL' and 'reassocR' helpers below move the
+-- tree toward left- and right-nesting respectively — the same directions as
+-- 'Circuit.Traced.assoc'' and 'Circuit.Traced.assoc' (prime order, not
+-- alphabetical order).  The @reassoc@ names deliberately do not claim the
+-- bare 'assoc'/'assoc'' namespace, which belongs to the 'Circuit.Traced.Assoc'
+-- class imported throughout this module.
 --
 -- 'Tensor' / 'Action' are kind-polymorphic.
 module Circuit.Tensor
@@ -43,8 +46,8 @@ module Circuit.Tensor
     Distributive (..),
 
     -- * Cartesian / cocartesian associators
-    assocL,
-    assocR,
+    reassocL,
+    reassocR,
     coassoc,
     coassoc',
     coseed,
@@ -57,8 +60,8 @@ where
 
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
-import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
-import Circuit.Trace (SigYank (..), Trace)
+import Circuit.Syntax (Syntax (..), eval, evalInto, (:+:) (..))
+import Circuit.Trace (Knot (..), SigYank (..), Trace)
 import Circuit.Traced (Assoc (..), Strength (..), TraceC, Yank (..))
 import Circuit.Traced qualified as Ch
 import Data.Bifunctor (Bifunctor (..))
@@ -69,10 +72,10 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
--- >>> import Circuit.Trace (Trace)
+-- >>> import Circuit.Trace (SigYank (..), Trace)
 -- >>> import Circuit.Traced (yank)
--- >>> import Circuit.Syntax (Syntax (Lift), eval)
--- >>> import Circuit.Category (K (..), runK)
+-- >>> import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
+-- >>> import Circuit.Category (K (..), runK, (.))
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
 
@@ -87,13 +90,15 @@ data Bias = LeftFirst | RightFirst
 
 -- * Cartesian structure ((,))
 
--- | Leftward associator: @(a, (b, c)) -> ((a, b), c)@.
-assocL :: (a, (b, c)) -> ((a, b), c)
-assocL ~(a, ~(b, c)) = ((a, b), c)
+-- | Toward left-nesting: @(a, (b, c)) -> ((a, b), c)@ — the direction of
+-- 'Circuit.Traced.assoc''.
+reassocL :: (a, (b, c)) -> ((a, b), c)
+reassocL ~(a, ~(b, c)) = ((a, b), c)
 
--- | Rightward associator: @((a, b), c) -> (a, (b, c))@.
-assocR :: ((a, b), c) -> (a, (b, c))
-assocR ~(~(a, b), c) = (a, (b, c))
+-- | Toward right-nesting: @((a, b), c) -> (a, (b, c))@ — the direction of
+-- 'Circuit.Traced.assoc'.
+reassocR :: ((a, b), c) -> (a, (b, c))
+reassocR ~(~(a, b), c) = (a, (b, c))
 
 -- Introduce a channel wire alongside a payload.
 seed :: s -> a -> (s, a)
@@ -101,13 +106,13 @@ seed s a = (s, a)
 
 -- Move a value from the payload into the channel wire.
 --
--- absorb f = first (uncurry f) . assocL
+-- absorb f = first (uncurry f) . reassocL
 absorb :: (t -> s -> s') -> (s, (t, b)) -> (s', b)
 absorb f (s, (t, b)) = (f t s, b)
 
 -- Move a value from the channel wire into the payload.
 --
--- release f = assocR . first f
+-- release f = reassocR . first f
 release :: (s -> (s', t)) -> (s, b) -> (s', (t, b))
 release f (s, b) = let (s', t) = f s in (s', (t, b))
 
@@ -555,8 +560,16 @@ instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
 -- @superpose (trace f) (trace g) = trace (pre . tensor f g . post)@
 --
 -- where @pre@ and @post@ rearrange the paired channel via associators
--- and braiding. This preserves sharing for recursive circuits; the lawful
--- 'Tensor' instance falls back to independent evaluation.
+-- and braiding.
+--
+-- Both inputs are normalised through the 'Knot' existential normal form
+-- ('evalInto' 'Arr') before the match, so fusion does not depend on the input
+-- being a literal top-level 'yank': a loop with a lifted arrow in front,
+-- @yank f . Lift g@, is one 'Knot' after normalisation and fuses like any
+-- other loop.  The result is again a single yank over one lifted base
+-- arrow.  There is no silent fallback to independent evaluation — every
+-- input shape takes the sharing-preserving path, and the 'Tensor'
+-- instance for 'Trace' remains the lawful independent-evaluation form.
 --
 -- >>> let k1 = yank (Lift (\(ns, _) -> (1 : ns, take 3 ns))) :: Trace (,) (->) [Int] [Int]
 -- >>> let k2 = yank (Lift (\(ns, _) -> (2 : ns, take 3 ns)))
@@ -570,6 +583,12 @@ instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
 -- >>> let k2 = yank (Lift (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
 -- >>> runK (eval (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
+--
+-- A composed input still fuses — normalisation, not surface shape, decides:
+--
+-- >>> let composed = yank (Lift (\(ns, x) -> (1 : ns, take 3 ns ++ [x]))) . Lift (+ 100) :: Trace (,) (->) Int [Int]
+-- >>> case superpose composed (Lift (* 2)) of { Oper (R (YankBody _)) -> "fused"; _ -> "fallback" }
+-- "fused"
 superpose ::
   forall t arr a b c d.
   (Tensor t arr, TraceC t arr) =>
@@ -577,19 +596,19 @@ superpose ::
   Trace t arr c d ->
   Trace t arr (t a c) (t b d)
 superpose x y =
-  case (x, y) of
-    (Lift f, Lift g) ->
+  case (toKnot x, toKnot y) of
+    (Arr f, Arr g) ->
       Lift (tensor f g)
-    (Oper (R (YankBody f)), Lift g) ->
-      yank (Lift assoc . Lift (tensor (eval f) g) . Lift assoc')
-    (Lift f, Oper (R (YankBody g))) ->
-      yank (Lift shuffle . Lift (tensor f (eval g)) . Lift shuffle)
-    (Oper (R (YankBody f)), Oper (R (YankBody g))) ->
-      yank (Lift post . Lift (tensor (eval f) (eval g)) . Lift pre)
-    -- Non-normal forms fall back to the lawful independent-evaluation instance.
-    _ ->
-      Lift (tensor (eval x) (eval y))
+    (Knot f, Arr g) ->
+      yank (Lift (reassoc' .> tensor f g .> reassoc))
+    (Arr f, Knot g) ->
+      yank (Lift (shuffle .> tensor f g .> shuffle))
+    (Knot f, Knot g) ->
+      yank (Lift (pre .> tensor f g .> post))
   where
+    toKnot :: Trace t arr u v -> Knot t arr u v
+    toKnot = evalInto Arr
+
     reassoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
     reassoc = Ch.assoc
 
