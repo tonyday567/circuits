@@ -55,6 +55,10 @@ import Prelude hiding (id, (.))
 -- Trace signature
 
 -- | Feedback loop / trace over tensor @t@.
+--
+-- The constructor is 'YankBody' — it wraps a body — rather than @SigYank@;
+-- the naming is intentional, while the other @Sig*@ constructors match
+-- their type names.
 data SigYank (t :: Type -> Type -> Type) arr rec a b where
   YankBody ::
     rec (t s a) (t s b) ->

@@ -46,6 +46,15 @@
 --
 -- This module defines the 'MachineP' type, conversions between eval and arrow
 -- forms, wiring combinators, and higher-level execution combinators.
+--
+-- == Conversion ladder
+--
+-- The canonical conversion set: 'machineP' in and 'machineMorphismP' out;
+-- 'Circuit.Process.asProcessP' / 'Circuit.Process.machinePAsProcess' to
+-- processes and 'Circuit.Process.pprocessAsMoore' back;
+-- 'machinePToPoles' / 'machinePToPolesAt' to the equipment;
+-- 'coalgebraToMoore' / 'machinePToCoalgebraMono' to coalgebras.  The
+-- pointed-process side of the ladder lives in "Circuit.Process".
 module Circuit.Moore
   ( -- * MachineP machines
     MachineP (..),
@@ -144,6 +153,11 @@ import Prelude hiding (id, (.))
 -- @MachineP t s (Op (->)) p@ is a first-class codata body.  Together with the
 -- forward @(->)@ case this reproduces the @Fam(Set^op)@ rung of polynomial
 -- equipment.
+--
+-- In the equipment-optic reading, the companion/conjoint poles of a
+-- 'MachineP' over carrier @s@ are the 'Circuit.Optic.opticPolesP' action of
+-- a pointed optic whose residual is the machine's state; the coherence is
+-- oracled in @Axioma.Optic@.
 --
 -- >>> let sys = machineP (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
 -- >>> machineMorphismP sys (3, Right 5)

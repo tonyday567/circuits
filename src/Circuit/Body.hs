@@ -35,6 +35,13 @@
 -- and channel ends: a morphism whose input and output both carry an ambient
 -- channel.  'Body' makes that shape explicit before any tracing, scheduling,
 -- or pole-splitting is added.
+--
+-- Closing a body into a trace is the one Body-to-Trace direction:
+-- @yank (base (morphism b))@ traces the carrier out, as in
+-- 'Circuit.Moore.machinePToMachine'.  There is no Trace-to-Body direction,
+-- by design: 'Body' is the deliberately untraced carrier.  Finite spans
+-- are the lookup-table special case — see 'Circuit.Span.bodyFromSpan' and
+-- 'Circuit.Span.spanFromBody'.
 module Circuit.Body
   ( -- * Knot-body category
     Body (..),
