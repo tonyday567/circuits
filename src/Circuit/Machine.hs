@@ -67,7 +67,6 @@ module Circuit.Machine
     MachineEval (..),
     fromEvalMachine,
     toEvalMachine,
-    step,
 
     -- * Monomial helpers
     monoDir,
@@ -113,7 +112,8 @@ import Circuit.Poly
     nestedToComp,
     runMorphism,
   )
-import Circuit.Trace (Trace, base)
+import Circuit.Syntax (Syntax (Lift))
+import Circuit.Trace (Trace)
 import Circuit.Traced (Yank, yank)
 import Control.Category ((.))
 import Data.Kind (Type)
@@ -181,7 +181,7 @@ machineToClosed ::
   (Circuit.Traced.Yank t arr) =>
   Machine t s arr p ->
   Closed t arr p
-machineToClosed (Machine (Body f)) = yank (base f)
+machineToClosed (Machine (Body f)) = yank (Lift f)
 
 -- | Construct a cartesian 'Machine' from its underlying arrow.
 machine :: arr (s, Dir p) (s, Pos p) -> Machine (,) s arr p
@@ -220,10 +220,6 @@ toEvalMachine :: forall p s. (MachineEval p) => Machine (,) s (->) p -> s -> Eva
 toEvalMachine sys s = evalFromMachine pos (\d -> fst (machineMorphism sys (s, d)))
   where
     pos = snd (machineMorphism sys (s, probeDir @p))
-
--- | Run one step: observe the current @p@-output from state @s@.
-step :: (MachineEval p) => Machine (,) s (->) p -> s -> Eval p s
-step = toEvalMachine
 
 -- | Helpers for translating between the 'Eval' presentation and the arrow
 -- presentation of a @(->)@ machine.  These extend the netlist view to 'Sum'.

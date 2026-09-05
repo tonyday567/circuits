@@ -17,7 +17,7 @@
 --
 -- * 'Copy' / 'Discard' — the comonoid on channel objects (fan-out / weakening).
 -- * 'Merge' / 'Zero' — the monoid on channel objects (fan-in / introduction).
--- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.mirror'
+-- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.mirrorNet'
 --   to be total on a cartesian base arrow.
 --
 -- For a generic wiring tensor @t@ the tensor-generic classes 'CopyT',
@@ -25,9 +25,13 @@
 -- are the special case @t = (,)@, recovered via the @OVERLAPPABLE@ default
 -- instances at the bottom of this module.
 --
--- The free dagger category itself (pairing a forward arrow with a backward
--- arrow and swapping them with 'Circuit.Dagger.transpose') lives in "Circuit.Dagger"; this
--- module is only the structural rules.
+-- The module also hosts the free dagger category ('Dagger', 'transpose'):
+-- a value pairs a forward arrow with a backward arrow, composition runs
+-- covariant forward and contravariant backward, and 'transpose' swaps the
+-- two directions.  The dagger dualises the bimonoid laws — forward copy is
+-- backward merge, forward discard is backward zero, and vice versa — and
+-- that interlock is the missing lemma that makes 'Circuit.Net.mirrorNet'
+-- total over a generic wiring tensor.
 --
 -- Design note: $copy-discard-design.
 module Circuit.Bimonoid
@@ -69,13 +73,25 @@ module Circuit.Bimonoid
     MergeT (..),
     ZeroT (..),
     BimonoidT,
+
+    -- * Free dagger category
+    Dagger (..),
+    transpose,
   )
 where
 
+import Circuit.Category (Category (..))
 import Circuit.Syntax (Algebra (..), (:+:) (..))
-import Circuit.Tensor (Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Circuit.Bimonoid
+-- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Circuit.Category (Category (..), (.>))
+-- >>> import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Bimonoid
@@ -231,13 +247,13 @@ type CopyDiscard arr a = (Copy arr a, Discard arr a)
 --
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
--- 'Circuit.Net.mirror' to be total on that base arrow.
+-- 'Circuit.Net.mirrorNet' to be total on that base arrow.
 type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
 
 -- | Tensor-generic bimonoid: all four structural capabilities on the tensor.
 --
 -- This is the tensor-generic form of 'Bimonoid'.  It is the precondition for
--- 'Circuit.Net.mirror' over a generic wiring tensor.
+-- 'Circuit.Net.mirrorNet' over a generic wiring tensor.
 class (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
 
 instance (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
@@ -267,6 +283,127 @@ class (Tensor t arr) => MergeT t arr a where
 -- | The neutral element under the tensor product.
 class (Tensor t arr) => ZeroT t arr a where
   zeroT :: arr (Unit t) a
+
+-- * Free dagger category
+
+-- The free dagger category itself — pairing a forward arrow with a backward
+-- arrow and swapping them with 'transpose' — and the bimonoid interlock
+-- instances that dualise the structural rules.
+
+-- | The free dagger category over a base arrow.
+--
+-- @Dagger arr a b@ is a pair of arrows @arr a b@ (forward) and
+-- @arr b a@ (backward).  Composition is covariant forward, contravariant
+-- backward: @Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)@.
+--
+-- >>> let d = Dagger (+1) (subtract 1) :: Dagger (->) Int Int
+-- >>> front d 5
+-- 6
+-- >>> back d 6
+-- 5
+data Dagger arr a b = Dagger
+  { -- | The forward direction.
+    front :: arr a b,
+    -- | The backward direction.
+    back :: arr b a
+  }
+
+-- | The dagger operation: braid forward and backward.
+--
+-- Involutive: @transpose . transpose = id@.
+transpose :: Dagger arr a b -> Dagger arr b a
+transpose (Dagger f g) = Dagger g f
+
+instance (Category arr) => Category (Dagger arr) where
+  id = Dagger id id
+  {-# INLINE id #-}
+
+  Dagger f g . Dagger f' g' = Dagger (f . f') (g' . g)
+  {-# INLINE (.) #-}
+
+instance (Strength t arr) => Strength t (Dagger arr) where
+  strength (Dagger f g) = Dagger (strength f) (strength g)
+  {-# INLINE strength #-}
+
+instance (Yank t arr) => Yank t (Dagger arr) where
+  yank (Dagger f g) = Dagger (yank f) (yank g)
+  {-# INLINE yank #-}
+
+-- | Forward copy, backward add — the bimonoid self-duality.
+--
+-- The interlock is the point to notice: 'Copy' on the dagger requires
+-- 'Merge' on the base.  The comonoid and monoid cannot be granted
+-- separately in this construction; @Dagger (FinRel k)@ is where that
+-- collapse becomes observable (see the @circuits-axioma@ oracle).
+instance (Copy arr a, Merge arr a) => Copy (Dagger arr) a where
+  copy = Dagger copy plus
+  {-# INLINE copy #-}
+
+instance (Discard arr a, Zero arr a) => Discard (Dagger arr) a where
+  discard = Dagger discard zero
+  {-# INLINE discard #-}
+
+-- | Forward add, backward copy.
+instance (Merge arr a, Copy arr a) => Merge (Dagger arr) a where
+  plus = Dagger plus copy
+  {-# INLINE plus #-}
+
+instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
+  zero = Dagger zero discard
+  {-# INLINE zero #-}
+
+-- | Tensor-generic bimonoid interlock through @Dagger@.
+--
+-- These instances mirror the cartesian ones above, but work for any wiring
+-- tensor @t@.  They are the missing lemma that makes 'Circuit.Net.mirrorNet'
+-- total: a 'Circuit.Net.Net' over 'Dagger arr' can transpose its bimonoid rows because
+-- the dagger swaps the tensor-comonoid and tensor-monoid dictionaries.
+--
+-- >>> let d = copyT @(,) @(Dagger (->)) @Int :: Dagger (->) Int (Int, Int)
+-- >>> front d 5
+-- (5,5)
+-- >>> back d (2, 3)
+-- 5
+instance {-# INCOHERENT #-} (CopyT t arr a, MergeT t arr a) => CopyT t (Dagger arr) a where
+  copyT = Dagger (copyT @t) (plusT @t)
+  {-# INLINE copyT #-}
+
+instance {-# INCOHERENT #-} (DiscardT t arr a, ZeroT t arr a) => DiscardT t (Dagger arr) a where
+  discardT = Dagger (discardT @t) (zeroT @t)
+  {-# INLINE discardT #-}
+
+instance {-# INCOHERENT #-} (MergeT t arr a, CopyT t arr a) => MergeT t (Dagger arr) a where
+  plusT = Dagger (plusT @t) (copyT @t)
+  {-# INLINE plusT #-}
+
+instance {-# INCOHERENT #-} (ZeroT t arr a, DiscardT t arr a) => ZeroT t (Dagger arr) a where
+  zeroT = Dagger (zeroT @t) (discardT @t)
+  {-# INLINE zeroT #-}
+
+instance (Unital t arr) => Unital t (Dagger arr) where
+  unitl = Dagger unitl unitl'
+  {-# INLINE unitl #-}
+  unitl' = Dagger unitl' unitl
+  {-# INLINE unitl' #-}
+  unitr = Dagger unitr unitr'
+  {-# INLINE unitr #-}
+  unitr' = Dagger unitr' unitr
+  {-# INLINE unitr' #-}
+
+instance (Tensor t arr) => Tensor t (Dagger arr) where
+  tensor (Dagger f g) (Dagger f' g') = Dagger (tensor f f') (tensor g g')
+  {-# INLINE tensor #-}
+
+instance (Action t arr) => Action t (Dagger arr) where
+  braid = Dagger braid braid
+  {-# INLINE braid #-}
+
+instance (Assoc t arr) => Assoc t (Dagger arr) where
+  assoc = Dagger assoc assoc'
+  assoc' = Dagger assoc' assoc
+
+instance (Slide t arr) => Slide t (Dagger arr) where
+  slide = Dagger slide slide
 
 -- * The substructural square
 

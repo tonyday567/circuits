@@ -60,7 +60,6 @@ module Circuit.Optic
     opticPolesP,
 
     -- * Bridge to the polynomial lens
-    asOptic,
     opticAsLensP,
     opticAsLens,
     lensAsOpticP,
@@ -245,11 +244,6 @@ opticPolesP ::
   Poles ch ch arr arr s r
 opticPolesP (OpticP f b) = iomap f b
 {-# INLINE opticPolesP #-}
-
--- | Hide the residual of a pointed optic.
-asOptic :: OpticP t ch arr a b s r -> Optic t arr a b s r
-asOptic = Optic
-{-# INLINE asOptic #-}
 
 -- | A cartesian pointed optic as a polynomial lens.
 --

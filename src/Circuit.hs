@@ -34,7 +34,7 @@
 -- coinductive encoding. Convert a @Trace@ to a @Hyper@ with `encode`, and
 -- observe it with `observe` (or eliminate it with `runHyper`).
 --
--- >>> observe (encode (base (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> observe (encode (Lift (+1) :: Trace (,) (->) Int Int)) 41
 -- 42
 --
 -- == Overview
@@ -76,8 +76,8 @@
 --   `lower` (restrict a fold to the generators).
 --
 -- * __Injections__ embed one construction into another without eliminating:
---   `unit` (base arrow into a `Layer`), `base` (base arrow into @Trace@),
---   `yank` (close a feedback loop in @Trace@).
+--   `unit` (base arrow into a `Layer`), `Lift` (base arrow into the free
+--   syntax), `yank` (close a feedback loop in @Trace@).
 --
 -- * __Representation changes__: `encode` (@Trace@ to @Hyper@),
 --   `observe` / `runHyper` (@Hyper@ to function / fixed point).
@@ -86,19 +86,16 @@ module Circuit
     module Circuit.Body,
     module Circuit.Category,
     module Circuit.Container,
-    module Circuit.Dagger,
     module Circuit.Equip,
     module Circuit.Hyper,
     module Circuit.Linear,
     module Circuit.Machine,
     module Circuit.Net,
     module Circuit.Optic,
-    module Circuit.Par,
     module Circuit.Poly,
     module Circuit.Process,
     module Circuit.Pullback,
     module Circuit.Rel,
-    module Circuit.SMC,
     module Circuit.Shared,
     module Circuit.Span,
     module Circuit.Stream,
@@ -113,19 +110,16 @@ import Circuit.Bimonoid
 import Circuit.Body
 import Circuit.Category
 import Circuit.Container
-import Circuit.Dagger
 import Circuit.Equip
 import Circuit.Hyper
 import Circuit.Linear
 import Circuit.Machine
 import Circuit.Net
 import Circuit.Optic
-import Circuit.Par
 import Circuit.Poly
 import Circuit.Process
 import Circuit.Pullback
 import Circuit.Rel
-import Circuit.SMC
 import Circuit.Shared
 import Circuit.Span
 import Circuit.Stream

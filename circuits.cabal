@@ -50,20 +50,17 @@ library
     Circuit.Body
     Circuit.Category
     Circuit.Container
-    Circuit.Dagger
     Circuit.Equip
     Circuit.Hyper
     Circuit.Linear
     Circuit.Machine
     Circuit.Net
     Circuit.Optic
-    Circuit.Par
     Circuit.Poly
     Circuit.Process
     Circuit.Pullback
     Circuit.Rel
     Circuit.Shared
-    Circuit.SMC
     Circuit.Span
     Circuit.Stream
     Circuit.Syntax
@@ -91,6 +88,7 @@ executable circuits-axioma
     Axioma.Optic
     Axioma.Poles
     Axioma.Process
+    Axioma.Pullback
     Axioma.Shared
     Axioma.Span
     Axioma.Split

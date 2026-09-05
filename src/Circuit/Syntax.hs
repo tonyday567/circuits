@@ -17,7 +17,7 @@
 --
 -- This module holds the à-la-carte machinery: signatures, the free
 -- construction over a signature, algebras, and the universal folds. Each
--- concrete language layer ('Circuit.Trace.Trace', 'Circuit.SMC.SMC',
+-- concrete language layer ('Circuit.Trace.Trace', 'Circuit.Net.SMC',
 -- 'Circuit.Net.Net', ...) is obtained by choosing a signature sum and adding
 -- smart constructors and structural instances on top of this substrate.
 --
@@ -39,7 +39,7 @@
 -- Concrete layers:
 --
 -- * @run@ Free — free category
--- * @run@ SMC — free symmetric monoidal category (in "Circuit.SMC")
+-- * @run@ SMC — free symmetric monoidal category (in "Circuit.Net")
 -- * @run@ Trace — free traced monoidal category (in "Circuit.Trace")
 -- * @run@ Net — free symmetric monoidal category with bimonoid (in "Circuit.Net")
 --

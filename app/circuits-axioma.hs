@@ -9,6 +9,7 @@ import Axioma.Machine (machineTopic)
 import Axioma.Optic (opticTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Process (processTopic)
+import Axioma.Pullback (pullbackTopic)
 import Axioma.Shared (sharedTopic)
 import Axioma.Span (spanTopic)
 import Axioma.Split (splitTopic)
@@ -26,6 +27,7 @@ data Topic
   | Optic
   | Poles
   | Process
+  | Pullback
   | Shared
   | Span
   | Split
@@ -41,6 +43,7 @@ topicName FinRel = "finrel"
 topicName Optic = "optic"
 topicName Poles = "poles"
 topicName Process = "process"
+topicName Pullback = "pullback"
 topicName Shared = "shared"
 topicName Span = "span"
 topicName Split = "split"
@@ -55,6 +58,7 @@ topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
 topicDesc Optic = "Mixed equipment-optic oracles"
 topicDesc Poles = "Poles, Stamped, Boundary, and markProcess oracles"
 topicDesc Process = "Process, Mealy, Body, Trace, and Net oracles"
+topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent nets"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
 topicDesc Span = "Finite-span equipment oracles"
 topicDesc Split = "Split-pole bridge oracles: carrier placements between K m and CoK c"
@@ -115,13 +119,14 @@ runTopic FinRel = finRelTopic
 runTopic Optic = opticTopic
 runTopic Poles = polesTopic
 runTopic Process = processTopic
+runTopic Pullback = pullbackTopic
 runTopic Shared = sharedTopic
 runTopic Span = spanTopic
 runTopic Split = splitTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Equip, Effect, FinRel, Machine, Optic, Poles, Process, Shared, Span, Split]
+allTopics = [Container, Equip, Effect, FinRel, Machine, Optic, Poles, Process, Pullback, Shared, Span, Split]
 
 greenCircle :: String
 greenCircle = "🟢"

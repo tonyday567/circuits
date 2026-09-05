@@ -25,12 +25,11 @@
 -- feedback / trace over the channel tensor @t@.
 --
 -- Higher-level signatures (parallel composition, braid, copy\/discard,
--- shared-medium fusion, mediators) live in "Circuit.SMC", "Circuit.Bimonoid",
+-- shared-medium fusion, mediators) live in "Circuit.Net", "Circuit.Bimonoid",
 -- and "Circuit.Shared".
 module Circuit.Trace
   ( -- * Free traced category
     Trace,
-    base,
 
     -- * Trace signature
     SigYank (..),
@@ -50,7 +49,7 @@ import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Syntax (eval)
+-- >>> import Circuit.Syntax (Syntax (Lift), eval)
 -- >>> import Circuit.Category ((.>))
 -- >>> import Circuit.Syntax (run)
 -- >>> import Circuit.Traced (Strength (..), Yank (..))
@@ -82,22 +81,18 @@ instance (Yank t arr') => Algebra (SigYank t) arr arr' where
 -- | Free traced monoidal category over tensor @t@.
 type Trace t arr = Syntax (SigCompose :+: SigYank t) arr
 
--- | Lift a base arrow into the free traced category.
-base :: arr a b -> Trace t arr a b
-base = Lift
-
 -- Instances for the free traced category
 
 instance (Category arr) => Category (Trace t arr) where
-  id = base id
+  id = Lift id
   f . g = Oper (L (SigCompose f g))
 
 instance (Category arr, Assoc t arr) => Assoc t (Trace t arr) where
-  assoc = base assoc
-  assoc' = base assoc'
+  assoc = Lift assoc
+  assoc' = Lift assoc'
 
 instance (Category arr, Slide t arr) => Slide t (Trace t arr) where
-  slide = base slide
+  slide = Lift slide
 
 -- | Tensorial strength for the free traced category, structurally.
 --
@@ -117,15 +112,15 @@ instance (Category arr, Slide t arr) => Slide t (Trace t arr) where
 -- changing the answer):
 --
 -- >>> let f = (\(s, x) -> (x, s + x)) :: (Int, Int) -> (Int, Int)
--- >>> let t = yank (base f) :: Trace (,) (->) Int Int
+-- >>> let t = yank (Lift f) :: Trace (,) (->) Int Int
 -- >>> eval (strength t) (7, 3)
 -- (7,6)
 -- >>> strength (eval t) (7, 3)
 -- (7,6)
 instance (Category arr, Slide t arr, Strength t arr) => Strength t (Trace t arr) where
-  strength (Lift f) = base (strength f)
+  strength (Lift f) = Lift (strength f)
   strength (Oper (L (SigCompose g f))) = strength g . strength f
-  strength (Oper (R (YankBody body))) = yank (base slide .> strength body .> base slide)
+  strength (Oper (R (YankBody body))) = yank (Lift slide .> strength body .> Lift slide)
 
 -- | Yank for the free traced category: a constructor, not an evaluation.
 --

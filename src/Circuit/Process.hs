@@ -72,15 +72,11 @@ module Circuit.Process
     -- * Functorial plumbing
     before,
     after,
-    parWith,
-    parWith3,
-    parWith4,
 
     -- * Runners
     scan,
     scanProcess,
     runProcess,
-    finalProcess,
     scanStream,
     fold,
     foldProcess,
@@ -115,10 +111,10 @@ import Circuit.Machine (Machine, machine, monoDir, toEvalMachine)
 import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
+import Circuit.Syntax (Syntax (Lift))
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), Unital (..))
-import Circuit.Trace (Trace, base)
+import Circuit.Trace (Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
-import Control.Applicative (liftA3)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Maybe (fromMaybe)
 import Data.These (These (..))
@@ -187,12 +183,12 @@ machineAsMealy sys s0 = asMealy (asProcess sys s0)
 --
 -- >>> import Circuit.Machine (Machine, machine)
 -- >>> import Circuit.Poly (Mono)
--- >>> import Circuit.Equip (unitCell)
+-- >>> import Circuit.Equip (UnitCell (..))
 -- >>> import Data.Void (absurd)
 -- >>> let sys = machine (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
 -- >>> scanProcess (asProcess sys 3) [1, 2]
 -- [8,12]
--- >>> scanProcess (asProcessCell sys (unitCell (const 3))) [1, 2]
+-- >>> scanProcess (asProcessCell sys (UnitCell (const 3))) [1, 2]
 -- [8,12]
 asProcessCell :: Machine (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> Process s i o
 asProcessCell sys (UnitCell f) = asProcess sys (f ())
@@ -325,21 +321,6 @@ before (Mealy i st ex) f = Mealy (i . f) (\s a -> st s (f a)) ex
 after :: Mealy a b -> (b -> c) -> Mealy a c
 after (Mealy i st ex) f = Mealy i st (f . ex)
 {-# INLINEABLE after #-}
-
--- | Run two processes on the same input and combine their outputs.
-parWith :: (x -> y -> z) -> Mealy a x -> Mealy a y -> Mealy a z
-parWith = liftA2
-{-# INLINEABLE parWith #-}
-
--- | Run three processes on the same input and combine their outputs.
-parWith3 :: (x -> y -> z -> w) -> Mealy a x -> Mealy a y -> Mealy a z -> Mealy a w
-parWith3 = liftA3
-{-# INLINEABLE parWith3 #-}
-
--- | Run four processes on the same input and combine their outputs.
-parWith4 :: (w -> x -> y -> z -> r) -> Mealy a w -> Mealy a x -> Mealy a y -> Mealy a z -> Mealy a r
-parWith4 f p1 p2 p3 p4 = liftA2 (\w (x, y, z) -> f w x y z) p1 (liftA3 (,,) p2 p3 p4)
-{-# INLINEABLE parWith4 #-}
 
 -- * Category
 
@@ -611,11 +592,6 @@ runProcess pp xs = go (processSeed pp) xs []
        in go s' as (processExtract pp s' : acc)
 {-# INLINEABLE runProcess #-}
 
--- | Final state after consuming a list of inputs.
-finalProcess :: Process s a b -> [a] -> s
-finalProcess pp = snd . runProcess pp
-{-# INLINEABLE finalProcess #-}
-
 -- | Run a process over a stream, returning the final output (if any).
 foldStream :: (Uncons f a) => Mealy a b -> f -> Maybe b
 foldStream (Mealy inject step extract) = goInit
@@ -651,7 +627,7 @@ foldProcess pp = go (processSeed pp)
 -- composed with 'encodeStream'. The feedback channel carries
 -- @(Maybe channel, remaining input, accumulated output)@.
 encodeStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a b -> Trace Either (->) f g
-encodeStream (Mealy inject step extract) = yank (base b)
+encodeStream (Mealy inject step extract) = yank (Lift b)
   where
     Body b =
       Body $ \case
@@ -823,11 +799,11 @@ runBody body s0 = scan (bodyToMealy body s0)
 -- Agrees with the ad-hoc seed runner:
 --
 -- >>> import Circuit.Body (Body (..))
--- >>> import Circuit.Equip (unitCell)
+-- >>> import Circuit.Equip (UnitCell (..))
 -- >>> let adder = Body (\(s, a) -> (s + a, s)) :: Body (,) Int (->) Int Int
 -- >>> runBody adder 3 [1, 2, 3]
 -- [3,4,6]
--- >>> runBodyCell adder (unitCell (const 3)) [1, 2, 3]
+-- >>> runBodyCell adder (UnitCell (const 3)) [1, 2, 3]
 -- [3,4,6]
 runBodyCell :: Body (,) s (->) a b -> UnitCell (,) (->) s -> [a] -> [b]
 runBodyCell body (UnitCell f) = runBody body (f ())

@@ -50,7 +50,6 @@ module Circuit.Equip
     -- * Sequential composition
     compose,
     compose0,
-    (>:>),
 
     -- * Parallel composition
     polesTensor,
@@ -75,7 +74,6 @@ module Circuit.Equip
 
     -- * Unit cells
     UnitCell (..),
-    unitCell,
     pointedCell,
 
     -- * Boxes
@@ -140,8 +138,6 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Body (Body (..))
 -- >>> import Circuit.Category (CoK (..), K (..), runK, (.>))
 -- >>> import Circuit.Equip
--- >>> import Circuit.Syntax (run)
--- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Tensor (Bias (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 -- >>> import Data.Maybe (isNothing)
@@ -292,16 +288,6 @@ compose p1 p2 =
   Poles
     (conjoint p1)
     (companion p1 .> conjoint p2 .> companion p2)
-
--- | Forward-composition operator.  @p1 >:> p2 = compose p1 p2@.
-(>:>) ::
-  (Category arrM) =>
-  Poles ch1 ch1' arrW arrM a b ->
-  Poles ch1' ch1' arrM arrM b c ->
-  Poles ch1 ch1' arrW arrM a c
-p1 >:> p2 = compose p1 p2
-
-infixr 1 >:>
 
 -- | Convenience synonym for 'compose' on unit-channel poles.
 compose0 ::
@@ -504,14 +490,6 @@ copycat = Poles id id
 newtype UnitCell (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) ch = UnitCell
   { runUnitCell :: arr (Unit t) ch
   }
-
--- | Package an arrow out of the unit as a cell. For @(->)@ this is a seed
--- function @() -> ch@; for 'K' arrows, a carrier produced under the effect.
---
--- >>> runUnitCell (unitCell (const 3) :: UnitCell (,) (->) Int) ()
--- 3
-unitCell :: arr (Unit t) ch -> UnitCell t arr ch
-unitCell = UnitCell
 
 -- | A 'Circuit.Category.Pointed' carrier has the canonical cell.
 --

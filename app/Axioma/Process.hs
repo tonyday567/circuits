@@ -26,7 +26,7 @@ import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), run)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Bias (..))
-import Circuit.Trace (Trace, base)
+import Circuit.Trace (Trace)
 import Circuit.Traced (strength, yank)
 import Control.Monad (when)
 import Data.Maybe (catMaybes, isNothing)
@@ -117,7 +117,7 @@ processTopic verbosity = do
               && map (yank f) [3, 5, 7] == [3, 5, 7],
       -- Mealy as a base arrow for Trace / Net / Shared
       checkV verbosity "Mealy lifts into Trace (,) Mealy" $
-        scan (Syn.eval (base sumP :: Trace (,) Mealy Int Int)) [1, 2, 3]
+        scan (Syn.eval (Lift sumP :: Trace (,) Mealy Int Int)) [1, 2, 3]
           == scan sumP [1, 2, 3],
       checkV verbosity "Net (,) Mealy copy uses Process.copy" $
         let p = run (Lift (copy :: Mealy Int (Int, Int)) :: Net.Net (,) Mealy Int (Int, Int)) :: Mealy Int (Int, Int)

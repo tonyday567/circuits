@@ -37,7 +37,6 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 -- >>> import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 -- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
--- >>> import Circuit.Net (Net)
 -- >>> import Prelude hiding (id, (.))
 
 -- | A linear map from output cotangents to input cotangents, read as
@@ -99,7 +98,8 @@ instance Strength (,) Pullback where
 -- exactly as the lazy differentiable trace does.  Unlike the differentiable
 -- case, though, the equation here is /always affine/ — 'Pullback' arrows are
 -- linear by construction — so a knot over a star-semiring carrier can be
--- eliminated outright rather than iterated.
+-- eliminated outright rather than iterated.  Both regimes are guarded by
+-- the pullback topic of @circuits-axioma@ ("Axioma.Pullback").
 --
 -- >>> let body = Pullback (\(dx', dc) -> (2.0 * dc, dx')) :: Pullback (Double, Double) (Double, Double)
 -- >>> runPullback (yank body) 1.0
@@ -155,6 +155,15 @@ instance (Zero (->) a) => Zero Pullback a where
 -- This is the one-shot reverse pass: the net was built by transposing a
 -- smooth net, and applying it to a cotangent @db@ yields the input
 -- cotangent @da@.
+--
+-- The load-bearing claim is the chain rule under feedback: the cotangent
+-- of a composite is the composite of the cotangents — including through a
+-- 'Yank' feedback loop, whose affine channel equation the lazy knot solves
+-- when the channel self-coupling is zero and diverges on strict carriers
+-- when it is not.  In the divergent case the feedback gradient is read in
+-- closed form (@b ⋅ star a ⋅ c@) and composed downstream like any other
+-- cotangent map.  Guarded by the pullback topic of @circuits-axioma@
+-- ("Axioma.Pullback").
 evalPullback :: Net (,) Pullback b a -> b -> a
 evalPullback n = runPullback (run n)
 {-# INLINE evalPullback #-}

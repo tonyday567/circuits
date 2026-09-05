@@ -79,7 +79,7 @@ graph LR
   Net["Circuit.Net"]
   Trace["Circuit.Trace"]
   Hyper["Circuit.Hyper"]
-  Dagger["Circuit.Dagger"]
+  Dagger["Dagger (Circuit.Bimonoid)"]
   Equip["Circuit.Equip"]
   Body["Circuit.Body"]
   Poly["Circuit.Poly"]
@@ -87,7 +87,6 @@ graph LR
   Process["Circuit.Process"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
-  Par["Circuit.Par"]
   Linear["Circuit.Linear"]
 
   Category --> Assoc --> Strength --> Yank
@@ -102,8 +101,7 @@ graph LR
   Moore --> Process
   Shared --> Body
   Bimonoid --> Net
-  Par --> Shared
-  Linear --> Par
+  Linear --> Shared
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
@@ -134,7 +132,6 @@ graph LR
   style Process fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
-  style Par fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Linear fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
 ```
 

@@ -265,7 +265,8 @@ runEither f b = runHyper (encodeEither f) (Right b)
 -- constructors become 'yank' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace
--- >>> observe (encode (Trace.base (+1) :: Trace.Trace (,) (->) Int Int)) 5
+-- >>> import Circuit.Syntax (Syntax (Lift))
+-- >>> observe (encode (Lift (+1) :: Trace.Trace (,) (->) Int Int)) 5
 -- 6
 encode ::
   Trace (,) (->) a b ->

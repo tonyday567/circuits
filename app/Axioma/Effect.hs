@@ -11,9 +11,10 @@ where
 import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Body qualified as Body
 import Circuit.Category (K (..), id, runK, (.))
+import Circuit.Syntax (Syntax (Lift))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
-import Circuit.Trace (Trace, base)
+import Circuit.Trace (Trace)
 import Circuit.Traced (yank)
 import Control.Monad (when)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
@@ -21,7 +22,7 @@ import Prelude hiding (curry, id, uncurry, (.))
 
 -- | Helper that fixes the cartesian tensor for 'yank' over 'K IO' arrows.
 yankK :: K IO (s, a) (s, b) -> Trace (,) (K IO) a b
-yankK = yank . base
+yankK = yank . Lift
 
 effectTopic :: Verbosity -> IO [Bool]
 effectTopic verbosity = do
@@ -74,8 +75,8 @@ effectTopic verbosity = do
               g = K $ \ ~() -> do
                 modifyIORef' ref (* 2)
                 pure ()
-              post = yank (base f . base (tensor @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
-              pre = yank (base (tensor @(,) @(K IO) g id) . base f) :: Trace (,) (K IO) () Int
+              post = yank (Lift f . Lift (tensor @(,) @(K IO) g id)) :: Trace (,) (K IO) () Int
+              pre = yank (Lift (tensor @(,) @(K IO) g id) . Lift f) :: Trace (,) (K IO) () Int
           l <- runK (Syn.eval post) ()
           writeIORef ref 1
           r <- runK (Syn.eval pre) ()

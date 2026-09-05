@@ -20,7 +20,7 @@ import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Action (..), Bias (..), Tensor (..), superpose)
-import Circuit.Trace (SigYank (..), Trace, base)
+import Circuit.Trace (SigYank (..), Trace)
 import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Control.Monad (when)
 import Data.Functor.Identity (Identity (..))
@@ -34,7 +34,7 @@ import Prelude qualified as Pre
 -- The class method needs the 'Trace' tensor to be inferable; this wrapper
 -- pins it to @(,)@ via the argument shape.
 yankFun :: ((s, a) -> (s, b)) -> Trace (,) (->) a b
-yankFun = yank . base
+yankFun = yank . Lift
 
 -- | Body that prepends a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
@@ -258,7 +258,7 @@ sharedTopic verbosity = do
          in traceTheseEmit step 5 /= traceTheseLoop step 5,
       -- Free-strength slide placement (Circuit.Trace Strength t (Trace t arr),
       -- YankBody clause). The body is slid out, strengthened, and slid back:
-      -- yank (base slide .> strength body .> base slide). The oracle pins the
+      -- yank (Lift slide .> strength body .> Lift slide). The oracle pins the
       -- placement against evaluating first and strengthening at the base: the
       -- two slides sit outside the loop, so a dropped or duplicated slide wires
       -- the payload into the loop channel and the sides disagree. Bodies mix
@@ -267,7 +267,7 @@ sharedTopic verbosity = do
         let f :: (Int, Int) -> (Int, Int)
             f (s, x) = (x, s + x)
             t :: Trace (,) (->) Int Int
-            t = yank (base f)
+            t = yank (Lift f)
             -- Mutation room: yank (strength body) without the slides gives
             -- (3,10) here against the true (7,6).
             input = (7, 3)
@@ -278,7 +278,7 @@ sharedTopic verbosity = do
             f (Left 0) = Right 42
             f (Left n) = Left (n - 1)
             t :: Trace Either (->) Int Int
-            t = yank (base f)
+            t = yank (Lift f)
             -- Different tensor, different slide: the Either slide routes the
             -- outer value to the inner-left loop position. Mutation room:
             -- without the slides the loop below never exits.
@@ -315,8 +315,8 @@ sharedTopic verbosity = do
             k2 :: ([Int], [Int]) -> ([Int], [Int])
             k2 (ns, _) = (2 : ns, take 3 ns)
             x, y :: Trace (,) (->) [Int] [Int]
-            x = yank (base k1)
-            y = yank (base k2)
+            x = yank (Lift k1)
+            y = yank (Lift k2)
             fallback :: ([Int], [Int]) -> ([Int], [Int])
             fallback = tensor (eval x) (eval y)
          in eval (superpose x y) ([], []) == fallback ([], []),
@@ -326,8 +326,8 @@ sharedTopic verbosity = do
             step (Left 0) = Right 100
             step (Left n) = Left (n - 1)
             x, y :: Trace Either (->) Int Int
-            x = yank (base step)
-            y = yank (base step)
+            x = yank (Lift step)
+            y = yank (Lift step)
             fallback :: Either Int Int -> Either Int Int
             fallback = tensor (eval x) (eval y)
          in eval (superpose x y) (Left 3) == fallback (Left 3)

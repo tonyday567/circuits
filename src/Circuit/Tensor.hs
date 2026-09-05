@@ -58,7 +58,7 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
-import Circuit.Trace (SigYank (..), Trace, base)
+import Circuit.Trace (SigYank (..), Trace)
 import Circuit.Traced (Assoc (..), Strength (..), TraceC, Yank (..))
 import Circuit.Traced qualified as Ch
 import Data.Bifunctor (Bifunctor (..))
@@ -69,9 +69,9 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
--- >>> import Circuit.Trace (Trace, base)
+-- >>> import Circuit.Trace (Trace)
 -- >>> import Circuit.Traced (yank)
--- >>> import Circuit.Syntax (eval)
+-- >>> import Circuit.Syntax (Syntax (Lift), eval)
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> import Prelude hiding (id, (.))
@@ -522,10 +522,10 @@ instance (Monad m) => Action These (K m) where
 
 -- | Lift 'Unital' through 'Trace'.
 instance (Unital t arr) => Unital t (Trace t' arr) where
-  unitl = base unitl
-  unitl' = base unitl'
-  unitr = base unitr
-  unitr' = base unitr'
+  unitl = Lift unitl
+  unitl' = Lift unitl'
+  unitr = Lift unitr
+  unitr' = Lift unitr'
 
 -- | Opposite category: unitors are reversed along with the base arrow.
 instance (Unital t arr) => Unital t (Cat.Op arr) where
@@ -542,10 +542,10 @@ instance (Unital t arr) => Unital t (Cat.Op arr) where
 -- feedback loops. For the fused superposition of two 'Circuit.Trace.yank's,
 -- use 'superpose'.
 instance (Tensor t arr, Yank t' arr) => Tensor t (Trace t' arr) where
-  tensor f g = base (tensor (eval f) (eval g))
+  tensor f g = Lift (tensor (eval f) (eval g))
 
 instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
-  braid = base braid
+  braid = Lift braid
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.
 --
@@ -558,16 +558,16 @@ instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
 -- and braiding. This preserves sharing for recursive circuits; the lawful
 -- 'Tensor' instance falls back to independent evaluation.
 --
--- >>> let k1 = yank (base (\(ns, _) -> (1 : ns, take 3 ns))) :: Trace (,) (->) [Int] [Int]
--- >>> let k2 = yank (base (\(ns, _) -> (2 : ns, take 3 ns)))
+-- >>> let k1 = yank (Lift (\(ns, _) -> (1 : ns, take 3 ns))) :: Trace (,) (->) [Int] [Int]
+-- >>> let k2 = yank (Lift (\(ns, _) -> (2 : ns, take 3 ns)))
 -- >>> eval (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
 -- The same fusion works for @K@, preserving sharing across the
 -- recursive channels under @MonadFix@.
 --
--- >>> let k1 = yank (base (K $ \(ns, _) -> pure (1 : ns, take 3 ns))) :: Trace (,) (K Identity) [Int] [Int]
--- >>> let k2 = yank (base (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
+-- >>> let k1 = yank (Lift (K $ \(ns, _) -> pure (1 : ns, take 3 ns))) :: Trace (,) (K Identity) [Int] [Int]
+-- >>> let k2 = yank (Lift (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
 -- >>> runK (eval (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 superpose ::
@@ -579,16 +579,16 @@ superpose ::
 superpose x y =
   case (x, y) of
     (Lift f, Lift g) ->
-      base (tensor f g)
+      Lift (tensor f g)
     (Oper (R (YankBody f)), Lift g) ->
-      yank (base assoc . base (tensor (eval f) g) . base assoc')
+      yank (Lift assoc . Lift (tensor (eval f) g) . Lift assoc')
     (Lift f, Oper (R (YankBody g))) ->
-      yank (base shuffle . base (tensor f (eval g)) . base shuffle)
+      yank (Lift shuffle . Lift (tensor f (eval g)) . Lift shuffle)
     (Oper (R (YankBody f)), Oper (R (YankBody g))) ->
-      yank (base post . base (tensor (eval f) (eval g)) . base pre)
+      yank (Lift post . Lift (tensor (eval f) (eval g)) . Lift pre)
     -- Non-normal forms fall back to the lawful independent-evaluation instance.
     _ ->
-      base (tensor (eval x) (eval y))
+      Lift (tensor (eval x) (eval y))
   where
     reassoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
     reassoc = Ch.assoc

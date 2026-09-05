@@ -37,7 +37,7 @@
 -- or pole-splitting is added.
 --
 -- Closing a body into a trace is the one Body-to-Trace direction:
--- @yank (base (morphism b))@ traces the carrier out, as in
+-- @yank (Lift (morphism b))@ traces the carrier out, as in
 -- 'Circuit.Machine.machineToClosed'.  There is no Trace-to-Body direction,
 -- by design: 'Body' is the deliberately untraced carrier.  Finite spans
 -- are the lookup-table special case — see 'Circuit.Span.bodyFromSpan' and

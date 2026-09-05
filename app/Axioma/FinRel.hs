@@ -9,9 +9,8 @@ module Axioma.FinRel
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
+import Circuit.Bimonoid (Copy (..), Dagger (..), Discard (..), Merge (..), Zero (..), transpose)
 import Circuit.Category (id)
-import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Rel
 import Control.Monad (when)
 import Data.Proxy (Proxy (..))

@@ -34,17 +34,18 @@ Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
                       plumbing, and superpose (fused parallel composition).
 Circuit.Body        — The knot-body category: Body t ch arr a b.
 Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank).
-Circuit.SMC         — Free symmetric monoidal category over a wiring tensor.
 Circuit.Net         — Free SMC with bimonoid rows (Copy/Discard/Plus/Zero);
-                      melt, mirror, widen, sift.
+                      hosts the symmetric-monoidal layer (SMC, SigPar,
+                      SigSwap, mirrorSMC, FreeSMC); melt, mirror, widen, sift.
 Circuit.Syntax      — à-la-carte substrate (Syntax, (:+:), eval/evalInto) and
                       the Layer tower: Layer class, unit/run/bind, lower;
                       Free and freeze.
 Circuit.Hyper       — Hyperfunctions: final encoding, encode, observe, runHyper.
-Circuit.Dagger      — Dagger category, transpose, bimonoid interlock.
-Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules.
-Circuit.Par         — Multiplicative disjunction ⅋, Bot, linear distributors.
-Circuit.Linear      — Linear-logic connectives: Lolli, Exponential (!/?).
+Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules and the free
+                      dagger category (Dagger, transpose): the interlock that
+                      dualises the laws (fwd copy = bwd merge).
+Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
+                      ⅋/Bot with distributors, Lolli (⊸), Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
 Circuit.Process     — Mealy base arrow (input-seeded), pointed Process,
                       scan/fold, mealy, delay/register, Body conversions.
