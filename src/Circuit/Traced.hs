@@ -525,10 +525,6 @@ instance (MonadFix m) => Yank (,) (K m) where
 
 -- | Either tensorial strength for @K m@, for any @Monad m@.
 --
--- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
--- priority for @IO@, providing constant-stack iteration via delimited
--- continuations.
---
 -- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
 -- required by the ladder's @Category arr@ superclass — needs @(>>=)@
 -- for composition. This body spends only @pure@ and '<$>'.
@@ -555,6 +551,10 @@ instance (Monad m) => Strength These (K m) where
 -- Iterates by feeding 'Left' back into the step function until a 'Right'
 -- is produced. Uses plain recursion — builds stack proportional to
 -- iteration count.
+--
+-- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
+-- priority for @IO@, providing constant-stack iteration via delimited
+-- continuations.
 --
 -- >>> :{
 -- let countTo target = K $ \case
