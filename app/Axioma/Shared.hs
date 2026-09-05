@@ -15,7 +15,7 @@ import Axioma.Common
     sharedAddP,
     sharedDoubleP,
   )
-import Circuit.Category (id, (.), (.>))
+import Circuit.Category (K (..), Op (..), id, runK, runOp, (.), (.>))
 import Circuit.Equip (Stamped (..))
 import Circuit.Process (Process (..), scanProcessP, scheduleAsProcessP)
 import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), sharedBy, transcriptSharedBy)
@@ -26,6 +26,7 @@ import Circuit.Tensor (Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace, base)
 import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Control.Monad (when)
+import Data.Functor.Identity (Identity (..))
 import Data.List (sort)
 import Data.These (These (..), these)
 import Prelude hiding (curry, id, uncurry, (.))
@@ -179,6 +180,28 @@ sharedTopic verbosity = do
                 These 'a' (These 'b' 'c')
               ]
          in all (\x -> presenceInput x == presenceOutput (slide x)) cases,
+      -- Slide involution: slide . slide == id, now at (,), Either, K
+      -- Identity, and Op alongside These. Involution is an instance
+      -- obligation — the Op instance spends it directly (slide = Op slide is
+      -- correct only when base slide is its own inverse), and the free Trace
+      -- Strength instance slides the loop wire out and back assuming the
+      -- round trip cancels. Distinct scalars per position so a one-scalar
+      -- mutation of an implementation is caught.
+      checkV verbosity "Channel (,) slide . slide == id" $
+        let x = (1, (2, 3)) :: (Int, (Int, Int))
+         in (slide . slide) x == x,
+      checkV verbosity "Channel Either slide . slide == id on all three injections" $
+        let l = Left 1 :: Either Int (Either Bool Char)
+            m = Right (Left True)
+            r = Right (Right 'c')
+         in all (\x -> (slide . slide) x == x) [l, m, r],
+      checkV verbosity "Channel K Identity slide . slide == id" $
+        let x = (1, (2, 3)) :: (Int, (Int, Int))
+         in runK (slide . slide) x == Identity x,
+      checkV verbosity "Channel Op slide . slide == id pointwise (the Op instance spends involution)" $
+        let swapTwice :: Op (->) (Int, (Int, Int)) (Int, (Int, Int))
+            swapTwice = slide . slide
+         in runOp swapTwice (1, (2, 3)) == (1, (2, 3)),
       checkV verbosity "Channel These slide . slide == id where types permit" $
         let x = These 'a' (These 'b' 'c' :: These Char Char)
          in (slide . slide) x == (x :: These Char (These Char Char)),

@@ -141,6 +141,15 @@ instance (Assoc t arr) => Assoc t (Op arr) where
 -- 'slide' swaps the two outer positions, leaving the inner payload in place:
 -- @t a (t b c) -> t b (t a c)@. It is the structural half-braid used by the
 -- sliding axiom of a traced category.
+--
+-- Law note: @slide@ must be an involution, @slide .> slide = id@, and this
+-- is an instance obligation rather than something the type guarantees.
+-- Two places spend it: the @Op@ instance below sets @slide = Op slide@,
+-- which is correct only because the base slide is its own inverse, and the
+-- free 'Circuit.Trace.Strength' instance slides the loop wire out of a
+-- yanked body and back, assuming the round trip cancels. The
+-- @circuits-axioma@ shared topic carries pointwise witnesses at @(,)@,
+-- 'Either', @K m@, @Op@, and 'These'.
 class
   (Category arr) =>
   Slide (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
