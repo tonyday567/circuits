@@ -220,6 +220,22 @@ sharedTopic verbosity = do
             decompose = assoc' .> tensor braid id .> assoc
             inputs = [Left 1, Right (Left True), Right (Right 'c')]
          in all (\x -> decompose x == slide x) inputs,
+      -- Associator round trip (Traced.hs:88-89 is doctest-only): assoc and
+      -- assoc' cancel in both directions at each standard tensor.
+      checkV verbosity "associator round trip at (,) in both directions" $
+        let x = ((1, 2), 3) :: ((Int, Int), Int)
+            y = (1, (2, 3)) :: (Int, (Int, Int))
+         in (assoc' . assoc) x == x && (assoc . assoc') y == y,
+      checkV verbosity "associator round trip at Either in both directions" $
+        let xs = [Left (Left 1), Left (Right True), Right 'c'] :: [Either (Either Int Bool) Char]
+            ys = [Left 1, Right (Left True), Right (Right 'c')] :: [Either Int (Either Bool Char)]
+         in all (\x -> (assoc' . assoc) x == x) xs
+              && all (\y -> (assoc . assoc') y == y) ys,
+      checkV verbosity "associator round trip at These in both directions" $
+        let xs = [This (This 'a'), This (That True), That 1, These (This 'a') 1] :: [These (These Char Bool) Int]
+            ys = [This 'a', That (This True), That (That 1), These 'a' (That 1)] :: [These Char (These Bool Int)]
+         in all (\x -> (assoc' . assoc) x == x) xs
+              && all (\y -> (assoc . assoc') y == y) ys,
       -- Yank These falsifier: the both-branch forces a discard.
       --
       -- A candidate yank for These must choose, in the These a c case,
