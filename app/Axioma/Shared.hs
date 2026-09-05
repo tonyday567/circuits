@@ -24,7 +24,7 @@ import Circuit.Syntax (Syntax (..), eval)
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace, base)
-import Circuit.Traced (assoc, assoc', slide, yank)
+import Circuit.Traced (assoc, assoc', slide, strength, yank)
 import Control.Monad (when)
 import Data.List (sort)
 import Data.These (These (..), these)
@@ -205,6 +205,37 @@ sharedTopic verbosity = do
             step (This n) = This (n - 1)
             step (These m n) = These (m + 1) n
          in traceTheseEmit step 5 /= traceTheseLoop step 5,
+      -- Free-strength slide placement (Circuit.Trace Strength t (Trace t arr),
+      -- YankBody clause). The body is slid out, strengthened, and slid back:
+      -- yank (base slide .> strength body .> base slide). The oracle pins the
+      -- placement against evaluating first and strengthening at the base: the
+      -- two slides sit outside the loop, so a dropped or duplicated slide wires
+      -- the payload into the loop channel and the sides disagree. Bodies mix
+      -- channel and payload so the placements genuinely differ.
+      checkV verbosity "Trace (,) strength: eval-then-strengthen == strengthen-then-eval" $
+        let f :: (Int, Int) -> (Int, Int)
+            f (s, x) = (x, s + x)
+            t :: Trace (,) (->) Int Int
+            t = yank (base f)
+            -- Mutation room: yank (strength body) without the slides gives
+            -- (3,10) here against the true (7,6).
+            input = (7, 3)
+         in eval (strength t) input == strength (eval t) input,
+      checkV verbosity "Trace Either strength: eval-then-strengthen == strengthen-then-eval" $
+        let f :: Either Int Int -> Either Int Int
+            f (Right n) = Left n
+            f (Left 0) = Right 42
+            f (Left n) = Left (n - 1)
+            t :: Trace Either (->) Int Int
+            t = yank (base f)
+            -- Different tensor, different slide: the Either slide routes the
+            -- outer value to the inner-left loop position. Mutation room:
+            -- without the slides the loop below never exits.
+            leftOnly = Left 5 :: Either Int Int
+            payload = Right 3 :: Either Int Int
+         in eval t 3 == 42
+              && eval (strength t) leftOnly == strength (eval t) leftOnly
+              && eval (strength t) payload == strength (eval t) payload,
       -- tensor/par probe: sharedBy vs superpose
       checkV verbosity "pure order braid is invisible at the shared channel (sliding axiom)" $
         let k1 = markerBody 1
