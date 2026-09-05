@@ -35,11 +35,12 @@ import Circuit.Equip
 import Circuit.Equip qualified as Poles
 import Circuit.Moore (MachineP, MooreEval (..), branchMachineP, machineMorphismP, machineP, machinePToPolesAt)
 import Circuit.Poly (Dir, Mono, Poly (..), Pos)
-import Circuit.Process (ProcessP (..), asProcess, fold, markProcessP, scan, scanProcessP)
+import Circuit.Process (Process (..), ProcessP (..), asProcess, fold, markProcess, markProcessP, scan, scanProcessP)
 import Circuit.Tensor (Bias (..))
+import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
-import Data.Maybe (isNothing)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.Void (Void, absurd)
 import Prelude hiding (curry, id, uncurry, (.))
 
@@ -205,6 +206,24 @@ polesTopic verbosity = do
             sys = markProcessP (== "HALT") innerP
             p = asProcess sys
          in null (scan p []) && fold p [Payload 1, Payload 2, Mark "HALT"] == Just Nothing,
+      -- The documented asymmetry (Process.hs:219): the unpointed
+      -- 'markProcess' has no seed, so an initial mark without payload reaches
+      -- 'error "markProcess: initial mark without payload"' — a runtime
+      -- error, not a silent default. 'markProcessP' exists precisely to
+      -- remove that: its seed is already live, so a non-halt mark is a no-op
+      -- from the very first input. Mutation room: delete the error branch in
+      -- 'markProcess' (mapping the initial mark to a made-up state) and the
+      -- first oracle silently passes while the asymmetry is gone.
+      checkIOV verbosity "markProcess errors on an initial mark without payload" $ do
+        let inner = Process id (+) id :: Process Int Int
+            p = markProcess (== "HALT") inner
+        result <- try (evaluate (fromMaybe 0 (head (scan p [Mark "NOOP"])))) :: IO (Either SomeException Int)
+        pure (case result of Left _ -> True; Right _ -> False),
+      checkV verbosity "markProcessP seeds past the initial-mark asymmetry" $
+        let innerP = ProcessP 0 (+) id :: ProcessP Int Int Int
+            sys = markProcessP (== "HALT") innerP
+         in scanProcessP sys [Mark "NOOP", Payload 1, Mark "HALT", Payload 2]
+              == [Just 0, Just 1, Nothing, Nothing],
       -- equipment-law oracles
       checkV verbosity "plug id is a homomorphism for stateful Poles over Body" $
         let w1 = Body (\(s, x) -> let s' = s + x in (s', s')) :: Body (,) Int (->) Int Int
