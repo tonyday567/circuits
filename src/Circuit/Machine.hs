@@ -153,8 +153,8 @@ import Prelude hiding (id, (.))
 -- equipment.
 --
 -- In the equipment-optic reading, the companion/conjoint poles of a
--- 'Machine' over carrier @s@ are the 'Circuit.Optic.opticPolesP' action of
--- a pointed optic whose residual is the machine's state; the coherence is
+-- 'Machine' over carrier @s@ are the 'Circuit.Optic.opticPoles' action of
+-- an optic whose residual is the machine's state; the coherence is
 -- oracled in @Axioma.Optic@.
 --
 -- >>> let sys = machine (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)

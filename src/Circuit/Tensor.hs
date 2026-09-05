@@ -183,7 +183,7 @@ type family Unit (t :: k -> k -> k) :: k
 -- 'Tensor' gives the action of @t@ on morphisms; 'TensorSeed' names the
 -- canonical way to combine two values into a value of type @t a b@.  It is
 -- needed by constructions that store a concrete channel value alongside a
--- body (the old 'Circuit.Body.SomeBody' pattern).
+-- body (the old @SomeBody@ pattern).
 --
 -- Not every tensor has a canonical pairing: @(,)@ has the pair constructor,
 -- but 'Either' has no unbiased way to combine @a@ and @b@ into
