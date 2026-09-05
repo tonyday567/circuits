@@ -49,6 +49,7 @@ module Circuit.Process
     asProcessP,
     machinePAsProcess,
     asProcessPCell,
+    pprocessAsMoore,
 
     -- * Boundary machines
     markProcessP,
@@ -88,6 +89,8 @@ module Circuit.Process
     register,
 
     -- * Body conversions and runners
+    processPToBody,
+    processToSomeBody,
     bodyToProcess,
     runBody,
     runBodyCell,
@@ -100,7 +103,7 @@ import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
 import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..), unitCell)
 import Circuit.Equip qualified as Poles
-import Circuit.Moore (MachineP, machineMorphismP, monoDir, monoIn, toEvalMachineP)
+import Circuit.Moore (MachineP, machineMorphismP, machineP, monoDir, monoIn, toEvalMachineP)
 import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
@@ -185,6 +188,35 @@ machinePAsProcess sys s0 = asProcess (asProcessP sys s0)
 -- [8,12]
 asProcessPCell :: MachineP (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> ProcessP s i o
 asProcessPCell sys (UnitCell f) = asProcessP sys (f ())
+
+-- | Convert a pointed process into a monomial 'MachineP' machine.
+--
+-- The position is read from the /new/ state — the process output of the
+-- state after consuming the direction.  The state evolution agrees with
+-- 'asProcessP'; the observation is the one-tick shift of a machine built
+-- directly with 'machineP'.
+--
+-- >>> import Circuit.Moore (MachineP, machineMorphismP, machineP)
+-- >>> import Circuit.Poly (Mono)
+-- >>> import Data.Void (absurd)
+-- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
+-- >>> scanProcessP acc [1, 2, 3]
+-- [1,3,6]
+-- >>> machineMorphismP (pprocessAsMoore acc) (0, Right 1)
+-- (1,(1,()))
+--
+-- Round trip through 'asProcessP': the transition is unchanged and the
+-- position comes from the new state (@16 = 8 * 2@, not the pre-step @6@).
+--
+-- >>> let sys = machineP (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: MachineP (,) Int (->) (Mono Int Int)
+-- >>> machineMorphismP (pprocessAsMoore (asProcessP sys 3)) (3, Right 5)
+-- (8,(16,()))
+pprocessAsMoore :: ProcessP s i o -> MachineP (,) s (->) (Mono i o)
+pprocessAsMoore pp =
+  machineP $ \(s, d) ->
+    let s' = processStepP pp s (monoDir d)
+     in (s', (processExtractP pp s', ()))
+{-# INLINEABLE pprocessAsMoore #-}
 
 -- * Boundary machines
 
@@ -728,6 +760,38 @@ register s0 (Process i st ex) = Process i' st' ex'
     ex' s = fst (ex s)
 
 -- * Body conversions
+
+-- | Convert a pointed process into a cartesian body threading the state.
+--
+-- The body state is the process state and the output is the process output
+-- of the state after consuming the input, so 'runBody' from the seed
+-- reproduces 'scanProcessP'.
+--
+-- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
+-- >>> runBody (processPToBody acc) 0 [1, 2, 3]
+-- [1,3,6]
+processPToBody :: ProcessP s a b -> Body (,) s (->) a b
+processPToBody pp =
+  Body $ \(s, a) ->
+    let s' = processStepP pp s a
+     in (s', processExtractP pp s')
+{-# INLINEABLE processPToBody #-}
+
+-- | Eliminate a 'Process' by exposing its hidden state as a cartesian body.
+--
+-- The continuation receives the seeding function ('Process' inject) together
+-- with the body threading the hidden state: 'runBody' seeded by
+-- @inject a0@ reproduces 'scan' after its first output.
+--
+-- >>> let acc = ProcessP 0 (+) (\x -> x) :: ProcessP Int Int Int
+-- >>> scan (asProcess acc) [0, 1, 2, 3]
+-- [0,1,3,6]
+-- >>> processToSomeBody (asProcess acc) (\inj b -> runBody b (inj 0) [1, 2, 3])
+-- [1,3,6]
+processToSomeBody :: Process a b -> (forall s. (a -> s) -> Body (,) s (->) a b -> r) -> r
+processToSomeBody (Process inject step extract) k =
+  k inject (Body $ \(s, a) -> let s' = step s a in (s', extract s'))
+{-# INLINEABLE processToSomeBody #-}
 
 -- | View a cartesian body as a 'Process'.
 --
