@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | Optic oracles — mixed optics as residual maps.
 --
 -- Every positive family is paired with a perturbation, so that a passing
@@ -10,8 +12,10 @@ module Axioma.Optic
 where
 
 import Axioma.Common (Verbosity (..), checkV)
+import Circuit.Body (Body (..), morphism)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Equip (Poles (..))
+import Circuit.Equip (Poles (..), plug)
+import Circuit.Moore (MachineP, machineMorphismP, machineP, machinePToPoles)
 import Circuit.Optic
   ( Optic (..),
     OpticP (..),
@@ -25,8 +29,9 @@ import Circuit.Optic
     opticUpdate,
     opticUpdateP,
   )
+import Circuit.Poly (Dir, Mono, Pos)
 import Control.Monad (when)
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- * Cartesian witnesses
@@ -197,5 +202,37 @@ opticTopic verbosity = do
          in companion (opticPolesP firstLens p) "hi" == (7, "hi"),
       checkV verbosity "opticPolesP read pole agrees with the backward leg" $
         let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
-         in companion (opticPolesP firstLens p) "hi" == opticBackwardP firstLens ("hi", 7)
+         in companion (opticPolesP firstLens p) "hi" == opticBackwardP firstLens ("hi", 7),
+      -- Equipment-optic coherence: the companion/conjoint poles of a
+      -- MachineP are the opticPolesP action of the diagonal machine optic
+      -- (residual = machine state) on the stepping base pole.  The two
+      -- sides are defined independently — machinePToPoles hand-rolls its
+      -- legs in Circuit.Moore, the optic path assembles iomap primitives —
+      -- so the witness pins a real configuration: a mutation to either
+      -- side's leg wiring (probe read, unstepped write) fails the sample
+      -- agreement.
+      checkV verbosity "machinePToPoles agrees with the opticPolesP action of the diagonal machine optic" $
+        let stepInc (s, d) = case d of
+              Left v -> absurd v
+              Right i -> (s + i, (s * 2, ()))
+            inc = machineP stepInc :: MachineP (,) Int (->) (Mono Int Int)
+            optic ::
+              OpticP (,) Int (Body (,) Int (->)) (Dir (Mono Int Int)) () (Dir (Mono Int Int)) (Pos (Mono Int Int))
+            optic =
+              OpticP
+                (Body (\(s, d) -> (s, (s, d))))
+                (Body (\(s0, (ch, ())) -> (s0, (ch * 2, ()))))
+            base ::
+              Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) (Int, Dir (Mono Int Int)) (Int, ())
+            base =
+              Poles
+                (Body (\(s', (s'', d)) -> (fst (machineMorphismP inc (s'', d)), fst (machineMorphismP inc (s'', d)))))
+                (Body (\(s, ch) -> (s, (ch, ()))))
+            lhs = machinePToPoles (\s -> (s * 2, ())) inc
+            rhs = opticPolesP optic base
+            sample1 = morphism (plug id lhs) (3, Right 5) :: (Int, (Int, ()))
+            sample2 = morphism (plug id rhs) (3, Right 5) :: (Int, (Int, ()))
+            sample3 = morphism (plug id lhs) (4, Right 1) :: (Int, (Int, ()))
+            sample4 = morphism (plug id rhs) (4, Right 1) :: (Int, (Int, ()))
+         in sample1 == sample2 && sample3 == sample4
     ]

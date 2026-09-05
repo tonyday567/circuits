@@ -23,6 +23,7 @@ import Circuit.Equip
     compose0,
     conjointTight,
     copycat,
+    iomap,
     isMark,
     isPayload,
     open,
@@ -38,7 +39,7 @@ import Circuit.Poly (Dir, Mono, Poly (..), Pos)
 import Circuit.Process (Process (..), ProcessP (..), asProcess, fold, markProcess, markProcessP, scan, scanProcessP)
 import Circuit.Tensor (Bias (..))
 import Control.Exception (SomeException, evaluate, try)
-import Control.Monad (when)
+import Control.Monad (void, when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Void (Void, absurd)
@@ -268,5 +269,44 @@ polesTopic verbosity = do
       checkV verbosity "composed tight poles agree with f .> g" $
         let f = const () :: Int -> ()
             g = const 42 :: () -> Int
-         in plug id (compose (conjointTight f) (companionTight g)) 5 == (g . f) 5
+         in plug id (compose (conjointTight f) (companionTight g)) 5 == (g . f) 5,
+      -- Spiwak restriction stability on an effectful base:
+      -- R(f.h, g.j) = R(f,g)(h,j) as iomap fusion.  On K IO the content is
+      -- effect sequencing: both sides must return equal results with equal
+      -- log order (the whiskers transform the payload, so they log before
+      -- the base legs).  The swapped-whisker run pins the probe as
+      -- order-sensitive, so a passing fusion check is known non-vacuous.
+      -- Mutation room: an associativity violation in iomap or (.>) shows
+      -- up as log order divergence ("f","h","w",... against "h","f","w",...).
+      checkIOV verbosity "iomap fusion on K IO: equal results and equal effect order" $ do
+        ref <- newIORef ([] :: [String])
+        let logTag :: String -> IO ()
+            logTag tag = modifyIORef' ref (++ [tag])
+            p0 :: Poles () () (K IO) (K IO) Int Int
+            p0 =
+              Poles
+                (K (\_ -> void (logTag "w")))
+                (K (\_ -> logTag "r" >> pure 7))
+            f, h, g, j :: K IO Int Int
+            f = K (\x -> logTag "f" >> pure (x + 1))
+            h = K (\x -> logTag "h" >> pure (x * 2))
+            g = K (\x -> logTag "g" >> pure (x + 1))
+            j = K (\x -> logTag "j" >> pure (x * 10))
+            lhs = iomap h j (iomap f g p0)
+            rhs = iomap (h .> f) (g .> j) p0
+            swapped = iomap (f .> h) (j .> g) p0
+        r1 <- runK (box lhs) 5
+        log1 <- readIORef ref
+        writeIORef ref []
+        r2 <- runK (box rhs) 5
+        log2 <- readIORef ref
+        writeIORef ref []
+        _ <- runK (box swapped) 5
+        log3 <- readIORef ref
+        pure
+          ( r1 == r2
+              && log1 == log2
+              && log1 == ["h", "f", "w", "r", "g", "j"]
+              && log3 == ["f", "h", "w", "r", "j", "g"]
+          )
     ]
