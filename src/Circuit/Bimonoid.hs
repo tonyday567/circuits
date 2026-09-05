@@ -72,8 +72,7 @@ module Circuit.Bimonoid
   )
 where
 
-import Circuit.Category (Category (..))
-import Circuit.Syntax (Algebra (..), Sig, SigCompose (..), Syntax (..), (:+:) (..))
+import Circuit.Syntax (Algebra (..), (:+:) (..))
 import Circuit.Tensor (Tensor (..), Unit)
 import Data.Kind (Type)
 import Prelude hiding (id, (.))

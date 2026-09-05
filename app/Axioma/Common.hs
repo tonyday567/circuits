@@ -27,9 +27,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.Process (Mealy (..), delay, register)
-import Data.Tuple qualified as Tuple
-import GHC.TypeNats (KnownNat, natVal)
+import Circuit.Process (Mealy (..), register)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 

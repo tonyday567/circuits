@@ -53,7 +53,7 @@ import Circuit.Syntax
     eval,
     (:+:) (..),
   )
-import Circuit.Tensor (Action, Tensor, Unit, Unital)
+import Circuit.Tensor (Action, Tensor, Unital)
 import Circuit.Tensor qualified as T
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)

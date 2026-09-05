@@ -52,9 +52,7 @@ library
     Circuit.Container
     Circuit.Dagger
     Circuit.Equip
-    Circuit.FinRel
     Circuit.Hyper
-    Circuit.Layer
     Circuit.Linear
     Circuit.Machine
     Circuit.Net

@@ -10,14 +10,11 @@ where
 
 import Axioma.Common
   ( Verbosity (..),
-    checkIOV,
     checkV,
-    sharedAddP,
-    sharedDoubleP,
   )
 import Circuit.Category (K (..), Op (..), id, runK, runOp, (.), (.>))
 import Circuit.Equip (Stamped (..))
-import Circuit.Process (Mealy (..), scanProcess, scheduleAsProcess)
+import Circuit.Process (scanProcess, scheduleAsProcess)
 import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval)

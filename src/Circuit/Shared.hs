@@ -37,7 +37,7 @@ module Circuit.Shared
   )
 where
 
-import Circuit.Category (Category (..), K (..))
+import Circuit.Category (K (..))
 import Circuit.Equip (Stamped (..))
 import Circuit.Syntax
   ( Algebra (..),
@@ -47,8 +47,6 @@ import Circuit.Syntax
   )
 import Circuit.Tensor (Bias (..), Tensor (..))
 import Circuit.Trace (SigYank)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
-import Control.Monad (Monad)
 import Data.Kind (Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))

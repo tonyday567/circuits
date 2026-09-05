@@ -43,13 +43,7 @@ module Circuit.Trace
 where
 
 import Circuit.Category (Category (..), (.>))
-import Circuit.Layer (Layer (..), (:~>))
-import Circuit.Syntax
-  ( Algebra (..),
-    SigCompose (..),
-    Syntax (..),
-    (:+:) (..),
-  )
+import Circuit.Syntax (Algebra (..), Layer (..), SigCompose (..), Syntax (..), (:+:) (..), (:~>))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -58,7 +52,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Category ((.>))
--- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Syntax (run)
 -- >>> import Circuit.Traced (Strength (..), Yank (..))
 
 -- Trace signature

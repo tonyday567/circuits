@@ -63,21 +63,19 @@ import Circuit.Bimonoid
     SigZero (..),
   )
 import Circuit.Bimonoid qualified as Bm
-import Circuit.Category (Category (..), (.>))
+import Circuit.Category (Category (..))
 import Circuit.Dagger qualified as Dg
-import Circuit.Layer (Layer (..), run, (:~>))
 import Circuit.SMC (FreeSMC, SMC, SigPar (..), SigSwap (..))
-import Circuit.SMC qualified as SMC
-import Circuit.Syntax (Algebra (..), SigCompose (..), Syntax (..), evalInto, (:+:) (..))
-import Circuit.Tensor (Action, Tensor (..), Unit)
+import Circuit.Syntax (Layer (..), SigCompose (..), Syntax (..), evalInto, (:+:) (..), (:~>))
+import Circuit.Tensor (Action)
 import Circuit.Trace (Trace, base)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Dagger qualified as Dg
--- >>> import Circuit.Layer (bind, run, unit)
+-- >>> import Circuit.Syntax (bind, run, unit)
 -- >>> import Circuit.Net
 -- >>> import Circuit.Trace (Trace, base)
 -- >>> import Circuit.Traced (yank)

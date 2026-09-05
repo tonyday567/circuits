@@ -106,13 +106,12 @@ module Circuit.Process
   )
 where
 
-import Circuit.Bimonoid (Copy, CopyDiscard, Discard, Merge, MergeZero, Zero)
+import Circuit.Bimonoid (Copy, Discard, Merge, Zero)
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
-import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..), unitCell)
-import Circuit.Equip qualified as Poles
-import Circuit.Machine (Machine, machine, machineMorphism, monoDir, monoIn, toEvalMachine)
+import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..))
+import Circuit.Machine (Machine, machine, monoDir, toEvalMachine)
 import Circuit.Poly (Eval (..), Mono)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))

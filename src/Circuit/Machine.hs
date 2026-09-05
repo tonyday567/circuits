@@ -102,7 +102,6 @@ where
 import Circuit.Body (Body (..))
 import Circuit.Container (Located (..), SomePos (..), posAt, posOf)
 import Circuit.Equip (Poles (..))
-import Circuit.Equip qualified as Poles
 import Circuit.Poly
   ( Dir,
     Eval (..),
@@ -116,10 +115,9 @@ import Circuit.Poly
   )
 import Circuit.Trace (Trace, base)
 import Circuit.Traced (Yank, yank)
-import Control.Category (Category, id, (.))
-import Data.Bifunctor
+import Control.Category ((.))
 import Data.Kind (Type)
-import Data.Void (Void, absurd)
+import Data.Void (absurd)
 import Prelude hiding (id, (.))
 
 -- $setup

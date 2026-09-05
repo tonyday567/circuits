@@ -64,14 +64,13 @@ module Circuit.Hyper
   )
 where
 
-import Circuit.Category (Category (..), K (..), (.>))
+import Circuit.Category (Category (..), K (..))
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Trace (SigYank (..), Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor (second)
-import Data.Functor.Identity (Identity (..))
 import Prelude hiding (id, (.))
 
 -- $setup

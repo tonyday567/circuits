@@ -11,7 +11,6 @@ import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Body (Body (..))
 import Circuit.Category (K (..), id, runK, (.), (.>))
 import Circuit.Container (SomePos (..), posAt, posOf)
-import Circuit.Dagger (Dagger (..), transpose)
 import Circuit.Equip
   ( Boundary (..),
     Poles (..),
@@ -28,21 +27,19 @@ import Circuit.Equip
     isPayload,
     open,
     plug,
-    poles0,
     polesK,
     splay0,
-    (>:>),
   )
 import Circuit.Equip qualified as Poles
-import Circuit.Machine (Machine, MachineEval (..), branchMachine, machine, machineMorphism, machineToPolesAt)
-import Circuit.Poly (Dir, Mono, Poly (..), Pos)
+import Circuit.Machine (Machine, branchMachine, machine, machineMorphism, machineToPolesAt)
+import Circuit.Poly (Dir, Mono, Poly (..))
 import Circuit.Process (Mealy (..), Process (..), asMealy, fold, markMealy, markProcess, scan, scanProcess)
 import Circuit.Tensor (Bias (..))
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (void, when)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe, isNothing)
-import Data.Void (Void, absurd)
+import Data.Void (absurd)
 import Prelude hiding (curry, id, uncurry, (.))
 
 polesTopic :: Verbosity -> IO [Bool]

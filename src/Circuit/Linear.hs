@@ -31,7 +31,7 @@ import Circuit.Category (Category (..))
 import Circuit.Par (Bot, Par (..))
 import Circuit.Tensor (Tensor (..), Unit)
 import Data.Kind (Type)
-import Data.Void (Void, absurd)
+import Data.Void (absurd)
 import Prelude hiding (id, (.))
 
 -- * Linear implication (internal hom)

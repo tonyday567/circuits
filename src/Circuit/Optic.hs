@@ -74,10 +74,10 @@ where
 
 import Circuit.Category (Category, (.>), (<.))
 import Circuit.Equip (Poles, iomap)
-import Circuit.Poly (Lens, Mono, Morphism, applyLens, lens)
+import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Process (Process (..))
 import Circuit.Tensor (Unit, Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
+import Circuit.Traced (Assoc (..), Strength (..))
 import Prelude hiding (id, (.))
 
 -- $setup

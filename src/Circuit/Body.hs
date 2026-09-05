@@ -53,7 +53,6 @@ module Circuit.Body
 where
 
 import Circuit.Category (Category (..), (.>))
-import Circuit.Tensor (Tensor (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
 import Prelude hiding (id, (.))
 

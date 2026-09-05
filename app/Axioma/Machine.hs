@@ -7,7 +7,7 @@ module Axioma.Machine
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
-import Circuit.Machine (Closed, Machine (..), duplicateMachine, fromEvalMachine, machine, machineToClosed, monoIn, toEvalMachine)
+import Circuit.Machine (Machine (..), duplicateMachine, fromEvalMachine, machine, machineToClosed, monoIn, toEvalMachine)
 import Circuit.Par (Par (..), distL, distR)
 import Circuit.Poly (Eval (..), Mono, Poly (..))
 import Circuit.Syntax (eval)

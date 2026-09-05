@@ -19,9 +19,7 @@ import Circuit.Machine (Machine, machine, machineMorphism, machineToPoles)
 import Circuit.Optic
   ( Optic (..),
     OpticP (..),
-    composeOptic,
     composeOpticP,
-    identityOptic,
     identityOpticP,
     lensAsOptic,
     opticAsLens,

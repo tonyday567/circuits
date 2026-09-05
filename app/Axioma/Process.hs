@@ -19,23 +19,20 @@ import Axioma.Common
   )
 import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body (..))
-import Circuit.Category (id, (.), (.>))
-import Circuit.Layer (run)
+import Circuit.Category (id, (.))
 import Circuit.Net qualified as Net
-import Circuit.Process (Mealy (..), Process (..), asMealy, delay, encodeList, fold, foldProcess, mealy, register, runBody, runMealy, scan, scanProcess)
-import Circuit.Process qualified as Mealy
+import Circuit.Process (Mealy (..), Process (..), delay, encodeList, fold, foldProcess, mealy, register, runBody, runMealy, scan, scanProcess)
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
-import Circuit.Syntax (Syntax (..), eval)
+import Circuit.Syntax (Syntax (..), run)
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (Bias (..), tensor)
+import Circuit.Tensor (Bias (..))
 import Circuit.Trace (Trace, base)
-import Circuit.Traced (assoc, assoc', slide, strength, yank)
+import Circuit.Traced (strength, yank)
 import Control.Monad (when)
 import Data.Maybe (catMaybes, isNothing)
 import Data.These (These (..))
 import Data.Tuple qualified as Tuple
 import Prelude hiding (curry, id, uncurry, (.))
-import Prelude qualified as Pre
 
 -- | Residual state for the pair-sum mealy process.
 data PS = Empty | Held Int

@@ -88,9 +88,7 @@ module Circuit
     module Circuit.Container,
     module Circuit.Dagger,
     module Circuit.Equip,
-    module Circuit.FinRel,
     module Circuit.Hyper,
-    module Circuit.Layer,
     module Circuit.Linear,
     module Circuit.Machine,
     module Circuit.Net,
@@ -117,9 +115,7 @@ import Circuit.Category
 import Circuit.Container
 import Circuit.Dagger
 import Circuit.Equip
-import Circuit.FinRel
 import Circuit.Hyper
-import Circuit.Layer
 import Circuit.Linear
 import Circuit.Machine
 import Circuit.Net

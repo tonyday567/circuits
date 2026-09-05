@@ -133,7 +133,6 @@ import Circuit.Tensor qualified as Tensor
 import Circuit.Traced (Assoc (..), Strength (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
-import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -141,7 +140,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Body (Body (..))
 -- >>> import Circuit.Category (CoK (..), K (..), runK, (.>))
 -- >>> import Circuit.Equip
--- >>> import Circuit.Layer (run)
+-- >>> import Circuit.Syntax (run)
 -- >>> import Circuit.Syntax (eval)
 -- >>> import Circuit.Tensor (Bias (..))
 -- >>> import Data.Functor.Identity (Identity (..))

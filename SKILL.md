@@ -37,8 +37,9 @@ Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank)
 Circuit.SMC         — Free symmetric monoidal category over a wiring tensor.
 Circuit.Net         — Free SMC with bimonoid rows (Copy/Discard/Plus/Zero);
                       melt, mirror, widen, sift.
-Circuit.Layer       — Layer tower: unit, run, bind, lower; Free and freeze.
-Circuit.Syntax      — Generic à-la-carte substrate: Syntax, (:+:), eval.
+Circuit.Syntax      — à-la-carte substrate (Syntax, (:+:), eval/evalInto) and
+                      the Layer tower: Layer class, unit/run/bind, lower;
+                      Free and freeze.
 Circuit.Hyper       — Hyperfunctions: final encoding, encode, observe, runHyper.
 Circuit.Dagger      — Dagger category, transpose, bimonoid interlock.
 Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules.
@@ -55,7 +56,8 @@ Circuit.Equip       — Arrow equipment: channel poles (Poles, two base arrows
                       (Sq/TwoCell), boundary tokens (Boundary/Stamped), and
                       unit cells (UnitCell — the seeding crossing Unit t -> ch).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
-Circuit.FinRel      — Finite linear relations over GF(2), reference semantics.
+Circuit.Rel         — Finite relations, two reference grades: explicit
+                      relations (Rel, Fin) and GF(2) linear relations (FinRel).
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use.

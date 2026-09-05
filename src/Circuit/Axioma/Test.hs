@@ -22,10 +22,7 @@ module Circuit.Axioma.Test
 where
 
 import Control.Monad (replicateM)
-import Data.Kind (Type)
 import Data.Maybe (fromMaybe)
-import Data.Proxy (Proxy (..))
-import GHC.TypeNats (KnownNat, natVal)
 import Prelude hiding (curry, id, uncurry, (.))
 
 -- | Print PASS/FAIL for a named boolean assertion and return the result.

@@ -12,7 +12,7 @@ import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (id)
 import Circuit.Dagger (Dagger (..), transpose)
-import Circuit.FinRel
+import Circuit.Rel
 import Control.Monad (when)
 import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, natVal)

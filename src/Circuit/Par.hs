@@ -22,7 +22,6 @@ where
 
 import Circuit.Category (Category (..), K (..))
 import Data.Bifunctor (Bifunctor (..))
-import Data.Kind (Type)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
