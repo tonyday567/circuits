@@ -399,11 +399,19 @@ instance Yank Either (->) where
 -- * K m — monoidal structure
 
 -- | Cartesian associator for @K m@ with @(,)@.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc (,) (K m) where
   assoc = K $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = K $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
 
 -- | Cocartesian associator for @K m@ with 'Either'.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc Either (K m) where
   assoc = K $ \case
     Left (Left a) -> pure (Left a)
@@ -415,6 +423,10 @@ instance (Monad m) => Assoc Either (K m) where
     Right (Right c) -> pure (Right c)
 
 -- | Inclusive associator for @K m@ with 'These'.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc These (K m) where
   assoc =
     K $
@@ -438,10 +450,18 @@ instance (Monad m) => Assoc These (K m) where
         These a (These b c) -> These (These a b) c
 
 -- | Cartesian slide for @K m@ with @(,)@.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Slide (,) (K m) where
   slide = K $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
 -- | Cocartesian slide for @K m@ with 'Either'.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Slide Either (K m) where
   slide = K $ \case
     Left a -> pure (Right (Left a))
@@ -449,6 +469,10 @@ instance (Monad m) => Slide Either (K m) where
     Right (Right c) -> pure (Right (Right c))
 
 -- | Inclusive slide for @K m@ with 'These'.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@.
 instance (Monad m) => Slide These (K m) where
   slide =
     K $
@@ -504,6 +528,10 @@ instance (MonadFix m) => Yank (,) (K m) where
 -- This instance is @OVERLAPPABLE@: the IO-specific instance below takes
 -- priority for @IO@, providing constant-stack iteration via delimited
 -- continuations.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@ and '<$>'.
 instance (Monad m) => Strength Either (K m) where
   strength (K f) =
     K $ \case
@@ -511,6 +539,10 @@ instance (Monad m) => Strength Either (K m) where
       Right b -> Right <$> f b
 
 -- | Inclusive tensorial strength for @K m@ with 'These'.
+--
+-- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
+-- required by the ladder's @Category arr@ superclass — needs @(>>=)@
+-- for composition. This body spends only @pure@ and '<$>'.
 instance (Monad m) => Strength These (K m) where
   strength (K f) =
     K $ \case
