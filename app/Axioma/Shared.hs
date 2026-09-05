@@ -250,6 +250,37 @@ sharedTopic verbosity = do
             theseToPair (These a b) = (a, b)
          in Syn.eval (superpose (yankFun k1) (yankFun k2)) ((), ())
               /= theseToPair (Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())),
+      -- superpose fusion correctness (Circuit.Tensor, fusion clauses). The
+      -- fused form spends assoc / slide / strength to merge two yanks into
+      -- one loop; the lawful Tensor (Trace t' arr) fallback instance
+      -- evaluates each branch independently. The discriminator above cannot
+      -- see a wrong rearrangement — it still reads as shared vs independent.
+      -- These oracles pin fusion against the fallback on named bodies whose
+      -- loops write distinct markers into their channels, so a swapped
+      -- pre/post scaffold mis-wires a loop channel and the outputs differ.
+      checkV verbosity "superpose fusion: fused == lawful independent fallback" $
+        let k1 :: ([Int], [Int]) -> ([Int], [Int])
+            k1 (ns, _) = (1 : ns, take 3 ns)
+            k2 :: ([Int], [Int]) -> ([Int], [Int])
+            k2 (ns, _) = (2 : ns, take 3 ns)
+            x, y :: Trace (,) (->) [Int] [Int]
+            x = yank (base k1)
+            y = yank (base k2)
+            fallback :: ([Int], [Int]) -> ([Int], [Int])
+            fallback = tensor (eval x) (eval y)
+         in eval (superpose x y) ([], []) == fallback ([], []),
+      checkV verbosity "superpose fusion agrees with the fallback on the Either tensor" $
+        let step :: Either Int Int -> Either Int Int
+            step (Right n) = Left n
+            step (Left 0) = Right 100
+            step (Left n) = Left (n - 1)
+            x, y :: Trace Either (->) Int Int
+            x = yank (base step)
+            y = yank (base step)
+            fallback :: Either Int Int -> Either Int Int
+            fallback = tensor (eval x) (eval y)
+         in eval (superpose x y) (Left 3) == fallback (Left 3)
+              && eval (superpose x y) (Right 5) == fallback (Right 5),
       checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2
