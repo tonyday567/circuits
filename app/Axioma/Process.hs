@@ -21,7 +21,7 @@ import Circuit.Bimonoid (Copy (..), Merge (..))
 import Circuit.Body (Body (..))
 import Circuit.Category (id, (.))
 import Circuit.Net qualified as Net
-import Circuit.Process (Mealy (..), Process (..), delay, encodeList, fold, foldProcess, mealy, register, runBody, runMealy, scan, scanProcess)
+import Circuit.Process (Mealy (..), Process (..), bodyToMealy, delay, encodeList, fold, foldProcess, mealy, register, runMealy, scan, scanProcess)
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Syntax (Syntax (..), run)
 import Circuit.Syntax qualified as Syn
@@ -102,18 +102,18 @@ processTopic verbosity = do
          in scan (register s0 body) xs
               == scan (yank (swapP (body . strength (delay s0)))) xs,
       -- Body runner
-      checkV verbosity "runBody agrees with a known body" $
+      checkV verbosity "scanning a body via bodyToMealy agrees with a known body" $
         let sumBody = Body $ \(s, a) -> (s + a, s + a)
-         in runBody sumBody 0 [1, 2, 3 :: Int] == [1, 3, 6],
+         in scan (bodyToMealy sumBody 0) [1, 2, 3 :: Int] == [1, 3, 6],
       -- Pointing discharge oracles
       checkV verbosity "pointing: closure discharge agrees with any seed on a seed-independent body" $
         let Body f = countBody
          in map (yank f) [3, 5, 7] == [3, 5, 7]
-              && runBody countBody 0 [3, 5, 7] == [3, 5, 7]
-              && runBody countBody 99 [3, 5, 7] == [3, 5, 7],
+              && scan (bodyToMealy countBody 0) [3, 5, 7] == [3, 5, 7]
+              && scan (bodyToMealy countBody 99) [3, 5, 7] == [3, 5, 7],
       checkV verbosity "pointing: explicit discharge carries the seed the closure drops" $
         let Body f = delayBody
-         in runBody delayBody 0 [3, 5, 7] == [0, 3, 5]
+         in scan (bodyToMealy delayBody 0) [3, 5, 7] == [0, 3, 5]
               && map (yank f) [3, 5, 7] == [3, 5, 7],
       -- Mealy as a base arrow for Trace / Net / Shared
       checkV verbosity "Mealy lifts into Trace (,) Mealy" $

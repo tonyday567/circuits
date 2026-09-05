@@ -126,7 +126,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Poly (Dir, Eval (..), Mono, Morphism, Poly (..), Pos, lens, applyLens)
 -- >>> import Circuit.Container (SomePos (..), posOf)
 -- >>> import Circuit.Machine (Machine, machine, machineMorphism, machineToPolesAt, branchMachine, MachineEval (..), toEvalMachine, fromEvalMachine, monoDir, monoIn, parWiringMachine)
--- >>> import Circuit.Process (runBody)
+-- >>> import Circuit.Process (bodyToMealy, scan)
 -- >>> import Data.Void (absurd)
 
 -- | A machine with interface @p@, carrier @s@, over base arrow @arr@,
@@ -353,7 +353,7 @@ machineToPoles ex sys =
 -- >>> let dbl = machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
 -- >>> let br = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
 -- >>> let p = machineToPolesAt br
--- >>> map (\(SomePos i) -> posOf i) (runBody (conjoint p) 1 [Left (Right 1), Right (Right 1), Left (Right 1)])
+-- >>> map (\(SomePos i) -> posOf i) (scan (bodyToMealy (conjoint p) 1) [Left (Right 1), Right (Right 1), Left (Right 1)])
 -- [Left (1,()),Right (4,()),Left (3,())]
 machineToPolesAt ::
   forall p s.

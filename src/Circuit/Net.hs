@@ -23,7 +23,7 @@
 -- operations: copy, discard, addition, and zero.  Where 'Trace' keeps
 -- only 'Lift' arrows and 'yank' in normal form, 'Net' keeps the wiring
 -- inspectable — the difference between wiring you can read backwards and
--- wiring that has been melted into a single loop.
+-- wiring that has been folded into a single loop.
 --
 -- The bimonoid rows are the dagger's fixed structure: they live in
 -- "Circuit.Bimonoid" alongside the 'Dagger' type, and 'Bm.BimonoidT' is
@@ -36,18 +36,15 @@
 -- Net  = SMC + Copy + Discard + Plus + Zero
 -- @
 --
--- 'run' @Net@ interprets a 'Net' to a plain arrow.  'melt' interprets the
--- structural rows into the free 'Trace' syntax.
+-- 'run' @Net@ interprets a 'Net' to a plain arrow; @'evalInto' 'Lift'@
+-- reinterprets the structural rows into the free 'Trace' syntax (bimonoid
+-- rows become opaque lifted arrows).
 module Circuit.Net
   ( -- * Net
     Net,
 
     -- * Conversion
     widen,
-    sift,
-
-    -- * Interpretation
-    melt,
 
     -- * Dagger
     mirrorNet,
@@ -160,23 +157,17 @@ type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 -- | Include an 'SMC' circuit into 'Net'.
 --
 -- The injection recurses through the SMC signature sum and rebuilds each node
--- in the larger 'Net' signature sum.  This gives the adjunction between 'SMC'
--- and 'Net' together with 'sift'.
+-- in the larger 'Net' signature sum.  Composing with @'evalInto' 'Lift'@ in
+-- the other direction — projecting the bimonoid rows back to lifted arrows —
+-- gives the adjunction between 'SMC' and 'Net'.
 --
 -- >>> let m = Lift (+1) . Lift (*2) :: SMC (,) (->) Int Int
 -- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
--- Coherence: 'sift' projects 'widen' back to the original 'SMC'.
+-- Coherence: 'evalInto' 'Lift' projects 'widen' back to the original 'SMC'.
 --
--- >>> eval (sift (widen m :: Net (,) (->) Int Int)) 5
--- 11
--- >>> eval m 5
--- 11
---
--- Coherence: 'melt' agrees with the function fold on 'SMC' circuits.
---
--- >>> eval (melt (widen m :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
+-- >>> eval (evalInto Lift (widen m :: Net (,) (->) Int Int) :: SMC (,) (->) Int Int) 5
 -- 11
 -- >>> eval m 5
 -- 11
@@ -298,38 +289,6 @@ type AlgNet w arr = Net w arr
 instance (Category arr) => Category (Net w arr) where
   id = Lift id
   f . g = Oper (L (SigCompose f g))
-
--- | Forget the bimonoid rows of a 'Net', keeping only the 'SMC' wiring.
---
--- 'sift' collapses the bimonoid rows into 'Lift' while leaving
--- 'SigCompose' and 'SigPar' inspectable. Together with 'widen' it gives the
--- adjunction between 'SMC' and 'Net'.
--- Note the converse does not hold: @widen . sift ≠ id@ because 'sift'
--- forgets bimonoid structure.
-sift ::
-  forall w arr a b.
-  (Action w arr) =>
-  Net w arr a b ->
-  SMC w arr a b
-sift = evalInto Lift
-
--- | Melt the structural rows of a 'Net' into the free 'Trace' syntax.
---
--- The interpretation from the free symmetric monoidal category with
--- bimonoid to the free traced monoidal category.  Structural rows ('SigPar',
--- 'SigCopy', 'SigPlus', etc.) become opaque base-arrow operations wrapped in
--- 'Lift'; @SigCompose@ uses the 'Category' instance of 'Trace'.
---
--- @'run' @Net = 'Circuit.Syntax.eval' . 'melt'@.
---
--- >>> eval (melt (Lift (+1) :: Net (,) (->) Int Int) :: Trace (,) (->) Int Int) 5
--- 6
-melt ::
-  forall w t arr a b.
-  (Yank t arr, Action w arr) =>
-  Net w arr a b ->
-  Trace t arr a b
-melt = evalInto Lift
 
 -- | Mirror a 'Net' over 'Dagger'.
 --

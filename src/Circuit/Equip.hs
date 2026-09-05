@@ -34,10 +34,6 @@ module Circuit.Equip
     close,
     plug,
 
-    -- * Payload-split poles
-    plugSplit,
-    closeSplit,
-
     -- * Carrier-split poles
     plugBridge,
     closeBridge,
@@ -63,8 +59,6 @@ module Circuit.Equip
     Out (..),
     In (..),
     PolesIO (..),
-    closeIO,
-    plugIO,
     prefixIn,
     suffixOut,
 
@@ -155,7 +149,7 @@ import Prelude hiding (id, (.))
 -- the write channel, in base @arrW@.  @companion@ is the read leg: it
 -- consumes the read channel and produces the output payload, in base @arrR@.
 -- The diagonal @arrW ~ arrR@ recovers single-base poles; split bases host a
--- co-Kleisli write leg against a Kleisli read leg (see 'closeSplit').
+-- co-Kleisli write leg against a Kleisli read leg.
 --
 -- When @ch ~ ch'@ the two poles share a carrier; 'close' plugs them with the
 -- identity.  When @ch /= ch'@, 'plug' inserts an explicit translation between
@@ -186,38 +180,12 @@ plug m p = conjoint p .> m .> companion p
 close :: (Category arr) => Poles ch ch arr arr a a -> arr a a
 close = plug id
 
--- | Close a payload-split pole through a pure translation.
---
--- The write leg is co-Kleisli (@c a -> ch@), the read leg is Kleisli
--- (@ch' -> m b@), and the translation between the carriers is a plain
--- function — the neutral middle.  The result is the biKleisli arrow
--- @c a -> m b@: an Input comonad on the payload side, an Output monad on
--- the result side, factorised through an explicit carrier.
---
--- >>> let p = Poles (CoK runIdentity) (K (Identity . (+1))) :: Poles Int Int (CoK Identity) (K Identity) Int Int
--- >>> closeSplit p (Identity 5)
--- Identity 6
---
--- At the @(->)@-@(->)@ corner the split close agrees with 'close':
---
--- >>> let q = Poles id (+1) :: Poles Int Int (->) (->) Int Int
--- >>> close q 5
--- 6
-plugSplit :: (ch -> ch') -> Poles ch ch' (CoK c) (K m) a b -> c a -> m b
-plugSplit g p ca = runK (companion p) (g (runCoK (conjoint p) ca))
-
--- | Close a self-channelled payload-split pole with the identity
--- translation.
-closeSplit :: Poles ch ch (CoK c) (K m) a b -> c a -> m b
-closeSplit = plugSplit id
-
 -- | Close a carrier-split pole through a bridge.
 --
 -- The write leg is Kleisli (@a -> m ch@), the read leg is co-Kleisli
 -- (@c ch' -> b@), and closing demands a bridge @m ch -> c ch'@ between the
--- monad and the comonad.  Unlike 'plugSplit', the translation between the
--- carriers is not a plain function: the bridge subsumes it, and the bridge
--- is where any seed or choice the carrier needs must be supplied.
+-- monad and the comonad.  The bridge is where any seed or choice the
+-- carrier needs must be supplied.
 --
 -- >>> let p = Poles (K (Identity . (+1))) (CoK runIdentity) :: Poles Int Int (K Identity) (CoK Identity) Int Int
 -- >>> plugBridge id p 5
@@ -366,6 +334,15 @@ newtype Out arr a = Out
 -- pole.
 newtype In arr a = In
   { -- | Commit through the conjoint, supplying the other pole.
+    --
+    -- Every 'In' pole is already a polymorphic consumer of 'Out' poles, so
+    -- commit is the counit of the polar pairing, without any same-type
+    -- restriction:
+    --
+    -- >>> let out42 = suffixOut (companionIO copycatIO) (const 42) :: Out (->) Int
+    -- >>> let inS = prefixIn (const ()) (conjointIO copycatIO) :: In (->) String
+    -- >>> commit inS out42 "hello"
+    -- 42
     commit :: forall x. Out arr x -> arr a x
   }
 
@@ -385,31 +362,6 @@ data PolesIO arr a b = PolesIO
     -- | Read pole (consumer), the companion.
     companionIO :: Out arr b
   }
-
--- | Plug an 'In' and an 'Out' of the same payload type together.
---
--- 'closeIO' feeds the 'Out' into the 'In' pole, producing a morphism
--- @arr a a@ from the paired payload type.
---
--- >>> closeIO (conjointIO copycatIO) (companionIO copycatIO) ()
--- ()
-closeIO :: In arr a -> Out arr a -> arr a a
-closeIO i o = commit i o
-
--- | Generalised polar plug.
---
--- 'plugIO' feeds an @Out arr b@ into an @In arr a@, producing a morphism
--- @arr a b@.  It is the counit of the polar pairing without the
--- same-type restriction of 'closeIO': every 'In' pole is already a
--- polymorphic consumer of 'Out' poles, so this is the underlying
--- 'commit' exposed.
---
--- >>> let out42 = suffixOut (companionIO copycatIO) (const 42) :: Out (->) Int
--- >>> let inS = prefixIn (const ()) (conjointIO copycatIO) :: In (->) String
--- >>> plugIO inS out42 "hello"
--- 42
-plugIO :: In arr a -> Out arr b -> arr a b
-plugIO i o = commit i o
 
 -- | Precompose an @arr@-morphism with an 'In' pole.
 --
@@ -471,10 +423,11 @@ copycat = Poles id id
 --   removes the carrier of a 'Circuit.Machine.Machine' via
 --   'Circuit.Trace.yank', and the seed is gone from the type;
 -- * explicit: the seed is data, handed to runners such as
---   'Circuit.Process.runBodyCell' and 'Circuit.Process.asProcessCell'.
+--   'Circuit.Process.asProcessCell' or @'Circuit.Process.scan' composed
+--   with 'Circuit.Process.bodyToMealy'.
 --
 -- The same pointing is independently present at each open post: the seed
--- argument of 'Circuit.Process.runBody', the initial state of a
+-- argument of a 'Circuit.Process.bodyToMealy' run, the initial state of a
 -- 'Circuit.Machine.Machine' run, the seed field of 'Circuit.Process.Process',
 -- the 'Circuit.Category.Pointed' class, the unit pole 'open'. 'Pointed' is
 -- the EM side (an algebra of the @Maybe@ monad, structure on the object);

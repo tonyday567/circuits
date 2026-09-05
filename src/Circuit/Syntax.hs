@@ -82,7 +82,6 @@ module Circuit.Syntax
 
     -- * Free category (Layer example)
     Free (..),
-    freeze,
   )
 where
 
@@ -289,16 +288,6 @@ instance Layer Free where
   bind h (FreeLift f) = h f
   bind h (FreeCompose @_ @_ g f) = bind h g . bind h f
 
--- | Freeze a 'Free' category into its base arrow.
---
--- This is a synonym for 'run' @Free@.
---
--- >>> freeze (FreeLift (+1) :: Free (->) Int Int) 5
--- 6
-freeze :: (Category arr) => Free arr a b -> arr a b
-freeze (FreeLift f) = f
-freeze (FreeCompose g f) = freeze g . freeze f
-
 -- | Lift the 'Channel' structure through 'Free'.
 instance (Assoc t arr) => Assoc t (Free arr) where
   assoc = FreeLift assoc
@@ -309,12 +298,14 @@ instance (Slide t arr) => Slide t (Free arr) where
 
 -- | Lift the 'Channel' structure through 'Free'.
 --
--- A morphism is frozen before tensoring with the feedback channel.
+-- A morphism is run back to the base arrow before tensoring with the
+-- feedback channel.
 instance (Strength t arr) => Strength t (Free arr) where
-  strength = FreeLift . strength . freeze
+  strength = FreeLift . strength . run
 
 -- | Lift the 'Yank' class through 'Free'.
 --
--- A loop body in @Free arr@ is frozen before calling the base 'yank'.
+-- A loop body in @Free arr@ is run back to the base arrow before calling
+-- the base 'yank'.
 instance (Yank t arr) => Yank t (Free arr) where
-  yank = FreeLift . yank . freeze
+  yank = FreeLift . yank . run

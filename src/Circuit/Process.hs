@@ -35,7 +35,6 @@
 -- The semantics are intentionally tied to the circuits substrate:
 --
 -- * 'scan' / 'scanProcess' are the reference runners over lists.
--- * 'scanStream' generalizes this to any 'Uncons' input and 'Cons' output.
 -- * 'encodeList' maps a process into a stream-level 'Trace' 'Either' @(->)@ over
 --   lists; the two runners are verified equivalent by oracle.
 -- * The arrow-level 'Yank' Either instance is per-tick Conway/Elgot settle,
@@ -70,7 +69,6 @@ module Circuit.Process
 
     -- * Channel-pole processes
     polesToProcess,
-    runPoles,
 
     -- * Functorial plumbing
     before,
@@ -79,11 +77,8 @@ module Circuit.Process
     -- * Runners
     scan,
     scanProcess,
-    runProcess,
-    scanStream,
     fold,
     foldProcess,
-    foldStream,
     encodeList,
     encodeStream,
 
@@ -96,12 +91,10 @@ module Circuit.Process
     delay,
     register,
 
-    -- * Body conversions and runners
+    -- * Body conversions
     processToBody,
     mealyToSomeBody,
     bodyToMealy,
-    runBody,
-    runBodyCell,
   )
 where
 
@@ -313,10 +306,6 @@ polesToProcess p s0 =
   let Body write = conjoint p
       Body receive = companion p
    in Process s0 (\s a -> fst (write (s, a))) (\s -> snd (receive (s, s)))
-
--- | Run channel poles over a list of inputs.
-runPoles :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> [a] -> [b]
-runPoles p s0 xs = scanProcess (polesToProcess p s0) xs
 
 -- * Functorial plumbing
 
@@ -585,34 +574,21 @@ instance (Zero (->) a) => Zero Mealy a where
 
 -- * Runners
 
--- | Run a process over any stream with an 'Uncons' coalgebra and build the
--- output with a 'Cons' algebra.
+-- | Run a process over a list.
 --
 -- The first element seeds the hidden channel via @inject@; each subsequent
 -- element steps it via @step@; each output is @extract@ of the current channel.
-scanStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a b -> f -> g
-scanStream (Mealy inject step extract) = goInit
-  where
-    nilG :: g
-    nilG = consNil @g @b
-
-    consG :: b -> g -> g
-    consG = cons
-
-    goInit f = case uncons f of
-      That _ -> nilG
-      This a -> let s0 = inject a in consG (extract s0) nilG
-      These a rest -> let s0 = inject a in consG (extract s0) (go s0 rest)
-
-    go s f = case uncons f of
-      That _ -> nilG
-      This a -> let s' = step s a in consG (extract s') nilG
-      These a rest -> let s' = step s a in consG (extract s') (go s' rest)
-
--- | List specialization of 'scanStream'.
 scan :: Mealy a b -> [a] -> [b]
-scan = scanStream
-{-# INLINE scan #-}
+scan (Mealy inject step extract) = goInit
+  where
+    goInit [] = []
+    goInit [a] = [extract (inject a)]
+    goInit (a : rest) = let s0 = inject a in extract s0 : go s0 rest
+
+    go _ [] = []
+    go s [a] = [extract (step s a)]
+    go s (a : rest) = let s' = step s a in extract s' : go s' rest
+{-# INLINEABLE scan #-}
 
 -- | Run a pointed process over a list, starting from its stored seed.
 --
@@ -627,35 +603,18 @@ scanProcess pp = go (processSeed pp)
        in processExtract pp s' : go s' as
 {-# INLINEABLE scanProcess #-}
 
--- | Run a pointed process over a list, producing the outputs /and/ the final
--- state in a single pass.
-runProcess :: Process s a b -> [a] -> ([b], s)
-runProcess pp xs = go (processSeed pp) xs []
-  where
-    go s [] acc = (reverse acc, s)
-    go s (a : as) acc =
-      let s' = processStep pp s a
-       in go s' as (processExtract pp s' : acc)
-{-# INLINEABLE runProcess #-}
-
--- | Run a process over a stream, returning the final output (if any).
-foldStream :: (Uncons f a) => Mealy a b -> f -> Maybe b
-foldStream (Mealy inject step extract) = goInit
-  where
-    goInit f = case uncons f of
-      That _ -> Nothing
-      This a -> Just (extract (inject a))
-      These a rest -> Just (go (inject a) rest)
-
-    go s f = case uncons f of
-      That _ -> extract s
-      This a -> extract (step s a)
-      These a rest -> go (step s a) rest
-
--- | List specialization of 'foldStream'.
+-- | Run a process over a list, returning the final output (if any).
 fold :: Mealy a b -> [a] -> Maybe b
-fold = foldStream
-{-# INLINE fold #-}
+fold (Mealy inject step extract) = goInit
+  where
+    goInit [] = Nothing
+    goInit [a] = Just (extract (inject a))
+    goInit (a : rest) = Just (go (inject a) rest)
+
+    go s [] = extract s
+    go s [a] = extract (step s a)
+    go s (a : rest) = go (step s a) rest
+{-# INLINEABLE fold #-}
 
 -- | Run a pointed process over a list, returning the final output (if any).
 foldProcess :: Process s a b -> [a] -> Maybe b
@@ -669,8 +628,9 @@ foldProcess pp = go (processSeed pp)
 -- | Encode a process as a stream-level 'Trace' over arbitrary 'Uncons'/'Cons'
 -- streams.
 --
--- This is the definitional runner: 'scanStream' is 'Circuit.Syntax.eval'
--- composed with 'encodeStream'. The feedback channel carries
+-- This is the definitional runner: 'scan' is 'Circuit.Syntax.eval'
+-- composed with 'encodeStream' (generalised to any 'Uncons' input and
+-- 'Cons' output). The feedback channel carries
 -- @(Maybe channel, remaining input, accumulated output)@.
 encodeStream :: forall f a g b. (Uncons f a, Cons g b) => Mealy a b -> Trace Either (->) f g
 encodeStream (Mealy inject step extract) = yank (Lift b)
@@ -794,11 +754,11 @@ register s0 (Mealy i st ex) = Mealy i' st' ex'
 -- | Convert a pointed process into a cartesian body threading the state.
 --
 -- The body state is the process state and the output is the process output
--- of the state after consuming the input, so 'runBody' from the seed
+-- of the state after consuming the input, so scanning from the seed
 -- reproduces 'scanProcess'.
 --
 -- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
--- >>> runBody (processToBody acc) 0 [1, 2, 3]
+-- >>> scan (bodyToMealy (processToBody acc) 0) [1, 2, 3]
 -- [1,3,6]
 processToBody :: Process s a b -> Body (,) s (->) a b
 processToBody pp =
@@ -810,13 +770,13 @@ processToBody pp =
 -- | Eliminate a 'Mealy' by exposing its hidden state as a cartesian body.
 --
 -- The continuation receives the seeding function ('Mealy' inject) together
--- with the body threading the hidden state: 'runBody' seeded by
+-- with the body threading the hidden state: scanning the body seeded by
 -- @inject a0@ reproduces 'scan' after its first output.
 --
 -- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
 -- >>> scan (asMealy acc) [0, 1, 2, 3]
 -- [0,1,3,6]
--- >>> mealyToSomeBody (asMealy acc) (\inj b -> runBody b (inj 0) [1, 2, 3])
+-- >>> mealyToSomeBody (asMealy acc) (\inj b -> scan (bodyToMealy b (inj 0)) [1, 2, 3])
 -- [1,3,6]
 mealyToSomeBody :: Mealy a b -> (forall s. (a -> s) -> Body (,) s (->) a b -> r) -> r
 mealyToSomeBody (Mealy inject step extract) k =
@@ -827,6 +787,13 @@ mealyToSomeBody (Mealy inject step extract) k =
 --
 -- The body state @s@ becomes the process state, paired with the most recent
 -- output so that the Machine-style @extract@ can be defined.
+--
+-- Running the result with 'scan' is the canonical body runner:
+--
+-- >>> import Circuit.Body (Body (..))
+-- >>> let adder = Body (\(s, a) -> (s + a, s)) :: Body (,) Int (->) Int Int
+-- >>> scan (bodyToMealy adder 3) [1, 2, 3]
+-- [3,4,6]
 bodyToMealy :: Body (,) s (->) a b -> s -> Mealy a b
 bodyToMealy (Body f) s0 = Mealy inject step extract
   where
@@ -834,22 +801,3 @@ bodyToMealy (Body f) s0 = Mealy inject step extract
     step (s, _) a' = f (s, a')
     extract = snd
 {-# INLINEABLE bodyToMealy #-}
-
--- | Run a cartesian body over a list of inputs.
-runBody :: Body (,) s (->) a b -> s -> [a] -> [b]
-runBody body s0 = scan (bodyToMealy body s0)
-{-# INLINEABLE runBody #-}
-
--- | Run a body from a 'Circuit.Equip.UnitCell' instead of a bare seed.
---
--- Agrees with the ad-hoc seed runner:
---
--- >>> import Circuit.Body (Body (..))
--- >>> import Circuit.Equip (UnitCell (..))
--- >>> let adder = Body (\(s, a) -> (s + a, s)) :: Body (,) Int (->) Int Int
--- >>> runBody adder 3 [1, 2, 3]
--- [3,4,6]
--- >>> runBodyCell adder (UnitCell (const 3)) [1, 2, 3]
--- [3,4,6]
-runBodyCell :: Body (,) s (->) a b -> UnitCell (,) (->) s -> [a] -> [b]
-runBodyCell body (UnitCell f) = runBody body (f ())
