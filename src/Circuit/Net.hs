@@ -49,16 +49,6 @@ module Circuit.Net
     -- * Dagger
     mirrorNet,
 
-    -- * Bimonoid syntax fragments (re-exported compatibility aliases)
-    AlgRelevant,
-    AlgAffine,
-    AlgCartesian,
-    AlgCoRelevant,
-    AlgCoAffine,
-    AlgCocartesian,
-    AlgBimonoidal,
-    AlgNet,
-
     -- * Symmetric-monoidal layer
     SMC,
 
@@ -259,30 +249,6 @@ instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
 -- one of the signature nodes.  'widen' embeds an entire 'SMC' circuit.
 type Net (w :: Type -> Type -> Type) arr =
   Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
-
--- | Free relevant symmetric monoidal category over wiring tensor @w@.
-type AlgRelevant w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w) arr
-
--- | Free affine symmetric monoidal category over wiring tensor @w@.
-type AlgAffine w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigDiscard w) arr
-
--- | Free cartesian symmetric monoidal category over wiring tensor @w@.
-type AlgCartesian w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w) arr
-
--- | Free co-relevant symmetric monoidal category over wiring tensor @w@.
-type AlgCoRelevant w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigPlus w) arr
-
--- | Free co-affine symmetric monoidal category over wiring tensor @w@.
-type AlgCoAffine w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigZero w) arr
-
--- | Free cocartesian symmetric monoidal category over wiring tensor @w@.
-type AlgCocartesian w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigPlus w :+: SigZero w) arr
-
--- | Free bimonoidal category over wiring tensor @w@.
-type AlgBimonoidal w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
-
--- | Synonym for the full 'Net' syntax.
-type AlgNet w arr = Net w arr
 
 -- | The 'Category' instance is the generic free-category instance:
 -- 'id' is a lifted identity and composition is a 'SigCompose' node.

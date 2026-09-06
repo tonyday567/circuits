@@ -31,7 +31,7 @@ import Circuit.Equip
     splay0,
   )
 import Circuit.Equip qualified as Poles
-import Circuit.Machine (Machine, branchMachine, machine, machineMorphism, machineToPolesAt)
+import Circuit.Machine (Machine, MachineObs, branchMachine, machine, machineMorphism, machineObsWith, machineToPolesAt)
 import Circuit.Poly (Dir, Mono, Poly (..))
 import Circuit.Process (Mealy (..), Process (..), asMealy, fold, markMealy, markProcess, scan, scanProcess)
 import Circuit.Tensor (Bias (..))
@@ -48,18 +48,18 @@ polesTopic verbosity = do
   sequence
     [ -- Poles oracles
       checkV verbosity "box recovers the composed morphism on a unit pole" $
-        let e :: Poles () () (->) (->) Int Int
+        let e :: Poles () (->) Int Int
             e = Poles (const ()) (const 42)
          in box e 0 == 42 && box e 7 == 42,
       checkV verbosity "close is not identity for a non-copycat pole" $
-        let e :: Poles () () (->) (->) Int Int
+        let e :: Poles () (->) Int Int
             e = Poles (const ()) (const 42)
          in close e 0 == 42 && close e 7 == 42,
       checkIOV verbosity "residual observed: sequential boxes agree but residual is exposed" $ do
         ref <- newIORef (0 :: Int)
-        let e1 :: Poles () () (K IO) (K IO) Int Int
+        let e1 :: Poles () (K IO) Int Int
             e1 = polesK (\x -> modifyIORef' ref (+ x)) (pure 0)
-            e2 :: Poles () () (K IO) (K IO) Int Int
+            e2 :: Poles () (K IO) Int Int
             e2 = polesK (\_ -> pure ()) (pure 1)
         r1 <- runK (box (Poles.compose0 e1 e2)) 5
         residual1 <- readIORef ref
@@ -68,39 +68,39 @@ polesTopic verbosity = do
         residual2 <- readIORef ref
         pure (r1 == r2 && r1 == 1 && residual1 == 5 && residual2 == 5),
       checkV verbosity "non-identity pole at Bool is not the copycat" $
-        let e :: Poles Bool Bool (->) (->) Int Int
+        let e :: Poles Bool (->) Int Int
             e = Poles (const False) (const 0)
          in close e 42 == 0,
       checkV verbosity "copycat is the identity at any carrier, including Bool" $
-        let e :: Poles Bool Bool (->) (->) Bool Bool
+        let e :: Poles Bool (->) Bool Bool
             e = copycat
          in close e True && not (close e False),
       -- Additive Poles oracles
       checkV verbosity "Additive Poles.pair pairs outputs" $
-        let e1 :: Poles () () (->) (->) () Int
+        let e1 :: Poles () (->) () Int
             e1 = Poles (const ()) (const 1)
-            e2 :: Poles () () (->) (->) () Int
+            e2 :: Poles () (->) () Int
             e2 = Poles (const ()) (const 2)
-         in plug id (Poles.pair e1 e2) () == (1, 2),
+         in close (Poles.pair e1 e2) () == (1, 2),
       checkV verbosity "Poles.race LeftFirst picks left when both speak" $
-        let eL :: Poles () () (->) (->) () (Maybe Int)
+        let eL :: Poles () (->) () (Maybe Int)
             eL = Poles (const ()) (const (Just 1))
-            eR :: Poles () () (->) (->) () (Maybe Int)
+            eR :: Poles () (->) () (Maybe Int)
             eR = Poles (const ()) (const (Just 2))
-         in plug id (Poles.race isNothing LeftFirst eL eR) () == Just 1,
+         in close (Poles.race isNothing LeftFirst eL eR) () == Just 1,
       checkV verbosity "Poles.race RightFirst picks right when both speak" $
-        let eL :: Poles () () (->) (->) () (Maybe Int)
+        let eL :: Poles () (->) () (Maybe Int)
             eL = Poles (const ()) (const (Just 1))
-            eR :: Poles () () (->) (->) () (Maybe Int)
+            eR :: Poles () (->) () (Maybe Int)
             eR = Poles (const ()) (const (Just 2))
-         in plug id (Poles.race isNothing RightFirst eL eR) () == Just 2,
+         in close (Poles.race isNothing RightFirst eL eR) () == Just 2,
       checkV verbosity "Poles.race falls back when left is silent" $
-        let eL :: Poles () () (->) (->) () (Maybe Int)
+        let eL :: Poles () (->) () (Maybe Int)
             eL = Poles (const ()) (const Nothing)
-            eR :: Poles () () (->) (->) () (Maybe Int)
+            eR :: Poles () (->) () (Maybe Int)
             eR = Poles (const ()) (const (Just 2))
-         in plug id (Poles.race isNothing LeftFirst eL eR) () == Just 2
-              && plug id (Poles.race isNothing RightFirst eL eR) () == Just 2,
+         in close (Poles.race isNothing LeftFirst eL eR) () == Just 2
+              && close (Poles.race isNothing RightFirst eL eR) () == Just 2,
       -- Polynomial structured-channel oracles (equip-next phase 6) retired
       -- with the Chs flat grade: the "flat channel ignores its carrier"
       -- finding is captured at commit 0b1663e and on loom/poly-containers.
@@ -113,8 +113,8 @@ polesTopic verbosity = do
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
-            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            inc = machineObsWith (\s -> (s, ())) (machine stepInc) :: MachineObs Int (Mono Int Int)
+            dbl = machineObsWith (\s -> (s * 2, ())) (machine stepDbl) :: MachineObs Int (Mono Int Int)
             sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
             p = machineToPolesAt sys
             inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
@@ -132,8 +132,8 @@ polesTopic verbosity = do
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
-            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            inc = machineObsWith (\s -> (s, ())) (machine stepInc) :: MachineObs Int (Mono Int Int)
+            dbl = machineObsWith (\s -> (s * 2, ())) (machine stepDbl) :: MachineObs Int (Mono Int Int)
             sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
             p = machineToPolesAt sys
             r = companion p
@@ -148,8 +148,8 @@ polesTopic verbosity = do
             stepDbl (s, d) = case d of
               Left v -> absurd v
               Right i -> (s + i, (s * 2, ()))
-            inc = machine stepInc :: Machine (,) Int (->) (Mono Int Int)
-            dbl = machine stepDbl :: Machine (,) Int (->) (Mono Int Int)
+            inc = machineObsWith (\s -> (s, ())) (machine stepInc) :: MachineObs Int (Mono Int Int)
+            dbl = machineObsWith (\s -> (s * 2, ())) (machine stepDbl) :: MachineObs Int (Mono Int Int)
             sys = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
             p = machineToPolesAt sys
             inputs = [Left (Right 1), Right (Right 1), Left (Right 1)] :: [Dir ('Sum (Mono Int Int) (Mono Int Int))]
@@ -223,41 +223,38 @@ polesTopic verbosity = do
          in scanProcess sys [Mark "NOOP", Payload 1, Mark "HALT", Payload 2]
               == [Just 0, Just 1, Nothing, Nothing],
       -- equipment-law oracles
-      checkV verbosity "plug id is a homomorphism for stateful Poles over Body" $
+      checkV verbosity "close is a homomorphism for stateful Poles over Body" $
         let w1 = Body (\(s, x) -> let s' = s + x in (s', s')) :: Body (,) Int (->) Int Int
             r1 = Body (\(s, ch) -> (s, ch)) :: Body (,) Int (->) Int Int
-            p1 = Poles w1 r1 :: Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) Int Int
+            p1 = Poles w1 r1 :: Poles Int (Body (,) Int (->)) Int Int
             w2 = Body (\(s, x) -> let s' = s * x in (s', s')) :: Body (,) Int (->) Int Int
             r2 = Body (\(s, ch) -> (s, ch + 1)) :: Body (,) Int (->) Int Int
-            p2 = Poles w2 r2 :: Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) Int Int
-            lhs = plug id (compose p1 p2) :: Body (,) Int (->) Int Int
-            rhs = plug id p1 .> plug id p2
+            p2 = Poles w2 r2 :: Poles Int (Body (,) Int (->)) Int Int
+            lhs = close (compose p1 p2) :: Body (,) Int (->) Int Int
+            rhs = close p1 .> close p2
          in morphism lhs (2, 3) == morphism rhs (2, 3)
               && morphism lhs (1, 4) == morphism rhs (1, 4),
       checkV verbosity "open is the identity for Poles composition at unit" $
-        let p = Poles (const ()) (const 42 :: () -> Int) :: Poles () () (->) (->) () Int
-            o = open :: Poles () () (->) (->) () ()
+        let p = Poles (const ()) (const 42 :: () -> Int) :: Poles () (->) () Int
+            o = open :: Poles () (->) () ()
             pL = compose0 o p
             (w, r) = splay0 p
             (wL, rL) = splay0 pL
          in wL () == w () && rL () == r () && box (compose0 o p) () == box p (),
       checkV verbosity "Body (,) unit poles yank to identity" $
-        let b = close (open :: Poles () () (Body (,) Int (->)) (Body (,) Int (->)) () ()) :: Body (,) Int (->) () ()
+        let b = close (open :: Poles () (Body (,) Int (->)) () ()) :: Body (,) Int (->) () ()
          in morphism b (42, ()) == (42, ()) && morphism b (0, ()) == (0, ()),
       checkV verbosity "Body Either unit poles yank to identity" $
-        let b = close (open :: Poles () () (Body Either [Int] (->)) (Body Either [Int] (->)) () ()) :: Body Either [Int] (->) () ()
+        let b = close (open :: Poles () (Body Either [Int] (->)) () ()) :: Body Either [Int] (->) () ()
          in morphism b (Left [1, 2, 3]) == Left [1, 2, 3],
       -- Tight-arrow companion / conjoint oracles
-      checkV verbosity "close and plug id agree on self-channelled poles" $
-        let p = open :: Poles () () (->) (->) () ()
-         in close p () == plug id p (),
       checkV verbosity "companionTight posts a unit-incident arrow as the read leg" $
         let f = const 42 :: () -> Int
-            o = companionTight f :: Poles () () (->) (->) () Int
+            o = companionTight f :: Poles () (->) () Int
          in box o () == 42,
       checkV verbosity "conjointTight pres a unit-incident arrow as the write leg" $
         let f = const () :: Int -> ()
-            i = conjointTight f :: Poles () () (->) (->) Int ()
+            i = conjointTight f :: Poles () (->) Int ()
          in box i 7 == (),
       checkV verbosity "compose of conjointTight and companionTight recovers composition" $
         let f = const () :: Int -> ()
@@ -266,7 +263,7 @@ polesTopic verbosity = do
       checkV verbosity "composed tight poles agree with f .> g" $
         let f = const () :: Int -> ()
             g = const 42 :: () -> Int
-         in plug id (compose (conjointTight f) (companionTight g)) 5 == (g . f) 5,
+         in close (compose (conjointTight f) (companionTight g)) 5 == (g . f) 5,
       -- Spiwak restriction stability on an effectful base:
       -- R(f.h, g.j) = R(f,g)(h,j) as iomap fusion.  On K IO the content is
       -- effect sequencing: both sides must return equal results with equal
@@ -279,7 +276,7 @@ polesTopic verbosity = do
         ref <- newIORef ([] :: [String])
         let logTag :: String -> IO ()
             logTag tag = modifyIORef' ref (++ [tag])
-            p0 :: Poles () () (K IO) (K IO) Int Int
+            p0 :: Poles () (K IO) Int Int
             p0 =
               Poles
                 (K (\_ -> void (logTag "w")))

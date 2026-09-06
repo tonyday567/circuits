@@ -14,11 +14,13 @@ import Circuit.Equip
     Sq (..),
     acrossThenDown,
     associatorSq,
+    checkSq,
+    close,
     downThenAcross,
     hcompose,
+    idSq,
     iomap,
     leftWhisker,
-    plug,
     rightWhisker,
     unitorLeftSq,
     unitorRightSq,
@@ -150,14 +152,14 @@ seqComposeRightIdOk xs =
 -- | Machine-split 'Poles' for the counter body.  The write pole updates state
 -- and posts the new state into the carrier; the read pole observes the carrier
 -- and emits a 'Char'.
-counterPoles :: Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) Bool Char
+counterPoles :: Poles Int (Body (,) Int (->)) Bool Char
 counterPoles = Poles write readBody
   where
     write = Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', n')
     readBody = Body $ \(n, ch) -> (n, if odd ch then 'x' else 'y')
 
 -- | Machine-split 'Poles' for the parity body.
-parityPoles :: Poles Bool Bool (Body (,) Bool (->)) (Body (,) Bool (->)) Bool Char
+parityPoles :: Poles Bool (Body (,) Bool (->)) Bool Char
 parityPoles = Poles write readBody
   where
     write = Body $ \(b, r) -> let b' = not r && not b in (b', b')
@@ -186,24 +188,24 @@ bodyG = Body $ \(s, c) -> (s, boundaryG c)
 polesMatchBodyOk :: Bool
 polesMatchBodyOk =
   all
-    (\(n, r) -> morphism (plug Cat.id counterPoles) (n, r) == morphism counterBody (n, r))
+    (\(n, r) -> morphism (close counterPoles) (n, r) == morphism counterBody (n, r))
     [(n, r) | n <- carrierRange, r <- [False, True]]
     && all
-      (\(b, r) -> morphism (plug Cat.id parityPoles) (b, r) == morphism parityBody (b, r))
+      (\(b, r) -> morphism (close parityPoles) (b, r) == morphism parityBody (b, r))
       [(b, r) | b <- [False, True], r <- [False, True]]
 
 -- | Interchange law, source side: boundary whisker on 'Sq' equals 'iomap' on
 -- the 'Poles' representation.
 interchangeSourceOk :: (Int, Int) -> Bool
 interchangeSourceOk (n, r) =
-  let polesSide = plug Cat.id (iomap bodyF bodyG counterPoles)
+  let polesSide = close (iomap bodyF bodyG counterPoles)
       bodySide = sqSrc (whiskerSq boundaryF boundaryG counterToParitySq)
    in morphism polesSide (n, r) == morphism bodySide (n, r)
 
 -- | Interchange law, target side.
 interchangeTargetOk :: (Bool, Int) -> Bool
 interchangeTargetOk (b, r) =
-  let polesSide = plug Cat.id (iomap bodyF bodyG parityPoles)
+  let polesSide = close (iomap bodyF bodyG parityPoles)
       bodySide = sqTgt (whiskerSq boundaryF boundaryG counterToParitySq)
    in morphism polesSide (b, r) == morphism bodySide (b, r)
 
@@ -327,6 +329,26 @@ vcompOk =
    in all
         (\(n, r) -> downThenAcross sq (n, r) == acrossThenDown sq (n, r))
         [(n, r) | n <- carrierRange, r <- [False, True]]
+
+-- | The module-level sampled checker agrees with the commuting witness and
+-- rejects the one-token perturbation.
+checkSqOk :: Bool
+checkSqOk =
+  let samples = [(n, r) | n <- carrierRange, r <- [False, True]]
+   in checkSq samples counterToParitySq
+        && not (checkSq samples brokenSq)
+
+-- | Vertical composition with deliberately different middles must fail the
+-- sampled check.  Same-carrier factors put the middle on the composite's
+-- own legs, so the mismatch is visible there; with distinct outer carriers
+-- the composite's paths never touch the middle (see the 'vcomp' haddock),
+-- which is exactly why the raw operator keeps its caller side condition.
+checkSqVcompMismatchedOk :: Bool
+checkSqVcompMismatchedOk =
+  let samples = [(n, r) | n <- carrierRange, r <- [False, True]]
+      agreed = vcomp (idSq mod4BodyB) (idSq mod4Body)
+      mismatched = vcomp (idSq brokenBody) (idSq mod4Body)
+   in checkSq samples agreed && not (checkSq samples mismatched)
 
 -- | Left unitor proof witness: composing @counterBody@ with the identity at
 -- the unit carrier is isomorphic to @counterBody@ itself.
@@ -1217,6 +1239,8 @@ equipTopic verbosity = do
       checkV verbosity "horizontal composition preserves the square" hcomposeSquareOk,
       checkV verbosity "vcomp side condition holds over bounded inputs" vcompSideConditionOk,
       checkV verbosity "vertical composition preserves commutation" vcompOk,
+      checkV verbosity "checkSq passes the commuting witness and rejects the perturbed square" checkSqOk,
+      checkV verbosity "vcomp with mismatched middles fails the sampled check" checkSqVcompMismatchedOk,
       checkV verbosity "left unitor witness commutes" unitorLeftOk,
       checkV verbosity "right unitor witness commutes" unitorRightOk,
       checkV verbosity "associator witness commutes" associatorOk,

@@ -26,7 +26,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (CoK (..), Comonad (..), K (..))
-import Circuit.Equip (Poles (..), close, plugBridge)
+import Circuit.Equip (Poles (..), SplitPoles (..), close, plugBridge)
 import Circuit.Shared (Pick (..), Schedule (..), sharedBy)
 import Circuit.Tensor (Bias (..))
 import Control.Monad (when)
@@ -140,8 +140,8 @@ identityToList = pure . runIdentity
 
 -- | One step of a body as a carrier-split pole: the write leg is the body's
 -- State action; the read leg is 'extract' of the 'Store' the bridge builds.
-stepPole :: ((s, a) -> (s, b)) -> Poles b b (K (State s)) (CoK (Store s)) a b
-stepPole f = Poles (K (\a -> State (\s -> let (s', b) = f (s, a) in (b, s')))) (CoK extract)
+stepPole :: ((s, a) -> (s, b)) -> SplitPoles b b (K (State s)) (CoK (Store s)) a b
+stepPole f = SplitPoles (K (\a -> State (\s -> let (s', b) = f (s, a) in (b, s')))) (CoK extract)
 
 -- * The indexed bridge
 
@@ -205,8 +205,8 @@ splitTopic verbosity = do
               && all (\e -> wrToEnv (envToWr e) == e) es,
       checkV verbosity "State/Store bridge: the seed is visible in the close" $
         let p =
-              Poles (K (\a -> State (\s -> (a + s, s + 1)))) (CoK extract) ::
-                Poles Int Int (K (State Int)) (CoK (Store Int)) Int Int
+              SplitPoles (K (\a -> State (\s -> (a + s, s + 1)))) (CoK extract) ::
+                SplitPoles Int Int (K (State Int)) (CoK (Store Int)) Int Int
          in plugBridge (stateToStore 0) p 5 == 5
               && plugBridge (stateToStore 10) p 5 == 15,
       checkV verbosity "Store-to-State forgets the transition" $
@@ -223,9 +223,9 @@ splitTopic verbosity = do
           && identityToList (listToIdentity [Sum 1, Sum 2, Sum 3]) == [Sum 6 :: Sum Int],
       checkV verbosity "plugBridge at Identity agrees with close at (->)" $
         let split =
-              Poles (K (Identity . (+ 1))) (CoK runIdentity) ::
-                Poles Int Int (K Identity) (CoK Identity) Int Int
-            plain = Poles (+ 1) id :: Poles Int Int (->) (->) Int Int
+              SplitPoles (K (Identity . (+ 1))) (CoK runIdentity) ::
+                SplitPoles Int Int (K Identity) (CoK Identity) Int Int
+            plain = Poles (+ 1) id :: Poles Int (->) Int Int
          in plugBridge id split 5 == close plain 5,
       checkV verbosity "Store comonad identity laws (sampled)" $
         let st = Store (* 2) 3 :: Store Int Int

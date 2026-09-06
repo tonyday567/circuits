@@ -65,7 +65,10 @@ module Circuit.Machine
 
     -- * Eval / arrow conversion
     MachineEval (..),
+    MachineObs (..),
     fromEvalMachine,
+    machineObs,
+    machineObsWith,
     toEvalMachine,
 
     -- * Monomial helpers
@@ -125,7 +128,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Equip (Poles (..))
 -- >>> import Circuit.Poly (Dir, Eval (..), Mono, Morphism, Poly (..), Pos, lens, applyLens)
 -- >>> import Circuit.Container (SomePos (..), posOf)
--- >>> import Circuit.Machine (Machine, machine, machineMorphism, machineToPolesAt, branchMachine, MachineEval (..), toEvalMachine, fromEvalMachine, monoDir, monoIn, parWiringMachine)
+-- >>> import Circuit.Machine (Machine, MachineObs, machine, machineMorphism, machineObs, machineObsWith, machineToPolesAt, branchMachine, MachineEval (..), toEvalMachine, fromEvalMachine, monoDir, monoIn, parWiringMachine)
 -- >>> import Circuit.Process (bodyToMealy, scan)
 -- >>> import Data.Void (absurd)
 
@@ -206,42 +209,66 @@ fromEvalMachine f = machine $ \(s, d) ->
   let (pos, next) = evalToMachine (f s)
    in (next d, pos)
 
--- | Convert an arrow-form @(->)@ machine back into eval form.
+-- | A machine bundled with its observation — the KSW output map
+-- @obs : s -> 'Pos' p@ as an actual field, not a laziness-guarded
+-- consequence of the body.
 --
--- This is a Machine observation: the position is read from the state alone, with
--- the direction supplied only to compute the next state.  Correctness therefore
--- requires that the machine be Machine at the call site — the position must not
--- depend on the direction.  Internally the direction is 'probeDir', which is
--- lazily unused for the polynomial shapes where it is defined; any strict
--- forcing of the direction (a bang pattern, 'seq', or a strict tuple in a
--- user-written body) will turn 'toEvalMachine' into a runtime error rather than
--- a wrong answer.
-toEvalMachine :: forall p s. (MachineEval p) => Machine (,) s (->) p -> s -> Eval p s
-toEvalMachine sys s = evalFromMachine pos (\d -> fst (machineMorphism sys (s, d)))
-  where
-    pos = snd (machineMorphism sys (s, probeDir @p))
+-- 'Machine' stores the span @s <- (s, 'Dir' p) -> 'Pos' p@ as one arrow, so
+-- the position leg can only be recovered from the arrow if the body never
+-- forces the direction while computing the position — the Moore condition.
+-- Carrying the observation as a field makes the position read total and
+-- moves the Moore condition from a comment on the reader to a commitment of
+-- the constructor.
+data MachineObs s p = MachineObs
+  { -- | The observation: read the position from the state, without stepping.
+    moObserve :: s -> Pos p,
+    -- | The stepped machine body.
+    moMachine :: Machine (,) s (->) p
+  }
+
+-- | Bundle an eval-form machine, deriving the observation mechanically.
+--
+-- This is the honest grade of the eval/arrow round trip: 'evalToMachine'
+-- pairs each position with its transition and never consults the direction
+-- to produce the position, so @fst . evalToMachine . f@ is total.  Machines
+-- built this way satisfy the Moore condition by construction — no probe
+-- direction, no error thunk, no silently assumed law.
+machineObs :: (MachineEval p) => (s -> Eval p s) -> MachineObs s p
+machineObs f = MachineObs (fst . evalToMachine . f) (fromEvalMachine f)
+
+-- | Certify an arrow-form machine with a caller-supplied observation.
+--
+-- This is the commitment the probe-based read took silently: the
+-- observation must agree with the position the body presents at every
+-- reachable state.  Where the observation can be derived instead, prefer
+-- 'machineObs'.
+machineObsWith :: (s -> Pos p) -> Machine (,) s (->) p -> MachineObs s p
+machineObsWith = MachineObs
+
+-- | Convert a bundled machine to eval form: the position comes from the
+-- carried observation, the transition steps the carried machine at the
+-- caller's direction.  Total — no direction is probed, so the Moore
+-- condition is never silently assumed.
+toEvalMachine :: (MachineEval p) => MachineObs s p -> s -> Eval p s
+toEvalMachine sys s = evalFromMachine (moObserve sys s) (\d -> fst (machineMorphism (moMachine sys) (s, d)))
 
 -- | Helpers for translating between the 'Eval' presentation and the arrow
 -- presentation of a @(->)@ machine.  These extend the netlist view to 'Sum'.
 class MachineEval (p :: Poly) where
   evalToMachine :: Eval p x -> (Pos p, Dir p -> x)
   evalFromMachine :: Pos p -> (Dir p -> x) -> Eval p x
-  probeDir :: Dir p
 
 instance MachineEval 'Y where
   evalToMachine (EY x) = ((), \() -> x)
   evalFromMachine () k = EY (k ())
-  probeDir = ()
 
 instance MachineEval ('Const a) where
   evalToMachine (EK c) = (c, absurd)
   evalFromMachine c _ = EK c
-  probeDir = error "probeDir Const"
 
 instance MachineEval ('Exp a) where
   evalToMachine (EE f) = ((), f)
   evalFromMachine () = EE
-  probeDir = error "probeDir Exp"
 
 instance (MachineEval p, MachineEval q) => MachineEval ('Sum p q) where
   evalToMachine (ES (Left v)) =
@@ -252,8 +279,6 @@ instance (MachineEval p, MachineEval q) => MachineEval ('Sum p q) where
      in (Right j, either (const offFibre) g)
   evalFromMachine (Left i) k = ES (Left (evalFromMachine i (k . Left)))
   evalFromMachine (Right j) k = ES (Right (evalFromMachine j (k . Right)))
-  probeDir :: Dir ('Sum p q)
-  probeDir = Left (probeDir @p)
 
 instance (MachineEval p, MachineEval q) => MachineEval ('Prod p q) where
   evalToMachine (EP (u, v)) =
@@ -262,29 +287,20 @@ instance (MachineEval p, MachineEval q) => MachineEval ('Prod p q) where
      in ((i, j), either f g)
   evalFromMachine (i, j) k =
     EP (evalFromMachine i (k . Left), evalFromMachine j (k . Right))
-  probeDir :: Dir ('Prod p q)
-  probeDir = Left (probeDir @p)
 
-instance (MachineEval p, MachineEval q) => MachineEval ('PTensor p q) where
+instance MachineEval ('PTensor p q) where
   evalToMachine (ET pos f) = (pos, f)
   evalFromMachine = ET
-  probeDir :: Dir ('PTensor p q)
-  probeDir = (probeDir @p, probeDir @q)
 
-instance (MachineEval p, MachineEval q) => MachineEval ('Comp p q) where
+instance MachineEval ('Comp p q) where
   evalToMachine (EC pos f) = (pos, f)
   evalFromMachine = EC
-  probeDir :: Dir ('Comp p q)
-  probeDir = (probeDir @p, probeDir @q)
 
--- | Monomial evaluation.  The position is the current-state observation, so
--- the probe direction is only needed to build the transition function and is
--- never forced when reading the position.
+-- | Monomial evaluation.  The position is the current-state observation,
+-- so 'machineObs' can derive it from the eval producer without stepping.
 instance {-# OVERLAPPING #-} MachineEval (Mono i o) where
   evalToMachine (EP (EK o, EE f)) = ((o, ()), f . monoDir)
   evalFromMachine (o, ()) k = EP (EK o, EE (k . monoIn))
-  probeDir :: Dir (Mono i o)
-  probeDir = Right (error "probeDir Mono")
 
 offFibre :: a
 offFibre = error "off-fibre direction"
@@ -317,7 +333,7 @@ machineWriteStateBody sys = Body $ \(s, d) ->
 -- supplied probe direction. This works only when the read can be reasonably
 -- approximated by a single probe direction; for an honest Machine observation
 -- prefer 'machineToPoles'.
-machineToPolesWithProbe :: Dir p -> Machine (,) s (->) p -> Poles s s (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
+machineToPolesWithProbe :: Dir p -> Machine (,) s (->) p -> Poles s (Body (,) s (->)) (Dir p) (Pos p)
 machineToPolesWithProbe probe sys =
   Poles
     (machineWriteStateBody sys)
@@ -328,7 +344,7 @@ machineToPolesWithProbe probe sys =
 -- The state carrier is the machine's state @s@.  The write pole steps with the
 -- supplied direction and posts the new state; the read pole observes the
 -- carrier without stepping, using the supplied observation function.
-machineToPoles :: (s -> Pos p) -> Machine (,) s (->) p -> Poles s s (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
+machineToPoles :: (s -> Pos p) -> Machine (,) s (->) p -> Poles s (Body (,) s (->)) (Dir p) (Pos p)
 machineToPoles ex sys =
   Poles
     (machineWriteStateBody sys)
@@ -349,8 +365,8 @@ machineToPoles ex sys =
 -- The write leg on a branched machine: the carrier records the branch and
 -- payload of the position the step landed in:
 --
--- >>> let inc = machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s, ()))) :: Machine (,) Int (->) (Mono Int Int)
--- >>> let dbl = machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> let inc = machineObs (\s -> EP (EK s, EE (\i -> s + i))) :: MachineObs Int (Mono Int Int)
+-- >>> let dbl = machineObs (\s -> EP (EK (s * 2), EE (\i -> s + i))) :: MachineObs Int (Mono Int Int)
 -- >>> let br = branchMachine odd inc dbl :: Machine (,) Int (->) ('Sum (Mono Int Int) (Mono Int Int))
 -- >>> let p = machineToPolesAt br
 -- >>> map (\(SomePos i) -> posOf i) (scan (bodyToMealy (conjoint p) 1) [Left (Right 1), Right (Right 1), Left (Right 1)])
@@ -359,7 +375,7 @@ machineToPolesAt ::
   forall p s.
   (Located p) =>
   Machine (,) s (->) p ->
-  Poles (SomePos p) (SomePos p) (Body (,) s (->)) (Body (,) s (->)) (Dir p) (Pos p)
+  Poles (SomePos p) (Body (,) s (->)) (Dir p) (Pos p)
 machineToPolesAt sys =
   Poles
     (Body $ \(s, d) -> let (s', pos) = machineMorphism sys (s, d) in (s', posAt @p pos))
@@ -369,9 +385,9 @@ machineToPolesAt sys =
 -- state. The result is a machine over the two-step interface
 -- @Mono o s ◁ Mono o s@, so that feeding a pair of inputs @(o1, o2)@ runs the
 -- original machine for two steps.
-duplicateMachine :: Machine (,) s (->) (Mono o s) -> Machine (,) s (->) ('Comp (Mono o s) (Mono o s))
+duplicateMachine :: MachineObs s (Mono o s) -> MachineObs s ('Comp (Mono o s) (Mono o s))
 duplicateMachine sys =
-  fromEvalMachine $ \s ->
+  machineObs $ \s ->
     let runMono s' = case toEvalMachine sys s' of EP (EK o, EE f) -> (o, f)
         (s0, nextStep) = runMono s
         nextEval o =
@@ -386,8 +402,8 @@ duplicateMachine sys =
 -- polynomial interface ('Sum') rather than in the carrier-level 'if'.
 branchMachine ::
   (s -> Bool) ->
-  Machine (,) s (->) (Mono i o) ->
-  Machine (,) s (->) (Mono i o) ->
+  MachineObs s (Mono i o) ->
+  MachineObs s (Mono i o) ->
   Machine (,) s (->) ('Sum (Mono i o) (Mono i o))
 branchMachine cond sysL sysR =
   fromEvalMachine $ \s ->
@@ -397,7 +413,7 @@ branchMachine cond sysL sysR =
 
 -- | Run a machine with a homogeneous sum-of-monomials interface.
 runMachineSum ::
-  Machine (,) s (->) ('Sum (Mono i o) (Mono i o)) ->
+  MachineObs s ('Sum (Mono i o) (Mono i o)) ->
   s ->
   (Either o o, i -> s)
 runMachineSum sys s = case toEvalMachine sys s of
@@ -416,8 +432,8 @@ data SumStep s o1 i1 o2 i2 where
 -- step.
 branchMachineHet ::
   (s -> Bool) ->
-  Machine (,) s (->) (Mono i1 o1) ->
-  Machine (,) s (->) (Mono i2 o2) ->
+  MachineObs s (Mono i1 o1) ->
+  MachineObs s (Mono i2 o2) ->
   Machine (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2))
 branchMachineHet cond sysL sysR =
   fromEvalMachine $ \s ->
@@ -427,7 +443,7 @@ branchMachineHet cond sysL sysR =
 
 -- | Run a heterogeneous sum-interface machine.
 runMachineSumHet ::
-  Machine (,) s (->) ('Sum (Mono i1 o1) (Mono i2 o2)) ->
+  MachineObs s ('Sum (Mono i1 o1) (Mono i2 o2)) ->
   s ->
   SumStep s o1 i1 o2 i2
 runMachineSumHet sys s = case toEvalMachine sys s of
@@ -450,7 +466,7 @@ coalgebraToMachine :: (MachineEval q) => Coalgebra s 'Y q -> Machine (,) s (->) 
 coalgebraToMachine coal = fromEvalMachine $ \s -> upd coal s (EY s)
 
 -- | Convert a monomial 'Machine' into a @Coalgebra s 'Y (Mono i o)@.
-machineToCoalgebraMono :: Machine (,) s (->) (Mono i o) -> Coalgebra s 'Y (Mono i o)
+machineToCoalgebraMono :: MachineObs s (Mono i o) -> Coalgebra s 'Y (Mono i o)
 machineToCoalgebraMono sys =
   Coalgebra
     { act = \s ->

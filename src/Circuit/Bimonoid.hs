@@ -359,6 +359,25 @@ instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
 -- total: a 'Circuit.Net.Net' over 'Dagger arr' can transpose its bimonoid rows because
 -- the dagger swaps the tensor-comonoid and tensor-monoid dictionaries.
 --
+-- The overlap with the default instances below at @CopyT (,) (Dagger arr) a@
+-- is forced, not accidental: mirrorNet totality needs these instances for
+-- every tensor @t@, and @t = (,)@ is also served by the OVERLAPPABLE
+-- defaults.  It is coherent because both routes compute the same arrow —
+-- the default route reduces @copy \@(Dagger arr)@ to @Dagger copy plus@ on
+-- the base, which is exactly the body here.
+--
+-- The instances are INCOHERENT, and that is a load-bearing choice, not a
+-- convenience: 'Circuit.Net.mirrorNet' re-emits the 'SigCopy'/'SigPlus'
+-- rows at polymorphic types, so the goal @MergeT w (Dagger arr) a@ (and its
+-- three siblings) must be resolved while @w@ and @arr@ are still type
+-- variables — no specificity ordering between this head and the default's
+-- head exists yet, and without INCOHERENT GHC reports the choice as
+-- undecidable.  INCOHERENT makes GHC commit to the first matching instance
+-- at such sites; since both routes compute the same arrow, the commitment
+-- is safe.  The fragility to note: if a third instance ever enters either
+-- chain, this commitment order becomes load-bearing for semantics, not just
+-- totality.
+--
 -- >>> let d = copyT @(,) @(Dagger (->)) @Int :: Dagger (->) Int (Int, Int)
 -- >>> front d 5
 -- (5,5)

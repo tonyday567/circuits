@@ -14,7 +14,7 @@ where
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), morphism)
 import Circuit.Category (Category (..), (.>))
-import Circuit.Equip (Poles (..), plug)
+import Circuit.Equip (Poles (..), close)
 import Circuit.Machine (Machine, machine, machineMorphism, machineToPoles)
 import Circuit.Optic
   ( Optic (..),
@@ -194,10 +194,10 @@ opticTopic verbosity = do
           ),
       -- poles action
       checkV verbosity "opticPoles suffixes the backward leg onto the companion" $
-        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String (->) (String, Int) (String, Int)
          in companion (opticPoles firstLens p) "hi" == (7, "hi"),
       checkV verbosity "opticPoles read pole agrees with the backward leg" $
-        let p = Poles fst (\ch -> (ch, 7)) :: Poles String String (->) (->) (String, Int) (String, Int)
+        let p = Poles fst (\ch -> (ch, 7)) :: Poles String (->) (String, Int) (String, Int)
          in companion (opticPoles firstLens p) "hi" == opticBackward firstLens ("hi", 7),
       -- Equipment-optic coherence: the companion/conjoint poles of a
       -- Machine are the opticPoles action of the diagonal machine optic
@@ -219,16 +219,16 @@ opticTopic verbosity = do
                 (Body (\(s, d) -> (s, (s, d))))
                 (Body (\(s0, (ch, ())) -> (s0, (ch * 2, ()))))
             base ::
-              Poles Int Int (Body (,) Int (->)) (Body (,) Int (->)) (Int, Dir (Mono Int Int)) (Int, ())
+              Poles Int (Body (,) Int (->)) (Int, Dir (Mono Int Int)) (Int, ())
             base =
               Poles
                 (Body (\(s', (s'', d)) -> (fst (machineMorphism inc (s'', d)), fst (machineMorphism inc (s'', d)))))
                 (Body (\(s, ch) -> (s, (ch, ()))))
             lhs = machineToPoles (\s -> (s * 2, ())) inc
             rhs = opticPoles optic base
-            sample1 = morphism (plug id lhs) (3, Right 5) :: (Int, (Int, ()))
-            sample2 = morphism (plug id rhs) (3, Right 5) :: (Int, (Int, ()))
-            sample3 = morphism (plug id lhs) (4, Right 1) :: (Int, (Int, ()))
-            sample4 = morphism (plug id rhs) (4, Right 1) :: (Int, (Int, ()))
+            sample1 = morphism (close lhs) (3, Right 5) :: (Int, (Int, ()))
+            sample2 = morphism (close rhs) (3, Right 5) :: (Int, (Int, ()))
+            sample3 = morphism (close lhs) (4, Right 1) :: (Int, (Int, ()))
+            sample4 = morphism (close rhs) (4, Right 1) :: (Int, (Int, ()))
          in sample1 == sample2 && sample3 == sample4
     ]

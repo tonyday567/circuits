@@ -71,14 +71,10 @@ module Circuit.Syntax
     -- * Sequential composition
     SigCompose (..),
 
-    -- * Free category over a signature
-    AlgCat,
-
     -- * Free-layer / free-forgetful adjunction tower
     Cat2,
     (:~>),
     Layer (..),
-    lower,
 
     -- * Free category (Layer example)
     Free (..),
@@ -247,11 +243,6 @@ class Layer (f :: Cat2 -> Cat2) where
     (arr :~> arr') ->
     f arr a b ->
     arr' a b
-
--- | The left direction of the hom-set isomorphism: restrict a map out of
--- the free layer to the generators.
-lower :: (Layer f, Category arr) => (f arr :~> arr') -> (arr :~> arr')
-lower g = g . unit
 
 -- * Free category
 

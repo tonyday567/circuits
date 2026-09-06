@@ -40,7 +40,6 @@ module Circuit.Tensor
     Unital (..),
     Tensor (..),
     Action (..),
-    TensorSeed (..),
 
     -- * Distributivity of two tensors (multiplicative over additive)
     Distributive (..),
@@ -182,24 +181,6 @@ coreleaseR _ (Left a) = Left a
 -- @t@ is an object-level bifunctor (@Either@, @(,)@, type-level @(+)@, …)
 -- with kind @k -> k -> k@, not a morphism tensor.
 type family Unit (t :: k -> k -> k) :: k
-
--- | Value-level pairing for a tensor @t@.
---
--- 'Tensor' gives the action of @t@ on morphisms; 'TensorSeed' names the
--- canonical way to combine two values into a value of type @t a b@.  It is
--- needed by constructions that store a concrete channel value alongside a
--- body (the old @SomeBody@ pattern).
---
--- Not every tensor has a canonical pairing: @(,)@ has the pair constructor,
--- but 'Either' has no unbiased way to combine @a@ and @b@ into
--- @Either a b@.  Consequently 'TensorSeed' is a separate class.
-class TensorSeed (t :: Type -> Type -> Type) where
-  seedPair :: a -> b -> t a b
-
--- | Cartesian pairing.
-instance TensorSeed (,) where
-  seedPair = (,)
-  {-# INLINE seedPair #-}
 
 -- | The unit object structure of a tensor @t@ on a category @arr@.
 --

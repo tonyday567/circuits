@@ -73,7 +73,7 @@
 -- * __Folds__ eliminate a free construction:
 --   `run` (any `Layer`, e.g. `Free` to its base arrow), `eval` /
 --   `evalInto` (free `Syntax` to a target arrow), `bind` (a `Layer` into a
---   target category), `lower` (restrict a fold to the generators).
+--   target category).
 --
 -- * __Injections__ embed one construction into another without eliminating:
 --   `unit` (base arrow into a `Layer`), `Lift` (base arrow into the free

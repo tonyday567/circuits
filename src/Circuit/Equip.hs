@@ -10,7 +10,9 @@
 -- module holds the equipment furniture:
 --
 -- * channel poles: 'Poles', the companion/conjoint pair of an identity
---   with an explicit carrier @ch@;
+--   with an explicit carrier @ch@, and its fully general form 'SplitPoles'
+--   when the write and read legs sit at different carriers or in different
+--   base categories;
 -- * polar ends: 'In' and 'Out', the conjoint and companion of the
 --   identity functor as rank-2 poles, paired by 'PolesIO';
 -- * squares: the indexed 2-cell 'Sq' and its existential closure 'TwoCell';
@@ -34,7 +36,8 @@ module Circuit.Equip
     close,
     plug,
 
-    -- * Carrier-split poles
+    -- * Split poles (different carriers or bases per leg)
+    SplitPoles (..),
     plugBridge,
     closeBridge,
 
@@ -94,6 +97,7 @@ module Circuit.Equip
     -- * The two paths whose equality is the square
     downThenAcross,
     acrossThenDown,
+    checkSq,
 
     -- * Structural proof witnesses (unitors and associator)
     unitorLeft,
@@ -143,58 +147,78 @@ import Prelude hiding (id, (.))
 
 -- * Channel poles — the companion and conjoint of the identity functor.
 
--- | A matched pair of channel poles with explicit carrier types.
+-- | A matched pair of channel poles with a shared carrier and base.
 --
 -- @conjoint@ is the write leg: it consumes the input payload and produces
--- the write channel, in base @arrW@.  @companion@ is the read leg: it
--- consumes the read channel and produces the output payload, in base @arrR@.
--- The diagonal @arrW ~ arrR@ recovers single-base poles; split bases host a
--- co-Kleisli write leg against a Kleisli read leg.
+-- the channel, in the base @arr@.  @companion@ is the read leg: it consumes
+-- the channel and produces the output payload, in the same base.  This is
+-- the default spelling; when the two legs must sit at different carriers
+-- or in different base categories, use 'SplitPoles'.
 --
--- When @ch ~ ch'@ the two poles share a carrier; 'close' plugs them with the
--- identity.  When @ch /= ch'@, 'plug' inserts an explicit translation between
--- the write channel and the read channel.
-data Poles ch ch' arrW arrR a b = Poles
+-- When the pole is self-channelled, 'close' plugs the two legs.  Note
+-- 'plug' takes a 'SplitPoles': translating between two carriers of one
+-- pole is a split-carrier situation by definition.
+data Poles ch arr a b = Poles
+  { -- | Write leg (conjoint), producing the channel @ch@.
+    conjoint :: arr a ch,
+    -- | Read leg (companion), consuming the channel @ch@.
+    companion :: arr ch b
+  }
+
+-- | The fully general pole: split carrier, split base.
+--
+-- The write leg produces the write channel @ch@ in base @arrW@; the read leg
+-- consumes the read channel @ch'@ in base @arrR@.  The split is needed when
+-- the two legs live in different categories — a Kleisli write against a
+-- co-Kleisli read, as in 'plugBridge' — or at different carriers ('plug'
+-- inserts a translation; 'boxAsymmetric' exposes the two carriers on
+-- opposite sides of the box).  'Poles' is the diagonal specialisation
+-- @ch ~ ch', arrW ~ arrR@ and the default spelling.
+data SplitPoles ch ch' arrW arrR a b = SplitPoles
   { -- | Write leg (conjoint), producing the write channel @ch@.
-    conjoint :: arrW a ch,
+    splitConjoint :: arrW a ch,
     -- | Read leg (companion), consuming the read channel @ch'@.
-    companion :: arrR ch' b
+    splitCompanion :: arrR ch' b
   }
 
 -- | Generalised polar plug.
 --
--- 'plug' inserts a translation @m :: arr ch ch'@ between the write leg and the
--- read leg of a single-base 'Poles', producing a morphism @arr a b@.
+-- 'plug' inserts a translation @m :: arr ch ch'@ between the write leg and
+-- the read leg of a single-base 'SplitPoles', producing a morphism
+-- @arr a b@.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
+-- >>> let p = SplitPoles (const ()) (const 42) :: SplitPoles () () (->) (->) () Int
 -- >>> plug id p ()
 -- 42
-plug :: (Category arr) => arr ch ch' -> Poles ch ch' arr arr a b -> arr a b
-plug m p = conjoint p .> m .> companion p
+plug :: (Category arr) => arr ch ch' -> SplitPoles ch ch' arr arr a b -> arr a b
+plug m p = splitConjoint p .> m .> splitCompanion p
 
--- | Close a self-channelled 'Poles' with the identity translation.
+-- | Close a same-carrier 'Poles' by composing its two legs.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) Int Int
--- >>> close p 0
+-- With a single carrier there is no gap to translate, so the payload types
+-- are free; @close (copycat \@ch)@ is the identity at any carrier.
+--
+-- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
+-- >>> close p ()
 -- 42
-close :: (Category arr) => Poles ch ch arr arr a a -> arr a a
-close = plug id
+close :: (Category arr) => Poles ch arr a b -> arr a b
+close p = conjoint p .> companion p
 
--- | Close a carrier-split pole through a bridge.
+-- | Close a split-base pole through a bridge.
 --
 -- The write leg is Kleisli (@a -> m ch@), the read leg is co-Kleisli
 -- (@c ch' -> b@), and closing demands a bridge @m ch -> c ch'@ between the
 -- monad and the comonad.  The bridge is where any seed or choice the
 -- carrier needs must be supplied.
 --
--- >>> let p = Poles (K (Identity . (+1))) (CoK runIdentity) :: Poles Int Int (K Identity) (CoK Identity) Int Int
+-- >>> let p = SplitPoles (K (Identity . (+1))) (CoK runIdentity) :: SplitPoles Int Int (K Identity) (CoK Identity) Int Int
 -- >>> plugBridge id p 5
 -- 6
-plugBridge :: (m ch -> c ch') -> Poles ch ch' (K m) (CoK c) a b -> a -> b
-plugBridge bridge p a = runCoK (companion p) (bridge (runK (conjoint p) a))
+plugBridge :: (m ch -> c ch') -> SplitPoles ch ch' (K m) (CoK c) a b -> a -> b
+plugBridge bridge p a = runCoK (splitCompanion p) (bridge (runK (splitConjoint p) a))
 
 -- | 'plugBridge' at a self-channelled carrier.
-closeBridge :: (m ch -> c ch) -> Poles ch ch (K m) (CoK c) a b -> a -> b
+closeBridge :: (m ch -> c ch) -> SplitPoles ch ch (K m) (CoK c) a b -> a -> b
 closeBridge bridge = plugBridge bridge
 
 -- * Unit-pole convenience
@@ -206,7 +230,7 @@ poles0 ::
   forall arr a b.
   arr a () ->
   arr () b ->
-  Poles () () arr arr a b
+  Poles () arr a b
 poles0 = Poles
 {-# INLINE poles0 #-}
 
@@ -218,18 +242,18 @@ polesK ::
   forall m a b.
   (a -> m ()) ->
   m b ->
-  Poles () () (K m) (K m) a b
+  Poles () (K m) a b
 polesK write receive = Poles (K write) (K $ const receive)
 
 -- | Extract the primitive write and read actions from a unit-channel pole.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
 -- >>> let (w, r) = splay0 p
 -- >>> (w (), r ())
 -- ((),42)
 splay0 ::
   forall arr a b.
-  Poles () () arr arr a b ->
+  Poles () arr a b ->
   (arr a (), arr () b)
 splay0 p = (conjoint p, companion p)
 
@@ -238,20 +262,18 @@ splay0 p = (conjoint p, companion p)
 -- | Sequential composition of 'Poles'.
 --
 -- The read leg of the first pole is chained through the payload to the write
--- leg of the second pole.  The middle chain lives in one base @arrM@, so the
--- second pole is diagonal; the outer write base @arrW@ is free.  No channel
--- alignment is required for this sequential composition; alignment is only
--- needed when the composite is required to sit at a uniform carrier.
+-- leg of the second pole.  No channel alignment is required: each pole keeps
+-- its own carrier, and all legs share one base.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) Int Int
--- >>> box (compose p1 p2) ()
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () (->) Int Int
+-- >>> close (compose p1 p2) ()
 -- 2
 compose ::
-  (Category arrM) =>
-  Poles ch1 ch1' arrW arrM a b ->
-  Poles ch1' ch1' arrM arrM b c ->
-  Poles ch1 ch1' arrW arrM a c
+  (Category arr) =>
+  Poles ch1 arr a b ->
+  Poles ch2 arr b c ->
+  Poles ch1 arr a c
 compose p1 p2 =
   Poles
     (conjoint p1)
@@ -259,10 +281,10 @@ compose p1 p2 =
 
 -- | Convenience synonym for 'compose' on unit-channel poles.
 compose0 ::
-  (Category arrM) =>
-  Poles () () arrW arrM a b ->
-  Poles () () arrM arrM b c ->
-  Poles () () arrW arrM a c
+  (Category arr) =>
+  Poles () arr a b ->
+  Poles () arr b c ->
+  Poles () arr a c
 compose0 = compose
 {-# INLINE compose0 #-}
 
@@ -270,16 +292,16 @@ compose0 = compose
 
 -- | Parallel composition of 'Poles' over a tensor @t@.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) () Int
--- >>> plug id (polesTensor p1 p2) ((),())
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () (->) () Int
+-- >>> close (polesTensor p1 p2) ((),())
 -- (1,2)
 polesTensor ::
-  forall t arr ch1 ch1' ch2 ch2' a b c d.
+  forall t arr ch1 ch2 a b c d.
   (Tensor t arr) =>
-  Poles ch1 ch1' arr arr a b ->
-  Poles ch2 ch2' arr arr c d ->
-  Poles (t ch1 ch2) (t ch1' ch2') arr arr (t a c) (t b d)
+  Poles ch1 arr a b ->
+  Poles ch2 arr c d ->
+  Poles (t ch1 ch2) arr (t a c) (t b d)
 polesTensor p1 p2 =
   Poles
     (Tensor.tensor (conjoint p1) (conjoint p2))
@@ -289,30 +311,30 @@ polesTensor p1 p2 =
 
 -- | Precompose the input and postcompose the output.
 iomap ::
-  forall arrW arrR a a' b b' ch ch'.
-  (Category arrW, Category arrR) =>
-  arrW a' a ->
-  arrR b b' ->
-  Poles ch ch' arrW arrR a b ->
-  Poles ch ch' arrW arrR a' b'
+  forall arr a a' b b' ch.
+  (Category arr) =>
+  arr a' a ->
+  arr b b' ->
+  Poles ch arr a b ->
+  Poles ch arr a' b'
 iomap f g (Poles i o) = Poles (f .> i) (o .> g)
 
 -- | Precompose the input.
 imap ::
-  forall arrW arrR a a' b ch ch'.
-  (Category arrW) =>
-  arrW a' a ->
-  Poles ch ch' arrW arrR a b ->
-  Poles ch ch' arrW arrR a' b
+  forall arr a a' b ch.
+  (Category arr) =>
+  arr a' a ->
+  Poles ch arr a b ->
+  Poles ch arr a' b
 imap f (Poles i o) = Poles (f .> i) o
 
 -- | Postcompose the output.
 omap ::
-  forall arrW arrR a b b' ch ch'.
-  (Category arrR) =>
-  arrR b b' ->
-  Poles ch ch' arrW arrR a b ->
-  Poles ch ch' arrW arrR a b'
+  forall arr a b b' ch.
+  (Category arr) =>
+  arr b b' ->
+  Poles ch arr a b ->
+  Poles ch arr a b'
 omap g (Poles i o) = Poles i (o .> g)
 
 -- * Polar ends — the companion and conjoint of the identity functor.
@@ -394,19 +416,19 @@ suffixOut o g = Out $ \(i :: In arr x) -> emit o i .> g
 -- The write leg discards its input; the read leg discards its channel.
 -- Yanking recovers the identity on @()@.
 --
--- >>> let p = open :: Poles () () (->) (->) () ()
+-- >>> let p = open :: Poles () (->) () ()
 -- >>> close p ()
 -- ()
-open :: (Category arr) => Poles () () arr arr () ()
+open :: (Category arr) => Poles () arr () ()
 open = Poles id id
 
 -- | The copycat strategy at any carrier.
 --
 -- With identity legs, closing is the identity on the carrier.
 --
--- >>> close (copycat :: Poles Bool Bool (->) (->) Bool Bool) True
+-- >>> close (copycat :: Poles Bool (->) Bool Bool) True
 -- True
-copycat :: (Category arr) => Poles ch ch arr arr ch ch
+copycat :: (Category arr) => Poles ch arr ch ch
 copycat = Poles id id
 
 -- * Unit cells
@@ -455,39 +477,42 @@ pointedCell = UnitCell (\() -> point)
 
 -- | Close a unit-channel 'Poles' to a plain morphism.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
 -- >>> box p ()
 -- 42
-box :: (Category arr) => Poles () () arr arr a b -> arr a b
-box = plug id
+box :: (Category arr) => Poles () arr a b -> arr a b
+box p = conjoint p .> companion p
 
 -- | Asymmetric box with the channel exposed on opposite sides.
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () () (->) (->) () Int
+-- The write carrier appears on the output side and the read carrier on the
+-- input side, so this is a 'SplitPoles' operation.
+--
+-- >>> let p = SplitPoles (const ()) (const 42) :: SplitPoles () () (->) (->) () Int
 -- >>> boxAsymmetric p ((), ())
 -- ((),42)
 boxAsymmetric ::
   forall t arr ch ch' a b.
   (Tensor t arr) =>
-  Poles ch ch' arr arr a b ->
+  SplitPoles ch ch' arr arr a b ->
   arr (t a ch') (t ch b)
-boxAsymmetric p = Tensor.tensor (conjoint p) (companion p)
+boxAsymmetric p = Tensor.tensor (splitConjoint p) (splitCompanion p)
 
 -- * Additive connectives
 
 -- | Additive conjunction: both sub-poles receive the same input and their
 -- outputs are paired.
 --
--- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () () (->) (->) () Int
--- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () () (->) (->) () Int
--- >>> plug id (pair p1 p2) ()
+-- >>> let p1 = Poles (const ()) (const 1 :: () -> Int) :: Poles () (->) () Int
+-- >>> let p2 = Poles (const ()) (const 2 :: () -> Int) :: Poles () (->) () Int
+-- >>> close (pair p1 p2) ()
 -- (1,2)
 pair ::
-  forall arr ch1 ch1' ch2 ch2' a b c.
+  forall arr ch1 ch2 a b c.
   (Tensor (,) arr, Copy arr a) =>
-  Poles ch1 ch1' arr arr a b ->
-  Poles ch2 ch2' arr arr a c ->
-  Poles (ch1, ch2) (ch1', ch2') arr arr a (b, c)
+  Poles ch1 arr a b ->
+  Poles ch2 arr a c ->
+  Poles (ch1, ch2) arr a (b, c)
 pair p1 p2 =
   Poles
     (copy .> Tensor.tensor (conjoint p1) (conjoint p2))
@@ -500,20 +525,20 @@ pair p1 p2 =
 -- chooses which side to prefer when both are non-silent. The picking logic is
 -- lifted into the base arrow via 'FunctionLike'.
 --
--- >>> let eL = Poles (const ()) (const (Just 1)) :: Poles () () (->) (->) () (Maybe Int)
--- >>> let eR = Poles (const ()) (const (Just 2)) :: Poles () () (->) (->) () (Maybe Int)
--- >>> plug id (race isNothing LeftFirst eL eR) ()
+-- >>> let eL = Poles (const ()) (const (Just 1)) :: Poles () (->) () (Maybe Int)
+-- >>> let eR = Poles (const ()) (const (Just 2)) :: Poles () (->) () (Maybe Int)
+-- >>> close (race isNothing LeftFirst eL eR) ()
 -- Just 1
--- >>> plug id (race isNothing RightFirst eL eR) ()
+-- >>> close (race isNothing RightFirst eL eR) ()
 -- Just 2
 race ::
-  forall arr ch1 ch1' ch2 ch2' a b.
+  forall arr ch1 ch2 a b.
   (Tensor (,) arr, Copy arr a, FunctionLike arr) =>
   (b -> Bool) ->
   Bias ->
-  Poles ch1 ch1' arr arr a b ->
-  Poles ch2 ch2' arr arr a b ->
-  Poles (ch1, ch2) (ch1', ch2') arr arr a b
+  Poles ch1 arr a b ->
+  Poles ch2 arr a b ->
+  Poles (ch1, ch2) arr a b
 race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
   where
     pick LeftFirst (x, y) = if isSilent x then y else x
@@ -528,7 +553,7 @@ race isSilent bias p1 p2 = omap (function (pick bias)) (pair p1 p2)
 --
 -- >>> box (companionTight (const 42 :: () -> Int)) ()
 -- 42
-companionTight :: (Category arr) => arr a b -> Poles a a arr arr a b
+companionTight :: (Category arr) => arr a b -> Poles a arr a b
 companionTight f = Poles id f
 
 -- | The conjoint of a tight arrow.
@@ -538,13 +563,13 @@ companionTight f = Poles id f
 --
 -- >>> box (conjointTight (const () :: Int -> ())) 7
 -- ()
-conjointTight :: (Category arr) => arr a b -> Poles b b arr arr a b
+conjointTight :: (Category arr) => arr a b -> Poles b arr a b
 conjointTight f = Poles f id
 
 -- * Squares
 
 -- | Square (indexed 2-cell).  The carrier maps compose; the middle body must
--- match (a caller side condition).
+-- match (a caller side condition, decidable on samples via 'checkSq').
 data Sq t arr ch ch' a b = Sq
   { -- | Map between carriers.
     carrierMap :: arr ch ch',
@@ -560,7 +585,13 @@ idSq b = Sq id b b
 
 -- | Vertical composition of squares.
 --
--- The middle body must match; this is a caller side condition.
+-- The dropped middle bodies (@sqTgt f@ and @sqSrc g@, on the shared middle
+-- carrier) must agree — a caller side condition, since the operator is
+-- generic in the arrow.  'checkSq' decides agreement on samples for @(->)@
+-- bodies.  Note the composite's own legs are @sqSrc f@ and @sqTgt g@: when
+-- the middle carrier differs from both outer carriers, the composite's
+-- paths never force the middle bodies to agree, so check the factors there
+-- rather than the composite.
 vcomp ::
   (Category arr) =>
   Sq t arr ch' ch'' a b ->
@@ -630,6 +661,32 @@ acrossThenDown ::
   Sq t arr ch ch' a b ->
   arr (t ch a) (t ch' b)
 acrossThenDown sq = morphism (sqSrc sq) .> tensor (carrierMap sq) id
+
+-- | Sampled agreement check for a square: run both paths ('acrossThenDown'
+-- and 'downThenAcross') across the samples and compare.  This is the
+-- decidable fragment of the "middle body must match" side condition on
+-- 'Sq' and 'vcomp', for @(->)@ bodies with equality-comparable outputs.
+--
+-- The nondegenerate witness passes:
+--
+-- >>> let counter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if odd n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let parity = (Body $ \(b, r) -> let b' = not r && not b in (b', if b' then 'x' else 'y')) :: Body (,) Bool (->) Bool Char
+-- >>> let sq = Sq odd counter parity :: Sq (,) (->) Int Bool Bool Char
+-- >>> checkSq [(4, False), (4, True), (5, False)] sq
+-- True
+--
+-- The perturbed witness fails on the same samples:
+--
+-- >>> let badCounter = (Body $ \(n, r) -> let n' = if r then 0 else n + 1 in (n', if even n' then 'x' else 'y')) :: Body (,) Int (->) Bool Char
+-- >>> let bad = Sq odd badCounter parity :: Sq (,) (->) Int Bool Bool Char
+-- >>> checkSq [(4, False)] bad
+-- False
+checkSq ::
+  (Tensor t (->), Eq (t ch' b)) =>
+  [t ch a] ->
+  Sq t (->) ch ch' a b ->
+  Bool
+checkSq samples sq = all (\x -> acrossThenDown sq x == downThenAcross sq x) samples
 
 -- | Indexed left unitor square.
 unitorLeftSq ::

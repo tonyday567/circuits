@@ -103,7 +103,7 @@ import Circuit.Bimonoid qualified as Bm
 import Circuit.Body (Body (..))
 import Circuit.Category (Category (..))
 import Circuit.Equip (Boundary (..), Poles (..), UnitCell (..))
-import Circuit.Machine (Machine, machine, monoDir, toEvalMachine)
+import Circuit.Machine (Machine, MachineObs, machine, machineObsWith, monoDir, toEvalMachine)
 import Circuit.Poly (Eval (..), Lens, Mono, applyLens, lens)
 import Circuit.Shared (Pick (..), Schedule (..), Shared (..), chooseS)
 import Circuit.Stream (Cons (..), Uncons (..))
@@ -164,14 +164,14 @@ asMealy (Process s0 step extract) =
 -- * Machine conversions
 
 -- | Convert a monomial @(->)@ machine into a pointed process.
-asProcess :: Machine (,) s (->) (Mono i o) -> s -> Process s i o
+asProcess :: MachineObs s (Mono i o) -> s -> Process s i o
 asProcess sys s0 = Process s0 step' extract'
   where
     step' s i = case toEvalMachine sys s of EP (EK _, EE f) -> f i
     extract' s = case toEvalMachine sys s of EP (EK o, EE _) -> o
 
 -- | Convert a monomial @(->)@ machine into a process.
-machineAsMealy :: Machine (,) s (->) (Mono i o) -> s -> Mealy i o
+machineAsMealy :: MachineObs s (Mono i o) -> s -> Mealy i o
 machineAsMealy sys s0 = asMealy (asProcess sys s0)
 
 -- | Point a monomial machine with a 'Circuit.Equip.UnitCell' instead of a
@@ -179,16 +179,16 @@ machineAsMealy sys s0 = asMealy (asProcess sys s0)
 --
 -- Agrees with the ad-hoc seed runner:
 --
--- >>> import Circuit.Machine (Machine, machine)
+-- >>> import Circuit.Machine (Machine, MachineObs, machine, machineObsWith)
 -- >>> import Circuit.Poly (Mono)
 -- >>> import Circuit.Equip (UnitCell (..))
 -- >>> import Data.Void (absurd)
--- >>> let sys = machine (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> let sys = machineObsWith (\s -> (s * 2, ())) (machine (\case (_, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ())))) :: MachineObs Int (Mono Int Int)
 -- >>> scanProcess (asProcess sys 3) [1, 2]
 -- [8,12]
 -- >>> scanProcess (asProcessCell sys (UnitCell (const 3))) [1, 2]
 -- [8,12]
-asProcessCell :: Machine (,) s (->) (Mono i o) -> UnitCell (,) (->) s -> Process s i o
+asProcessCell :: MachineObs s (Mono i o) -> UnitCell (,) (->) s -> Process s i o
 asProcessCell sys (UnitCell f) = asProcess sys (f ())
 
 -- | A pointed monomial process as a polynomial lens.
@@ -218,7 +218,7 @@ lensAsProcess m s0 =
 -- 'asProcess'; the observation is the one-tick shift of a machine built
 -- directly with 'machine'.
 --
--- >>> import Circuit.Machine (Machine, machineMorphism, machine)
+-- >>> import Circuit.Machine (Machine, MachineObs, machineMorphism, machine, machineObsWith)
 -- >>> import Circuit.Poly (Mono)
 -- >>> import Data.Void (absurd)
 -- >>> let acc = Process 0 (+) (\x -> x) :: Process Int Int Int
@@ -230,7 +230,7 @@ lensAsProcess m s0 =
 -- Round trip through 'asProcess': the transition is unchanged and the
 -- position comes from the new state (@16 = 8 * 2@, not the pre-step @6@).
 --
--- >>> let sys = machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> let sys = machineObsWith (\s -> (s * 2, ())) (machine (\case (s, Left v) -> absurd v; (s, Right i) -> (s + i, (s * 2, ()))) :: Machine (,) Int (->) (Mono Int Int))
 -- >>> machineMorphism (processAsMachine (asProcess sys 3)) (3, Right 5)
 -- (8,(16,()))
 processAsMachine :: Process s i o -> Machine (,) s (->) (Mono i o)
@@ -301,7 +301,7 @@ scheduleAsProcess s0 sched =
 -- * Channel-pole processes
 
 -- | Build a pointed process from channel poles.
-polesToProcess :: Poles s s (Body (,) s (->)) (Body (,) s (->)) a b -> s -> Process s a b
+polesToProcess :: Poles s (Body (,) s (->)) a b -> s -> Process s a b
 polesToProcess p s0 =
   let Body write = conjoint p
       Body receive = companion p

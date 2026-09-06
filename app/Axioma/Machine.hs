@@ -8,8 +8,8 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Linear (Par (..), distL, distR)
-import Circuit.Machine (Machine (..), duplicateMachine, fromEvalMachine, machine, machineToClosed, monoIn, toEvalMachine)
-import Circuit.Poly (Eval (..), Mono, Poly (..))
+import Circuit.Machine (Machine, MachineObs (..), branchMachine, duplicateMachine, machine, machineObs, machineObsWith, machineToClosed, monoIn, runMachineSum, toEvalMachine)
+import Circuit.Poly (Dir, Eval (..), Mono, Poly (..))
 import Circuit.Syntax (eval)
 import Control.Category (id)
 import Control.Exception (SomeException, evaluate, try)
@@ -17,23 +17,23 @@ import Control.Monad (replicateM, when)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
-mkMachine :: (s -> a -> s) -> (s -> b) -> Machine (,) s (->) (Mono a b)
-mkMachine st ex = fromEvalMachine $ \s -> EP (EK (ex s), EE (st s))
+mkMachine :: (s -> a -> s) -> (s -> b) -> MachineObs s (Mono a b)
+mkMachine st ex = machineObs (\s -> EP (EK (ex s), EE (st s)))
 
-peekM :: Machine (,) s (->) (Mono i o) -> s -> o
+peekM :: MachineObs s (Mono i o) -> s -> o
 peekM sys s = case toEvalMachine sys s of EP (EK o, EE _) -> o
 
-stepM :: Machine (,) s (->) (Mono i o) -> s -> i -> s
+stepM :: MachineObs s (Mono i o) -> s -> i -> s
 stepM sys s i = case toEvalMachine sys s of EP (EK _, EE f) -> f i
 
-runMono :: Machine (,) s (->) (Mono i o) -> s -> (o, i -> s)
+runMono :: MachineObs s (Mono i o) -> s -> (o, i -> s)
 runMono sys s = case toEvalMachine sys s of EP (EK o, EE f) -> (o, f)
 
 -- * duplicateMachine law probes
 
 -- | Output stream of an observable machine over an input stream: the
 -- position after each step.
-positionsOf :: Machine (,) s (->) (Mono o s) -> s -> [o] -> [s]
+positionsOf :: MachineObs s (Mono o s) -> s -> [o] -> [s]
 positionsOf sys = go
   where
     go _ [] = []
@@ -41,17 +41,17 @@ positionsOf sys = go
 
 -- | Observe an expanded machine at a state: the current state and the
 -- one-step transition it presents.
-peek2 :: Machine (,) s (->) ('Comp (Mono o s) (Mono o s)) -> s -> (s, o -> s)
+peek2 :: MachineObs s ('Comp (Mono o s) (Mono o s)) -> s -> (s, o -> s)
 peek2 sys s = case toEvalMachine sys s of
   EC ((cur, ()), f) _ -> (cur, \o -> fst (f (monoIn o)))
 
 -- | Step an expanded machine by one direction pair.
-step2 :: Machine (,) s (->) ('Comp (Mono o s) (Mono o s)) -> s -> (o, o) -> s
+step2 :: MachineObs s ('Comp (Mono o s) (Mono o s)) -> s -> (o, o) -> s
 step2 sys s (o1, o2) = case toEvalMachine sys s of
   EC _ g -> g (monoIn o1, monoIn o2)
 
 -- | Position stream of an expanded machine over a stream of direction pairs.
-positions2 :: Machine (,) s (->) ('Comp (Mono o s) (Mono o s)) -> s -> [(o, o)] -> [(s, o -> s)]
+positions2 :: MachineObs s ('Comp (Mono o s) (Mono o s)) -> s -> [(o, o)] -> [(s, o -> s)]
 positions2 sys = go
   where
     go _ [] = []
@@ -76,7 +76,7 @@ allPairStreams =
 -- (observable) interface.  'duplicateMachine' requires 'Mono' input and
 -- produces 'Comp' output, so iteration goes through this projection — which
 -- forgets the presented transition.
-twoStep :: Machine (,) s (->) (Mono o s) -> Machine (,) s (->) (Mono (o, o) s)
+twoStep :: MachineObs s (Mono o s) -> MachineObs s (Mono (o, o) s)
 twoStep sys = mkMachine (\s (o1, o2) -> stepM sys (stepM sys s o1) o2) id
 
 machineTopic :: Verbosity -> IO [Bool]
@@ -93,46 +93,70 @@ machineTopic verbosity = do
         unitrP (Left 42 :: Either Int Void) == (42 :: Int),
       -- Machine peek/step oracles
       checkV verbosity "peekM reads current output without consuming input" $
-        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: Machine (,) Int (->) (Mono Int Int)
+        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: MachineObs Int (Mono Int Int)
          in peekM sys 5 == 10,
       checkV verbosity "stepM advances state by one input" $
-        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: Machine (,) Int (->) (Mono Int Int)
+        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: MachineObs Int (Mono Int Int)
          in stepM sys 5 3 == 8,
       checkV verbosity "runMono exposes output and transition" $
-        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: Machine (,) Int (->) (Mono Int Int)
+        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: MachineObs Int (Mono Int Int)
             (o, next) = runMono sys 5
          in o == 10 && next 3 == 8,
       checkV verbosity "Machine id lens emits committed input" $
-        let sys = mkMachine (\_s d -> d) id :: Machine (,) Int (->) (Mono Int Int)
+        let sys = mkMachine (\_s d -> d) id :: MachineObs Int (Mono Int Int)
          in peekM sys (stepM sys 0 (42 :: Int)) == 42,
       checkV verbosity "Machine const lens ignores state" $
-        let sys = mkMachine (\s _d -> s) (const (7 :: Int)) :: Machine (,) Int (->) (Mono Int Int)
+        let sys = mkMachine (\s _d -> s) (const (7 :: Int)) :: MachineObs Int (Mono Int Int)
          in peekM sys (stepM sys 0 (99 :: Int)) == 7,
       checkV verbosity "machineToClosed hides state as a feedback trace" $
-        let sys = mkMachine (\_s d -> d) id :: Machine (,) Int (->) (Mono Int Int)
-            tr = machineToClosed sys
+        let sys = mkMachine (\_s d -> d) id :: MachineObs Int (Mono Int Int)
+            tr = machineToClosed (moMachine sys)
          in eval tr (Right 42 :: Either Void Int) == (42 :: Int, ()),
-      -- toEvalMachine Moore-ness side condition (Circuit.Machine:211-221).
-      -- The conversion reads the position by probing with 'probeDir', which
-      -- is an error thunk for the shapes where it is defined. A Moore body
-      -- never forces the direction value, so a bounded run of probes must
-      -- complete; a strict body forces the probe and the conversion becomes
-      -- a runtime error rather than a wrong answer. Mutation room: if the
-      -- conversion ever forces the probe (or probeDir is made strict), the
-      -- bounded run below crashes the whole topic.
-      checkV verbosity "toEvalMachine never forces the probe direction on a Moore body (bounded run)" $
-        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: Machine (,) Int (->) (Mono Int Int)
+      -- toEvalMachine totality (Circuit.Machine). The position is read
+      -- through the observation bundled in 'MachineObs' — nothing is probed,
+      -- no machine law is silently assumed — so a bounded run of reads must
+      -- complete. Mutation room: if the conversion ever derives the
+      -- observation by running the body (reintroducing a probe), the bounded
+      -- run below crashes the whole topic.
+      checkV verbosity "toEvalMachine reads the carried observation on a Moore body (bounded run)" $
+        let sys = mkMachine (\s i -> s + i) (\s -> s * 2) :: MachineObs Int (Mono Int Int)
             states = iterate (\s -> stepM sys s 1) 0
             steps = [peekM sys s | s <- take 64 states]
          in head steps == 0 && last steps == 126,
-      checkIOV verbosity "toEvalMachine on a strict body is a runtime error, not a wrong answer" $ do
-        let strictSys :: Machine (,) Int (->) (Mono Int Int)
-            strictSys =
+      -- The observation is a field, so reading the position of a strict
+      -- body (one that forces its direction with 'seq') cannot crash: the
+      -- read never passes through the body. The strict body's step still
+      -- forces the direction — that is real work, done only when stepping.
+      checkIOV verbosity "certified observation reads a strict body without forcing the direction" $ do
+        let strictBody :: Machine (,) Int (->) (Mono Int Int)
+            strictBody =
               machine $ \case
                 (s, Right i) -> i `seq` (s + i, (s, ()))
                 (_, Left v) -> absurd v
-        result <- try (evaluate (peekM strictSys 5)) :: IO (Either SomeException Int)
-        pure (case result of Left _ -> True; Right _ -> False),
+            strictSys :: MachineObs Int (Mono Int Int)
+            strictSys = machineObsWith (\s -> (s, ())) strictBody
+        peeked <- try (evaluate (peekM strictSys 5)) :: IO (Either SomeException Int)
+        stepped <- try (evaluate (stepM strictSys 5 3)) :: IO (Either SomeException Int)
+        pure (case (peeked, stepped) of (Right 5, Right 8) -> True; _ -> False),
+      -- Sum machines: the observation follows the branch the STATE selects,
+      -- never a probed branch. This clause pins the investigation finding
+      -- that the old probeDir = Left (probeDir @p) could not produce a wrong
+      -- position on Moore bodies — and that the bundled observation makes
+      -- the property structural.
+      checkV verbosity "Sum observation follows the state-selected branch" $
+        let exL s = s * 10
+            exR s = s + 100
+            sysL = mkMachine (\s i -> s + i) exL :: MachineObs Int (Mono Int Int)
+            sysR = mkMachine (\s i -> s + i) exR :: MachineObs Int (Mono Int Int)
+            br = branchMachine even sysL sysR
+            observe s = if even s then Left (exL s, ()) else Right (exR s, ())
+            brObs = machineObsWith observe br :: MachineObs Int ('Sum (Mono Int Int) (Mono Int Int))
+            (oL, fL) = runMachineSum brObs 2
+            (oR, fR) = runMachineSum brObs 3
+         in oL == Left 20
+              && fL 1 == 3
+              && oR == Right 103
+              && fR 1 == 4,
       -- duplicateMachine laws.  Two notes on what is NOT here:
       -- \* right identity collapses into left identity: the counit is
       --   observation, and at an observable machine observation is the
@@ -151,7 +175,7 @@ machineTopic verbosity = do
           [ fst (peek2 (duplicateMachine sys) s0) == s0
               && and [snd (peek2 (duplicateMachine sys) s0) o == stepM sys s0 o | o <- [False, True]]
           | t <- allTransitions,
-            let sys = mkMachine t id :: Machine (,) Bool (->) (Mono Bool Bool),
+            let sys = mkMachine t id :: MachineObs Bool (Mono Bool Bool),
             s0 <- [False, True]
           ],
       checkV verbosity "left identity: observing the expansion samples the original at every second step" $
@@ -161,7 +185,7 @@ machineTopic verbosity = do
              in map fst (positions2 (duplicateMachine sys) s0 ps)
                   == [full !! (2 * i + 1) | i <- [0 .. length ps - 1]]
           | t <- allTransitions,
-            let sys = mkMachine t id :: Machine (,) Bool (->) (Mono Bool Bool),
+            let sys = mkMachine t id :: MachineObs Bool (Mono Bool Bool),
             s0 <- [False, True],
             ps <- allPairStreams,
             not (null ps)
@@ -169,8 +193,8 @@ machineTopic verbosity = do
       checkV verbosity "machine maps: h commutes iff behaviors agree (xor/not vs xor/xnor)" $
         let xorT s o = s /= o
             xnorT s o = s == o
-            sysXor = mkMachine xorT id :: Machine (,) Bool (->) (Mono Bool Bool)
-            sysXnor = mkMachine xnorT id :: Machine (,) Bool (->) (Mono Bool Bool)
+            sysXor = mkMachine xorT id :: MachineObs Bool (Mono Bool Bool)
+            sysXnor = mkMachine xnorT id :: MachineObs Bool (Mono Bool Bool)
             streams = replicateM 3 [False, True]
             seeds = [False, True]
          in -- 'not' is a machine map xor -> xor ...
@@ -180,8 +204,8 @@ machineTopic verbosity = do
       checkV verbosity "duplicate preserves machine maps: expanded transitions commute iff h does" $
         let xorT s o = s /= o
             xnorT s o = s == o
-            sysXor = mkMachine xorT id :: Machine (,) Bool (->) (Mono Bool Bool)
-            sysXnor = mkMachine xnorT id :: Machine (,) Bool (->) (Mono Bool Bool)
+            sysXor = mkMachine xorT id :: MachineObs Bool (Mono Bool Bool)
+            sysXnor = mkMachine xnorT id :: MachineObs Bool (Mono Bool Bool)
             seeds = [False, True]
          in and
               [ snd (peek2 (duplicateMachine sysXor) (not s0)) o == not (snd (peek2 (duplicateMachine sysXor) s0) o)
@@ -197,7 +221,7 @@ machineTopic verbosity = do
         and
           [ positionsOf (twoStep sys) s0 ps == map fst (positions2 (duplicateMachine sys) s0 ps)
           | t <- allTransitions,
-            let sys = mkMachine t id :: Machine (,) Bool (->) (Mono Bool Bool),
+            let sys = mkMachine t id :: MachineObs Bool (Mono Bool Bool),
             s0 <- [False, True],
             ps <- allPairStreams
           ],
