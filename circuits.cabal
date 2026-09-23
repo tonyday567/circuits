@@ -52,6 +52,7 @@ library
     Circuit.Cell
     Circuit.Container
     Circuit.Equip
+    Circuit.GMachine
     Circuit.Hyper
     Circuit.Linear
     Circuit.Machine
@@ -85,6 +86,7 @@ executable circuits-axioma
     Axioma.Effect
     Axioma.Equip
     Axioma.FinRel
+    Axioma.GMachine
     Axioma.Machine
     Axioma.Optic
     Axioma.Poles

@@ -4,6 +4,7 @@ import Axioma.Common (Verbosity (..))
 import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
 import Axioma.Equip (equipTopic)
+import Axioma.GMachine (gMachineTopic)
 import Axioma.FinRel (finRelTopic)
 import Axioma.Machine (machineTopic)
 import Axioma.Optic (opticTopic)
@@ -21,6 +22,7 @@ data Topic
   = All
   | Container
   | Equip
+  | GMachine
   | Machine
   | Effect
   | FinRel
@@ -37,6 +39,7 @@ topicName :: Topic -> String
 topicName All = "all"
 topicName Container = "container"
 topicName Equip = "equip"
+topicName GMachine = "gmachine"
 topicName Machine = "machine"
 topicName Effect = "effect"
 topicName FinRel = "finrel"
@@ -52,6 +55,7 @@ topicDesc :: Topic -> String
 topicDesc All = "run all topics"
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Equip = "Arrow-equipment oracles: squares, feedback laws, and carriers"
+topicDesc GMachine = "GMachine oracles"
 topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
@@ -113,6 +117,7 @@ opts =
 runTopic :: Topic -> Verbosity -> IO [Bool]
 runTopic Container = containerTopic
 runTopic Equip = equipTopic
+runTopic GMachine = gMachineTopic
 runTopic Machine = machineTopic
 runTopic Effect = effectTopic
 runTopic FinRel = finRelTopic
@@ -126,7 +131,7 @@ runTopic Split = splitTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Equip, Effect, FinRel, Machine, Optic, Poles, Process, Pullback, Shared, Span, Split]
+allTopics = [Container, Equip, Effect, FinRel, GMachine, Machine, Optic, Poles, Process, Pullback, Shared, Span, Split]
 
 greenCircle :: String
 greenCircle = "🟢"
