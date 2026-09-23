@@ -65,9 +65,9 @@ import Data.These (These (..))
 import Data.Void (Void)
 import Prelude hiding (id, (.))
 
-data Cell (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) a b = Cell
-  { observe :: arr s b,
-    step :: arr (t s a) s
+data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
+  { consume :: arr (t ch i) ch,
+    produce :: arr ch o
   }
 
 newtype Body t ch arr a b = Body {morphism :: arr (t ch a) (t ch b)}
@@ -86,7 +86,7 @@ fuse ::
   (CopyT t arr (t s a), DiscardT t arr a) =>
   Cell t s arr a b ->
   Body t s arr a b
-fuse (Cell o k) =
+fuse (Cell k o) =
   Body (tensor k (o . unitr . tensor id (discardT @t)) . copyT)
 
 unfuse ::
@@ -94,7 +94,7 @@ unfuse ::
   (Tensor (,) arr, Discard arr s, Discard arr b) =>
   Body (,) s arr a b ->
   Cell (,) (s, b) arr a b
-unfuse (Body f) = Cell projSnd (tensor projFst id .> f)
+unfuse (Body f) = Cell (tensor projFst id .> f) projSnd
   where
     projFst :: arr (s, b) s
     projFst = unitr . tensor id discard
@@ -104,15 +104,14 @@ unfuse (Body f) = Cell projSnd (tensor projFst id .> f)
 type MonoBody t s arr i o = Body t s arr (Either Void i) (o, ())
 
 newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly) = Machine
-  { machineCell :: Cell t s arr (Dir p) (Pos p)
-  }
+  {machineCell :: Cell t s arr (Dir p) (Pos p)}
 
 monoMachine ::
   (Tensor t arr, Unital (,) arr, Unital Either arr) =>
   Cell t s arr i o ->
   Machine t s arr (Mono i o)
-monoMachine (Cell o k) =
-  Machine (Cell (o .> unitr') (tensor id unitl .> k))
+monoMachine (Cell k o) =
+  Machine (Cell (tensor id unitl .> k) (o .> unitr'))
 
 data Poles ch arr a b = Poles
   { commit :: arr a ch,
@@ -140,21 +139,21 @@ copycat :: (Category arr) => Poles ch arr ch ch
 copycat = unclose id
 
 peek :: (Category arr) => Point t arr s -> Cell t s arr a b -> arr (Unit t) b
-peek pt (Cell o _) = runPoint pt .> o
+peek pt (Cell _ o) = runPoint pt .> o
 
 poke :: (Tensor t arr) => Point t arr s -> Cell t s arr a b -> arr a s
-poke pt (Cell _ k) = unitl' .> tensor (runPoint pt) id .> k
+poke pt (Cell k _) = unitl' .> tensor (runPoint pt) id .> k
 
 polesOf ::
   (Tensor t arr) =>
   Point t arr ch ->
   Machine t ch arr p ->
   Poles ch arr (Dir p) (Pos p)
-polesOf pt (Machine c@(Cell o _)) = Poles (poke pt c) o
+polesOf pt (Machine c@(Cell _ o)) = Poles (poke pt c) o
 
 cellOf :: (Tensor t arr) => Cap t arr ch -> Poles ch arr a b -> Cell t ch arr a b
 cellOf (Cap cap) (Poles w r) =
-  Cell r (tensor cap id .> unitl .> w)
+  Cell (tensor cap id .> unitl .> w) r
 
 data Process t s arr a b = Process
   { commit :: arr a s,
@@ -162,10 +161,10 @@ data Process t s arr a b = Process
   }
 
 processOf :: (Category arr) => arr a (t s a) -> Cell t s arr a b -> Process t s arr a b
-processOf e (Cell o k) = Process (e .> k) (Cell o k)
+processOf e (Cell k o) = Process (e .> k) (Cell k o)
 
 processFromSeed :: s -> Cell (,) s (->) a b -> Process (,) s (->) a b
-processFromSeed s0 (Cell o k) = Process (\a -> k (s0, a)) (Cell o k)
+processFromSeed s0 (Cell k o) = Process (\a -> k (s0, a)) (Cell k o)
 
 data Moore a b = forall s. Moore_ (a -> s) (Cell (,) s (->) a b)
 
@@ -174,9 +173,9 @@ pattern Moore ::
   (s -> a -> s) ->
   (s -> b) ->
   Moore a b
-pattern Moore i st ex <- Moore_ i (Cell ex (curry -> st))
+pattern Moore i st ex <- Moore_ i (Cell (curry -> st) ex)
   where
-    Moore i st ex = Moore_ i (Cell ex (uncurry st))
+    Moore i st ex = Moore_ i (Cell (uncurry st) ex)
 
 {-# COMPLETE Moore #-}
 
@@ -184,17 +183,17 @@ asMoore :: Process (,) s (->) a b -> Moore a b
 asMoore (Process i c) = Moore_ i c
 
 instance Functor (Moore a) where
-  fmap f (Moore_ i (Cell o k)) = Moore_ i (Cell (f . o) k)
+  fmap f (Moore_ i (Cell k o)) = Moore_ i (Cell k (f . o))
   {-# INLINEABLE fmap #-}
 
 instance Category Moore where
   id :: Moore a a
-  id = Moore_ id (Cell id snd)
+  id = Moore_ id (Cell snd id)
   {-# INLINE id #-}
 
   (.) :: Moore b c -> Moore a b -> Moore a c
-  Moore_ i2 (Cell o2 k2) . Moore_ i1 (Cell o1 k1) =
-    Moore_ inject (Cell extract step)
+  Moore_ i2 (Cell k2 o2) . Moore_ i1 (Cell k1 o1) =
+    Moore_ inject (Cell step extract)
     where
       inject a = let s1 = i1 a in (s1, i2 (o1 s1))
       step ((s1, s2), a) = let s1' = k1 (s1, a) in (s1', k2 (s2, o1 s1'))
@@ -279,7 +278,7 @@ register :: s -> Moore (a, s) (b, s) -> Moore a b
 register s0 (Moore i st ex) = Moore (\a -> i (a, s0)) (\s a -> st s (a, snd (ex s))) (fst . ex)
 
 scanProcess :: Process (,) s (->) a b -> [a] -> [b]
-scanProcess (Process c (Cell o k)) = \case
+scanProcess (Process c (Cell k o)) = \case
   [] -> []
   (a : as) -> let s0 = c a in o s0 : go s0 as
   where
@@ -293,7 +292,7 @@ fold :: Moore a b -> [a] -> Maybe b
 fold (Moore_ i c) = foldProcess (Process i c)
 
 foldProcess :: Process (,) s (->) a b -> [a] -> Maybe b
-foldProcess (Process c (Cell o k)) = \case
+foldProcess (Process c (Cell k o)) = \case
   [] -> Nothing
   (a : as) -> Just (go (c a) as)
   where
@@ -301,7 +300,7 @@ foldProcess (Process c (Cell o k)) = \case
     go s [] = o s
 
 scanThese :: forall s a b. Process (,) s (->) a b -> [a] -> [b]
-scanThese (Process c (Cell o k)) = \case
+scanThese (Process c (Cell k o)) = \case
   [] -> []
   (a : as) -> toList (unfold gen (Nothing, a, as))
   where
@@ -317,7 +316,7 @@ scanThese (Process c (Cell o k)) = \case
 type Cocell t ch arr a b = Cell t ch (Op arr) a b
 
 cocell :: arr b ch -> arr ch (t ch a) -> Cocell t ch arr a b
-cocell o s = Cell (Op o) (Op s)
+cocell o s = Cell (Op s) (Op o)
 
 pair ::
   forall t chP chC arr a x b.
@@ -325,12 +324,12 @@ pair ::
   Cocell t chP arr a x ->
   Cell t chC arr a b ->
   Cell t (t chP chC) arr (Unit t) b
-pair (Cell _ pk) (Cell o k) = Cell observeP stepP
+pair (Cell pk _) (Cell k o) = Cell consumeP produceP
   where
-    observeP :: arr (t chP chC) b
-    observeP = tensor (discardT @t) o .> unitl
-    stepP :: arr (t (t chP chC) (Unit t)) (t chP chC)
-    stepP = unitr .> tensor (runOp pk) idC .> assoc .> tensor idP (braid .> k)
+    produceP :: arr (t chP chC) b
+    produceP = tensor (discardT @t) o .> unitl
+    consumeP :: arr (t (t chP chC) (Unit t)) (t chP chC)
+    consumeP = unitr .> tensor (runOp pk) idC .> assoc .> tensor idP (braid .> k)
     idP :: arr chP chP
     idP = id
     idC :: arr chC chC
@@ -371,16 +370,16 @@ instance Unfold These (->) where
         These ch' b -> b <| go ch'
 
 cellAsLens :: Cell (,) s (->) i o -> Lens s s o i
-cellAsLens (Cell o k) = lens o (curry k)
+cellAsLens (Cell k o) = lens o (curry k)
 
 lensAsCell :: Lens s s o i -> Cell (,) s (->) i o
-lensAsCell m = Cell (fst . applyLens m) (\(s, i) -> snd (applyLens m s) i)
+lensAsCell m = Cell (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
 
 cellAsEval :: Cell (,) s (->) i o -> s -> Eval (Mono i o) s
-cellAsEval (Cell o k) s = EP (EK (o s), EE (\i -> k (s, i)))
+cellAsEval (Cell k o) s = EP (EK (o s), EE (\i -> k (s, i)))
 
 evalAsCell :: (s -> Eval (Mono i o) s) -> Cell (,) s (->) i o
 evalAsCell f =
   Cell
-    (\s -> case f s of EP (EK o, _) -> o)
     (\(s, i) -> case f s of EP (_, EE g) -> g i)
+    (\s -> case f s of EP (EK o, _) -> o)
