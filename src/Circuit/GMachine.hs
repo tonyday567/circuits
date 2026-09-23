@@ -7,9 +7,9 @@
 
 module Circuit.GMachine
   ( Cell (..),
-    GCell (..),
-    gcell,
     Body (..),
+    cellAsBody,
+    Stratum (..),
     ChannelA,
     MonoBody,
     monoIn,
@@ -69,53 +69,53 @@ import Data.Void (Void)
 import Prelude hiding (id, (.))
 
 data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
-  { consume :: arr (t ch i) ch,
-    produce :: arr ch o
+  { write :: arr (t ch i) ch,
+    observe :: arr ch o
   }
 
-data GCell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GCell
-  { gconsume :: arr (t ch i) ch,
-    gproduce :: arr ch (t ch o)
+data Body (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Body
+  { consume :: arr (t ch i) ch,
+    produce :: arr ch (t ch o)
   }
 
 -- Cell to the update package: copy-gated, the same price fuse pays.
-gcell :: (CopyT t arr ch) => Cell t ch arr i o -> GCell t ch arr i o
-gcell (Cell k p) = GCell k (copyT .> tensor id p)
+cellAsBody :: (CopyT t arr ch) => Cell t ch arr i o -> Body t ch arr i o
+cellAsBody (Cell k p) = Body k (copyT .> tensor id p)
 
-newtype Body t ch arr i o = Body {morphism :: arr (t ch i) (t ch o)}
+newtype Stratum t ch arr i o = Stratum {morphism :: arr (t ch i) (t ch o)}
 
-type ChannelA ch arr i o = Body (,) ch arr i o
+type ChannelA ch arr i o = Stratum (,) ch arr i o
 
-instance (Category arr) => Category (Body t ch arr) where
-  id :: forall a. Body t ch arr a a
-  id = Body id
+instance (Category arr) => Category (Stratum t ch arr) where
+  id :: forall a. Stratum t ch arr a a
+  id = Stratum id
   {-# INLINE id #-}
 
-  (.) :: forall a b c. Body t ch arr b c -> Body t ch arr a b -> Body t ch arr a c
-  Body g . Body f = Body (g . f)
+  (.) :: forall a b c. Stratum t ch arr b c -> Stratum t ch arr a b -> Stratum t ch arr a c
+  Stratum g . Stratum f = Stratum (g . f)
   {-# INLINE (.) #-}
 
 fuse ::
   forall t s arr a b.
   (CopyT t arr (t s a), DiscardT t arr a) =>
   Cell t s arr a b ->
-  Body t s arr a b
+  Stratum t s arr a b
 fuse (Cell k o) =
-  Body (tensor k (o . unitr . tensor id (discardT @t)) . copyT)
+  Stratum (tensor k (o . unitr . tensor id (discardT @t)) . copyT)
 
 unfuse ::
   forall s arr i o.
   (Tensor (,) arr, Discard arr s, Discard arr o) =>
   ChannelA s arr i o ->
   Cell (,) (s, o) arr i o
-unfuse (Body f) = Cell (tensor projFst id .> f) projSnd
+unfuse (Stratum f) = Cell (tensor projFst id .> f) projSnd
   where
     projFst :: arr (s, o) s
     projFst = unitr . tensor id discard
     projSnd :: arr (s, o) o
     projSnd = unitl . tensor discard id
 
-type MonoBody t s arr i o = Body t s arr (Either Void i) (o, ())
+type MonoBody t s arr i o = Stratum t s arr (Either Void i) (o, ())
 
 newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly) = Machine
   {machineCell :: Cell t s arr (Dir p) (Pos p)}
