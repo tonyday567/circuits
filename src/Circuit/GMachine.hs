@@ -7,7 +7,10 @@
 
 module Circuit.GMachine
   ( Cell (..),
+    GCell (..),
+    gcell,
     Body (..),
+    ChannelA,
     MonoBody,
     monoIn,
     monoDir,
@@ -70,7 +73,18 @@ data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cel
     produce :: arr ch o
   }
 
-newtype Body t ch arr a b = Body {morphism :: arr (t ch a) (t ch b)}
+data GCell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GCell
+  { gconsume :: arr (t ch i) ch,
+    gproduce :: arr ch (t ch o)
+  }
+
+-- Cell to the update package: copy-gated, the same price fuse pays.
+gcell :: (CopyT t arr ch) => Cell t ch arr i o -> GCell t ch arr i o
+gcell (Cell k p) = GCell k (copyT .> tensor id p)
+
+newtype Body t ch arr i o = Body {morphism :: arr (t ch i) (t ch o)}
+
+type ChannelA ch arr i o = Body (,) ch arr i o
 
 instance (Category arr) => Category (Body t ch arr) where
   id :: forall a. Body t ch arr a a
@@ -90,15 +104,15 @@ fuse (Cell k o) =
   Body (tensor k (o . unitr . tensor id (discardT @t)) . copyT)
 
 unfuse ::
-  forall s arr a b.
-  (Tensor (,) arr, Discard arr s, Discard arr b) =>
-  Body (,) s arr a b ->
-  Cell (,) (s, b) arr a b
+  forall s arr i o.
+  (Tensor (,) arr, Discard arr s, Discard arr o) =>
+  ChannelA s arr i o ->
+  Cell (,) (s, o) arr i o
 unfuse (Body f) = Cell (tensor projFst id .> f) projSnd
   where
-    projFst :: arr (s, b) s
+    projFst :: arr (s, o) s
     projFst = unitr . tensor id discard
-    projSnd :: arr (s, b) b
+    projSnd :: arr (s, o) o
     projSnd = unitl . tensor discard id
 
 type MonoBody t s arr i o = Body t s arr (Either Void i) (o, ())
