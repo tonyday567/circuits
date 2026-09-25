@@ -1,4 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -32,6 +34,10 @@ module Circuit.GMachine
     Process (..),
     processOf,
     processFromSeed,
+    GMoore (..),
+    GMooreT (..),
+    TensorSchedule (..),
+    scanT,
     Moore,
     pattern Moore,
     asMoore,
@@ -64,9 +70,9 @@ import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..), toList, (<|))
-import Data.These (These (..))
+import Data.These (These (..), these)
 import Data.Void (Void)
-import Prelude hiding (id, (.))
+import Prelude hiding (id, init, (.))
 
 data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
   { write :: arr (t ch i) ch,
@@ -290,6 +296,53 @@ delay s0 = Moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
 
 register :: s -> Moore (a, s) (b, s) -> Moore a b
 register s0 (Moore i st ex) = Moore (\a -> i (a, s0)) (\s a -> st s (a, snd (ex s))) (fst . ex)
+
+data GMoore (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GMoore
+  { init :: arr i ch,
+    cell :: Cell t ch arr i o
+  }
+
+data GMooreT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) i o
+  = forall ch.
+    GMooreT (GMoore t ch arr i o)
+
+-- The constructor grammar of t priced as one method.
+-- Law: echoFold . tensor f f = f . echoFold
+class (Tensor t arr) => TensorSchedule t arr where
+  echoFold :: arr (t a a) a
+
+instance TensorSchedule (,) (->) where
+  echoFold = snd
+  {-# INLINE echoFold #-}
+
+instance TensorSchedule Either (->) where
+  echoFold = either id id
+  {-# INLINE echoFold #-}
+
+instance TensorSchedule These (->) where
+  echoFold = these id id (\_ i -> i)
+  {-# INLINE echoFold #-}
+
+instance (TensorSchedule t (->)) => Category (GMooreT t (->)) where
+  id = GMooreT (GMoore id (Cell echoFold id))
+  {-# INLINE id #-}
+  GMooreT (GMoore j2 (Cell k2 e2)) . GMooreT (GMoore j1 (Cell k1 e1)) =
+    GMooreT (GMoore j (Cell k e))
+    where
+      j i = let c1 = j1 i in (c1, j2 (e1 c1))
+      k x = let c1' = k1 (tensor fst id x) in (c1', k2 (tensor snd (const (e1 c1')) x))
+      e = e2 . snd
+  {-# INLINE (.) #-}
+
+-- Input-list elimination: each step injects the input through the
+-- tensor's own left unit — memoryless at Either, That-biased at These.
+scanT :: (TensorSchedule t (->)) => GMooreT t (->) i o -> [i] -> [o]
+scanT (GMooreT (GMoore j (Cell k e))) = \case
+  [] -> []
+  (i : is) -> let c = j i in e c : go c is
+  where
+    go _ [] = []
+    go c (i : is) = let c' = k (tensor (const c) id (unitl' i)) in e c' : go c' is
 
 scanProcess :: Process (,) s (->) a b -> [a] -> [b]
 scanProcess (Process c (Cell k o)) = \case
