@@ -634,7 +634,7 @@ instance {-# OVERLAPPABLE #-} (Merge arr a, Tensor (,) arr) => MergeT (,) arr a 
 -- uniform in a way the cartesian merge is not. This uniformity is the
 -- coproduct fact the trace-to-iteration correspondence lives on:
 -- @unfold g = yank (g . plusT)@ at 'Either', stated and cited in
--- "Circuit.Cell"'s 'Circuit.Cell.Unfold'.
+-- "Circuit.GMachine"'s 'Circuit.GMachine.Unfold'.
 --
 -- >>> (plusT :: Either Int Int -> Int) (Left 3)
 -- 3
