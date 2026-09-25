@@ -29,6 +29,9 @@ module Circuit.Shared
     -- * Receipt transcripts
     transcriptSharedBy,
 
+    -- * Receipt tokens
+    Stamped (..),
+
     -- * Shared-medium fusion signature
     SigShared (..),
 
@@ -38,7 +41,6 @@ module Circuit.Shared
 where
 
 import Circuit.Category (K (..))
-import Circuit.Equip (Stamped (..))
 import Circuit.Syntax
   ( Algebra (..),
     SigCompose,
@@ -47,9 +49,13 @@ import Circuit.Syntax
   )
 import Circuit.Tensor (Bias (..), Tensor (..))
 import Circuit.Trace (SigYank)
+import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.These (These (..))
 import Prelude hiding (id, (.))
+
+-- $setup
+-- >>> import Circuit.Shared
 
 -- | A schedule decision: which poles advance on a shared channel.
 --
@@ -142,6 +148,38 @@ instance (Monad m) => Shared (,) (K m) where
           (s''', b) <- f (s'', a)
           pure (s''', These b d)
   {-# INLINE sharedBy #-}
+
+-- | Occurrence-tokens for values.
+--
+-- A 'Stamped' value pairs an occurrence token (a /stamp/) with a payload.
+-- The stamp is an observation receipt: an id, a timestamp, a line number,
+-- or any other token that names the occurrence without changing the
+-- payload's meaning.
+--
+-- === Free theorem
+--
+-- The stamp is untouched by payload mapping:
+--
+-- @
+-- stamp (fmap f s) = stamp s
+-- stamped (fmap f s) = f (stamped s)
+-- @
+--
+-- >>> let s = Stamped 42 "hello"
+-- >>> stamp (fmap reverse s)
+-- 42
+-- >>> stamped (fmap reverse s)
+-- "olleh"
+data Stamped r a = Stamped
+  { -- | Occurrence token / receipt.  Not touched by 'fmap'.
+    stamp :: r,
+    -- | The labelled payload.
+    stamped :: a
+  }
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor Stamped where
+  bimap f g (Stamped r a) = Stamped (f r) (g a)
 
 -- | Run two bodies under a schedule, collecting a receipt transcript.
 --

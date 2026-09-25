@@ -5,7 +5,7 @@
 -- "Span" equipments that residual is remembered on the nose: composition is a
 -- pullback of apexes, and an optic between spans is just an apex map
 -- commuting with the legs.  In @circuits@ the same shape appears as
--- @Body t ch arr a b@, with the channel @ch@ playing the role of the apex.
+-- @Stratum t ch arr a b@, with the channel @ch@ playing the role of the apex.
 module Circuit.Span
   ( Span (..),
     pairs,
@@ -27,8 +27,8 @@ module Circuit.Span
   )
 where
 
-import Circuit.Body (Body (..))
 import Circuit.Category (id, (.))
+import Circuit.GMachine (Stratum (..))
 import Data.Maybe (fromMaybe)
 import Prelude hiding (id, (.))
 
@@ -117,9 +117,9 @@ refinesS p q = all (`elem` pairs q) (pairs p)
 --
 -- The result is partial on inputs that do not occur as a left leg; the caller
 -- is responsible for supplying valid inputs.
-bodyFromSpan :: (Eq a) => Span a b -> Body (,) [a] (->) a b
+bodyFromSpan :: (Eq a) => Span a b -> Stratum (,) [a] (->) a b
 bodyFromSpan sp =
-  Body $ \(ch, a) ->
+  Stratum $ \(ch, a) ->
     let b = fromMaybe (error "bodyFromSpan: input not in left leg") (lookup a (pairs sp))
      in (ch, b)
 
@@ -128,8 +128,8 @@ bodyFromSpan sp =
 -- The supplied list @as@ is taken as the apex; the left leg is the identity and
 -- the right leg runs the body.  This is a partial inverse to 'bodyFromSpan' up
 -- to the Rel-rung quotient (same 'pairs').
-spanFromBody :: (Eq a) => [a] -> Body (,) [a] (->) a b -> Span a b
-spanFromBody as (Body f) = Span as id (snd . f . (as,))
+spanFromBody :: (Eq a) => [a] -> Stratum (,) [a] (->) a b -> Span a b
+spanFromBody as (Stratum f) = Span as id (snd . f . (as,))
 
 -- | Directed Hausdorff distance between two spans over a common boundary:
 --

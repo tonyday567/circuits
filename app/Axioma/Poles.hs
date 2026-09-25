@@ -14,7 +14,6 @@ import Circuit.Container (SomePos (..), posAt, posOf)
 import Circuit.Equip
   ( Boundary (..),
     Poles (..),
-    Stamped (..),
     box,
     close,
     companionTight,
@@ -34,6 +33,7 @@ import Circuit.Equip qualified as Poles
 import Circuit.Machine (Machine, MachineObs (..), branchMachine, machine, machineMorphism, machineObsWith, machineToPolesAt)
 import Circuit.Poly (Dir, Mono, Poly (..))
 import Circuit.Process (Moore (..), Process (..), asMoore, fold, markMoore, markProcess, scan, scanProcess)
+import Circuit.Shared (Stamped (..))
 import Circuit.Tensor (Bias (..))
 import Control.Monad (void, when)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)

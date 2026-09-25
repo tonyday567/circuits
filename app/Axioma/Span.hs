@@ -6,6 +6,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Body (Body (..), seqCompose)
+import Circuit.GMachine (Stratum (..))
 import Circuit.Process (bodyToMoore, scan)
 import Circuit.Span
   ( Span (..),
@@ -86,7 +87,7 @@ spanTopic verbosity = do
       -- Body-bridge oracles (use an injective left leg so the lookup is faithful)
       checkV verbosity "bodyFromSpan runs the span as a lookup body" $
         let sp0 = Span [W1, W2, W3] id spR
-            Body f = bodyFromSpan sp0
+            Stratum f = bodyFromSpan sp0
             inputs = [W1, W2, W3]
          in snd (f (inputs, W1)) == spR W1
               && snd (f (inputs, W3)) == spR W3,
@@ -98,7 +99,8 @@ spanTopic verbosity = do
       checkV verbosity "bodyFromSpan runs the apex-list channel" $
         let sp0 = Span [W1, W2, W3] id spR
             inputs = [W1, W2, W3]
-         in scan (bodyToMoore (bodyFromSpan sp0) inputs) inputs == map spR [W1, W2, W3],
+            Stratum f = bodyFromSpan sp0
+         in scan (bodyToMoore (Body f) inputs) inputs == map spR [W1, W2, W3],
       checkV verbosity "span composition agrees with body cascade on pairs" $
         let p :: Span Pin Bit
             p = Span [W1, W2, W3] spL (\case W1 -> O; W2 -> O; W3 -> I)
@@ -106,8 +108,10 @@ spanTopic verbosity = do
             q = Span [P1, P2] (\case P1 -> O; P2 -> I) (\case P1 -> Lo; P2 -> Hi)
             inputs = map spL [W1, W2, W3]
             qInputs = [O, I]
-            Body direct = bodyFromSpan (q `composeS` p)
-            Body cascaded = seqCompose (bodyFromSpan q) (bodyFromSpan p)
+            Stratum direct = bodyFromSpan (q `composeS` p)
+            Stratum runQ = bodyFromSpan q
+            Stratum runP = bodyFromSpan p
+            Body cascaded = seqCompose (Body runQ) (Body runP)
          in all
               (\a -> snd (direct (inputs, a)) == snd (cascaded ((inputs, qInputs), a)))
               inputs
