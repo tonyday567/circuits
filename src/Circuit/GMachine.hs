@@ -19,7 +19,6 @@ module Circuit.GMachine
     fuse,
     unfuse,
     Machine (..),
-    monoMachine,
     Poles (..),
     Point (..),
     Cap (..),
@@ -132,13 +131,6 @@ type MonoBody t s arr i o = Stratum t s arr (Either Void i) (o, ())
 
 newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly) = Machine
   {machineCell :: Cell t s arr (Dir p) (Pos p)}
-
-monoMachine ::
-  (Tensor t arr, Unital (,) arr, Unital Either arr) =>
-  Cell t s arr i o ->
-  Machine t s arr (Mono i o)
-monoMachine (Cell k o) =
-  Machine (Cell (tensor id unitl .> k) (o .> unitr'))
 
 data Poles ch arr a b = Poles
   { commit :: arr a ch,

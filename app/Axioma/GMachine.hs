@@ -77,7 +77,7 @@ sumG :: GMooreT (,) (->) Int Int
 sumG = GMooreT (GMoore id (Cell (uncurry (+)) id))
 
 prodG :: GMooreT (,) (->) Int Int
-prodG = GMooreT (GMoore (* 10) (Cell (\(c, i) -> c * i) id))
+prodG = GMooreT (GMoore (* 10) (Cell (uncurry (*)) id))
 
 countG :: GMooreT (,) (->) Int Int
 countG = GMooreT (GMoore (const 100) (Cell (\(c, _) -> c + 1) id))
