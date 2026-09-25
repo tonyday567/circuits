@@ -61,6 +61,7 @@ module Circuit.GMachine
     pair,
     closedToGenerator,
     Unfold (..),
+    observe',
     cellAsLens,
     lensAsCell,
     cellAsEval,
@@ -78,7 +79,7 @@ import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..), toList, (<|))
 import Data.These (These (..), these)
 import Data.Void (Void)
-import Prelude hiding (id, init, (.))
+import Prelude hiding (id, init, read, (.))
 
 data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
   { absorb :: arr (t ch i) ch,
@@ -133,8 +134,8 @@ newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :
   {machineCell :: Cell t s arr (Dir p) (Pos p)}
 
 data Poles ch arr a b = Poles
-  { commit :: arr a ch,
-    observe :: arr ch b
+  { write :: arr a ch,
+    read :: arr ch b
   }
 
 newtype Point t arr ch = Point
@@ -455,6 +456,9 @@ instance Unfold These (->) where
         This ch' -> go ch'
         That b -> b :| []
         These ch' b -> b <| go ch'
+
+observe' :: Cell (,) s (->) i o -> (s, i) -> o
+observe' (Cell k o) (s, i) = o (k (s, i))
 
 cellAsLens :: Cell (,) s (->) i o -> Lens s s o i
 cellAsLens (Cell k o) = lens o (curry k)
