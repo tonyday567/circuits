@@ -37,7 +37,6 @@ module Circuit.GMachine
     poke,
     polesOf,
     cellOf,
-    Process (..),
     processOf,
     processFromSeed,
     GMoore (..),
@@ -196,16 +195,11 @@ cellOf :: (Tensor t arr) => Cap t arr ch -> Poles ch arr a b -> Cell t ch arr a 
 cellOf (Cap cap) (Poles w r) =
   Cell (tensor cap id .> unitl .> w) r
 
-data Process t s arr a b = Process
-  { commit :: arr a s,
-    cell :: Cell t s arr a b
-  }
+processOf :: (Category arr) => arr a (t s a) -> Cell t s arr a b -> GMoore t s arr a b
+processOf e (Cell k o) = GMoore (e .> k) (Cell k o)
 
-processOf :: (Category arr) => arr a (t s a) -> Cell t s arr a b -> Process t s arr a b
-processOf e (Cell k o) = Process (e .> k) (Cell k o)
-
-processFromSeed :: s -> Cell (,) s (->) a b -> Process (,) s (->) a b
-processFromSeed s0 (Cell k o) = Process (\a -> k (s0, a)) (Cell k o)
+processFromSeed :: s -> Cell (,) s (->) a b -> GMoore (,) s (->) a b
+processFromSeed s0 (Cell k o) = GMoore (\a -> k (s0, a)) (Cell k o)
 
 data Moore a b = forall s. Moore_ (a -> s) (Cell (,) s (->) a b)
 
@@ -220,8 +214,8 @@ pattern Moore i st ex <- Moore_ i (Cell (curry -> st) ex)
 
 {-# COMPLETE Moore #-}
 
-asMoore :: Process (,) s (->) a b -> Moore a b
-asMoore (Process i c) = Moore_ i c
+asMoore :: GMoore (,) s (->) a b -> Moore a b
+asMoore (GMoore i c) = Moore_ i c
 
 instance Functor (Moore a) where
   fmap f (Moore_ i (Cell k o)) = Moore_ i (Cell k (f . o))
@@ -365,8 +359,8 @@ scanT (GMooreT (GMoore j (Cell k e))) = \case
     go _ [] = []
     go c (i : is) = let c' = k (tensor (const c) id (unitl' i)) in e c' : go c' is
 
-scanProcess :: Process (,) s (->) a b -> [a] -> [b]
-scanProcess (Process c (Cell k o)) = \case
+scanProcess :: GMoore (,) s (->) a b -> [a] -> [b]
+scanProcess (GMoore c (Cell k o)) = \case
   [] -> []
   (a : as) -> let s0 = c a in o s0 : go s0 as
   where
@@ -374,21 +368,21 @@ scanProcess (Process c (Cell k o)) = \case
     go _ [] = []
 
 scan :: Moore a b -> [a] -> [b]
-scan (Moore_ i c) = scanProcess (Process i c)
+scan (Moore_ i c) = scanProcess (GMoore i c)
 
 fold :: Moore a b -> [a] -> Maybe b
-fold (Moore_ i c) = foldProcess (Process i c)
+fold (Moore_ i c) = foldProcess (GMoore i c)
 
-foldProcess :: Process (,) s (->) a b -> [a] -> Maybe b
-foldProcess (Process c (Cell k o)) = \case
+foldProcess :: GMoore (,) s (->) a b -> [a] -> Maybe b
+foldProcess (GMoore c (Cell k o)) = \case
   [] -> Nothing
   (a : as) -> Just (go (c a) as)
   where
     go s (a : as) = go (k (s, a)) as
     go s [] = o s
 
-scanThese :: forall s a b. Process (,) s (->) a b -> [a] -> [b]
-scanThese (Process c (Cell k o)) = \case
+scanThese :: forall s a b. GMoore (,) s (->) a b -> [a] -> [b]
+scanThese (GMoore c (Cell k o)) = \case
   [] -> []
   (a : as) -> toList (unfold gen (Nothing, a, as))
   where
