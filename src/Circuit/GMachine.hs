@@ -75,7 +75,7 @@ import Data.Void (Void)
 import Prelude hiding (id, init, (.))
 
 data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
-  { write :: arr (t ch i) ch,
+  { absorb :: arr (t ch i) ch,
     observe :: arr ch o
   }
 
