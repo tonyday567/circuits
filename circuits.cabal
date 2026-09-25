@@ -49,7 +49,6 @@ library
     Circuit.Bimonoid
     Circuit.Body
     Circuit.Category
-    Circuit.Cell
     Circuit.Container
     Circuit.Equip
     Circuit.GMachine
