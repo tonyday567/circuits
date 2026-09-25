@@ -27,6 +27,13 @@ module Circuit.GMachine
     close,
     unclose,
     copycat,
+    poles0,
+    polesK,
+    splay0,
+    compose,
+    imap,
+    iomap,
+    omap,
     peek,
     poke,
     polesOf,
@@ -63,7 +70,7 @@ module Circuit.GMachine
 where
 
 import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
-import Circuit.Category (Category (..), Op (..), (.>))
+import Circuit.Category (Category (..), K (..), Op (..), (.>))
 import Circuit.Poly (Dir, Eval (..), Lens, Mono, Poly, Pos, applyLens, lens, monoDir, monoIn)
 import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -157,6 +164,27 @@ unclose f = Poles f id
 
 copycat :: (Category arr) => Poles ch arr ch ch
 copycat = unclose id
+
+poles0 :: arr a () -> arr () b -> Poles () arr a b
+poles0 = Poles
+
+polesK :: (a -> m ()) -> m b -> Poles () (K m) a b
+polesK write receive = Poles (K write) (K $ const receive)
+
+splay0 :: Poles () arr a b -> (arr a (), arr () b)
+splay0 (Poles c o) = (c, o)
+
+compose :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
+compose (Poles c1 o1) (Poles c2 o2) = Poles c1 (o1 .> c2 .> o2)
+
+iomap :: (Category arr) => arr a' a -> arr b b' -> Poles ch arr a b -> Poles ch arr a' b'
+iomap f g (Poles c o) = Poles (f .> c) (o .> g)
+
+imap :: (Category arr) => arr a' a -> Poles ch arr a b -> Poles ch arr a' b
+imap f (Poles c o) = Poles (f .> c) o
+
+omap :: (Category arr) => arr b b' -> Poles ch arr a b -> Poles ch arr a b'
+omap g (Poles c o) = Poles c (o .> g)
 
 peek :: (Category arr) => Point t arr s -> Cell t s arr a b -> arr (Unit t) b
 peek pt (Cell _ o) = runPoint pt .> o
