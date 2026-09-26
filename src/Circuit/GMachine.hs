@@ -71,7 +71,7 @@ where
 import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
 import Circuit.Category (Category (..), K (..), Op (..), (.>))
 import Circuit.Poly (Dir, Eval (..), Lens, Mono, Poly, Pos, applyLens, lens, monoDir, monoIn)
-import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
+import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -316,13 +316,17 @@ instance Unital (,) (GMooreT (,) (->)) where
   unitr = Moore fst (\_ (a, ()) -> a) id
   unitr' = Moore id (\_ x -> x) (,())
 
-instance Tensor (,) (GMooreT (,) (->)) where
+instance SemiTensor (,) (GMooreT (,) (->)) where
   tensor (Moore i1 st1 ex1) (Moore i2 st2 ex2) =
     Moore
       (bimap i1 i2)
       (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
       (bimap ex1 ex2)
   {-# INLINE tensor #-}
+
+-- | 'Tensor' for 'GMooreT' is the conjunction: 'Unital' (GMachine) plus
+-- this 'SemiTensor'.
+instance Tensor (,) (GMooreT (,) (->))
 
 instance Action (,) (GMooreT (,) (->)) where
   braid = Moore id (const id) sw
@@ -389,7 +393,7 @@ cocell o s = Cell (Op s) (Op o)
 
 pair ::
   forall t chP chC arr a x b.
-  (Action t arr, Assoc t arr, DiscardT t arr chP) =>
+  (Action t arr, DiscardT t arr chP) =>
   Cocell t chP arr a x ->
   Cell t chC arr a b ->
   Cell t (t chP chC) arr (Unit t) b

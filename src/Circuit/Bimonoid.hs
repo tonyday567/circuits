@@ -82,7 +82,7 @@ where
 
 import Circuit.Category (Category (..))
 import Circuit.Syntax (Algebra (..), (:+:) (..))
-import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
+import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
@@ -409,9 +409,13 @@ instance (Unital t arr) => Unital t (Dagger arr) where
   unitr' = Dagger unitr' unitr
   {-# INLINE unitr' #-}
 
-instance (Tensor t arr) => Tensor t (Dagger arr) where
+instance (SemiTensor t arr) => SemiTensor t (Dagger arr) where
   tensor (Dagger f g) (Dagger f' g') = Dagger (tensor f f') (tensor g g')
   {-# INLINE tensor #-}
+
+-- | 'Tensor' for 'Dagger' is the conjunction: the 'Unital' dagger above
+-- plus this 'SemiTensor' dagger.
+instance (Tensor t arr) => Tensor t (Dagger arr)
 
 instance (Action t arr) => Action t (Dagger arr) where
   braid = Dagger braid braid

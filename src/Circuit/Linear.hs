@@ -38,7 +38,7 @@ module Circuit.Linear
 where
 
 import Circuit.Category (Category (..), K (..))
-import Circuit.Tensor (Tensor (..), Unit)
+import Circuit.Tensor (Tensor, Unit)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.Void (Void, absurd)

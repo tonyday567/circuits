@@ -27,7 +27,9 @@
 -- bare 'assoc'/'assoc'' namespace, which belongs to the 'Circuit.Traced.Assoc'
 -- class imported throughout this module.
 --
--- 'Tensor' / 'Action' are kind-polymorphic.
+-- 'SemiTensor' / 'Tensor' / 'Action' are kind-polymorphic, forming the
+-- ladder from parallel composition through unitors to braiding; 'Const'
+-- is the forgetful semigroupoidal tensor that stops at the first rung.
 module Circuit.Tensor
   ( -- * Fused parallel composition
     superpose,
@@ -38,11 +40,15 @@ module Circuit.Tensor
     -- * Channel product on base arrows
     Unit,
     Unital (..),
-    Tensor (..),
+    SemiTensor (..),
+    Tensor,
     Action (..),
 
     -- * Distributivity of two tensors (multiplicative over additive)
     Distributive (..),
+
+    -- * Forgetful semigroupoidal tensor
+    Const (..),
 
     -- * Cartesian / cocartesian associators
     reassocL,
@@ -72,7 +78,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XLambdaCase
 -- >>> import Circuit.Trace (SigYank (..), Trace)
--- >>> import Circuit.Traced (yank)
+-- >>> import Circuit.Traced (Assoc (..), yank)
 -- >>> import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 -- >>> import Circuit.Category (K (..), runK, (.))
 -- >>> import Data.Functor.Identity (Identity)
@@ -207,18 +213,31 @@ class (Category arr) => Unital t arr where
   -- | Inverse right unitor: @a -> a ⊗ I@.
   unitr' :: arr a (t a (Unit t))
 
--- | The tensor action of @t@ on a category @arr@, without braiding.
+-- | The semigroupoidal tensor action of @t@ on a category @arr@:
+-- parallel composition on disjoint wires, before any unit structure.
 --
--- 'tensor' is the tensor product of morphisms (parallel composition on
--- disjoint wires). The unitors live in the 'Unital' superclass.
+-- 'tensor' is the tensor product of morphisms. Reassociation is inherited
+-- from the 'Assoc' superclass; the unitors, for tensors that have them,
+-- live in 'Unital', and the braiding in 'Action'. Not every tensor climbs
+-- the whole ladder: 'Const' is semigroupoidal only, since its would-be
+-- right unitor would have to manufacture a payload from nothing.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
-class (Unital t arr) => Tensor t arr where
+class (Category arr, Assoc t arr) => SemiTensor t arr where
   -- | Parallel composition: run two arrows on disjoint wires.
   --
   -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (3, 4)
   -- (4,8)
   tensor :: arr a b -> arr c d -> arr (t a c) (t b d)
+
+-- | The tensor action of @t@ on a category @arr@, without braiding.
+--
+-- 'Tensor' names the combination: 'tensor' from 'SemiTensor' together
+-- with the unit object structure from 'Unital'. The braiding stays at
+-- 'Action'.
+--
+-- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
+class (Unital t arr, SemiTensor t arr) => Tensor t arr
 
 -- | The action of a tensor @t@ on a category @arr@, extended with a
 -- symmetric braiding.
@@ -232,6 +251,52 @@ class (Tensor t arr) => Action t arr where
   -- >>> braid (3, 4) :: (Int, Int)
   -- (4,3)
   braid :: arr (t a b) (t b a)
+
+-- * The forgetful tensor
+
+-- | The forgetful semigroupoidal tensor: payload projection with a
+-- decorative phantom channel.
+--
+-- @Const ch i@ carries exactly one payload @i@; the channel type @ch@ is
+-- decorative — a phantom that exists only to give the tensor its
+-- two-parameter shape and is ignored by every operation, openly. 'tensor'
+-- discards its first arrow and maps the payload with the second, so the
+-- left input map is absorbed (committed from the input alone) rather than
+-- run: on the left wire nothing is observable, by construction.
+--
+-- 'Const' is semigroupoidal only. There is no unit: the right unitor is
+-- impossible, because it would have to eliminate a phantom unit by
+-- manufacturing a payload from nothing; the left unitor, which merely
+-- projects the sole payload, would be free, but one unitor is not a unit.
+-- Braiding is impossible as well — a payload cannot be swapped with a
+-- phantom. 'Const' therefore receives 'SemiTensor' and 'Assoc' instances
+-- only, never 'Unital', 'Tensor', or 'Action', and the witnesses in
+-- "Axioma.SemiTensor" are named for these counterexamples.
+-- A 'data' spelling is deliberate: the phantom slot stays decorative and
+-- the payload lazy, as the haddock above says openly (see .hlint.yaml).
+data Const ch i = Const i
+  deriving (Eq, Show)
+
+-- | Reassociation for 'Const' is the payload identity: both directions
+-- carry the payload across unchanged and only re-nest the phantoms around
+-- it.
+--
+-- >>> assoc (Const 7 :: Const (Const Bool Char) Int)
+-- Const (Const 7)
+--
+-- >>> assoc' (Const (Const 7) :: Const Char (Const Bool Int))
+-- Const 7
+instance Assoc Const (->) where
+  assoc (Const x) = Const (Const x)
+  assoc' (Const (Const x)) = Const x
+
+-- | The 'Const' tensor discards its first arrow and maps the payload with
+-- the second — the left leg is the absorb.
+--
+-- >>> tensor (succ :: Char -> Char) (* 2) (Const 7 :: Const Char Int)
+-- Const 14
+instance SemiTensor Const (->) where
+  tensor _f g (Const x) = Const (g x)
 
 -- * Distributivity
 
@@ -278,9 +343,12 @@ instance Unital (,) (->) where
   {-# INLINE unitr' #-}
 
 -- | Cartesian tensor action on functions.
-instance Tensor (,) (->) where
+instance SemiTensor (,) (->) where
   tensor f g (a, c) = (f a, g c)
   {-# INLINE tensor #-}
+
+-- | Cartesian tensor on functions: 'SemiTensor' with the 'Unital' unit.
+instance Tensor (,) (->)
 
 -- | Cartesian symmetry on functions.
 instance Action (,) (->) where
@@ -326,13 +394,16 @@ instance (Monad m) => Unital (,) (K m) where
   {-# INLINE unitr' #-}
 
 -- | Cartesian tensor on @K@ (effectful sequential product).
-instance (Monad m) => Tensor (,) (K m) where
+instance (Monad m) => SemiTensor (,) (K m) where
   tensor (K f) (K g) =
     K $ \(a, c) -> do
       b <- f a
       d <- g c
       pure (b, d)
   {-# INLINE tensor #-}
+
+-- | Cartesian tensor on @K@: 'SemiTensor' with the 'Unital' unit.
+instance (Monad m) => Tensor (,) (K m)
 
 instance (Monad m) => Action (,) (K m) where
   braid = K $ \(a, b) -> pure (b, a)
@@ -392,9 +463,12 @@ instance Unital Either (->) where
 --
 -- >>> tensor ((+1) :: Int -> Int) ((*2) :: Int -> Int) (Right 3 :: Either Int Int)
 -- Right 6
-instance Tensor Either (->) where
+instance SemiTensor Either (->) where
   tensor = bimap
   {-# INLINE tensor #-}
+
+-- | Coproduct tensor on functions: 'SemiTensor' with the 'Unital' unit.
+instance Tensor Either (->)
 
 -- | Coproduct symmetry on functions.
 --
@@ -426,12 +500,15 @@ instance (Monad m) => Unital Either (K m) where
 -- Left 4
 -- >>> runK (tensor f g) (Right 3 :: Either Int Int)
 -- Right 6
-instance (Monad m) => Tensor Either (K m) where
+instance (Monad m) => SemiTensor Either (K m) where
   tensor (K f) (K g) =
     K $ \case
       Left a -> Left <$> f a
       Right c -> Right <$> g c
   {-# INLINE tensor #-}
+
+-- | Coproduct tensor on @K@ @m@: 'SemiTensor' with the 'Unital' unit.
+instance (Monad m) => Tensor Either (K m)
 
 -- | Coproduct symmetry on @K@ @m@.
 instance (Monad m) => Action Either (K m) where
@@ -459,9 +536,12 @@ instance Unital These (->) where
   {-# INLINE unitr' #-}
 
 -- | Inclusive tensor action on functions.
-instance Tensor These (->) where
+instance SemiTensor These (->) where
   tensor = bimap
   {-# INLINE tensor #-}
+
+-- | Inclusive tensor on functions: 'SemiTensor' with the 'Unital' unit.
+instance Tensor These (->)
 
 -- | Inclusive symmetry on functions.
 instance Action These (->) where
@@ -488,13 +568,16 @@ instance (Monad m) => Unital These (K m) where
   {-# INLINE unitr' #-}
 
 -- | Inclusive tensor action on @K@ @m@.
-instance (Monad m) => Tensor These (K m) where
+instance (Monad m) => SemiTensor These (K m) where
   tensor (K f) (K g) =
     K $ \case
       This a -> This <$> f a
       That c -> That <$> g c
       These a c -> These <$> f a <*> g c
   {-# INLINE tensor #-}
+
+-- | Inclusive tensor on @K@ @m@: 'SemiTensor' with the 'Unital' unit.
+instance (Monad m) => Tensor These (K m)
 
 -- | Inclusive symmetry on @K@ @m@.
 instance (Monad m) => Action These (K m) where
@@ -520,17 +603,34 @@ instance (Unital t arr) => Unital t (Cat.Op arr) where
   unitr = Cat.Op unitr'
   unitr' = Cat.Op unitr
 
--- | Lift 'Tensor'/'Action' through 'Trace'.
+-- | Lift 'SemiTensor' through 'Trace'.
 --
 -- This is the single lawful instance: it evaluates each 'Trace' branch
 -- independently with 'Circuit.Syntax.eval' and combines the results using the
 -- base arrow's tensor. It is correct and black-hole-free, but does not fuse
 -- feedback loops. For the fused superposition of two 'Circuit.Trace.yank's,
 -- use 'superpose'.
-instance (Tensor t arr, Yank t' arr) => Tensor t (Trace t' arr) where
+--
+-- The 'Assoc' constraint propagates: 'SemiTensor' inherits associativity,
+-- and at 'Trace' it reaches the base arrow's associator whenever the
+-- feedback tensor matches (@t ~ t'@, per the 'Assoc' lift in
+-- "Circuit.Trace").
+instance
+  (SemiTensor t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
+  SemiTensor t (Trace t' arr)
+  where
   tensor f g = Lift (tensor (eval f) (eval g))
 
-instance (Action t arr, Yank t' arr) => Action t (Trace t' arr) where
+-- | 'Tensor' through 'Trace' is the conjunction instance: the 'Unital'
+-- lift above together with this 'SemiTensor' lift.
+instance
+  (Tensor t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
+  Tensor t (Trace t' arr)
+
+instance
+  (Action t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
+  Action t (Trace t' arr)
+  where
   braid = Lift braid
 
 -- | Fused parallel composition for 'Trace' when the feedback tensor matches.

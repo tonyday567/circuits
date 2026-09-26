@@ -27,7 +27,7 @@ import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (Category (..))
 import Circuit.Net (Net)
 import Circuit.Syntax (run)
-import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
+import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor
 import Prelude hiding (id, (.))
@@ -36,7 +36,7 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..))
 -- >>> import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 -- >>> import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
--- >>> import Circuit.Tensor (Action (..), Tensor (..), Unital (..))
+-- >>> import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 -- >>> import Prelude hiding (id, (.))
 
 -- | A linear map from output cotangents to input cotangents, read as
@@ -73,9 +73,13 @@ instance Unital (,) Pullback where
   unitr' = Pullback (,())
   {-# INLINE unitr' #-}
 
-instance Tensor (,) Pullback where
+instance SemiTensor (,) Pullback where
   tensor (Pullback f) (Pullback g) = Pullback (Data.Bifunctor.bimap f g)
   {-# INLINE tensor #-}
+
+-- | 'Tensor' for 'Pullback' is the conjunction: 'Unital' plus this
+-- 'SemiTensor'.
+instance Tensor (,) Pullback
 
 instance Action (,) Pullback where
   braid = Pullback (\(b, a) -> (a, b))

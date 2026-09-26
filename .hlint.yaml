@@ -27,6 +27,9 @@
 - ignore: {name: "Use logBase", within: NumHask.Algebra.Field}
 - ignore: {name: "Use tan", within: NumHask.Algebra.Field}
 #
+# Suppressed (spec-mandated declaration shapes):
+- ignore: {name: "Use newtype instead of data", within: Circuit.Tensor}  # Const is deliberately `data`: decorative phantom, lazy payload
+#
 # Kept active (fixed in source, never ignored):
 #   Unused LANGUAGE pragma — dead pragmas removed
 #   Use newtype instead of data — applied where appropriate

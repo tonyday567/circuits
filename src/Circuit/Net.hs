@@ -84,7 +84,7 @@ import Circuit.Syntax
     (:+:) (..),
     (:~>),
   )
-import Circuit.Tensor (Action, Tensor, Unital)
+import Circuit.Tensor (Action, SemiTensor, Tensor, Unital)
 import Circuit.Tensor qualified as T
 import Circuit.Trace (Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -216,8 +216,12 @@ instance (Unital w arr) => Unital w (SMC w arr) where
   unitr = Lift T.unitr
   unitr' = Lift T.unitr'
 
-instance (Tensor w arr) => Tensor w (SMC w arr) where
+instance (SemiTensor w arr) => SemiTensor w (SMC w arr) where
   tensor f g = Oper (R (L (SigPar f g)))
+
+-- | 'Tensor' for 'SMC' is the conjunction: the 'Unital' lift above plus
+-- this 'SemiTensor' lift.
+instance (Tensor w arr) => Tensor w (SMC w arr)
 
 instance (Action w arr) => Action w (SMC w arr) where
   braid = Oper (R (R SigSwap))

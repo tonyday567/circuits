@@ -83,6 +83,7 @@ executable circuits-axioma
     Axioma.Poles
     Axioma.Pullback
     Axioma.Shared
+    Axioma.SemiTensor
     Axioma.Span
 
   build-depends:

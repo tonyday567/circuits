@@ -47,7 +47,7 @@ import Circuit.Syntax
     Syntax,
     (:+:),
   )
-import Circuit.Tensor (Bias (..), Tensor (..))
+import Circuit.Tensor (Bias (..), Tensor)
 import Circuit.Trace (SigYank)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)

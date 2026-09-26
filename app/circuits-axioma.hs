@@ -7,6 +7,7 @@ import Axioma.FinRel (finRelTopic)
 import Axioma.GMachine (gMachineTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Pullback (pullbackTopic)
+import Axioma.SemiTensor (semiTensorTopic)
 import Axioma.Shared (sharedTopic)
 import Axioma.Span (spanTopic)
 import Control.Category ((.))
@@ -22,6 +23,7 @@ data Topic
   | Poles
   | Pullback
   | Shared
+  | SemiTensor
   | Span
   deriving (Show, Eq, Bounded, Enum)
 
@@ -34,6 +36,7 @@ topicName FinRel = "finrel"
 topicName Poles = "poles"
 topicName Pullback = "pullback"
 topicName Shared = "shared"
+topicName SemiTensor = "semitensor"
 topicName Span = "span"
 
 topicDesc :: Topic -> String
@@ -45,6 +48,7 @@ topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
 topicDesc Poles = "Poles oracles: write/read legs, closing, and leg-mapping"
 topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent nets"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
+topicDesc SemiTensor = "SemiTensor oracles: Const, the forgetful semigroupoidal tensor"
 topicDesc Span = "Finite-span equipment oracles"
 
 topicParser :: Parser Topic
@@ -102,11 +106,12 @@ runTopic FinRel = finRelTopic
 runTopic Poles = polesTopic
 runTopic Pullback = pullbackTopic
 runTopic Shared = sharedTopic
+runTopic SemiTensor = semiTensorTopic
 runTopic Span = spanTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, Span]
+allTopics = [Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, SemiTensor, Span]
 
 greenCircle :: String
 greenCircle = "🟢"

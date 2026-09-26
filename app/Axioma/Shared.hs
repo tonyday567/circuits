@@ -18,7 +18,7 @@ import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), Stam
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (Bias (..), Tensor (..), superpose)
+import Circuit.Tensor (Bias (..), SemiTensor (..), Tensor, superpose)
 import Circuit.Trace (SigYank (..), Trace)
 import Circuit.Traced (assoc, assoc', slide, yank)
 import Control.Monad (when)
