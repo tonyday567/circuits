@@ -14,7 +14,7 @@
 -- Polynomial objects are syntactic expressions, promoted to a kind:
 --
 --     p, q ::= Y              the identity polynomial
---           |  Const A        a constant set
+--           |  Konst A       a constant set
 --           |  Exp A          y^A
 --           |  Sum p q        coproduct
 --           |  Prod p q       cartesian product
@@ -32,8 +32,8 @@
 --
 -- Two extra constructors make dependent lenses expressible:
 --
--- * 'Konst' introduces a global element (a constant position).
--- * 'Depend' is the copower universal property: a @Const a@-indexed family
+-- * 'Global' introduces a global element (a constant position).
+-- * 'Depend' is the copower universal property: a @Konst a@-indexed family
 --   of morphisms @p -> q@.
 --
 -- With them, the general point-dependent lens @(get :: a -> b, put :: a -> db -> da)@
@@ -113,7 +113,7 @@ import Prelude hiding (id, (.))
 -- | Syntactic polynomial objects, promoted to a kind.
 data Poly
   = Y
-  | Const Type
+  | Konst Type
   | Exp Type
   | Sum Poly Poly
   | Prod Poly Poly
@@ -125,7 +125,7 @@ data Poly
 -- For a value of @p(x)@, 'Pos p' is the index type of positions.
 type family Pos (p :: Poly) :: Type where
   Pos 'Y = ()
-  Pos ('Const a) = a
+  Pos ('Konst a) = a
   Pos ('Exp a) = ()
   Pos ('Sum p q) = Either (Pos p) (Pos q)
   Pos ('Prod p q) = (Pos p, Pos q)
@@ -150,7 +150,7 @@ type family Pos (p :: Poly) :: Type where
 -- directions — the monomial fragment.
 type family Dir (p :: Poly) :: Type where
   Dir 'Y = ()
-  Dir ('Const a) = Void
+  Dir ('Konst a) = Void
   Dir ('Exp a) = a
   Dir ('Sum p q) = Either (Dir p) (Dir q)
   Dir ('Prod p q) = Either (Dir p) (Dir q)
@@ -172,7 +172,7 @@ type family Dir (p :: Poly) :: Type where
 -- each @p@-pin, and a path @(dp, dq)@ into @x@.
 data Eval (p :: Poly) (x :: Type) where
   EY :: x -> Eval 'Y x
-  EK :: c -> Eval ('Const c) x
+  EK :: c -> Eval ('Konst c) x
   EE :: (a -> x) -> Eval ('Exp a) x
   ES :: Either (Eval p x) (Eval q x) -> Eval ('Sum p q) x
   EP :: (Eval p x, Eval q x) -> Eval ('Prod p q) x
@@ -218,7 +218,7 @@ instance Netlist 'Y where
   toNet (EY x) = ((), \() -> x)
   fromNet () k = EY (k ())
 
-instance Netlist ('Const a) where
+instance Netlist ('Konst a) where
   toNet (EK c) = (c, absurd)
   fromNet c _ = EK c
 
@@ -395,9 +395,9 @@ tensorEval v w =
 -- >>> case netRoundTrip yv of EY c -> c
 -- 'a'
 --
--- 'Const': the direction set is 'Void', so the assignment is unique.
+-- 'Konst': the direction set is 'Void', so the assignment is unique.
 --
--- >>> let cv = EK True :: Eval ('Const Bool) Bool
+-- >>> let cv = EK True :: Eval ('Konst Bool) Bool
 -- >>> case netRoundTrip cv of EK b -> b
 -- True
 --
@@ -461,7 +461,7 @@ tensorEval v w =
 -- bundle map: a function on positions together with a contravariant
 -- family of functions on directions.
 --
--- 'Konst' and 'Depend' extend the original Poly sketch so that backward
+-- 'Global' and 'Depend' extend the original Poly sketch so that backward
 -- maps can depend on the current position, giving point-dependent lenses.
 data Morphism (p :: Poly) (q :: Poly) where
   -- | Identity morphism.
@@ -471,7 +471,7 @@ data Morphism (p :: Poly) (q :: Poly) where
   -- By the Yoneda lemma, @Poly(Y, q) ≅ q(1) ≅ Eval q ()@.
   Point :: Eval q () -> Morphism 'Y q
   -- | Covariant embedding of a plain function into constants.
-  ConstMap :: (a -> b) -> Morphism ('Const a) ('Const b)
+  ConstMap :: (a -> b) -> Morphism ('Konst a) ('Konst b)
   -- | Contravariant embedding of a plain function into exponentials.
   ExpMap :: (a -> b) -> Morphism ('Exp b) ('Exp a)
   -- | Sequential composition.
@@ -489,9 +489,9 @@ data Morphism (p :: Poly) (q :: Poly) where
   -- | Product pairing.
   Pair :: Morphism r p -> Morphism r q -> Morphism r ('Prod p q)
   -- | Global element (constant introduction).
-  Konst :: b -> Morphism p ('Const b)
-  -- | Copower universal property: a @Const a@-indexed family of morphisms.
-  Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Const a) p) q
+  Global :: b -> Morphism p ('Konst b)
+  -- | Copower universal property: a @Konst a@-indexed family of morphisms.
+  Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Konst a) p) q
   -- | Left associator for the Dirichlet tensor:
   -- @((p ⊗ q) ⊗ r) -> (p ⊗ (q ⊗ r))@.
   TensorAssocL :: Morphism ('PTensor ('PTensor p q) r) ('PTensor p ('PTensor q r))
@@ -561,7 +561,7 @@ runMorphism = \case
   Fst -> \(EP (a, _)) -> a
   Snd -> \(EP (_, b)) -> b
   Pair f g -> \r -> EP (runMorphism f r, runMorphism g r)
-  Konst b -> \_ -> EK b
+  Global b -> \_ -> EK b
   Depend k -> \(EP (EK a, p)) -> runMorphism (k a) p
   TensorAssocL -> \(ET ((pp, pq), pr) f) ->
     ET (pp, (pq, pr)) (f . (\(dp, (dq, dr)) -> ((dp, dq), dr)))
@@ -670,7 +670,7 @@ runMorphism = \case
 -- (("hix",30),("x",0))
 
 -- | The monomial interface: @i@ directions (input), @o@ positions (output).
-type Mono i o = 'Prod ('Const o) ('Exp i)
+type Mono i o = 'Prod ('Konst o) ('Exp i)
 
 -- | Inject a monomial direction into its 'Either Void' encoding.
 --
@@ -709,11 +709,11 @@ type Lens s t a b = Morphism (Mono t s) (Mono b a)
 -- >>> let (v, put) = applyLens l 40 in (v, put 2)
 -- ("40",42)
 lens :: (s -> a) -> (s -> b -> t) -> Lens s t a b
-lens f g = Depend (\s -> Pair (Konst (f s)) (ExpMap (g s)))
+lens f g = Depend (\s -> Pair (Global (f s)) (ExpMap (g s)))
 
 -- | The position-independent dagger case.
 --
--- Expressible without 'Konst' or 'Depend'.
+-- Expressible without 'Global' or 'Depend'.
 --
 -- >>> let d = dagger (+1) (subtract 1) :: Lens Int Int Int Int
 -- >>> let (v, put) = applyLens d 5 in (v, put 6)

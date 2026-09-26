@@ -81,7 +81,7 @@ constRoundTripOk =
     EK c -> c == (3 :: Int)
     _ -> False
   where
-    v :: Eval (Const Int) Bool
+    v :: Eval (Konst Int) Bool
     v = EK 3
 
 expRoundTripOk :: Bool
@@ -122,7 +122,7 @@ offFibreOk =
   isNothing (fromFlat i (Right ()))
     && isNothing (fromFlat j (Left 5))
   where
-    i :: PosAt (Sum (Const Int) Y) (BL BK)
+    i :: PosAt (Sum (Konst Int) Y) (BL BK)
     i = PosL (PosK 3)
     j :: PosAt (Sum (Exp Int) (Exp Int)) (BR BE)
     j = PosR PosE
@@ -210,7 +210,7 @@ containerTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Container oracles"
   sequence
     [ checkV verbosity "round trip at Y" yRoundTripOk,
-      checkV verbosity "round trip at Const" constRoundTripOk,
+      checkV verbosity "round trip at Konst" constRoundTripOk,
       checkV verbosity "round trip at Exp" expRoundTripOk,
       checkV verbosity "round trip at Sum (the wall oracle)" sumRoundTripOk,
       checkV verbosity "round trip at Prod" prodRoundTripOk,

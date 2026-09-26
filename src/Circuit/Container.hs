@@ -122,12 +122,12 @@ data Skel
 -- | A position, split: skeleton in the type index, payload in the
 -- term.
 --
--- 'PosK' is where the payload lives — a 'Const' position (the @o@ in
+-- 'PosK' is where the payload lives — a 'Konst' position (the @o@ in
 -- @Mono i o@) is a genuine runtime value and never enters the fibre,
 -- so it stays out of the index.
 data PosAt :: Poly -> Branch -> Type where
   PosY :: PosAt 'Y 'BY
-  PosK :: c -> PosAt ('Const c) 'BK
+  PosK :: c -> PosAt ('Konst c) 'BK
   PosE :: PosAt ('Exp a) 'BE
   PosL :: PosAt p b -> PosAt (Sum p q) ('BL b)
   PosR :: PosAt q b -> PosAt (Sum p q) ('BR b)
@@ -136,7 +136,7 @@ data PosAt :: Poly -> Branch -> Type where
 
 -- | Forget the skeleton: project a split position to the flat 'Pos'.
 --
--- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Const Int) Y) ('BL 'BK)
+-- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Konst Int) Y) ('BL 'BK)
 -- >>> posOf i
 -- Left 3
 posOf :: PosAt p b -> Pos p
@@ -175,7 +175,7 @@ data SomePos :: Poly -> Type where
 -- the 'Container' instance.
 type family DirAt (p :: Poly) (b :: Branch) :: Type where
   DirAt 'Y 'BY = ()
-  DirAt ('Const c) 'BK = Void
+  DirAt ('Konst c) 'BK = Void
   DirAt ('Exp a) 'BE = a
   DirAt (Sum p q) ('BL b) = DirAt p b
   DirAt (Sum p q) ('BR b) = DirAt q b
@@ -198,7 +198,7 @@ toFlat = \case
 -- exactly off 'Sum'; on a wrong branch there is no pin to return,
 -- which is the wall restated positively.
 --
--- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Const Int) Y) ('BL 'BK)
+-- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Konst Int) Y) ('BL 'BK)
 -- >>> fromFlat i (Right ())
 -- Nothing
 -- >>> let m = PosP (PosK (5 :: Int)) PosE :: PosAt (Mono Int Int) ('BP 'BK 'BE)
@@ -230,7 +230,7 @@ class FlatFibre (p :: Poly) where
 instance FlatFibre 'Y where
   narrow PosY () = ()
 
-instance FlatFibre ('Const c) where
+instance FlatFibre ('Konst c) where
   narrow _ = absurd
 
 instance FlatFibre ('Exp a) where
@@ -246,7 +246,7 @@ instance (FlatFibre p, FlatFibre q) => FlatFibre (PTensor p q) where
 -- Matching on the 'PosAt' refines the skeleton index @b@, so the pin
 -- map is already typed at the fibre.
 --
--- >>> let v = ES (Left (EK (3 :: Int))) :: Eval (Sum (Const Int) Y) Bool
+-- >>> let v = ES (Left (EK (3 :: Int))) :: Eval (Sum (Konst Int) Y) Bool
 -- >>> case toFibred v of Fibred j _ -> posOf j
 -- Left 3
 -- >>> case fromFibred (toFibred v) of ES (Left (EK c)) -> c; _ -> 0
@@ -263,7 +263,7 @@ class Located (p :: Poly) where
 instance Located 'Y where
   posAt () = SomePos PosY
 
-instance Located ('Const c) where
+instance Located ('Konst c) where
   posAt = SomePos . PosK
 
 instance Located ('Exp a) where
@@ -297,7 +297,7 @@ instance Container 'Y where
   toFibred (EY x) = Fibred PosY (\() -> x)
   fromFibred (Fibred PosY k) = EY (k ())
 
-instance Container ('Const c) where
+instance Container ('Konst c) where
   toFibred (EK c) = Fibred (PosK c) absurd
   fromFibred (Fibred (PosK c) _) = EK c
 
@@ -388,7 +388,7 @@ monoFibreFlat = Refl
 --
 -- The wall, in one session:
 --
--- >>> let v = ES (Right (EY True)) :: Eval (Sum (Const Int) Y) Bool
+-- >>> let v = ES (Right (EY True)) :: Eval (Sum (Konst Int) Y) Bool
 -- >>> case toFibred v of Fibred (PosR PosY) k -> (Right (), k ())
 -- (Right (),True)
 --
