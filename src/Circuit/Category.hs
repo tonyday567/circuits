@@ -138,8 +138,8 @@ instance (Comonad c) => Category (CoK c) where
 -- | The opposite category: morphisms are reversed.
 --
 -- @Op arr a b@ is the same hom-set as @arr b a@.  This is the arrow used to
--- make the @Set^op@ rung of the polynomial equipment explicit inside
--- 'Circuit.Body' and 'Circuit.Machine'.
+-- make the @Set^op@ rung of the polynomial equipment explicit — see
+-- 'Cocell' in "Circuit.GMachine".
 newtype Op arr a b = Op {runOp :: arr b a}
 
 instance (Category arr) => Category (Op arr) where
@@ -180,7 +180,7 @@ instance (Monad m) => FunctionLike (K m) where
 --
 -- This is the EM side of pointing — an algebra of the @Maybe@ monad,
 -- structure on the object. The runner-facing presentation of the same
--- pointing is the unit cell in "Circuit.Equip".
+-- pointing is 'Point' in "Circuit.GMachine".
 class Pointed a where
   point :: a
 

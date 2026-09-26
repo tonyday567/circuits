@@ -1,6 +1,6 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), Body (knot-body category), and the Layer tower, plus Process/System/Equip/Shared polynomial machinery.
+description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), GMachine (cells, bodies and Moore machines over a channel), plus Poly/Shared polynomial machinery.
 ---
 
 # circuits — field guide
@@ -8,10 +8,10 @@ description: Free traced monoidal categories. Trace (inspectable syntax), Hyper 
 A free traced monoidal category over any base arrow. The library has one
 common shape and three views of it:
 
-- `Body t ch arr a b = arr (t ch a) (t ch b)` — a morphism that threads an
-  ambient channel `ch` alongside a payload, under a tensor `t`, in a base
-  arrow `arr`. Loops, processes, systems, and poles are all specialisations
-  or wrappers of this shape.
+- `Stratum t ch arr i o = arr (t ch i) (t ch o)` — a morphism that threads
+  an ambient channel `ch` alongside a payload, under a tensor `t`, in a base
+  arrow `arr`. Cells, bodies, Moore machines, and poles are all
+  factorisations or wrappers of this shape.
 - `Trace t arr a b` — the inspectable initial/free syntax for traced
   monoidal categories (`base` + `yank`).
 - `Hyper` / `HyperA arr` — the final coinductive encoding over `(->)` and
@@ -32,7 +32,6 @@ Circuit.Traced     — Structural class ladder: Assoc, Slide, Strength, Yank.
                       Left = feedback/continue, Right = exit for Either yank.
 Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
                       plumbing, and superpose (fused parallel composition).
-Circuit.Body        — The knot-body category: Body t ch arr a b.
 Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank).
 Circuit.Net         — Free SMC with bimonoid rows (Copy/Discard/Plus/Zero);
                       hosts the symmetric-monoidal layer (SMC, SigPar,
@@ -47,15 +46,14 @@ Circuit.Bimonoid    — Copy/Discard/Merge/Zero structural rules and the free
 Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
                       ⅋/Bot with distributors, Lolli (⊸), Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
-Circuit.Process     — Moore base arrow (input-seeded), pointed Process,
-                      scan/fold, mealy, delay/register, Body conversions.
-Circuit.Machine     — machines over polynomial interfaces.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.Equip       — Arrow equipment: channel poles (Poles, two base arrows
-                      arrW/arrR with the diagonal as single-base; plugSplit /
-                      closeSplit for CoK/K payload-split poles), squares
-                      (Sq/TwoCell), boundary tokens (Boundary/Stamped), and
-                      unit cells (UnitCell — the seeding crossing Unit t -> ch).
+Circuit.GMachine    — Machines over a channel: Cell (absorb/observe legs),
+                      Body (consume/produce), Stratum (the fused morphism),
+                      Machine, Poles (write/read channel ends) and Point,
+                      GMoore/GMooreT (the proven Category), the Moore
+                      pattern with delay/register, scan/fold eliminators
+                      (processFromSeed, scanProcess, foldProcess), and the
+                      lens dictionary (cellAsLens/lensAsCell).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Rel         — Finite relations, two reference grades: explicit
                       relations (Rel, Fin) and GF(2) linear relations (FinRel).
@@ -155,12 +153,12 @@ When a `Trace` body behaves strangely — exiting immediately when it should
 loop, or looping forever when it should exit — check which branch you're
 returning. The convention is fixed by the class, not configurable.
 
-### pointing: three discharges
+### pointing: two discharges
 
 A stateful run needs an initial carrier value exactly where no input supplies
-one. `Moore` discharges pointing through the input (`asMoore`), `Closed`
-through closure (`machineToClosed`), and `Process` / `Machine` keep the
-seed explicit (`UnitCell` names it). Do not collapse the pairs: closure agrees
+one. `Moore` discharges pointing through the input (`asMoore`); `GMoore`
+keeps the seed explicit as the `init` leg (`Point` names the unit-tensor
+discharge `Unit t -> ch`). Do not collapse the pair: input discharge agrees
 with an explicit seed only when the body never reads its initial state, which
 is why `delay` and `register` exist as explicit wiring.
 

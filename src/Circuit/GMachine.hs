@@ -254,8 +254,8 @@ instance Applicative (Moore a) where
   {-# INLINEABLE (<*>) #-}
 
 -- These instances make Moore a traced monoidal category under the
--- cartesian tensor, ported from the incumbent
--- "Circuit.Process" — the yank ties a lazy self-referential knot and
+-- cartesian tensor, ported from the retired Process module — the yank
+-- ties a lazy self-referential knot and
 -- is productive only when the body is non-strict in the feedback
 -- channel. Strict accumulators diverge under the @(,)@ yank; use
 -- 'register' for those.

@@ -80,11 +80,8 @@ graph LR
   Trace["Circuit.Trace"]
   Hyper["Circuit.Hyper"]
   Dagger["Dagger (Circuit.Bimonoid)"]
-  Equip["Circuit.Equip"]
-  Body["Circuit.Body"]
   Poly["Circuit.Poly"]
-  Moore["Circuit.Moore"]
-  Process["Circuit.Process"]
+  GMachine["Circuit.GMachine"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
   Linear["Circuit.Linear"]
@@ -95,11 +92,10 @@ graph LR
   Net --> Trace
   Trace --> Hyper
   Dagger --> Net
-  Body --> Trace
-  Poly --> Body
-  Poly --> Moore
-  Moore --> Process
-  Shared --> Body
+  GMachine --> Poly
+  GMachine --> Bimonoid
+  GMachine --> Yank
+  Shared --> Trace
   Bimonoid --> Net
   Linear --> Shared
 
@@ -125,11 +121,8 @@ graph LR
   style Trace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
-  style Poles fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style Body fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style Moore fill:#4B9680,stroke:#4B9680,color:#1b1e23
-  style Process fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
+  style GMachine fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Linear fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
@@ -138,7 +131,7 @@ graph LR
 ## the shape of the library
 
 Everything is built over a base arrow that you bring — `(->)`, `K m`,
-`Process`, `FinRel`, matrices over a semiring. The library does not pick a
+`Moore`, `FinRel`, matrices over a semiring. The library does not pick a
 semantics; it adds structure along two ladders and one common shape.
 
 **A ladder of laws.** The type classes form chains out of `Category`:
@@ -148,28 +141,24 @@ strength, feedback via yank) and `Tensor → Action` (the concrete `(,)` and
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
-**A common shape.** Under all the syntax lives `Body t ch arr a b`, the
-category `arr (t ch a) (t ch b)`. A body threads an ambient channel `ch`
-alongside a payload, under a tensor `t`. It is the shared substrate of loops,
-processes, systems, and poles: the stateful machinery that `Trace` hides
-before tracing.
+**A common shape.** Under all the syntax lives `Stratum t ch arr i o`, the
+morphism `arr (t ch i) (t ch o)`. A stratum threads an ambient channel `ch`
+alongside a payload, under a tensor `t`. It is the shared shape the machines
+of `Circuit.GMachine` are factorised from: cells, bodies, Moore machines,
+and poles.
 
-**Pointing, three ways.** A stateful run needs an initial carrier value
-exactly when no input supplies one. There are three discharges.
-`ProcessP` and `MachineP` keep the seed explicit — it is data, and
-`UnitCell` names it. `asProcess` discharges the seed through the input: the
-first payload creates the initial state. `machinePToMachine` discharges it
-through closure: `yank` ties the state channel, and the absence of a seed
-parameter is visible in the type. The discharges are not interchangeable:
-closure agrees with an explicit seed only when the body never reads its
-initial state — the axioma oracles "closure discharge agrees with any seed
-on a seed-independent body" and "explicit discharge carries the seed the
-closure drops" pin the boundary.
+**Pointing, two ways.** A stateful run needs an initial channel value
+exactly when no input supplies one. `GMoore` keeps it explicit as the
+`init` leg — the seed as data, with `processFromSeed` spelling the common
+case at `(->)`; `Point` names the unit-tensor discharge. The
+`Yank (,) Moore` instance discharges it through closure: `yank` ties the
+state channel in a lazy knot, and the absence of a seed is visible in the
+type. The discharges are not interchangeable: the lazy knot diverges on
+strict accumulators — which is why `delay` and `register` exist as
+explicit wiring.
 
 ```haskell
-runBody body 0 inputs                              -- explicit: the seed as data
-scan (asProcess (ProcessP 0 step extract)) inputs  -- input: first payload seeds
--- machinePToMachine sys :: Machine t arr p        -- closure: no seed in the type
+scanProcess (processFromSeed 0 (Cell (\(s, i) -> s + i) id)) [1, 2, 3]  -- explicit: the seed as data
 ```
 
 **A deck of languages.** The GADTs form a chain of free constructions, each

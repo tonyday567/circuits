@@ -47,18 +47,13 @@ library
     Circuit
     Circuit.Axioma.Test
     Circuit.Bimonoid
-    Circuit.Body
     Circuit.Category
     Circuit.Container
-    Circuit.Equip
     Circuit.GMachine
     Circuit.Hyper
     Circuit.Linear
-    Circuit.Machine
     Circuit.Net
-    Circuit.Optic
     Circuit.Poly
-    Circuit.Process
     Circuit.Pullback
     Circuit.Rel
     Circuit.Shared

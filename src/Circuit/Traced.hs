@@ -407,7 +407,7 @@ instance Yank Either (->) where
 -- instances, where the @c@ component is likewise never fed back.  This is
 -- the inclusive generalisation of the Either loop — 'Left' ~ 'This'
 -- (continue), 'Right' ~ 'That' / 'These' (exit) — and it completes the
--- third feedback peer advertised in "Circuit.Body"'s anatomy.
+-- third feedback peer after @(,)@ and 'Either'.
 --
 -- The loop is iteration, not a lazy knot, so unlike the @(,)@ instance it
 -- needs no 'Control.Monad.Fix.mfix'.  Following the Either precedent there
