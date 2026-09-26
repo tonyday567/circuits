@@ -201,117 +201,6 @@ processOf e (Cell k o) = GMoore (e .> k) (Cell k o)
 processFromSeed :: s -> Cell (,) s (->) a b -> GMoore (,) s (->) a b
 processFromSeed s0 (Cell k o) = GMoore (\a -> k (s0, a)) (Cell k o)
 
-data Moore a b = forall s. Moore_ (a -> s) (Cell (,) s (->) a b)
-
-pattern Moore ::
-  (a -> s) ->
-  (s -> a -> s) ->
-  (s -> b) ->
-  Moore a b
-pattern Moore i st ex <- Moore_ i (Cell (curry -> st) ex)
-  where
-    Moore i st ex = Moore_ i (Cell (uncurry st) ex)
-
-{-# COMPLETE Moore #-}
-
-asMoore :: GMoore (,) s (->) a b -> Moore a b
-asMoore (GMoore i c) = Moore_ i c
-
-instance Functor (Moore a) where
-  fmap f (Moore_ i (Cell k o)) = Moore_ i (Cell k (f . o))
-  {-# INLINEABLE fmap #-}
-
-instance Category Moore where
-  id :: Moore a a
-  id = Moore_ id (Cell snd id)
-  {-# INLINE id #-}
-
-  (.) :: Moore b c -> Moore a b -> Moore a c
-  Moore_ i2 (Cell k2 o2) . Moore_ i1 (Cell k1 o1) =
-    Moore_ inject (Cell step extract)
-    where
-      inject a = let s1 = i1 a in (s1, i2 (o1 s1))
-      step ((s1, s2), a) = let s1' = k1 (s1, a) in (s1', k2 (s2, o1 s1'))
-      extract (_, s2) = o2 s2
-  {-# INLINE (.) #-}
-
-before :: Moore b c -> (a -> b) -> Moore a c
-before (Moore i st ex) f = Moore (i . f) (\s a -> st s (f a)) ex
-{-# INLINEABLE before #-}
-
-after :: Moore a b -> (b -> c) -> Moore a c
-after (Moore i st ex) f = Moore i st (f . ex)
-{-# INLINEABLE after #-}
-
-instance Applicative (Moore a) where
-  pure b = Moore (const ()) (\_ _ -> ()) (const b)
-  {-# INLINEABLE pure #-}
-  Moore i1 st1 ex1 <*> Moore i2 st2 ex2 =
-    Moore
-      (\a -> (i1 a, i2 a))
-      (\(s1, s2) a -> (st1 s1 a, st2 s2 a))
-      (\(s1, s2) -> ex1 s1 (ex2 s2))
-  {-# INLINEABLE (<*>) #-}
-
--- These instances make Moore a traced monoidal category under the
--- cartesian tensor, ported from the retired Process module — the yank
--- ties a lazy self-referential knot and
--- is productive only when the body is non-strict in the feedback
--- channel. Strict accumulators diverge under the @(,)@ yank; use
--- 'register' for those.
-
-instance Assoc (,) Moore where
-  assoc = Moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
-  assoc' = Moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
-
-instance Slide (,) Moore where
-  slide = Moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
-
-instance Strength (,) Moore where
-  strength (Moore i st ex) =
-    Moore
-      (\(~(a, b)) -> (a, i b))
-      (\(~(_, s)) (~(a', b)) -> (a', st s b))
-      (\(~(a, s)) -> (a, ex s))
-
-instance Yank (,) Moore where
-  yank (Moore i st ex) =
-    Moore
-      (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
-      ( \s b ->
-          let (s', _a) = fix (\ ~(s'', a') -> (st s (a', b), fst (ex s'')))
-           in s'
-      )
-      (snd . ex)
-    where
-      fix f = let x = f x in x
-
-instance Unital (,) Moore where
-  unitl = Moore snd (\_ (_, a) -> a) id
-  unitl' = Moore id (\_ x -> x) ((),)
-  unitr = Moore fst (\_ (a, ()) -> a) id
-  unitr' = Moore id (\_ x -> x) (,())
-
-instance Tensor (,) Moore where
-  tensor (Moore i1 st1 ex1) (Moore i2 st2 ex2) =
-    Moore
-      (bimap i1 i2)
-      (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
-      (bimap ex1 ex2)
-  {-# INLINE tensor #-}
-
-instance Action (,) Moore where
-  braid = Moore id (const id) sw
-    where
-      sw (a, b) = (b, a)
-  {-# INLINE braid #-}
-
-delay :: s -> Moore s s
-delay s0 = Moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
-
-register :: s -> Moore (a, s) (b, s) -> Moore a b
-register s0 (Moore i st ex) = Moore (\a -> i (a, s0)) (\s a -> st s (a, snd (ex s))) (fst . ex)
-
 data GMoore (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GMoore
   { init :: arr i ch,
     cell :: Cell t ch arr i o
@@ -349,6 +238,104 @@ instance (TensorSchedule t (->)) => Category (GMooreT t (->)) where
       e = e2 . snd
   {-# INLINE (.) #-}
 
+-- Moore is the cartesian specialisation of the existential machine: the
+-- same existential channel, the same run semantics, one spelling.
+type Moore = GMooreT (,) (->)
+
+pattern Moore ::
+  (a -> s) ->
+  (s -> a -> s) ->
+  (s -> b) ->
+  Moore a b
+pattern Moore i st ex <- GMooreT (GMoore i (Cell (curry -> st) ex))
+  where
+    Moore i st ex = GMooreT (GMoore i (Cell (uncurry st) ex))
+
+{-# COMPLETE Moore #-}
+
+asMoore :: GMoore (,) s (->) a b -> Moore a b
+asMoore (GMoore i c) = GMooreT (GMoore i c)
+
+instance Functor (GMooreT (,) (->) a) where
+  fmap f (GMooreT (GMoore i (Cell k o))) = GMooreT (GMoore i (Cell k (f . o)))
+  {-# INLINEABLE fmap #-}
+
+before :: Moore b c -> (a -> b) -> Moore a c
+before (Moore i st ex) f = Moore (i . f) (\s a -> st s (f a)) ex
+{-# INLINEABLE before #-}
+
+after :: Moore a b -> (b -> c) -> Moore a c
+after (Moore i st ex) f = Moore i st (f . ex)
+{-# INLINEABLE after #-}
+
+instance Applicative (GMooreT (,) (->) a) where
+  pure b = Moore (const ()) (\_ _ -> ()) (const b)
+  {-# INLINEABLE pure #-}
+  Moore i1 st1 ex1 <*> Moore i2 st2 ex2 =
+    Moore
+      (\a -> (i1 a, i2 a))
+      (\(s1, s2) a -> (st1 s1 a, st2 s2 a))
+      (\(s1, s2) -> ex1 s1 (ex2 s2))
+  {-# INLINEABLE (<*>) #-}
+
+-- These instances make @GMooreT (,) (->)@ — 'Moore' — a traced monoidal
+-- category under the cartesian tensor, ported from the retired Process
+-- module — the yank ties a lazy self-referential knot and is productive
+-- only when the body is non-strict in the feedback channel. Strict
+-- accumulators diverge under the @(,)@ yank; use 'register' for those.
+
+instance Assoc (,) (GMooreT (,) (->)) where
+  assoc = Moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
+  assoc' = Moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
+
+instance Slide (,) (GMooreT (,) (->)) where
+  slide = Moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
+
+instance Strength (,) (GMooreT (,) (->)) where
+  strength (Moore i st ex) =
+    Moore
+      (\(~(a, b)) -> (a, i b))
+      (\(~(_, s)) (~(a', b)) -> (a', st s b))
+      (\(~(a, s)) -> (a, ex s))
+
+instance Yank (,) (GMooreT (,) (->)) where
+  yank (Moore i st ex) =
+    Moore
+      (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
+      ( \s b ->
+          let (s', _a) = fix (\ ~(s'', a') -> (st s (a', b), fst (ex s'')))
+           in s'
+      )
+      (snd . ex)
+    where
+      fix f = let x = f x in x
+
+instance Unital (,) (GMooreT (,) (->)) where
+  unitl = Moore snd (\_ (_, a) -> a) id
+  unitl' = Moore id (\_ x -> x) ((),)
+  unitr = Moore fst (\_ (a, ()) -> a) id
+  unitr' = Moore id (\_ x -> x) (,())
+
+instance Tensor (,) (GMooreT (,) (->)) where
+  tensor (Moore i1 st1 ex1) (Moore i2 st2 ex2) =
+    Moore
+      (bimap i1 i2)
+      (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
+      (bimap ex1 ex2)
+  {-# INLINE tensor #-}
+
+instance Action (,) (GMooreT (,) (->)) where
+  braid = Moore id (const id) sw
+    where
+      sw (a, b) = (b, a)
+  {-# INLINE braid #-}
+
+delay :: s -> Moore s s
+delay s0 = Moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
+
+register :: s -> Moore (a, s) (b, s) -> Moore a b
+register s0 (Moore i st ex) = Moore (\a -> i (a, s0)) (\s a -> st s (a, snd (ex s))) (fst . ex)
+
 -- Input-list elimination: each step injects the input through the
 -- tensor's own left unit — memoryless at Either, That-biased at These.
 scanT :: (TensorSchedule t (->)) => GMooreT t (->) i o -> [i] -> [o]
@@ -368,10 +355,10 @@ scanProcess (GMoore c (Cell k o)) = \case
     go _ [] = []
 
 scan :: Moore a b -> [a] -> [b]
-scan (Moore_ i c) = scanProcess (GMoore i c)
+scan (GMooreT (GMoore i c)) = scanProcess (GMoore i c)
 
 fold :: Moore a b -> [a] -> Maybe b
-fold (Moore_ i c) = foldProcess (GMoore i c)
+fold (GMooreT (GMoore i c)) = foldProcess (GMoore i c)
 
 foldProcess :: GMoore (,) s (->) a b -> [a] -> Maybe b
 foldProcess (GMoore c (Cell k o)) = \case
