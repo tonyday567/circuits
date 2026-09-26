@@ -149,8 +149,10 @@ instance (Assoc t arr) => Assoc t (Op arr) where
 -- which is correct only because the base slide is its own inverse, and the
 -- free 'Circuit.Trace.Strength' instance slides the loop wire out of a
 -- yanked body and back, assuming the round trip cancels. The
--- @circuits-axioma@ shared topic carries pointwise witnesses at @(,)@,
--- 'Either', @K m@, @Op@, and 'These'.
+-- @circuits-axioma@ traced topic carries the pointwise slide-involution
+-- witnesses at @(,)@, 'Either', @K m@, @Op arr@, and 'These'; the these
+-- topic pins the hand-written 'These' instances against a reference
+-- derived from @(,)@ and 'Either'.
 class
   (Category arr) =>
   Slide (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)

@@ -10,6 +10,8 @@ import Axioma.Pullback (pullbackTopic)
 import Axioma.SemiTensor (semiTensorTopic)
 import Axioma.Shared (sharedTopic)
 import Axioma.Span (spanTopic)
+import Axioma.These (theseTopic)
+import Axioma.Traced (tracedTopic)
 import Control.Category ((.))
 import Options.Applicative
 import Prelude hiding (id, (.))
@@ -25,6 +27,8 @@ data Topic
   | Shared
   | SemiTensor
   | Span
+  | These
+  | Traced
   deriving (Show, Eq, Bounded, Enum)
 
 topicName :: Topic -> String
@@ -38,6 +42,8 @@ topicName Pullback = "pullback"
 topicName Shared = "shared"
 topicName SemiTensor = "semitensor"
 topicName Span = "span"
+topicName These = "these"
+topicName Traced = "traced"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
@@ -50,6 +56,8 @@ topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent 
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
 topicDesc SemiTensor = "SemiTensor oracles: Const, the forgetful semigroupoidal tensor"
 topicDesc Span = "Finite-span equipment oracles"
+topicDesc These = "These oracles: hand-written instances vs the derived (,) + Either reference"
+topicDesc Traced = "Traced oracles: base structural laws and their composite spends"
 
 topicParser :: Parser Topic
 topicParser =
@@ -108,10 +116,12 @@ runTopic Pullback = pullbackTopic
 runTopic Shared = sharedTopic
 runTopic SemiTensor = semiTensorTopic
 runTopic Span = spanTopic
+runTopic These = theseTopic
+runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, SemiTensor, Span]
+allTopics = [Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"

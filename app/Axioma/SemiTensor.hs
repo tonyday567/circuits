@@ -1,5 +1,5 @@
 -- | SemiTensor oracles: 'Const', the forgetful semigroupoidal tensor, at
--- @(->)@.
+-- @(->)@, and the 'Distributive' laws at @(,)@ over 'Either'.
 --
 -- The positive witnesses run: 'tensor' functoriality at 'Const' on named,
 -- payload-carrying values with distinct payload types — a leg swap is a
@@ -25,7 +25,7 @@ where
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (id, (.))
 import Circuit.GMachine (Poles (..), close)
-import Circuit.Tensor (Const (..), SemiTensor (..))
+import Circuit.Tensor (Const (..), Distributive (..), SemiTensor (..))
 import Circuit.Traced (Assoc (..))
 import Control.Monad (when)
 import Prelude hiding (id, read, (.))
@@ -81,6 +81,35 @@ tryPolesAbsorbConst =
     machine :: Const String Int -> Const Int Int
     machine = tensor (write p) (read p)
 
+-- * Distributivity
+
+-- | Exact-oracle range for the distributor round trips.
+smallRange :: [Int]
+smallRange = [-2 .. 2]
+
+-- | Left distributor round-trip.  The iso @(a, b + c) ≅ (a,b) + (a,c)@ is
+-- its own inverse up to the class methods.  The doctests cover forward
+-- application only; this pins cancellation, so a @distl'@ with swapped
+-- 'Left'/'Right' recovery — self-consistent on every forward doctest — is
+-- caught.  The sum side is heterogeneous ('Char' vs 'Bool'), so a
+-- recovery swap is observable.
+distlRoundTripOk :: Bool
+distlRoundTripOk =
+  let space = [(n, e) | n <- smallRange, e <- [Left 'a' :: Either Char Bool, Right False, Right True]]
+      fwd = distl :: (Int, Either Char Bool) -> Either (Int, Char) (Int, Bool)
+      bwd = distl' :: Either (Int, Char) (Int, Bool) -> (Int, Either Char Bool)
+   in all (\x -> bwd (fwd x) == x) space
+        && all ((\y -> fwd (bwd y) == y) . fwd) space
+
+-- | Right distributor round-trip, same witness shape.
+distrRoundTripOk :: Bool
+distrRoundTripOk =
+  let space = [(e, n) | e <- [Left 'a' :: Either Char Bool, Right False, Right True], n <- smallRange]
+      fwd = distr :: (Either Char Bool, Int) -> Either (Char, Int) (Bool, Int)
+      bwd = distr' :: Either (Char, Int) (Bool, Int) -> (Either Char Bool, Int)
+   in all (\x -> bwd (fwd x) == x) space
+        && all ((\y -> fwd (bwd y) == y) . fwd) space
+
 semiTensorTopic :: Verbosity -> IO [Bool]
 semiTensorTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "SemiTensor oracles"
@@ -88,5 +117,7 @@ semiTensorTopic verbosity = do
     [ checkV verbosity "semitensor Const: tensor id id is the identity on a named value" tryTensorIdConst,
       checkV verbosity "semitensor Const: tensor (f . g) (h . k) is composition; a leg swap is ill-typed here" tryTensorComposeConst,
       checkV verbosity "assoc Const: round trip pins the heterogeneous payload" tryAssocRoundTripConst,
-      checkV verbosity "poles at Const: the write leg is the absorb, commit from the input alone" tryPolesAbsorbConst
+      checkV verbosity "poles at Const: the write leg is the absorb, commit from the input alone" tryPolesAbsorbConst,
+      checkV verbosity "Distributive distl round-trip" distlRoundTripOk,
+      checkV verbosity "Distributive distr round-trip" distrRoundTripOk
     ]
