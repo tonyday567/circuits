@@ -10,6 +10,7 @@
 module Circuit.GMachine
   ( Cell (..),
     Body (..),
+    CellD (..),
     cellAsBody,
     Stratum (..),
     ChannelA,
@@ -88,6 +89,34 @@ data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cel
 data Body (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Body
   { consume :: arr (t ch i) ch,
     produce :: arr ch (t ch o)
+  }
+
+-- | The @(Const, t)@ corner of the 'Body' rectangle: absorb bare, emit
+-- grammared.
+--
+-- The rectangle is spanned by which legs carry the channel grammar.
+-- 'Cell' is the @(t, Const)@ corner — 'absorb' takes the grammared
+-- @t ch i@, 'observe' emits bare @o@; the @(Const, Const)@ corner is the
+-- closed machine, a plain @arr i o@ with no channel at all; the @(t, t)@
+-- diagonal is 'Body', with 'Stratum' the fully fused spelling.
+--
+-- 'expunge' commits passively from the input alone — no history, the
+-- @Const@ row — and it is the write leg of 'Poles'. 'imbue' is the
+-- produce of 'Body' — the channel update rides out in the emit package
+-- @arr ch (t ch o)@.
+--
+-- Memoryless BY CONSTRUCTION: 'expunge' never sees the channel, so it
+-- cannot thread state, and @imbue@'s update is emitted (logging) but
+-- never carried forward into the next step. If threading is wanted, the
+-- record to use is 'Body' with 'produce'.
+--
+-- At @t = 'Either'@, @imbue@'s package carries completion: 'Left' =
+-- evolve, 'Right' = done — the exit constructor that the observe of
+-- 'Cell', @arr ch o@ with no constructors, cannot say. The witnesses
+-- live in "Axioma.GMachine".
+data CellD (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = CellD
+  { expunge :: arr i ch,
+    imbue :: arr ch (t ch o)
   }
 
 -- Cell to the update package: copy-gated, the same price fuse pays.
@@ -442,6 +471,16 @@ instance Unfold These (->) where
         That b -> b :| []
         These ch' b -> b <| go ch'
 
+-- | The eliminator consuming @(s, i)@, reflecting the input immediately
+-- — the honest answer to input-blindness at the eliminator level.
+-- Provisional name, standing until the haddock pass.
+--
+-- Variance account, pinned: the observation leg @arr ch o@ never mentions
+-- the input, pre or post, by construction — the type has no slot for it.
+-- A pre-step eliminator built on that leg therefore outputs a value that
+-- provably ignores the current input; that is the old 'Moore' reading.
+-- @observe'@ closes the gap in one step — absorb, then observe — so the
+-- input is reflected immediately.
 observe' :: Cell (,) s (->) i o -> (s, i) -> o
 observe' (Cell k o) (s, i) = o (k (s, i))
 

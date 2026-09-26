@@ -15,7 +15,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.GMachine (Cell (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), cellAsLens, scanT)
+import Circuit.GMachine (Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), cellAsLens, scanT)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -76,6 +76,67 @@ dictOk =
     [(s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
+
+-- | A named 'CellD' at @(,)@: 'expunge' commits the channel from the
+-- input alone (its length); 'imbue' emits the channel update alongside
+-- the output. The leg types are chosen so the threading falsifier — a
+-- step-2 commit reading step 1's emitted package — is a type error at
+-- 'expunge', not a silent carry.
+memCellD :: CellD (,) Int (->) String Int
+memCellD = CellD length (\ch -> (ch + 1, ch * 10))
+
+-- | The two-step run, spelt out: each step commits its channel from its
+-- own input alone; step 1's emitted package is bound and deliberately
+-- dead. That dead binding is the memorylessness claim — a threading
+-- runner would route it into step 2's commit.
+twoStep :: CellD (,) ch (->) i o -> i -> i -> (o, o)
+twoStep (CellD x g) i1 i2 =
+  let (_c1', o1) = g (x i1)
+      (_c2', o2) = g (x i2)
+   in (o1, o2)
+
+-- | Memorylessness, pinned by the run: step 2 is the fresh expunge/imbue
+-- of @i2@ alone — swapping step 1's input changes step 1's output only.
+-- The falsifier is any threading of the emitted channel into the next
+-- commit: impossible at 'expunge''s type, and the anchors @(20, 40)@ vs
+-- @(30, 40)@ would break under any runner that carried state forward.
+threading :: Bool
+threading =
+  twoStep memCellD "ab" "cdef" == (20, 40)
+    && twoStep memCellD "xyz" "cdef" == (30, 40)
+    && snd (twoStep memCellD "ab" "cdef") == fresh2
+  where
+    fresh2 = case memCellD of
+      CellD x g -> snd (g (x "cdef"))
+
+-- | A named 'CellD' at 'Either': 'expunge' commits the channel from the
+-- input alone; 'imbue' evolves ('Left', the updated channel) while the
+-- input is small and completes ('Right') once it is not — the exit
+-- constructor the observe of 'Cell' (@arr ch o@, no constructors)
+-- cannot say.
+doneCellD :: CellD Either Int (->) Int Int
+doneCellD = CellD id (\ch -> if ch < 4 then Left (ch + 1) else Right ch)
+
+-- | The 'Either' run: commit, emit, repeat. 'Left' logs the evolved
+-- channel — never carried forward, per the 'CellD' memorylessness — and
+-- the run continues; 'Right' terminates it, and the remaining inputs are
+-- never committed.
+runDone :: CellD Either ch (->) i o -> [i] -> [Either ch o]
+runDone (CellD x g) = go
+  where
+    go [] = []
+    go (i : is) =
+      let p = g (x i)
+       in p : case p of
+            Left _ -> go is
+            Right _ -> []
+
+-- | Completion at the @(Const, 'Either')@ corner: an 'imbue' returning
+-- 'Right' terminates the run — @[Left 4, Right 5]@, the third input
+-- never committed. The falsifier is a run that continues past the exit,
+-- or reads the evolved channel back; either would break the anchor.
+completion :: Bool
+completion = runDone doneCellD [3, 5, 7] == [Left 4, Right 5]
 
 -- Falsifiers (verify.md discipline): a stale-carrier composite feed breaks
 -- the unit scans; a non-projection fold (e.g. a These-sum fold) breaks
@@ -217,6 +278,8 @@ gMachineTopic verbosity = do
       checkV verbosity "cell PutGet catches the constant observation" (not (putGet constW 0 3)),
       checkV verbosity "cell PutPut (register)" (putPut regW 0 1 2),
       checkV verbosity "cell PutPut catches the counting machine" (not (putPut cntW 0 1 2)),
+      checkV verbosity "cellD at (,) is memoryless: step 2 is the fresh expunge/imbue; threading breaks the anchors" threading,
+      checkV verbosity "cellD at Either: an imbue returning Right terminates the run" completion,
       checkV verbosity "gmoorT (,) scan anchor" (scanT sumG xs == [1, 3, 6, 10]),
       checkV verbosity "gmoorT Either scan anchor" (scanT eitherG xs == [2, 6, 8, 10]),
       checkV verbosity "gmoorT These scan anchor (That-injection)" (scanT theseG xs == [1, 3, 4, 5]),
