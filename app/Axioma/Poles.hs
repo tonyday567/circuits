@@ -1,4 +1,3 @@
--- | Poles oracles: write/read legs, closing, and leg-mapping at '(->)'.
 module Axioma.Poles
   ( polesTopic,
   )

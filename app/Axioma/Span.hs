@@ -1,6 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
 
--- | Span oracles — finite spans as the residual-remembering rung.
 module Axioma.Span
   ( spanTopic,
   )
@@ -84,7 +83,6 @@ spanTopic verbosity = do
             r = Span [Hi, Lo] id (\_ -> ())
          in pairs ((r `composeS` q) `composeS` p)
               == pairs (r `composeS` (q `composeS` p)),
-      -- Stratum-bridge oracles (use an injective left leg so the lookup is faithful)
       checkV verbosity "bodyFromSpan runs the span as a lookup body" $
         let sp0 = Span [W1, W2, W3] id spR
             Stratum f = bodyFromSpan sp0

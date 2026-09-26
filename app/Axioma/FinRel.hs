@@ -1,8 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | FinRel oracles: bimonoid laws, dagger collapse, and traced structure over
--- finite GF(2) linear relations.
 module Axioma.FinRel
   ( finRelTopic,
   )
@@ -21,7 +19,6 @@ type N1 = FinObj 1
 
 type N2 = FinObj 2
 
--- | Swap the second and third @n@-wire blocks of @((a,b),(c,d))@.
 swapBlocks ::
   forall n.
   (KnownNat n) =>
@@ -92,7 +89,6 @@ discard0 = discard
 zero0 :: FinRel () ()
 zero0 = zero
 
--- | Swap the two @n@-wire blocks of @(n, n)@.
 swapFinRel ::
   forall n.
   (KnownNat n) =>
@@ -113,10 +109,6 @@ assoc'FinRel ::
   FinRel (FinObj n, (FinObj n, FinObj n)) ((FinObj n, FinObj n), FinObj n)
 assoc'FinRel = wiring id
 
--- | Dagger(FinRel) collapse witness: 'Copy' on the dagger requires
--- 'Merge' on the base, so the back of @copy@ is @plus@.  The
--- constructors are pinned by type signatures so the instance method
--- resolves unambiguously.
 daggerCopy1 :: Dagger FinRel N1 (N1, N1)
 daggerCopy1 = copy
 
@@ -127,8 +119,7 @@ finRelTopic :: Verbosity -> IO [Bool]
 finRelTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "FinRel bimonoid, dagger, and trace oracles"
   sequence
-    [ -- copy/discard comonoid laws
-      checkV verbosity "copy coassociative (n=1)" $
+    [ checkV verbosity "copy coassociative (n=1)" $
         parFinRel copy1 id1 `compFinRel` copy1 == assoc'FinRel `compFinRel` parFinRel id1 copy1 `compFinRel` copy1,
       checkV verbosity "copy coassociative (n=2)" $
         parFinRel copy2 id2 `compFinRel` copy2 == assoc'FinRel `compFinRel` parFinRel id2 copy2 `compFinRel` copy2,
@@ -144,7 +135,6 @@ finRelTopic verbosity = do
         swapFinRel `compFinRel` copy1 == copy1,
       checkV verbosity "copy cocommutative (n=2)" $
         swapFinRel `compFinRel` copy2 == copy2,
-      -- plus/zero monoid laws
       checkV verbosity "plus associative (n=1)" $
         plus1 `compFinRel` parFinRel plus1 id1 == plus1 `compFinRel` parFinRel id1 plus1 `compFinRel` assocFinRel,
       checkV verbosity "plus associative (n=2)" $
@@ -161,7 +151,6 @@ finRelTopic verbosity = do
         plus1 `compFinRel` swapFinRel == plus1,
       checkV verbosity "plus commutative (n=2)" $
         plus2 `compFinRel` swapFinRel == plus2,
-      -- bialgebra laws
       checkV verbosity "bialgebra copy-plus (n=1)" $
         copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` swapMiddle `compFinRel` parFinRel copy1 copy1,
       checkV verbosity "bialgebra copy-plus (n=2)" $
@@ -176,7 +165,6 @@ finRelTopic verbosity = do
         copy2 `compFinRel` zero2 == parFinRel zero2 zero2 `compFinRel` (wiring id :: FinRel () ((), ())),
       checkV verbosity "bialgebra discard-zero" $
         compFinRel discard0 zero0 == (finId :: FinRel () ()),
-      -- scalar arithmetic over GF(2)
       checkV verbosity "scalar True is identity" $
         finScalar True == id1,
       checkV verbosity "scalar False is idempotent" $
@@ -185,8 +173,6 @@ finRelTopic verbosity = do
         compFinRel (finScalar False :: FinRel N1 N1) (finScalar True) == finScalar False,
       checkV verbosity "scalar True after scalar False" $
         compFinRel (finScalar True :: FinRel N1 N1) (finScalar False) == finScalar False,
-      -- Dagger(FinRel k) collapse: the dagger instances interlock the
-      -- tensor-comonoid and the par-monoid in a single construction.
       checkV verbosity "Dagger(FinRel) copy front is FinRel copy" $
         front daggerCopy1 == copy1,
       checkV verbosity "Dagger(FinRel) copy back is FinRel plus" $
@@ -197,7 +183,6 @@ finRelTopic verbosity = do
         back daggerDiscard1 == zero1,
       checkV verbosity "Dagger(FinRel) transpose copy has plus in front" $
         front (transpose daggerCopy1) == plus1,
-      -- traced structure
       checkV verbosity "trace yanking (n=1)" $
         traceFinRel (swapFinRel :: FinRel (N1, N1) (N1, N1)) == id1,
       checkV verbosity "trace of identity pair" $

@@ -1,83 +1,23 @@
 {-# LANGUAGE TypeFamilies #-}
 
--- | The container view of polynomials: @Eval p x@ as a position with
--- the pins of /that/ position assigned.
---
--- @
---   Eval p x  ≅  Σ (i :: PosAt p b). (DirAt p b -> x)
--- @
---
--- The library already carries two grades of the same polynomial shape.
--- The /flat/ grade ('Pos', 'Dir') types the direction set without
--- reference to the position; it is right for dynamics, where the
--- environment supplies a direction after the position is observed, so
--- an off-fibre direction never occurs at run time.  The /fibred/
--- grade (this module) types pins at one position; it is right for
--- read-back and routing, where something must recover the position or
--- type a pin without having been at the step that produced it.
---
--- The wall between the grades is 'Sum': a flat direction
--- @Either (Dir p) (Dir q)@ cannot be narrowed to the branch the
--- position selected, which is why 'Netlist' has no @Sum@ instance.
--- The fibre depends on the position only
--- through its 'Sum'-branch choices — the constructor, never the
--- payload — so a position splits into a promotable skeleton
--- ('Branch') and a term-level payload ('PosK' carries it).  'DirAt'
--- is then an ordinary closed family over the skeleton, and 'Sum'
--- composes freely.
---
--- The same absence is relocated, not removed: 'FlatFibre' is total
--- everywhere /except/ 'Sum', where it honestly cannot be.  Where the
--- missing @Netlist (Sum p q)@ instance blocked the netlist view, the
--- missing @FlatFibre (Sum p q)@ instance states a true fact about the
--- flat grade and blocks nothing that 'fromFlat' does not already
--- express.
---
--- /Second wall:/ @'Comp'@ does not admit a 'DirAt' equation at all —
--- its inner skeleton is determined by a /runtime/ direction, a
--- genuine term-to-type dependency that Haskell cannot express.
--- 'compToNested' is the escape hatch: @Eval p (Eval q x)@ is
--- fibre-honest at both levels by construction.  This module
--- deliberately has no @'Comp'@ cases.
---
--- /Naming:/ the existential container is 'Fibred', not @Sig@ — the
--- latter collides with 'Circuit.Syntax.Sig' in the "Circuit" umbrella.
---
--- 'PosAt' deliberately has no @Eq@/@Show@: bundling dictionaries into
--- 'PosK' is evidence-bundling, and the structural skeleton is what
--- equality is anyway.  Compare positions via 'Skel' (the term-level
--- mirror of 'Branch') and 'posOf'.
---
--- Worked examples: $fibred-view.
 module Circuit.Container
-  ( -- * Branch skeleton
-    Branch (..),
+  ( Branch (..),
     Skel (..),
-
-    -- * Positions, split
     PosAt (..),
     SomePos (..),
     posOf,
     skelOf,
-
-    -- * Pins at a position
     DirAt,
     toFlat,
     fromFlat,
     FlatFibre (..),
-
-    -- * The container view
     Fibred (..),
     Located (..),
     Container (..),
     monoFibreFlat,
-
-    -- * Morphisms at the fibre
     Bundle (..),
     morphAtC,
     parTC,
-
-    -- * The netlist bridge
     netViaFibred,
   )
 where
@@ -89,14 +29,6 @@ import Data.Type.Equality ((:~:) (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
--- $setup
--- >>> import Circuit.Container
--- >>> import Circuit.Poly
--- >>> import Prelude hiding (id, (.))
-
--- | Branch skeleton: the payload-free part of a position.  Only the
--- 'Sum' constructor choices matter to the fibre, so only they — and
--- the structural spine — appear here.
 data Branch
   = BY
   | BK
@@ -106,9 +38,6 @@ data Branch
   | BP Branch Branch
   | BT Branch Branch
 
--- | The term-level mirror of 'Branch', with derived 'Eq'/'Show'.
--- This is the comparison vehicle for positions: 'skelOf' recovers
--- the skeleton, 'posOf' the payload.
 data Skel
   = SY
   | SK
@@ -119,12 +48,6 @@ data Skel
   | ST Skel Skel
   deriving (Eq, Show)
 
--- | A position, split: skeleton in the type index, payload in the
--- term.
---
--- 'PosK' is where the payload lives — a 'Konst' position (the @o@ in
--- @Mono i o@) is a genuine runtime value and never enters the fibre,
--- so it stays out of the index.
 data PosAt :: Poly -> Branch -> Type where
   PosY :: PosAt 'Y 'BY
   PosK :: c -> PosAt ('Konst c) 'BK
@@ -134,11 +57,6 @@ data PosAt :: Poly -> Branch -> Type where
   PosP :: PosAt p b -> PosAt q c -> PosAt (Prod p q) ('BP b c)
   PosT :: PosAt p b -> PosAt q c -> PosAt (PTensor p q) ('BT b c)
 
--- | Forget the skeleton: project a split position to the flat 'Pos'.
---
--- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Konst Int) Y) ('BL 'BK)
--- >>> posOf i
--- Left 3
 posOf :: PosAt p b -> Pos p
 posOf = \case
   PosY -> ()
@@ -149,7 +67,6 @@ posOf = \case
   PosP i j -> (posOf i, posOf j)
   PosT i j -> (posOf i, posOf j)
 
--- | The skeleton of a position, as a comparable term.
 skelOf :: PosAt p b -> Skel
 skelOf = \case
   PosY -> SY
@@ -160,19 +77,9 @@ skelOf = \case
   PosP i j -> SP (skelOf i) (skelOf j)
   PosT i j -> ST (skelOf i) (skelOf j)
 
--- | A position with its skeleton hidden existentially — the type of
--- "a position, recovered".
 data SomePos :: Poly -> Type where
   SomePos :: PosAt p b -> SomePos p
 
--- | Pins at a position.  Depends on the skeleton only: the two 'Sum'
--- equations are the wall, dissolved.
---
--- For @'Prod'@ the fibre is the coproduct of the sub-fibres — it
--- composes freely in both 'toFibred' and 'fromFibred'.  For
--- @'PTensor'@ the fibre is the /product/, and the flat function an
--- 'ET' value stores must be narrowed ('FlatFibre') to meet it; see
--- the 'Container' instance.
 type family DirAt (p :: Poly) (b :: Branch) :: Type where
   DirAt 'Y 'BY = ()
   DirAt ('Konst c) 'BK = Void
@@ -182,8 +89,6 @@ type family DirAt (p :: Poly) (b :: Branch) :: Type where
   DirAt (Prod p q) ('BP b c) = Either (DirAt p b) (DirAt q c)
   DirAt (PTensor p q) ('BT b c) = (DirAt p b, DirAt q c)
 
--- | Widen a pin to the flat 'Dir' of the whole polynomial.  Total at
--- every position.
 toFlat :: PosAt p b -> DirAt p b -> Dir p
 toFlat = \case
   PosY -> \() -> ()
@@ -194,16 +99,6 @@ toFlat = \case
   PosP i j -> either (Left . toFlat i) (Right . toFlat j)
   PosT i j -> \(d1, d2) -> (toFlat i d1, toFlat j d2)
 
--- | Narrow a flat direction to the pins of one position.  Total
--- exactly off 'Sum'; on a wrong branch there is no pin to return,
--- which is the wall restated positively.
---
--- >>> let i = PosL (PosK (3 :: Int)) :: PosAt (Sum (Konst Int) Y) ('BL 'BK)
--- >>> fromFlat i (Right ())
--- Nothing
--- >>> let m = PosP (PosK (5 :: Int)) PosE :: PosAt (Mono Int Int) ('BP 'BK 'BE)
--- >>> fromFlat m (toFlat m (Right 7))
--- Just (Right 7)
 fromFlat :: PosAt p b -> Dir p -> Maybe (DirAt p b)
 fromFlat = \case
   PosY -> \() -> Just ()
@@ -218,13 +113,7 @@ fromFlat = \case
   PosP i j -> either (fmap Left . fromFlat i) (fmap Right . fromFlat j)
   PosT i j -> \(d1, d2) -> (,) <$> fromFlat i d1 <*> fromFlat j d2
 
--- | The flat direction is total exactly off 'Sum'.  Every structural
--- constructor except 'Sum' (and @'Comp'@, which has no 'DirAt' at
--- all) has an instance; the missing @Sum@ instance is the relocated
--- wall — a true fact about the flat grade, not an obstruction.
 class FlatFibre (p :: Poly) where
-  -- | Narrow a flat direction to the pins, totality witnessed by the
-  -- instance itself.
   narrow :: PosAt p b -> Dir p -> DirAt p b
 
 instance FlatFibre 'Y where
@@ -242,21 +131,9 @@ instance (FlatFibre p, FlatFibre q) => FlatFibre (Prod p q) where
 instance (FlatFibre p, FlatFibre q) => FlatFibre (PTensor p q) where
   narrow (PosT i j) (d1, d2) = (narrow i d1, narrow j d2)
 
--- | The Σ: a position with the pins of /that/ position assigned.
--- Matching on the 'PosAt' refines the skeleton index @b@, so the pin
--- map is already typed at the fibre.
---
--- >>> let v = ES (Left (EK (3 :: Int))) :: Eval (Sum (Konst Int) Y) Bool
--- >>> case toFibred v of Fibred j _ -> posOf j
--- Left 3
--- >>> case fromFibred (toFibred v) of ES (Left (EK c)) -> c; _ -> 0
--- 3
 data Fibred :: Poly -> Type -> Type where
   Fibred :: PosAt p b -> (DirAt p b -> x) -> Fibred p x
 
--- | Recover a split position from a flat one.  Total at every
--- structural constructor /including/ 'Sum' — unlike 'FlatFibre', the
--- position is in hand, so the branch is known.
 class Located (p :: Poly) where
   posAt :: Pos p -> SomePos p
 
@@ -282,13 +159,6 @@ instance (Located p, Located q) => Located (PTensor p q) where
   posAt (i, j) = case (posAt i, posAt j) of
     (SomePos pi, SomePos pj) -> SomePos (PosT pi pj)
 
--- | The container isomorphism: 'Eval' values are positions with pin
--- assignments.  Instances exist at every structural constructor
--- including 'Sum' — the round trip 'netRoundTrip' cannot express.
---
--- The @'PTensor'@ instance additionally demands 'FlatFibre' on both
--- factors: an 'ET' value stores a flat function, and meeting the
--- product fibre requires narrowing that is total only off 'Sum'.
 class Container (p :: Poly) where
   toFibred :: Eval p x -> Fibred p x
   fromFibred :: Fibred p x -> Eval p x
@@ -328,30 +198,12 @@ instance
   fromFibred (Fibred (PosT i j) k) =
     ET (posOf i, posOf j) (\(d1, d2) -> k (narrow i d1, narrow j d2))
 
--- | The flat netlist view, derived /through/ the fibred one: project
--- the position, and compose the pin map with the total narrowing.
---
--- Wherever 'Netlist' holds, @p@ is @Sum@-free, so 'Container' and
--- 'FlatFibre' both hold and this agrees with 'Circuit.Poly.toNet' —
--- checked by oracle in \"Axioma.Container\", not asserted by a
--- superclass.  The class tower stays unconstrained.
 netViaFibred :: (Container p, FlatFibre p) => Eval p x -> (Pos p, Dir p -> x)
 netViaFibred v = case toFibred v of
   Fibred i k -> (posOf i, k . narrow i)
 
--- | A morphism read at the fibre: the target position plus the
--- pullback on pins, both at the skeleton.  The target may be a
--- 'Sum' — which is exactly what 'Circuit.Poly.morphAt' cannot
--- express, since it demands 'Netlist' of the target.
---
--- >>> let p = prism (\case Left n -> Left n; Right s -> Right (Right s)) Left :: Morphism (Mono (Either Int String) (Either Int String)) (Sum (Mono Int Int) (Mono (Either Int String) (Either Int String)))
--- >>> case morphAtC p (PosP (PosK (Left 7)) PosE) of Bundle (PosL (PosP (PosK n) PosE)) k -> (n, k (Right 3))
--- (7,Right (Left 3))
 data Bundle p p' b = forall b'. Bundle (PosAt p' b') (DirAt p' b' -> DirAt p b)
 
--- | Read a 'Morphism' off at one position, fibred.  The morphism is
--- run on the tautological assignment 'Fibred' i 'id'; the result
--- 'toFibred's to a position at the target with the pin pullback.
 morphAtC ::
   (Container p, Container p') =>
   Morphism p p' ->
@@ -362,11 +214,6 @@ morphAtC m i = case toFibred (runMorphism m v) of
   where
     v = fromFibred (Fibred i id)
 
--- | Functorial action of the Dirichlet tensor on container factors.
--- Where 'Circuit.Poly.parT' demands 'Netlist' of all four factors,
--- 'parTC' demands 'Container' — so a prism (or any morphism with a
--- 'Sum' side) may appear as a factor, and the backward maps run at
--- the fibre: off-fibre pins are not representable, by construction.
 parTC ::
   (Container p, Container q, Container p', Container q') =>
   Morphism p p' ->
@@ -377,20 +224,5 @@ parTC m n (Fibred (PosT i j) f) = case (morphAtC m i, morphAtC n j) of
   (Bundle i' pullM, Bundle j' pullN) ->
     Fibred (PosT i' j') (\(d1, d2) -> f (pullM d1, pullN d2))
 
--- | The two grades agree definitionally on the monomial fragment: the
--- fibre of @Mono i o@ is the flat direction, on the nose.  Accepted
--- by the compiler alone — if the 'DirAt' equations above have a typo,
--- this witness stops compiling.
 monoFibreFlat :: DirAt (Mono Int Int) ('BP 'BK 'BE) :~: Dir (Mono Int Int)
 monoFibreFlat = Refl
-
--- $fibred-view
---
--- The wall, in one session:
---
--- >>> let v = ES (Right (EY True)) :: Eval (Sum (Konst Int) Y) Bool
--- >>> case toFibred v of Fibred (PosR PosY) k -> (Right (), k ())
--- (Right (),True)
---
--- A 'Sum' value on the /right/ branch yields a position whose pins
--- are the /right/ factor's — the thing 'Netlist' cannot say.

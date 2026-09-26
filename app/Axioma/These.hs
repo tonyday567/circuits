@@ -1,19 +1,3 @@
--- | These oracles: the derived-'These' reference block.
---
--- The hand-written 'These' instances for 'Circuit.Tensor' and
--- 'Circuit.Traced' have no surviving structural witness (only 'Yank
--- These' has doctests).  This topic pins each of them against an
--- independent reference built from living @(,)@ + 'Either' vocabulary via
--- the distributive iso @These a b ≅ a + b + a×b@ — the iso and the
--- references use only base 'tensor' / unitors / 'braid' / 'strength' /
--- 'assoc' / 'slide', never the hand-written 'These' instances.
---
--- These are the strongest witnesses in the wave-4 rehome set: each
--- catches a /consistent-but-wrong/ 'These' instance that round-trip
--- checks miss, because agreement is checked against a reference with a
--- different shape of recursion.  The 'These' channels here are wider than
--- 1x1 — 'Char', 'Bool', 'Int', and nested 'These' — so wire swaps are
--- observable, not silently re-routed.
 module Axioma.These
   ( theseTopic,
   )
@@ -28,10 +12,6 @@ import Data.These (These (..))
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
--- * The distributive iso and derived references
-
--- | Isomorphism between hand-written 'These' and the distributive-derived
--- representation @a + b + a×b@.
 theseToEither :: These a b -> Either a (Either b (a, b))
 theseToEither = \case
   This a -> Left a
@@ -44,22 +24,15 @@ eitherToThese = \case
   Right (Left b) -> That b
   Right (Right (a, b)) -> These a b
 
--- | Reference 'tensor' for 'These' derived from @(,)@ and 'Either' via
--- the iso.  Uses only the base 'SemiTensor' instances, not the
--- hand-written 'SemiTensor These' instance.
 refTheseTensor :: (a -> b) -> (c -> d) -> These a c -> These b d
 refTheseTensor f g = eitherToThese . tensor f (tensor g (tensor f g)) . theseToEither
 
--- | Reference left unitor for 'These' derived from the base unitors and
--- the annihilator: @These Void a ≅ 0 + (a + 0×a) ≅ a@.
 refTheseUnitl :: These Void a -> a
 refTheseUnitl = either absurd (either id (absurd . fst)) . theseToEither
 
--- | Reference right unitor for 'These': @These a Void ≅ a + (0 + a×0) ≅ a@.
 refTheseUnitr :: These a Void -> a
 refTheseUnitr = either id (either absurd (absurd . snd)) . theseToEither
 
--- | Reference braid for 'These' derived from the iso.
 refTheseBraid :: These a b -> These b a
 refTheseBraid = eitherToThese . go . theseToEither
   where
@@ -67,7 +40,6 @@ refTheseBraid = eitherToThese . go . theseToEither
     go (Right (Left b)) = Left b
     go (Right (Right (a, b))) = Right (Right (b, a))
 
--- | Reference 'strength' for 'These' derived from the iso.
 refTheseStrength :: (b -> c) -> These a b -> These a c
 refTheseStrength f = eitherToThese . go . theseToEither
   where
@@ -75,8 +47,6 @@ refTheseStrength f = eitherToThese . go . theseToEither
     go (Right (Left b)) = Right (Left (f b))
     go (Right (Right (a, b))) = Right (Right (a, f b))
 
--- | Nested iso for the derived 'These' associator: unfold the outer
--- 'These', then unfold the carrier inside the product/coproduct pieces.
 theseToEitherNested ::
   These (These a b) c ->
   Either (Either a (Either b (a, b))) (Either c (Either a (Either b (a, b)), c))
@@ -85,8 +55,6 @@ theseToEitherNested x = case theseToEither x of
   Right (Left c) -> Right (Left c)
   Right (Right (y, c)) -> Right (Right (theseToEither y, c))
 
--- | Convert the nested representation of @These a (These b c)@ into the
--- target iso @Either a (Either (These b c) (a, These b c))@.
 theseAssocOut ::
   Either a (Either (Either b (Either c (b, c))) (a, Either b (Either c (b, c)))) ->
   Either a (Either (These b c) (a, These b c))
@@ -94,10 +62,6 @@ theseAssocOut (Left a) = Left a
 theseAssocOut (Right (Left y)) = Right (Left (eitherToThese y))
 theseAssocOut (Right (Right (a, y))) = Right (Right (a, eitherToThese y))
 
--- | Reference 'assoc' for 'These' derived from the distributive
--- representation.  Pattern-matches on the nested @(,)@ / 'Either' shape
--- rather than on 'These' constructors, so agreement with the hand-written
--- instance is a genuine cross-check.
 refTheseAssoc :: These (These a b) c -> These a (These b c)
 refTheseAssoc = eitherToThese . theseAssocOut . go . theseToEitherNested
   where
@@ -109,7 +73,6 @@ refTheseAssoc = eitherToThese . theseAssocOut . go . theseToEitherNested
     go (Right (Right (Right (Left b), c))) = Right (Left (Right (Right (b, c))))
     go (Right (Right (Right (Right (a, b)), c))) = Right (Right (a, Right (Right (b, c))))
 
--- | Nested iso for @These a (These b c)@.
 theseToEitherNested' ::
   These a (These b c) ->
   Either a (Either (Either b (Either c (b, c))) (a, Either b (Either c (b, c))))
@@ -118,8 +81,6 @@ theseToEitherNested' x = case theseToEither x of
   Right (Left y) -> Right (Left (theseToEither y))
   Right (Right (a, y)) -> Right (Right (a, theseToEither y))
 
--- | Convert the nested representation of @These (These a b) c@ into the
--- target iso @Either (These a b) (Either c (These a b, c))@.
 theseAssocPrimeOut ::
   Either (Either a (Either b (a, b))) (Either c (Either a (Either b (a, b)), c)) ->
   Either (These a b) (Either c (These a b, c))
@@ -127,7 +88,6 @@ theseAssocPrimeOut (Left y) = Left (eitherToThese y)
 theseAssocPrimeOut (Right (Left c)) = Right (Left c)
 theseAssocPrimeOut (Right (Right (z, c))) = Right (Right (eitherToThese z, c))
 
--- | Reference 'assoc'' for 'These' (inverse direction).
 refTheseAssoc' :: These a (These b c) -> These (These a b) c
 refTheseAssoc' = eitherToThese . theseAssocPrimeOut . go . theseToEitherNested'
   where
@@ -139,8 +99,6 @@ refTheseAssoc' = eitherToThese . theseAssocPrimeOut . go . theseToEitherNested'
     go (Right (Right (a, Right (Left c)))) = Right (Right (Left a, c))
     go (Right (Right (a, Right (Right (b, c))))) = Right (Right (Right (Right (a, b)), c))
 
--- | Convert the nested representation of @These b (These a c)@ into the
--- target iso @Either b (Either (These a c) (b, These a c))@.
 theseSlideOut ::
   Either b (Either (Either a (Either c (a, c))) (b, Either a (Either c (a, c)))) ->
   Either b (Either (These a c) (b, These a c))
@@ -148,7 +106,6 @@ theseSlideOut (Left b) = Left b
 theseSlideOut (Right (Left y)) = Right (Left (eitherToThese y))
 theseSlideOut (Right (Right (b, y))) = Right (Right (b, eitherToThese y))
 
--- | Reference 'slide' for 'These' derived from the iso.
 refTheseSlide :: These a (These b c) -> These b (These a c)
 refTheseSlide = eitherToThese . theseSlideOut . go . theseToEitherNested'
   where
@@ -160,11 +117,6 @@ refTheseSlide = eitherToThese . theseSlideOut . go . theseToEitherNested'
     go (Right (Right (a, Right (Left c)))) = Right (Left (Right (Right (a, c))))
     go (Right (Right (a, Right (Right (b, c))))) = Right (Right (b, Right (Right (a, c))))
 
--- * Agreement oracles
-
--- | Hand-written 'SemiTensor These' agrees with the reference derived
--- from @(,)@ and 'Either'.  The space covers all three constructors with
--- heterogeneous types ('Int', 'Bool'), so a bimap leg swap is observable.
 derivedTheseTensorOk :: Bool
 derivedTheseTensorOk =
   let f = (+ 1) :: Int -> Int
@@ -172,40 +124,27 @@ derivedTheseTensorOk =
       space = [This 0, This 1, That False, That True, These 0 False, These 1 True]
    in all (\x -> refTheseTensor f g x == tensor f g x) space
 
--- | Hand-written left unitor agrees with the derived reference.
--- @These Void a@ is inhabited only through 'That', since 'This' and
--- 'These' require a 'Void'.
 derivedTheseUnitlOk :: Bool
 derivedTheseUnitlOk =
   let space = [That n | n <- [0, 1, 2]] :: [These Void Int]
    in all (\x -> refTheseUnitl x == unitl x) space
 
--- | Hand-written right unitor agrees with the derived reference.
--- @These a Void@ is inhabited only through 'This'.
 derivedTheseUnitrOk :: Bool
 derivedTheseUnitrOk =
   let space = [This n | n <- [0, 1, 2]] :: [These Int Void]
    in all (\x -> refTheseUnitr x == unitr x) space
 
--- | Hand-written 'Action These' braid agrees with the derived reference —
--- including the product swap in the 'These' case, which a round-trip
--- check cannot see.
 derivedTheseBraidOk :: Bool
 derivedTheseBraidOk =
   let space = [This 0, This 1, That 'a', That 'b', These 0 'a', These 1 'b'] :: [These Int Char]
    in all (\x -> refTheseBraid x == braid x) space
 
--- | Hand-written 'Strength These' agrees with the derived reference.
 derivedTheseStrengthOk :: Bool
 derivedTheseStrengthOk =
   let f = (+ 1) :: Int -> Int
       space = [This 'a', That 0, That 1, These 'a' 0, These 'b' (-1)]
    in all (\x -> refTheseStrength f x == strength f x) space
 
--- | Hand-written 'Assoc These' agrees with the derived reference on all
--- eight constructor shapes of @These (These (These Bool ()) Char) Int@ —
--- the space exercises every constructor combination, so a swap of any
--- single shape is caught.
 derivedTheseAssocOk :: Bool
 derivedTheseAssocOk =
   let shapes n b c =
@@ -222,8 +161,6 @@ derivedTheseAssocOk =
       space = concat [shapes n b c | n <- [-1, 0, 1] :: [Int], b <- [False, True], c <- ['x', 'y']]
    in all (\x -> refTheseAssoc x == assoc x) space
 
--- | Hand-written 'Assoc These' inverse agrees with the derived reference
--- on the seven shapes of @These Bool (These () Char)@.
 derivedTheseAssocPrimeOk :: Bool
 derivedTheseAssocPrimeOk =
   let shapes a b c =
@@ -239,10 +176,6 @@ derivedTheseAssocPrimeOk =
       space = concat [shapes a b c | a <- [False, True], b <- [()], c <- ['x', 'y']]
    in all (\x -> refTheseAssoc' x == assoc' x) space
 
--- | Hand-written 'Slide These' agrees with the derived reference — the
--- deepest pin of slide-These anywhere: a wrong-side swap on any of the
--- seven shapes is caught, including swaps that keep the involution law
--- (the involution witnesses cannot see those).
 derivedTheseSlideOk :: Bool
 derivedTheseSlideOk =
   let shapes a b c =

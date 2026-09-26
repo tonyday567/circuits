@@ -1,16 +1,3 @@
--- | Container oracles — the fibred view of polynomials, checked against
--- the flat grade.
---
--- Mutation notes (per buff/verify.md):
---
--- * The wrong-branch mutant of 'toFibred' for 'Sum' — mapping 'PosL' to
---   the @q@ pins — is a /compile-time/ mutation: it does not typecheck,
---   so a green suite will never show it.  The 'DirAt' equations are the
---   witness; the module haddock records the claim.
--- * A 'posAt' mutant that always takes 'Left' is caught by
---   'locatedRoundTripOk': 'hSumPositions' is heterogeneous
---   (@Sum (Mono Int Int) (Mono Bool Bool)@), so the mutant cannot
---   accidentally agree on the right branch.
 module Axioma.Container
   ( containerTopic,
   )
@@ -25,9 +12,6 @@ import Data.Maybe (fromJust, isNothing)
 import Data.Void (absurd)
 import Prelude hiding (id, (.))
 
--- | Positions of a heterogeneous sum — the shape that keeps the
--- 'posAt' oracle honest: left and right branches differ in both
--- skeleton and payload.
 hSumPositions :: [Pos (Sum (Mono Int Int) (Mono Bool Bool))]
 hSumPositions = [Left (1, ()), Right (True, ())]
 
@@ -37,8 +21,6 @@ posOfSome (SomePos i) = posOf i
 sameSomePos :: (Eq (Pos p)) => SomePos p -> SomePos p -> Bool
 sameSomePos (SomePos x) (SomePos y) = skelOf x == skelOf y && posOf x == posOf y
 
--- | Round trip at every structural constructor of the polynomial
--- grammar, including 'Sum' — the oracle 'netRoundTrip' cannot express.
 sumRoundTripOk :: Bool
 sumRoundTripOk =
   case fromFibred (toFibred v) of
@@ -93,8 +75,6 @@ expRoundTripOk =
     v :: Eval (Exp Int) Int
     v = EE (+ 2)
 
--- | The position recovers in both directions: skeleton-and-payload
--- round-trips the flat position, and back.
 locatedRoundTripOk :: Bool
 locatedRoundTripOk =
   all forward hSumPositions
@@ -106,8 +86,6 @@ locatedRoundTripOk =
     sameBack :: SomePos (Sum (Mono Int Int) (Mono Bool Bool)) -> Bool
     sameBack s = sameSomePos s (posAt @(Sum (Mono Int Int) (Mono Bool Bool)) (posOfSome s))
 
--- | Section law for the bridge maps: narrowing after widening is the
--- identity, on-fibre.
 sectionOk :: Bool
 sectionOk =
   all (\d -> fromFlat m (toFlat m (Right d)) == Just (Right d)) [1 .. 4 :: Int]
@@ -115,8 +93,6 @@ sectionOk =
     m :: PosAt (Mono Int Int) (BP BK BE)
     m = PosP (PosK 5) PosE
 
--- | The wall, restated positively: a flat direction on the wrong
--- branch narrows to nothing.
 offFibreOk :: Bool
 offFibreOk =
   isNothing (fromFlat i (Right ()))
@@ -127,8 +103,6 @@ offFibreOk =
     j :: PosAt (Sum (Exp Int) (Exp Int)) (BR BE)
     j = PosR PosE
 
--- | Grade agreement with the flat netlist view on the monomial
--- fragment: same position, and the pin maps agree on-fibre.
 gradeAgreementOk :: Bool
 gradeAgreementOk =
   case toFibred v of
@@ -140,8 +114,6 @@ gradeAgreementOk =
     v = EP (EK 5, EE (+ 1))
     (flatPos, net) = toNet v
 
--- | 'netViaFibred' agrees with 'toNet' on the monomial — the B1
--- bridge, checked not asserted.
 netAgreementOk :: Bool
 netAgreementOk =
   nfPos == flatPos
@@ -152,8 +124,6 @@ netAgreementOk =
     (flatPos, net) = toNet v
     (nfPos, nfK) = netViaFibred v
 
--- | The same agreement at 'PTensor', where the bridge must narrow
--- the stored flat function through 'FlatFibre'.
 netAgreementPTensorOk :: Bool
 netAgreementPTensorOk =
   nfPos == flatPos
@@ -164,10 +134,6 @@ netAgreementPTensorOk =
     (flatPos, net) = toNet v
     (nfPos, nfK) = netViaFibred v
 
--- | The B4 acceptance: a prism read at the fibre. 'morphAt' rejects
--- this morphism — its target is a 'Sum', which has no 'Netlist'
--- instance — so a green check here is exactly the thing that was
--- impossible at HEAD.
 prismMorphAtOk :: Bool
 prismMorphAtOk =
   case morphAtC p i of
@@ -186,9 +152,6 @@ prismMorphAtOk =
     i :: PosAt (Mono (Either Int String) (Either Int String)) (BP BK BE)
     i = PosP (PosK (Left 7)) PosE
 
--- | 'parTC' with a prism factor: the composite lives at the
--- 'Sum'-in-the-target fibre, and the backward map lands on the
--- matched branch's pins only.
 parTCAcceptOk :: Bool
 parTCAcceptOk =
   case parTC p Id v of

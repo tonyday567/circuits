@@ -1,8 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Effectful oracles over 'K IO' and 'Trace (,) (K IO)': Central Sliding,
--- Stratum composition, and Trace normal-form order preservation.
 module Axioma.Effect
   ( effectTopic,
   )
@@ -20,7 +18,6 @@ import Control.Monad (when)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Prelude hiding (curry, id, uncurry, (.))
 
--- | Helper that fixes the cartesian tensor for 'yank' over 'K IO' arrows.
 yankK :: K IO (s, a) (s, b) -> Trace (,) (K IO) a b
 yankK = yank . Lift
 
@@ -28,9 +25,7 @@ effectTopic :: Verbosity -> IO [Bool]
 effectTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Effectful K IO and Trace (,) (K IO) oracles"
   sequence
-    [ -- Benton–Hyland Def 3.2: unrestricted sliding fails for non-central
-      -- effectful morphisms. The witness uses two IO actions on a shared ref.
-      checkIOV verbosity "unrestricted sliding fails for non-central K IO" $
+    [ checkIOV verbosity "unrestricted sliding fails for non-central K IO" $
         do
           ref <- newIORef (1 :: Int)
           let f = K $ \ ~((), ()) -> do
@@ -44,11 +39,6 @@ effectTopic verbosity = do
               pre = yank (f . tensor @(,) @(K IO) g id)
           (l, r) <- (,) <$> runK post () <*> runK pre ()
           pure (l /= r),
-      -- Stratum (,) (K IO) must compose as a category. This is the untested
-      -- edge of parameterising Stratum over arr; Z2's Trace-level witness
-      -- stands on it. The stratums touch a shared IORef to confirm
-      -- composition threads state through the K base, not just the function
-      -- base.
       checkIOV verbosity "Stratum (,) (K IO) composes as a category" $
         do
           ref <- newIORef (0 :: Int)
@@ -61,11 +51,6 @@ effectTopic verbosity = do
               gf = g . f
           (sOut, c) <- runK (Stratum.morphism gf) (0, 5)
           pure (sOut == 2 && c == 12),
-      -- Benton-Hyland Def 3.2 at the Trace level: Trace's yank inherits the
-      -- Central Sliding side-condition from its base. A non-central effectful
-      -- morphism g slid past f give a different result depending on order.
-      -- Trace's 'yank' discharges into the base 'yank', so the same witness
-      -- that fails for K IO directly also fails for Trace (,) (K IO).
       checkIOV verbosity "Trace trace requires centrality over K IO (Central Sliding)" $
         do
           ref <- newIORef 1
@@ -82,10 +67,6 @@ effectTopic verbosity = do
           writeIORef ref 1
           r <- runK (Syn.eval pre) ()
           pure (l /= r),
-      -- Trace (.) preserves the semantic order of composed yank bodies over
-      -- an effectful base. This is not a centrality claim; it just checks
-      -- that Trace's normal form agrees with a hand-built body that threads
-      -- state in the same order.
       checkIOV verbosity "Trace (.) preserves semantic order of composed yank bodies" $
         do
           ref <- newIORef 1
@@ -98,7 +79,7 @@ effectTopic verbosity = do
                 writeIORef ref (v * 2)
                 pure (s, v * b)
               loopFG = yankK f . yankK g :: Trace (,) (K IO) Int Int
-              -- Same threading as Trace's (.) normal form: g's state wire first.
+
               handBuiltFG =
                 yankK
                   ( K $

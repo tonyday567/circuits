@@ -8,38 +8,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Finite relations, in two reference-semantics grades.
---
--- * 'Rel': explicit finite relations. Any type equipped with a 'Fin'
---   listing of inhabitants can serve as an object; morphisms are lists of
---   pairs. Composition requires 'Eq' on the middle type, so this grade is
---   intentionally not an instance of the unconstrained
---   'Circuit.Category.Category' tower: the monoidal unitors and
---   associators need explicit 'Fin' evidence. Use the named combinators
---   directly when working with finite relations.
--- * 'FinRel': finite-dimensional linear relations over GF(2), for boolean
---   signal-flow graphs. Objects are natural numbers (encoded as 'FinObj'),
---   morphisms are GF(2)-linear relations presented as the row space of a
---   matrix with @(n+m)@ columns. Values are 'Bool', addition is 'xor',
---   multiplication is '&&'. The category carries the cartesian monoidal
---   structure @(,)@, is traced, and supports the copy/discard/plus/zero
---   generators that 'Circuit.Net' uses for wiring.
---
--- Both grades are intentionally small and self-contained: they are the
--- minimal reference semantics needed to decide equality of wiring
--- diagrams, over an arbitrary finite listing or over a two-element field.
 module Circuit.Rel
-  ( -- * Explicit finite relations: objects
-    Fin (..),
-
-    -- * Explicit finite relations: morphisms
+  ( Fin (..),
     Rel (..),
-
-    -- * Explicit finite relations: category structure
     relId,
     relComp,
-
-    -- * Explicit finite relations: monoidal structure
     relPar,
     relSwap,
     relAssoc,
@@ -48,24 +21,14 @@ module Circuit.Rel
     relUnitl',
     relUnitr,
     relUnitr',
-
-    -- * Explicit finite relations: bimonoid generators (require explicit finite set)
     relCopy,
     relDiscard,
     relPlus,
     relZero,
-
-    -- * Explicit finite relations: convenience
     Finite (..),
-
-    -- * GF(2) linear relations: objects
     FinObj (..),
     KnownDim (..),
-
-    -- * GF(2) linear relations: morphisms
     FinRel (..),
-
-    -- * GF(2) linear relations: smart constructors
     finId,
     compFinRel,
     parFinRel,
@@ -84,80 +47,59 @@ import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, Nat, natVal)
 import Prelude hiding (id, (.))
 
--- * Explicit finite relations
-
--- | Explicit finite set of values.
 newtype Fin a = Fin {inhabitants :: [a]}
 
--- | A relation from @a@ to @b@, represented as a list of pairs.
 newtype Rel a b = Rel {pairs :: [(a, b)]}
   deriving (Eq, Show)
 
--- | Identity relation on a finite set.
 relId :: Fin a -> Rel a a
 relId (Fin as) = Rel [(a, a) | a <- as]
 
--- | Relational composition: @R ; S@ contains @(a, c)@ whenever there exists a
--- @b@ with @(a, b) ∈ R@ and @(b, c) ∈ S@.
 relComp :: (Eq b) => Rel b c -> Rel a b -> Rel a c
 relComp (Rel r2) (Rel r1) =
   Rel [(a, c) | (a, b1) <- r1, (b2, c) <- r2, b1 == b2]
 
--- | Parallel (monoidal) product of relations.
 relPar :: Rel a b -> Rel c d -> Rel (a, c) (b, d)
 relPar (Rel r1) (Rel r2) =
   Rel [((a, c), (b, d)) | (a, b) <- r1, (c, d) <- r2]
 
--- | Swap the two components of a product.
 relSwap :: Fin a -> Fin b -> Rel (a, b) (b, a)
 relSwap (Fin as) (Fin bs) =
   Rel [((a, b), (b, a)) | a <- as, b <- bs]
 
--- | Associator @((a, b), c) -> (a, (b, c))@.
 relAssoc :: Fin a -> Fin b -> Fin c -> Rel ((a, b), c) (a, (b, c))
 relAssoc (Fin as) (Fin bs) (Fin cs) =
   Rel [(((a, b), c), (a, (b, c))) | a <- as, b <- bs, c <- cs]
 
--- | Inverse associator @(a, (b, c)) -> ((a, b), c)@.
 relAssoc' :: Fin a -> Fin b -> Fin c -> Rel (a, (b, c)) ((a, b), c)
 relAssoc' (Fin as) (Fin bs) (Fin cs) =
   Rel [((a, (b, c)), ((a, b), c)) | a <- as, b <- bs, c <- cs]
 
--- | Left unitor @((), a) -> a@.
 relUnitl :: Fin a -> Rel ((), a) a
 relUnitl (Fin as) = Rel [(((), a), a) | a <- as]
 
--- | Inverse left unitor @a -> ((), a)@.
 relUnitl' :: Fin a -> Rel a ((), a)
 relUnitl' (Fin as) = Rel [(a, ((), a)) | a <- as]
 
--- | Right unitor @(a, ()) -> a@.
 relUnitr :: Fin a -> Rel (a, ()) a
 relUnitr (Fin as) = Rel [((a, ()), a) | a <- as]
 
--- | Inverse right unitor @a -> (a, ())@.
 relUnitr' :: Fin a -> Rel a (a, ())
 relUnitr' (Fin as) = Rel [(a, (a, ())) | a <- as]
 
--- | Copy relation: @a ↦ (a, a)@.
 relCopy :: Fin a -> Rel a (a, a)
 relCopy (Fin as) = Rel [(a, (a, a)) | a <- as]
 
--- | Discard relation: @a ↦ ()@ for every inhabitant.
 relDiscard :: Fin a -> Rel a ()
 relDiscard (Fin as) = Rel [(a, ()) | a <- as]
 
--- | Merge relation for a finite magma: @((x, y), x `add` y)@ when the result
--- is an inhabitant of the finite set.
 relPlus :: (Eq a) => Fin a -> (a -> a -> a) -> Rel (a, a) a
 relPlus (Fin as) add =
   Rel [((x, y), z) | x <- as, y <- as, let z = add x y, z `elem` as]
 
--- | Point relation: the unit for 'relPlus' at a chosen element.
 relZero :: a -> Rel () a
 relZero a = Rel [((), a)]
 
--- | Types with a canonical finite enumeration.
 class Finite a where
   finite :: Fin a
 
@@ -170,43 +112,27 @@ instance Finite Bool where
 instance (Finite a, Finite b) => Finite (a, b) where
   finite = Fin [(a, b) | a <- inhabitants finite, b <- inhabitants finite]
 
--- * GF(2) linear relations
-
--- * GF(2) arithmetic
-
--- | Addition in GF(2) is exclusive-or.
 gf2add :: Bool -> Bool -> Bool
 gf2add = (/=)
 
--- | Multiplication in GF(2) is conjunction.
 gf2mul :: Bool -> Bool -> Bool
 gf2mul = (&&)
 
--- | Additive unit of GF(2).
 gf2zero :: Bool
 gf2zero = False
 
--- | Multiplicative unit of GF(2).
 gf2one :: Bool
 gf2one = True
 
--- | Additive inverse in GF(2) is the identity.
 gf2neg :: Bool -> Bool
 gf2neg = id
 
--- | Multiplicative inverse in GF(2) is the identity.
 gf2inv :: Bool -> Bool
 gf2inv = id
 
--- * Objects
-
--- | Object token for a finite-dimensional space of dimension @n@.
 data FinObj (n :: Nat) = FinObj
   deriving (Eq, Ord, Show)
 
--- | Dimension evidence for objects closed under the @(,)@ tensor.
---
--- @()@ has dimension 0, 'FinObj n' has dimension @n@, and pairs add.
 class KnownDim a where
   dimVal :: Proxy a -> Int
 
@@ -219,18 +145,6 @@ instance (KnownNat n) => KnownDim (FinObj n) where
 instance (KnownDim a, KnownDim b) => KnownDim (a, b) where
   dimVal _ = dimVal (Proxy @a) + dimVal (Proxy @b)
 
--- * Morphisms
-
--- | A GF(2)-linear relation @n -> m@.
---
--- Internally a matrix whose rows span the relation:
---
--- @
---   { (take n v, drop n v) | v in row space }
--- @
---
--- The stored dimensions are trusted; the matrix is kept in reduced row
--- echelon form for canonical equality.
 data FinRel (n :: Type) (m :: Type) = FinRel
   { finInDim :: !Int,
     finOutDim :: !Int,
@@ -241,8 +155,6 @@ data FinRel (n :: Type) (m :: Type) = FinRel
 instance Eq (FinRel n m) where
   FinRel _ _ m1 == FinRel _ _ m2 = rref m1 == rref m2
 
--- * Matrix primitives over GF(2)
-
 zeros :: Int -> [Bool]
 zeros n = replicate n gf2zero
 
@@ -252,7 +164,6 @@ vscale c = map (gf2mul c)
 vdot :: [Bool] -> [Bool] -> Bool
 vdot xs ys = foldr gf2add gf2zero (zipWith gf2mul xs ys)
 
--- | Matrix (rows) times vector.
 mxv :: [[Bool]] -> [Bool] -> [Bool]
 mxv m v = map (vdot v) m
 
@@ -264,7 +175,6 @@ swapRows i j xs
   | i == j = xs
   | otherwise = setAt i (xs !! j) (setAt j (xs !! i) xs)
 
--- | Reduced row echelon form over GF(2).  Zero rows are removed.
 rref :: [[Bool]] -> [[Bool]]
 rref rows = filter (any (/= gf2zero)) (go rows 0 0)
   where
@@ -295,10 +205,6 @@ rref rows = filter (any (/= gf2zero)) (go rows 0 0)
       | (i, row) <- zip [0 ..] m
       ]
 
--- | Basis for the nullspace of a matrix with the given column width.
---
--- The matrix may have zero rows; in that case the nullspace is the whole
--- space of the given dimension.
 nullspace :: Int -> [[Bool]] -> [[Bool]]
 nullspace width rows =
   let rrefm = rref rows
@@ -313,9 +219,6 @@ nullspace width rows =
         ]
    in basis
 
--- * Wiring and generators
-
--- | Build a wiring isomorphism from explicit dimensions and a permutation.
 mkWiring ::
   Int ->
   Int ->
@@ -332,7 +235,6 @@ mkWiring dIn dOut perm =
         ]
    in FinRel dIn dOut (rref rows)
 
--- | Build a wiring isomorphism from a permutation.
 wiring ::
   forall a b.
   (KnownDim a, KnownDim b) =>
@@ -421,13 +323,6 @@ finScalar c =
         ]
    in FinRel n n (rref rows)
 
--- * Category structure (named constrained combinators)
-
---
--- The unconstrained class tower does not carry object evidence, so 'FinRel'
--- provides its structure as named combinators with explicit 'KnownDim'
--- constraints rather than as 'Category'/'Tensor'/'Traced' instances.
-
 compFinRel ::
   forall a b c.
   FinRel b c ->
@@ -454,8 +349,6 @@ compFinRel (FinRel pOut m rowsB) (FinRel n pIn rowsA) =
             | v <- basis
             ]
        in FinRel n m (rref rows)
-
--- * Monoidal / traced structure
 
 parFinRel ::
   forall a b c d.
@@ -499,8 +392,6 @@ traceFinRel (FinRel inDim _ rows) =
         | v <- basis
         ]
    in FinRel bDim cDim (rref bcRows)
-
--- * Bimonoid generators
 
 instance (KnownNat n) => Copy FinRel (FinObj n) where
   copy = finCopy
