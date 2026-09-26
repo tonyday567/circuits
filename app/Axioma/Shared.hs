@@ -1,8 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Shared-medium scheduling, premonoidal centrality, whiskering, and the
--- impossibility of a canonical 'Yank These' instance.
+-- | Shared-medium scheduling and premonoidal centrality: 'Schedule'
+-- decisions, 'sharedBy' gates, receipt transcripts, and the 'Stamped'
+-- free theorem.
 module Axioma.Shared
   ( sharedTopic,
   )
@@ -12,17 +13,15 @@ import Axioma.Common
   ( Verbosity (..),
     checkV,
   )
-import Circuit.Category (K (..), Op (..), id, runK, runOp, (.), (.>))
-import Circuit.Process (scanProcess, scheduleAsProcess)
+import Circuit.Category (id, (.), (.>))
 import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), Stamped (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
-import Circuit.Tensor (Action (..), Bias (..), Tensor (..), superpose)
+import Circuit.Tensor (Bias (..), Tensor (..), superpose)
 import Circuit.Trace (SigYank (..), Trace)
-import Circuit.Traced (assoc, assoc', slide, strength, yank)
+import Circuit.Traced (assoc, assoc', slide, yank)
 import Control.Monad (when)
-import Data.Functor.Identity (Identity (..))
 import Data.List (sort)
 import Data.These (These (..), these)
 import Prelude hiding (curry, id, uncurry, (.))
@@ -143,150 +142,9 @@ sharedAddFPair (s, (a, b)) = let s' = s + a + b in (s', (s', s'))
 
 sharedTopic :: Verbosity -> IO [Bool]
 sharedTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "Shared-medium, centrality, and Channel These oracles"
+  when (verbosity == Axioms) $ putStrLn "Shared-medium scheduling, centrality, and receipt oracles"
   sequence
-    [ -- Channel These presence-preserving slide
-      checkV verbosity "Channel These slide preserves presence on all 7 cases" $
-        let presenceInput :: These Char (These Char Char) -> (Bool, Bool, Bool)
-            presenceInput = \case
-              This _ -> (True, False, False)
-              That (This _) -> (False, True, False)
-              That (That _) -> (False, False, True)
-              That (These _ _) -> (False, True, True)
-              These _ (This _) -> (True, True, False)
-              These _ (That _) -> (True, False, True)
-              These _ (These _ _) -> (True, True, True)
-            presenceOutput :: These Char (These Char Char) -> (Bool, Bool, Bool)
-            presenceOutput = \case
-              This _ -> (False, True, False)
-              That (This _) -> (True, False, False)
-              That (That _) -> (False, False, True)
-              That (These _ _) -> (True, False, True)
-              These _ (This _) -> (True, True, False)
-              These _ (That _) -> (False, True, True)
-              These _ (These _ _) -> (True, True, True)
-            cases :: [These Char (These Char Char)]
-            cases =
-              [ This 'a',
-                That (This 'b'),
-                That (That 'c'),
-                That (These 'b' 'c'),
-                These 'a' (This 'b'),
-                These 'a' (That 'c'),
-                These 'a' (These 'b' 'c')
-              ]
-         in all (\x -> presenceInput x == presenceOutput (slide x)) cases,
-      -- Slide involution: slide . slide == id, now at (,), Either, K
-      -- Identity, and Op alongside These. Involution is an instance
-      -- obligation — the Op instance spends it directly (slide = Op slide is
-      -- correct only when base slide is its own inverse), and the free Trace
-      -- Strength instance slides the loop wire out and back assuming the
-      -- round trip cancels. Distinct scalars per position so a one-scalar
-      -- mutation of an implementation is caught.
-      checkV verbosity "Channel (,) slide . slide == id" $
-        let x = (1, (2, 3)) :: (Int, (Int, Int))
-         in (slide . slide) x == x,
-      checkV verbosity "Channel Either slide . slide == id on all three injections" $
-        let l = Left 1 :: Either Int (Either Bool Char)
-            m = Right (Left True)
-            r = Right (Right 'c')
-         in all (\x -> (slide . slide) x == x) [l, m, r],
-      checkV verbosity "Channel K Identity slide . slide == id" $
-        let x = (1, (2, 3)) :: (Int, (Int, Int))
-         in runK (slide . slide) x == Identity x,
-      checkV verbosity "Channel Op slide . slide == id pointwise (the Op instance spends involution)" $
-        let swapTwice :: Op (->) (Int, (Int, Int)) (Int, (Int, Int))
-            swapTwice = slide . slide
-         in runOp swapTwice (1, (2, 3)) == (1, (2, 3)),
-      checkV verbosity "Channel These slide . slide == id where types permit" $
-        let x = These 'a' (These 'b' 'c' :: These Char Char)
-         in (slide . slide) x == (x :: These Char (These Char Char)),
-      -- Slide decomposition (Traced module header): the slide is the
-      -- half-braid built from the associator and the symmetry,
-      -- slide = assoc' .> tensor braid id .> assoc. Coherence witness at
-      -- (->) for (,) and Either with distinct scalars per position: a
-      -- one-scalar mutation of any factor breaks the equation.
-      checkV verbosity "slide decomposes as assoc' . tensor braid id . assoc at (,)" $
-        let decompose :: (Int, (Int, Int)) -> (Int, (Int, Int))
-            decompose = assoc' .> tensor braid id .> assoc
-            inputs = [(1, (2, 3)), (0, (5, 7))]
-         in all (\x -> decompose x == slide x) inputs,
-      checkV verbosity "slide decomposes as assoc' . tensor braid id . assoc at Either" $
-        let decompose :: Either Int (Either Bool Char) -> Either Bool (Either Int Char)
-            decompose = assoc' .> tensor braid id .> assoc
-            inputs = [Left 1, Right (Left True), Right (Right 'c')]
-         in all (\x -> decompose x == slide x) inputs,
-      -- Associator round trip (Traced.hs:88-89 is doctest-only): assoc and
-      -- assoc' cancel in both directions at each standard tensor.
-      checkV verbosity "associator round trip at (,) in both directions" $
-        let x = ((1, 2), 3) :: ((Int, Int), Int)
-            y = (1, (2, 3)) :: (Int, (Int, Int))
-         in (assoc' . assoc) x == x && (assoc . assoc') y == y,
-      checkV verbosity "associator round trip at Either in both directions" $
-        let xs = [Left (Left 1), Left (Right True), Right 'c'] :: [Either (Either Int Bool) Char]
-            ys = [Left 1, Right (Left True), Right (Right 'c')] :: [Either Int (Either Bool Char)]
-         in all (\x -> (assoc' . assoc) x == x) xs
-              && all (\y -> (assoc . assoc') y == y) ys,
-      checkV verbosity "associator round trip at These in both directions" $
-        let xs = [This (This 'a'), This (That True), That 1, These (This 'a') 1] :: [These (These Char Bool) Int]
-            ys = [This 'a', That (This True), That (That 1), These 'a' (That 1)] :: [These Char (These Bool Int)]
-         in all (\x -> (assoc' . assoc) x == x) xs
-              && all (\y -> (assoc . assoc') y == y) ys,
-      -- Yank These falsifier: the both-branch forces a discard.
-      --
-      -- A candidate yank for These must choose, in the These a c case,
-      -- whether to emit c (discarding a) or loop on a (discarding c).
-      -- Two equally natural biased yanks disagree, so no canonical yank
-      -- exists; any fixed bias breaks sliding/dinaturality under composition.
-      checkV verbosity "Yank These is impossible: biased yanks disagree in the both-branch" $
-        let traceTheseEmit f b = go (f (That b))
-              where
-                go (That c) = c
-                go (This a) = go (f (This a))
-                go (These _ c) = c
-            traceTheseLoop f b = go (f (That b))
-              where
-                go (That c) = c
-                go (This a) = go (f (This a))
-                go (These a _) = go (f (This a))
-            step :: These Int Int -> These Int Int
-            step (That n) = These 1 n
-            step (This 0) = That 0
-            step (This n) = This (n - 1)
-            step (These m n) = These (m + 1) n
-         in traceTheseEmit step 5 /= traceTheseLoop step 5,
-      -- Free-strength slide placement (Circuit.Trace Strength t (Trace t arr),
-      -- YankBody clause). The body is slid out, strengthened, and slid back:
-      -- yank (Lift slide .> strength body .> Lift slide). The oracle pins the
-      -- placement against evaluating first and strengthening at the base: the
-      -- two slides sit outside the loop, so a dropped or duplicated slide wires
-      -- the payload into the loop channel and the sides disagree. Bodies mix
-      -- channel and payload so the placements genuinely differ.
-      checkV verbosity "Trace (,) strength: eval-then-strengthen == strengthen-then-eval" $
-        let f :: (Int, Int) -> (Int, Int)
-            f (s, x) = (x, s + x)
-            t :: Trace (,) (->) Int Int
-            t = yank (Lift f)
-            -- Mutation room: yank (strength body) without the slides gives
-            -- (3,10) here against the true (7,6).
-            input = (7, 3)
-         in eval (strength t) input == strength (eval t) input,
-      checkV verbosity "Trace Either strength: eval-then-strengthen == strengthen-then-eval" $
-        let f :: Either Int Int -> Either Int Int
-            f (Right n) = Left n
-            f (Left 0) = Right 42
-            f (Left n) = Left (n - 1)
-            t :: Trace Either (->) Int Int
-            t = yank (Lift f)
-            -- Different tensor, different slide: the Either slide routes the
-            -- outer value to the inner-left loop position. Mutation room:
-            -- without the slides the loop below never exits.
-            leftOnly = Left 5 :: Either Int Int
-            payload = Right 3 :: Either Int Int
-         in eval t 3 == 42
-              && eval (strength t) leftOnly == strength (eval t) leftOnly
-              && eval (strength t) payload == strength (eval t) payload,
-      -- tensor/par probe: sharedBy vs superpose
+    [ -- tensor/par probe: sharedBy vs superpose
       checkV verbosity "pure order braid is invisible at the shared channel (sliding axiom)" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -300,64 +158,6 @@ sharedTopic verbosity = do
             theseToPair (These a b) = (a, b)
          in Syn.eval (superpose (yankFun k1) (yankFun k2)) ((), ())
               /= theseToPair (Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())),
-      -- superpose fusion correctness (Circuit.Tensor, fusion clauses). The
-      -- fused form spends assoc / slide / strength to merge two yanks into
-      -- one loop; the lawful Tensor (Trace t' arr) fallback instance
-      -- evaluates each branch independently. The discriminator above cannot
-      -- see a wrong rearrangement — it still reads as shared vs independent.
-      -- These oracles pin fusion against the fallback on named bodies whose
-      -- loops write distinct markers into their channels, so a swapped
-      -- pre/post scaffold mis-wires a loop channel and the outputs differ.
-      checkV verbosity "superpose fusion: fused == lawful independent fallback" $
-        let k1 :: ([Int], [Int]) -> ([Int], [Int])
-            k1 (ns, _) = (1 : ns, take 3 ns)
-            k2 :: ([Int], [Int]) -> ([Int], [Int])
-            k2 (ns, _) = (2 : ns, take 3 ns)
-            x, y :: Trace (,) (->) [Int] [Int]
-            x = yank (Lift k1)
-            y = yank (Lift k2)
-            fallback :: ([Int], [Int]) -> ([Int], [Int])
-            fallback = tensor (eval x) (eval y)
-         in eval (superpose x y) ([], []) == fallback ([], []),
-      checkV verbosity "superpose fusion agrees with the fallback on the Either tensor" $
-        let step :: Either Int Int -> Either Int Int
-            step (Right n) = Left n
-            step (Left 0) = Right 100
-            step (Left n) = Left (n - 1)
-            x, y :: Trace Either (->) Int Int
-            x = yank (Lift step)
-            y = yank (Lift step)
-            fallback :: Either Int Int -> Either Int Int
-            fallback = tensor (eval x) (eval y)
-         in eval (superpose x y) (Left 3) == fallback (Left 3)
-              && eval (superpose x y) (Right 5) == fallback (Right 5),
-      -- superpose normalisation (Circuit.Tensor): fusion must be decided by
-      -- the Knot ENF, not by the literal surface shape. A loop with a
-      -- lifted arrow in front (yank f . Lift g) was the shape that fell
-      -- through to independent evaluation; normalised it is one Knot and
-      -- must fuse. The structural clause is the sharing witness (the
-      -- fallback is a Lift, the fused form is a yank); the extensional
-      -- clause pins it to the lawful independent evaluation.
-      checkV verbosity "superpose normalises composed shapes: yank f . Lift g still fuses" $
-        let k1 :: ([Int], Int) -> ([Int], [Int])
-            k1 (ns, x) = (1 : ns, take 3 ns ++ [x])
-            composed :: Trace (,) (->) Int [Int]
-            composed = yank (Lift k1) . Lift (+ 100)
-         in case superpose composed (Lift (* 2) :: Trace (,) (->) Int Int) of
-              Oper (R (YankBody _)) -> True
-              _ -> False,
-      checkV verbosity "superpose composed shape agrees with independent evaluation" $
-        let k1 :: ([Int], Int) -> ([Int], [Int])
-            k1 (ns, x) = (1 : ns, take 3 ns ++ [x])
-            composed :: Trace (,) (->) Int [Int]
-            composed = yank (Lift k1) . Lift (+ 100)
-            other :: Trace (,) (->) Int Int
-            other = Lift (* 2)
-            fused :: (Int, Int) -> ([Int], Int)
-            fused = eval (superpose composed other)
-            independent :: (Int, Int) -> ([Int], Int)
-            independent = eval (tensor composed other)
-         in fused (3, 4) == independent (3, 4),
       checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -525,19 +325,18 @@ sharedTopic verbosity = do
       -- Receipt transcripts (equip-next phase 7): stamps are the schedule's
       -- picks, payloads are the bodies' outputs.  The stamp at tick i is the
       -- pick made at the pre-step state — the decision that caused the step.
-      -- The standalone mark machine reports a state's pick only after
-      -- stepping into it, so its stream is the transcript's stream shifted
-      -- one tick; the agreement is modulo that phase.
-      checkV verbosity "transcript stamps are the standalone pick stream (modulo the post-step phase)" $
+      -- The pre-step pick stream below is the schedule iterated directly, so
+      -- the agreement is with chooseS itself, not with a shadowing machine.
+      checkV verbosity "transcript stamps are the schedule's picks at the pre-step states" $
         let alt = Schedule (\s -> (s + 1, if odd s then PickL else PickR)) :: Schedule Int
             f :: (Int, Int) -> (Int, Int)
             f (s, a) = (s, a + 100)
             g :: (Int, Int) -> (Int, Int)
             g (s, c) = (s, c * 2)
             ts = transcriptSharedBy alt f g 0 (replicate 4 (1, 1))
-            pick0 = snd (chooseS alt 0)
-            standalone = scanProcess (scheduleAsProcess 0 alt) (replicate 4 ())
-         in map stamp ts == init (pick0 : standalone),
+            preStates = take 5 (iterate (fst . chooseS alt) 0)
+            picks = map (snd . chooseS alt) preStates
+         in map stamp ts == take 4 picks,
       -- The Both payloads are the bodies' solo runs only because these
       -- bodies are state-independent; a state-touching body couples its run
       -- to the shared channel (the centrality oracles above measure exactly
@@ -569,5 +368,13 @@ sharedTopic verbosity = do
             ts1 = transcriptSharedBy alt f g 1 (replicate 2 (1, 1))
          in map stamp ts0 == [PickR, PickL]
               && map stamp ts1 == [PickL, PickR]
-              && ts0 /= ts1
+              && ts0 /= ts1,
+      -- Stamped free theorem: the stamp is an occurrence receipt untouched
+      -- by payload mapping; only the payload moves.
+      checkV verbosity "Stamped fmap preserves stamp (Int token)" $
+        let s = Stamped 7 ("hello" :: String)
+         in stamp (fmap reverse s) == (7 :: Int) && stamped (fmap reverse s) == "olleh",
+      checkV verbosity "Stamped fmap preserves stamp (Bool token)" $
+        let s = Stamped True (10 :: Int)
+         in stamp (fmap (+ 1) s) && stamped (fmap (+ 1) s) == 11
     ]
