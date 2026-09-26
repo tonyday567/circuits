@@ -2,9 +2,10 @@
 --
 -- == Tutorial
 --
--- This module re-exports the whole public API, grouped into four sections.
--- One counter runs through all of them — @n + i@ accumulating, observed at
--- @n@ — built up from a bare function to a closed feedback loop.
+-- This module re-exports the whole public API, grouped into five sections.
+-- One counter runs through most of them — @n + i@ accumulating, observed at
+-- @n@ — built up from a bare function to a stateful device on a polynomial
+-- interface.
 --
 -- === Arrows: what circuits are made of
 --
@@ -39,23 +40,21 @@
 -- === Syntax: free constructions
 --
 -- "Circuit.Syntax" is the generic substrate: signatures, free layers,
--- folds (@run@, @eval@, @bind@) and injections (@unit@, @Lift@).
+-- folds (@run@, @eval@, @bind@) and injections (@unit@, `Lift`).
 -- "Circuit.Trace" adds feedback to the free syntax, making it traced.
 -- "Circuit.Net" packages the free symmetric monoidal category with a
--- bimonoid over a primitive set. "Circuit.Body" is the knot-body
--- category @arr (t ch a) (t ch b)@ — the stateful substrate that tracing
--- hides. "Circuit.Hyper" is the final, coinductive encoding.
+-- bimonoid over a primitive set. 'Stratum' — from "Circuit.GMachine" — is
+-- the knot-body category @arr (t ch a) (t ch b)@, the stateful shape
+-- that tracing hides. "Circuit.Hyper" is the final, coinductive encoding.
 -- "Circuit.Span" is finite spans, the residual-remembering rung of the
 -- equipment ladder.
 --
--- As a body, the counter is one morphism @arr (Int, Int) (Int, Int)@:
+-- As a stratum, the counter is one morphism @arr (Int, Int) (Int, Int)@,
+-- run through its own arrow:
 --
--- >>> let counterBody = Body (\(n, i) -> (n + i, n)) :: Body (,) Int (->) Int Int
--- >>> scan (bodyToMoore counterBody 0) [1,1,1]
--- [0,1,2]
---
--- Note the body runner observes before the state updates; the machine
--- runners below observe after.
+-- >>> let counterStratum = Stratum (\(n, i) -> (n + i, n)) :: Stratum (,) Int (->) Int Int
+-- >>> morphism counterStratum (0, 1)
+-- (1,0)
 --
 -- The same wiring can be written in free syntax and run. `widen` embeds
 -- the primitive layer into the net; `run` folds the net back down:
@@ -72,79 +71,92 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.Machine" views a stateful device as a machine fibered over a
--- polynomial interface @p@. "Circuit.Process" supplies the runners: the
--- unpointed `Moore` carrier, the pointed `Process` carrier, and scans.
--- "Circuit.Stream" is the neutral stream interface, `Uncons` against
--- `Cons` and `Snoc`.
+-- "Circuit.GMachine" is the machine layer. A 'Cell' is a stateful device
+-- with two legs over a hidden channel: 'absorb' folds the input into the
+-- channel, and the observation leg reads an output back out. 'Body' keeps
+-- both legs at the tensor, and 'Stratum' — met in the syntax section — is
+-- the category they compose in. 'processFromSeed' points a cell at an
+-- initial channel and 'scanProcess' runs it down an input list.
 --
--- As a machine, the counter exposes its observation as a polynomial
--- position, so the observation is read without stepping:
+-- The counter as a cell — absorb adds the input to the channel, the
+-- observation leg reads the channel:
 --
--- >>> let counter = moore (\n -> (n, ())) (\n d -> n + monoDir d) :: MachineObs Int (Mono Int Int)
--- >>> scan (machineAsMoore counter 0) [1,1,1]
+-- >>> let counter = Cell (\(n, i) -> n + i) id
+-- >>> scanProcess (processFromSeed 0 counter) [1,1,1]
 -- [1,2,3]
 --
--- A machine converts to a process, the pointed stream carrier:
+-- 'processFromSeed' absorbs the seed with the first input, so every
+-- observation above is post-step; 'observe'' is the post-step observation
+-- spelled as one absorb followed by the observation leg. The plain leg
+-- @observe@ reads the pre-step channel, but the unqualified name belongs
+-- to `Hyper`'s `observe` in this umbrella — the leg itself is exported
+-- from "Circuit.GMachine".
 --
--- >>> scanProcess (asProcess counter 0) [1,1,1]
+-- >>> observe' counter (0, 1)
+-- 1
+--
+-- The existential 'Moore' pattern repackages the cell as a triple —
+-- init, step, extract — with the channel type hidden, and composes as a
+-- category in its own right:
+--
+-- >>> scan (asMoore (processFromSeed 0 counter)) [1,1,1]
 -- [1,2,3]
 --
--- Or the seed is handed in as data, a `UnitCell`, instead of an argument:
+-- 'GMoore' names the pointed carrier, and 'GMooreT' — the channel
+-- existentially hidden — is the 'Category' the library proved, with
+-- 'TensorSchedule' pricing the tensor's constructor grammar and 'scanT'
+-- running an input list through it:
 --
--- >>> scanProcess (asProcessCell counter (UnitCell (const 0))) [1,1,1]
--- [1,2,3]
+-- >>> let g = GMooreT (GMoore id (Cell (uncurry (+)) id)) :: GMooreT (,) (->) Int Int
+-- >>> scanT g [1,2,3]
+-- [1,3,6]
 --
--- Two machines run side by side over the tensor of their interfaces,
--- state tensored:
+-- A bare 'Machine' hangs the cell on a polynomial interface — here the
+-- monomial @Mono Int Int@, directions in, positions out:
 --
--- >>> let both = parWiringMachine counter counter :: MachineObs (Int, Int) (PTensor (Mono Int Int) (Mono Int Int))
--- >>> moStep both (0, 10) (monoIn 1, monoIn 1)
--- (1,11)
--- >>> moObserve both (0, 10)
--- ((0,()),(10,()))
+-- >>> let mac = Machine (Cell (\(n, d) -> n + monoDir d) (\n -> (n, ()))) :: Machine (,) Int (->) (Mono Int Int)
+-- >>> observe' (machineCell mac) (0, monoIn 1)
+-- (1,())
 --
--- Finally the machine closes into a feedback loop: `machineToClosed`
--- folds the carrier into the feedback wire of a `Trace`, and the seed is
--- gone from the type. The leaky counter — state replaced by the input
--- each tick — has a knot solution:
+-- === Streams: the neutral interface
 --
--- >>> let leaky = machineObs (\s -> EP (EK (s + 1), EE (\i -> i))) :: MachineObs Int (Mono Int Int)
--- >>> eval (machineToClosed (moMachine leaky)) (Right 5 :: Dir (Mono Int Int))
--- (6,())
+-- "Circuit.Stream" is the neutral stream interface: `Uncons` destructs a
+-- stream of tokens, `Cons` and `Snoc` construct one. It knows nothing
+-- about state — only about streams.
 --
--- The true accumulator has none: its next state depends on the current
--- one, and the lazy knot over @(,)@ diverges. The Axioma suite pins that
--- with its divergence oracle.
+-- === Helpers
 --
--- === Helpers: equipment
---
--- "Circuit.Equip" is the arrow-equipment surface: channel poles, squares,
--- boundary tokens, and the `UnitCell` pointing taxonomy. "Circuit.Poly"
--- is the category @Poly@ of polynomials. "Circuit.Optic" is mixed optics
--- as residual maps. "Circuit.Container" is the container view —
+-- "Circuit.Poly" is the category @Poly@ of polynomials.
+-- "Circuit.Container" is the container view —
 -- @Eval p x@ as a position with the pins of that position assigned.
 -- "Circuit.Linear" is linear-logic connectives over a base category.
 -- "Circuit.Shared" fuses two bodies on one shared channel.
 -- "Circuit.Pullback" is linear cotangent maps, the base arrow for
--- reverse-mode gradients.
+-- reverse-mode gradients. From "Circuit.GMachine", 'Poles' is the
+-- equipment surface — a write/read pair of legs over a channel — and
+-- 'Point' names a channel value explicitly, at the tensor unit.
 --
--- A 'Poles' pair over the unit carrier closes with 'box' to a plain
--- morphism, and a closed morphism lifts straight into a body:
+-- A 'Poles' pair over the unit carrier closes with 'close' to a plain
+-- morphism, and a closed morphism lifts straight into a stratum:
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
--- >>> box p ()
+-- >>> let p = poles0 (const ()) (const 42) :: Poles () (->) () Int
+-- >>> close p ()
 -- 42
--- >>> let b = Body (\((), ()) -> ((), box p ())) :: Body (,) () (->) () Int
--- >>> morphism b ((), ())
+-- >>> let s = Stratum (\((), ()) -> ((), close p ())) :: Stratum (,) () (->) () Int
+-- >>> morphism s ((), ())
 -- ((),42)
 --
--- Processes and lenses interconvert; the round trip is the identity on
--- runs:
+-- Cells and lenses interconvert; the round trip is the identity on runs:
 --
--- >>> let acc = Process 0 (\s i -> s + i) (\s -> s * 2) :: Process Int Int Int
--- >>> scanProcess (lensAsProcess (processAsLens acc) 0) [1,2,3]
+-- >>> let acc = Cell (\(s, i) -> s + i) (* 2)
+-- >>> scanProcess (processFromSeed 0 (lensAsCell (cellAsLens acc))) [1,2,3]
 -- [2,6,12]
+--
+-- A 'Point' plugs straight into the write leg of a 'Poles' pair:
+--
+-- >>> let pt = Point (const 7) :: Point (,) (->) Int
+-- >>> close (Poles (runPoint pt) (id :: Int -> Int)) ()
+-- 7
 --
 -- Pullback nets compose as cotangent chains — the circuits-diff name for
 -- this is reverse mode:
@@ -186,19 +198,17 @@ module Circuit
     module Circuit.Syntax,
     module Circuit.Trace,
     module Circuit.Net,
-    module Circuit.Body,
     module Circuit.Hyper,
     module Circuit.Span,
 
     -- * Machines
-    module Circuit.Machine,
-    module Circuit.Process,
+    module Circuit.GMachine,
+
+    -- * Streams
     module Circuit.Stream,
 
     -- * Helpers
-    module Circuit.Equip,
     module Circuit.Poly,
-    module Circuit.Optic,
     module Circuit.Container,
     module Circuit.Linear,
     module Circuit.Shared,
@@ -207,17 +217,13 @@ module Circuit
 where
 
 import Circuit.Bimonoid
-import Circuit.Body
 import Circuit.Category
 import Circuit.Container
-import Circuit.Equip
+import Circuit.GMachine hiding (observe)
 import Circuit.Hyper
 import Circuit.Linear
-import Circuit.Machine
 import Circuit.Net
-import Circuit.Optic
-import Circuit.Poly
-import Circuit.Process
+import Circuit.Poly hiding (Point)
 import Circuit.Pullback
 import Circuit.Rel
 import Circuit.Shared
