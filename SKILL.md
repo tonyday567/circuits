@@ -48,7 +48,9 @@ Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
 Circuit.GMachine    — Machines over a channel: Cell (absorb/observe legs),
-                      Body (consume/produce), Stratum (the fused morphism),
+                      Body (consume/produce), BodyTT (the t t' family) and
+                      its CellD (Const, t) corner, Stratum (the fused
+                      morphism),
                       Machine, Poles (write/read channel ends) and Point,
                       GMoore/GMooreT (the proven Category), the Moore
                       pattern with delay/register, scan/fold eliminators

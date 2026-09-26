@@ -15,7 +15,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.GMachine (Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), cellAsLens, scanT)
+import Circuit.GMachine (Body (Body), Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), bodyAsBodyTT, bodyTTAsBody, bodyTTAsCell, bodyTTAsCellD, cellAsBodyTT, cellAsLens, cellDAsBodyTT, scanT)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -137,6 +137,60 @@ runDone (CellD x g) = go
 -- or reads the evolved channel back; either would break the anchor.
 completion :: Bool
 completion = runDone doneCellD [3, 5, 7] == [Left 4, Right 5]
+
+-- BodyTT: the general two-legged machine, with the corner records
+-- standing at its corners. The witnesses are leg-level round trips
+-- through the (->) lifts, so the falsifier is named per leg: a decoder
+-- reading the channel for the Const payload, a consume reading the
+-- phantom instead of the payload, a diagonal wrap dropping a leg.
+
+-- | Tenfold accumulator: channel and observation differ (decode slips
+-- show), and absorb threads history (a dropped wrap breaks the absorb
+-- leg).
+tenW :: Cell (,) Int (->) Int Int
+tenW = Cell (uncurry (+)) (* 10)
+
+-- | The (t, Const) corner, leg-for-leg: 'cellAsBodyTT' then
+-- 'bodyTTAsCell' is the identity on both legs of the tenfold
+-- accumulator over a (channel, input) grid.
+cellLegsOk :: Bool
+cellLegsOk =
+  all
+    ( \(s, i) ->
+        absorb rt (s, i) == s + i
+          && observe rt s == 10 * s
+    )
+    [(s, i) | s <- grid, i <- grid]
+  where
+    rt = bodyTTAsCell (cellAsBodyTT tenW)
+    grid = [-1, 0, 5] :: [Int]
+
+-- | The (Const, t) corner, leg-for-leg: 'cellDAsBodyTT' then
+-- 'bodyTTAsCellD' is the identity on both legs of 'memCellD' — expunge
+-- reads the payload, never the phantom channel.
+cellDLegsOk :: Bool
+cellDLegsOk =
+  all (\c -> imbue rt c == (c + 1, c * 10)) grid
+    && all (\s -> expunge rt s == length s) ["", "ab", "cdef"]
+  where
+    rt = bodyTTAsCellD (cellDAsBodyTT memCellD)
+    grid = [-1, 0, 5] :: [Int]
+
+-- | A named 'Body' at the diagonal: consume adds the input to the
+-- channel; the produce package echoes the channel alongside the output.
+bodyW :: Body (,) Int (->) Int Int
+bodyW = Body (uncurry (+)) (\c -> (c, c))
+
+-- | The (t, t) diagonal, leg-for-leg: 'bodyAsBodyTT' then 'bodyTTAsBody'
+-- is the identity on both legs of 'bodyW'. Pattern-matched — the
+-- consume/produce selectors are shared with 'BodyTT' (GHC-87543).
+bodyLegsOk :: Bool
+bodyLegsOk =
+  let Body k p = bodyTTAsBody (bodyAsBodyTT bodyW)
+   in all (\(s, i) -> k (s, i) == s + i) [(s, i) | s <- grid, i <- grid]
+        && all (\c -> p c == (c, c)) grid
+  where
+    grid = [-1, 0, 5] :: [Int]
 
 -- Falsifiers (verify.md discipline): a stale-carrier composite feed breaks
 -- the unit scans; a non-projection fold (e.g. a These-sum fold) breaks
@@ -280,6 +334,9 @@ gMachineTopic verbosity = do
       checkV verbosity "cell PutPut catches the counting machine" (not (putPut cntW 0 1 2)),
       checkV verbosity "cellD at (,) is memoryless: step 2 is the fresh expunge/imbue; threading breaks the anchors" threading,
       checkV verbosity "cellD at Either: an imbue returning Right terminates the run" completion,
+      checkV verbosity "bodytt (t,Const) corner: cell round trip is the identity leg-for-leg (decode slip breaks observe)" cellLegsOk,
+      checkV verbosity "bodytt (Const,t) corner: celld round trip is the identity leg-for-leg (phantom read breaks expunge)" cellDLegsOk,
+      checkV verbosity "bodytt (t,t) diagonal: body round trip is the identity leg-for-leg" bodyLegsOk,
       checkV verbosity "gmoorT (,) scan anchor" (scanT sumG xs == [1, 3, 6, 10]),
       checkV verbosity "gmoorT Either scan anchor" (scanT eitherG xs == [2, 6, 8, 10]),
       checkV verbosity "gmoorT These scan anchor (That-injection)" (scanT theseG xs == [1, 3, 4, 5]),

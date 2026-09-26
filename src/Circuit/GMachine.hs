@@ -11,7 +11,14 @@ module Circuit.GMachine
   ( Cell (..),
     Body (..),
     CellD (..),
+    BodyTT (..),
     cellAsBody,
+    cellAsBodyTT,
+    bodyTTAsCell,
+    cellDAsBodyTT,
+    bodyTTAsCellD,
+    bodyAsBodyTT,
+    bodyTTAsBody,
     Stratum (..),
     ChannelA,
     MonoBody,
@@ -72,7 +79,7 @@ where
 import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
 import Circuit.Category (Category (..), K (..), Op (..), (.>))
 import Circuit.Poly (Dir, Eval (..), Lens, Mono, Poly, Pos, applyLens, lens, monoDir, monoIn)
-import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
+import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -119,9 +126,51 @@ data CellD (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Ce
     imbue :: arr ch (t ch o)
   }
 
+-- | The general two-legged machine: 'consume' takes the input grammar
+-- @t ch i@, 'produce' emits the output grammar @t' ch o@ — the record
+-- the corner family factors through. 'Cell' is the @(t, Const)@ corner,
+-- 'CellD' the @(Const, t)@ corner, 'Body' the @(t, t)@ diagonal, and
+-- @(Const, Const)@ the closed machine; see 'CellD' for the corner
+-- reading.
+--
+-- Two free tensors do not compose (@t' ch b@ cannot feed @t ch b@), so
+-- the 'Category' lives on the diagonal — this record says the mixed
+-- corners without composing them.
+--
+-- The lifts to and from the corner records land at @arr = (->)@:
+-- wrapping and unwrapping the 'Const' grammar is a pure map, and the
+-- library has no general pure lift into @arr@ (the story is collected
+-- on the arr card, out of scope here).
+data BodyTT (t :: Type -> Type -> Type) (t' :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = BodyTT
+  { consume :: arr (t ch i) ch,
+    produce :: arr ch (t' ch o)
+  }
+
 -- Cell to the update package: copy-gated, the same price fuse pays.
 cellAsBody :: (CopyT t arr ch) => Cell t ch arr i o -> Body t ch arr i o
 cellAsBody (Cell k p) = Body k (copyT .> tensor id p)
+
+-- The corner isomorphisms at the (->) corner — each direction names
+-- its corner in the term. The general-arr spelling needs a pure lift
+-- into arr the library does not have; the round trips are witnessed in
+-- "Axioma.GMachine".
+cellAsBodyTT :: Cell t ch (->) i o -> BodyTT t Const ch (->) i o
+cellAsBodyTT (Cell k p) = BodyTT k (Const . p)
+
+bodyTTAsCell :: BodyTT t Const ch (->) i o -> Cell t ch (->) i o
+bodyTTAsCell (BodyTT k p) = Cell k (\c -> case p c of Const o -> o)
+
+cellDAsBodyTT :: CellD t ch (->) i o -> BodyTT Const t ch (->) i o
+cellDAsBodyTT (CellD x g) = BodyTT (\(Const i) -> x i) g
+
+bodyTTAsCellD :: BodyTT Const t ch (->) i o -> CellD t ch (->) i o
+bodyTTAsCellD (BodyTT k g) = CellD (\i -> k (Const i)) g
+
+bodyAsBodyTT :: Body t ch (->) i o -> BodyTT t t ch (->) i o
+bodyAsBodyTT (Body k p) = BodyTT k p
+
+bodyTTAsBody :: BodyTT t t ch (->) i o -> Body t ch (->) i o
+bodyTTAsBody (BodyTT k p) = Body k p
 
 newtype Stratum t ch arr i o = Stratum {morphism :: arr (t ch i) (t ch o)}
 
