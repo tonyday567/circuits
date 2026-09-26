@@ -74,7 +74,6 @@ executable circuits-axioma
   main-is: circuits-axioma.hs
   hs-source-dirs: app
   other-modules:
-    Axioma.Bisim
     Axioma.Common
     Axioma.Container
     Axioma.Effect
