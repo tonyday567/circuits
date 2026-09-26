@@ -81,8 +81,8 @@ executable circuits-axioma
     Axioma.GMachine
     Axioma.Poles
     Axioma.Pullback
-    Axioma.Shared
     Axioma.SemiTensor
+    Axioma.Shared
     Axioma.Span
     Axioma.These
     Axioma.Traced
