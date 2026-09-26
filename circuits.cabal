@@ -83,17 +83,12 @@ executable circuits-axioma
     Axioma.Common
     Axioma.Container
     Axioma.Effect
-    Axioma.Equip
     Axioma.FinRel
     Axioma.GMachine
-    Axioma.Machine
-    Axioma.Optic
     Axioma.Poles
-    Axioma.Process
     Axioma.Pullback
     Axioma.Shared
     Axioma.Span
-    Axioma.Split
 
   build-depends:
     base >=4.20 && <5,
