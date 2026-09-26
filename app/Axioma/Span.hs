@@ -7,7 +7,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.GMachine (Moore, Stratum (..), pattern Moore, scan)
+import Circuit.GMachine (Moore, Stratum (..), scan, pattern Moore)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,

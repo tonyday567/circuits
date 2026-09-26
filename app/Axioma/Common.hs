@@ -28,7 +28,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.GMachine (Moore, pattern Moore, register)
+import Circuit.GMachine (Moore, register, pattern Moore)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 

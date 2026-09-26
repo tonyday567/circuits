@@ -8,8 +8,8 @@ import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (K (..), runK)
 import Circuit.GMachine
   ( Cap (..),
-    Poles (..),
     Point (..),
+    Poles (..),
     close,
     compose,
     copycat,
