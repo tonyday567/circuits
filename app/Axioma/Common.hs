@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Shared helpers for the circuits axioma topic modules.
 --
@@ -27,7 +28,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.Process (Moore (..), register)
+import Circuit.GMachine (Moore, pattern Moore, register)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 
