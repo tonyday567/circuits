@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 -- | Span oracles — finite spans as the residual-remembering rung.
 module Axioma.Span
   ( spanTopic,
@@ -5,9 +7,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Body (..), seqCompose)
-import Circuit.GMachine (Stratum (..))
-import Circuit.Process (bodyToMoore, scan)
+import Circuit.GMachine (Moore, Stratum (..), pattern Moore, scan)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,
@@ -84,7 +84,7 @@ spanTopic verbosity = do
             r = Span [Hi, Lo] id (\_ -> ())
          in pairs ((r `composeS` q) `composeS` p)
               == pairs (r `composeS` (q `composeS` p)),
-      -- Body-bridge oracles (use an injective left leg so the lookup is faithful)
+      -- Stratum-bridge oracles (use an injective left leg so the lookup is faithful)
       checkV verbosity "bodyFromSpan runs the span as a lookup body" $
         let sp0 = Span [W1, W2, W3] id spR
             Stratum f = bodyFromSpan sp0
@@ -100,19 +100,29 @@ spanTopic verbosity = do
         let sp0 = Span [W1, W2, W3] id spR
             inputs = [W1, W2, W3]
             Stratum f = bodyFromSpan sp0
-         in scan (bodyToMoore (Body f) inputs) inputs == map spR [W1, W2, W3],
-      checkV verbosity "span composition agrees with body cascade on pairs" $
+            run = Moore (\a -> f (inputs, a)) (\(s, _) a' -> f (s, a')) snd
+         in scan run inputs == map spR [W1, W2, W3],
+      checkV verbosity "span composition agrees with the stratum cascade on pairs" $
         let p :: Span Pin Bit
             p = Span [W1, W2, W3] spL (\case W1 -> O; W2 -> O; W3 -> I)
             q :: Span Bit Sig
-            q = Span [P1, P2] (\case P1 -> O; P2 -> I) (\case P1 -> Lo; P2 -> Hi)
+            q =
+              Span
+                [P1, P2]
+                (\case P1 -> O; P2 -> I)
+                (\case P1 -> Lo; P2 -> Hi)
             inputs = map spL [W1, W2, W3]
             qInputs = [O, I]
             Stratum direct = bodyFromSpan (q `composeS` p)
             Stratum runQ = bodyFromSpan q
             Stratum runP = bodyFromSpan p
-            Body cascaded = seqCompose (Body runQ) (Body runP)
+            cascaded :: Stratum (,) ([Pin], [Bit]) (->) Pin Sig
+            cascaded =
+              Stratum $ \((chP, chQ), a) ->
+                let (chP', b) = runP (chP, a)
+                    (chQ', c) = runQ (chQ, b)
+                 in ((chP', chQ'), c)
          in all
-              (\a -> snd (direct (inputs, a)) == snd (cascaded ((inputs, qInputs), a)))
+              (\a -> snd (direct (inputs, a)) == snd (morphism cascaded ((inputs, qInputs), a)))
               inputs
     ]
