@@ -1,4 +1,4 @@
--- | Bisimulation machinery: the behavioural quotient of bodies.
+-- | Bisimulation machinery: the behavioural quotient of stratums.
 --
 -- Oracle infrastructure only — these functions are exercised by the axioma
 -- suite and have no library home.
@@ -10,14 +10,14 @@ module Axioma.Bisim
   )
 where
 
-import Circuit.Body (Body (..))
+import Circuit.GMachine (Stratum (..))
 
--- | Step a @(,) / (->)@ body: given a state and an input, return the next
+-- | Step a @(,) / (->)@ stratum: given a state and an input, return the next
 -- state and output.
-stepBody :: Body (,) s (->) a b -> s -> a -> (s, b)
-stepBody (Body f) s a = f (s, a)
+stepBody :: Stratum (,) s (->) a b -> s -> a -> (s, b)
+stepBody (Stratum f) s a = f (s, a)
 
--- | Check whether a relation is a bisimulation between two finite-state bodies.
+-- | Check whether a relation is a bisimulation between two finite-state stratums.
 --
 -- The relation must be over the provided state spaces; the check is exact over
 -- the bounded input alphabet.  A relation @R@ is a bisimulation when for every
@@ -26,8 +26,8 @@ stepBody (Body f) s a = f (s, a)
 isBisimulation ::
   (Eq s1, Eq s2, Eq b) =>
   [a] ->
-  Body (,) s1 (->) a b ->
-  Body (,) s2 (->) a b ->
+  Stratum (,) s1 (->) a b ->
+  Stratum (,) s2 (->) a b ->
   [(s1, s2)] ->
   Bool
 isBisimulation inputs body1 body2 rel =
@@ -43,16 +43,16 @@ isBisimulation inputs body1 body2 rel =
     )
     rel
 
--- | Compute the maximal bisimulation between two finite-state bodies over a
+-- | Compute the maximal bisimulation between two finite-state stratums over a
 -- bounded input alphabet.  The state spaces are supplied explicitly because a
--- 'Body' is a function and does not enumerate its own states.
+-- 'Stratum' is a function and does not enumerate its own states.
 maxBisimulation ::
   (Eq s1, Eq s2, Eq b) =>
   [a] ->
   [s1] ->
   [s2] ->
-  Body (,) s1 (->) a b ->
-  Body (,) s2 (->) a b ->
+  Stratum (,) s1 (->) a b ->
+  Stratum (,) s2 (->) a b ->
   [(s1, s2)]
 maxBisimulation inputs states1 states2 body1 body2 = go initRel
   where
@@ -78,8 +78,8 @@ bisimilarStates ::
   [a] ->
   [s1] ->
   [s2] ->
-  Body (,) s1 (->) a b ->
-  Body (,) s2 (->) a b ->
+  Stratum (,) s1 (->) a b ->
+  Stratum (,) s2 (->) a b ->
   s1 ->
   s2 ->
   Bool
