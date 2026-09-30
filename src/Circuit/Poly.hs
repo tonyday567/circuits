@@ -36,6 +36,8 @@ module Circuit.Poly
     Mono,
     monoIn,
     monoDir,
+    cellAsEval,
+    evalAsCell,
     Lens,
     lens,
     dagger,
@@ -323,6 +325,15 @@ monoIn = Right
 monoDir :: Dir (Mono i o) -> i
 monoDir (Right i) = i
 monoDir (Left v) = absurd v
+
+cellAsEval :: ((s, i) -> s) -> (s -> o) -> s -> Eval (Mono i o) s
+cellAsEval k o s = EP (EK (o s), EE (\i -> k (s, i)))
+
+evalAsCell :: (s -> Eval (Mono i o) s) -> ((s, i) -> s, s -> o)
+evalAsCell f =
+  ( \(s, i) -> case f s of EP (_, EE g) -> g i,
+    \s -> case f s of EP (EK o, _) -> o
+  )
 
 type Lens s t a b = Morphism (Mono t s) (Mono b a)
 

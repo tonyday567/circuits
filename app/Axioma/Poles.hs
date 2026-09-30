@@ -11,13 +11,8 @@ import Circuit.GMachine
     Poles (..),
     close,
     compose,
-    copycat,
-    imap,
     iomap,
-    omap,
-    poles0,
     polesK,
-    splay0,
     unclose,
   )
 import Circuit.Tensor (Unit)
@@ -29,24 +24,14 @@ polesTopic :: Verbosity -> IO [Bool]
 polesTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Poles oracles"
   sequence
-    [ checkV verbosity "close . copycat is the identity at any carrier" $
-        close (copycat :: Poles Int (->) Int Int) 5 == (5 :: Int)
-          && close (copycat :: Poles Bool (->) Bool Bool) True
-          && not (close (copycat :: Poles Bool (->) Bool Bool) False),
-      checkV verbosity "close . unclose recovers the morphism" $
+    [ checkV verbosity "close . unclose recovers the morphism" $
         let f :: Int -> Int
             f = (+ 1)
          in close (unclose f) 5 == f 5,
-      checkV verbosity "write and read are the poles0 legs" $
+      checkV verbosity "write and read are the Poles legs at the unit carrier" $
         let p :: Poles () (->) Int Int
-            p = poles0 (const ()) (const 42)
+            p = Poles (const ()) (const 42)
          in write p 7 == () && read p () == 42 && close p 7 == 42,
-      checkV verbosity "splay0 and poles0 are inverse" $
-        let p :: Poles () (->) Int Int
-            p = poles0 (const ()) (const 42)
-            (w, r) = splay0 p
-            p' = poles0 w r
-         in w 7 == write p 7 && r () == read p () && write p' 3 == w 3 && read p' () == r (),
       checkV verbosity "compose pipes the read leg into the next write leg" $
         let p1 :: Poles Int (->) Int Int
             p1 = Poles (+ 1) (* 2)
@@ -54,18 +39,19 @@ polesTopic verbosity = do
             p2 = Poles (+ 10) (subtract 3)
          in close (compose p1 p2) 5 == close p2 (close p1 5)
               && close (compose p1 p2) 5 == 19,
-      checkV verbosity "imap precomposes the write leg" $
+      checkV verbosity "iomap f id precomposes the write leg" $
         let p :: Poles Int (->) Int Int
             p = Poles (+ 1) (* 2)
-         in close (imap (* 10) p) 5 == close p 50,
-      checkV verbosity "omap postcomposes the read leg" $
+         in close (iomap (* 10) (id :: Int -> Int) p) 5 == close p 50,
+      checkV verbosity "iomap id g postcomposes the read leg" $
         let p :: Poles Int (->) Int Int
             p = Poles (+ 1) (* 2)
-         in close (omap (+ 100) p) 5 == close p 5 + 100,
-      checkV verbosity "iomap f g is imap f together with omap g" $
+         in close (iomap (id :: Int -> Int) (+ 100) p) 5 == close p 5 + 100,
+      checkV verbosity "iomap f g is iomap f id together with iomap id g" $
         let p :: Poles Int (->) Int Int
             p = Poles (+ 1) (* 2)
-         in close (iomap (* 10) (+ 100) p) 5 == close (omap (+ 100) (imap (* 10) p)) 5,
+         in close (iomap (* 10) (+ 100) p) 5
+              == close (iomap (id :: Int -> Int) (+ 100) (iomap (* 10) (id :: Int -> Int) p)) 5,
       checkIOV verbosity "polesK runs the write effect before the read" $ do
         ref <- newIORef (0 :: Int)
         let p :: Poles () (K IO) Int Int

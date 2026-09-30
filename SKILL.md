@@ -53,9 +53,8 @@ Circuit.GMachine    — Machines over a channel: Cell (absorb/observe legs),
                       morphism),
                       Machine, Poles (write/read channel ends) and Point,
                       GMoore/GMooreT (the proven Category), the Moore
-                      pattern with delay/register, scan/fold eliminators
-                      (processFromSeed, scanProcess, foldProcess), and the
-                      lens dictionary (cellAsLens/lensAsCell).
+                      pattern with delay/register, scan/fold eliminators,
+                      and the lens dictionary (cellAsLens/lensAsCell).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Rel         — Finite relations, two reference grades: explicit
                       relations (Rel, Fin) and GF(2) linear relations (FinRel).
@@ -158,7 +157,7 @@ returning. The convention is fixed by the class, not configurable.
 ### pointing: two discharges
 
 A stateful run needs an initial carrier value exactly where no input supplies
-one. `Moore` discharges pointing through the input (`asMoore`); `GMoore`
+one. `Moore` discharges pointing through the input; `GMoore`
 keeps the seed explicit as the `init` leg (`Point` names the unit-tensor
 discharge `Unit t -> ch`). Do not collapse the pair: input discharge agrees
 with an explicit seed only when the body never reads its initial state, which
