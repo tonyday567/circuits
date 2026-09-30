@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Axioma.BiK (biKTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
@@ -18,6 +19,7 @@ import Prelude hiding (id, (.))
 
 data Topic
   = All
+  | BiK
   | Container
   | GMachine
   | Effect
@@ -33,6 +35,7 @@ data Topic
 
 topicName :: Topic -> String
 topicName All = "all"
+topicName BiK = "bik"
 topicName Container = "container"
 topicName GMachine = "gmachine"
 topicName Effect = "effect"
@@ -47,6 +50,7 @@ topicName Traced = "traced"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
+topicDesc BiK = "BiK oracles: biaction category laws, the strength spend, and the Either bridge"
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc GMachine = "GMachine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
@@ -107,6 +111,7 @@ opts =
     )
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
+runTopic BiK = biKTopic
 runTopic Container = containerTopic
 runTopic GMachine = gMachineTopic
 runTopic Effect = effectTopic
@@ -121,7 +126,7 @@ runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
+allTopics = [BiK, Container, Effect, FinRel, GMachine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"
