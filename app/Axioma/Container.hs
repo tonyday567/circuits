@@ -52,7 +52,6 @@ prodRoundTripOk :: Bool
 prodRoundTripOk =
   case fromFibred (toFibred v) of
     EP (EK c, EE f) -> c == (3 :: Int) && f 5 == 10
-    _ -> False
   where
     v :: Eval (Mono Int Int) Int
     v = EP (EK 3, EE (* 2))
@@ -61,7 +60,6 @@ ptensorRoundTripOk :: Bool
 ptensorRoundTripOk =
   case fromFibred (toFibred v) of
     ET _ g -> g (Right 7, ()) == (7 :: Int)
-    _ -> False
   where
     v :: Eval (PTensor (Mono Int Int) Y) Int
     v = ET ((5, ()), ()) (\(d, ()) -> either absurd id d)
@@ -70,7 +68,6 @@ yRoundTripOk :: Bool
 yRoundTripOk =
   case fromFibred (toFibred v) of
     EY x -> x == (5 :: Int)
-    _ -> False
   where
     v :: Eval Y Int
     v = EY 5
@@ -79,7 +76,6 @@ constRoundTripOk :: Bool
 constRoundTripOk =
   case fromFibred (toFibred v) of
     EK c -> c == (3 :: Int)
-    _ -> False
   where
     v :: Eval (Konst Int) Bool
     v = EK 3
@@ -88,7 +84,6 @@ expRoundTripOk :: Bool
 expRoundTripOk =
   case fromFibred (toFibred v) of
     EE f -> f 5 == (7 :: Int)
-    _ -> False
   where
     v :: Eval (Exp Int) Int
     v = EE (+ 2)

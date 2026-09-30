@@ -2,10 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- The law witnesses below deliberately spell the laws literally —
--- @fmap f (fmap g m)@ and @pure id <*> m@ — so hlint's functor-law and
--- <$> rewrites are ignored module-wide.
-{-# HLINT ignore "Functor law" #-}
-{-# HLINT ignore "Use <$>" #-}
+-- @fmap f (fmap g m)@ and @pure id <*> m@ — hlint's functor-law and
+-- <$> rewrites for this module are suppressed in .hlint.yaml.
 
 -- | GMachine oracles.
 module Axioma.GMachine
@@ -390,7 +388,9 @@ gMachineTopic verbosity = do
       checkV verbosity "gmoorT (,) yank: lazy knot productive on a non-strict body" $
         scanT (yank powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
       checkIOV verbosity "gmoorT (,) yank: strict accumulator diverges (use register)" $ do
-        result <- timeout 1000000 (evaluate (head (scanT (yank strictBody) [1 :: Int])))
+        result <- timeout 1000000 $ case scanT (yank strictBody) [1 :: Int] of
+          (o : _) -> evaluate o
+          [] -> pure 0
         pure (isNothing result),
       checkV verbosity "gmoorT (,) unital: tensor unit wires pass a machine through" $
         scanT (unitl @(,) . tensor (id :: Moore () ()) sumG . unitl' @(,)) xs == [1, 3, 6, 10]
@@ -405,7 +405,7 @@ gMachineTopic verbosity = do
       checkV verbosity "gmoorT (,) slide: sliding a wire past a product commutes with tensor nesting" $
         scanT (slide . sideM . slide) sideXs == scanT (tensor colM (tensor cntM cntM)) sideXs,
       checkV verbosity "gmoorT (,) strength: strength lifts a machine to the second wire" $
-        scanT (strength bumpM) [(1, 5), (2, 7), (3, 9)] == [(1, 105), (2, 107), (3, 109)]
+        scanT (strength bumpM) ([(1, 5), (2, 7), (3, 9)] :: [(Int, Int)]) == [(1, 105), (2, 107), (3, 109)]
     ]
   where
     points = [-1, 0, 5] :: [Int]

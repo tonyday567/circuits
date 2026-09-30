@@ -271,16 +271,16 @@ instance Located ('Exp a) where
 
 instance (Located p, Located q) => Located (Sum p q) where
   posAt = \case
-    Left i -> case posAt i of SomePos pi -> SomePos (PosL pi)
+    Left i -> case posAt i of SomePos i' -> SomePos (PosL i')
     Right j -> case posAt j of SomePos pj -> SomePos (PosR pj)
 
 instance (Located p, Located q) => Located (Prod p q) where
   posAt (i, j) = case (posAt i, posAt j) of
-    (SomePos pi, SomePos pj) -> SomePos (PosP pi pj)
+    (SomePos i', SomePos j') -> SomePos (PosP i' j')
 
 instance (Located p, Located q) => Located (PTensor p q) where
   posAt (i, j) = case (posAt i, posAt j) of
-    (SomePos pi, SomePos pj) -> SomePos (PosT pi pj)
+    (SomePos i', SomePos j') -> SomePos (PosT i' j')
 
 -- | The container isomorphism: 'Eval' values are positions with pin
 -- assignments.  Instances exist at every structural constructor
@@ -324,7 +324,7 @@ instance
   Container (PTensor p q)
   where
   toFibred (ET (i, j) f) = case (posAt i, posAt j) of
-    (SomePos pi, SomePos pj) -> Fibred (PosT pi pj) (\(dp, dq) -> f (toFlat pi dp, toFlat pj dq))
+    (SomePos i', SomePos j') -> Fibred (PosT i' j') (\(dp, dq) -> f (toFlat i' dp, toFlat j' dq))
   fromFibred (Fibred (PosT i j) k) =
     ET (posOf i, posOf j) (\(d1, d2) -> k (narrow i d1, narrow j d2))
 
