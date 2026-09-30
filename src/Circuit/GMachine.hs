@@ -1,11 +1,9 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Circuit.GMachine
   ( Cell (..),
@@ -53,7 +51,7 @@ module Circuit.GMachine
     TensorSchedule (..),
     scanT,
     Moore,
-    pattern Moore,
+    moore,
     asMoore,
     before,
     after,
@@ -277,16 +275,8 @@ instance (TensorSchedule t (->)) => Category (GMooreT t (->)) where
 
 type Moore = GMooreT (,) (->)
 
-pattern Moore ::
-  (a -> s) ->
-  (s -> a -> s) ->
-  (s -> b) ->
-  Moore a b
-pattern Moore i st ex <- GMooreT (GMoore i (Cell (curry -> st) ex))
-  where
-    Moore i st ex = GMooreT (GMoore i (Cell (uncurry st) ex))
-
-{-# COMPLETE Moore #-}
+moore :: (a -> s) -> (s -> a -> s) -> (s -> b) -> Moore a b
+moore i st ex = GMooreT (GMoore i (Cell (uncurry st) ex))
 
 asMoore :: GMoore (,) s (->) a b -> Moore a b
 asMoore (GMoore i c) = GMooreT (GMoore i c)
@@ -296,76 +286,78 @@ instance Functor (GMooreT (,) (->) a) where
   {-# INLINEABLE fmap #-}
 
 before :: Moore b c -> (a -> b) -> Moore a c
-before (Moore i st ex) f = Moore (i . f) (\s a -> st s (f a)) ex
+before (GMooreT (GMoore i (Cell k o))) f =
+  GMooreT (GMoore (i . f) (Cell (\(s, a) -> k (s, f a)) o))
 {-# INLINEABLE before #-}
 
 after :: Moore a b -> (b -> c) -> Moore a c
-after (Moore i st ex) f = Moore i st (f . ex)
+after (GMooreT (GMoore i (Cell k o))) f = GMooreT (GMoore i (Cell k (f . o)))
 {-# INLINEABLE after #-}
 
 instance Applicative (GMooreT (,) (->) a) where
-  pure b = Moore (const ()) (\_ _ -> ()) (const b)
+  pure b = moore (const ()) (\_ _ -> ()) (const b)
   {-# INLINEABLE pure #-}
-  Moore i1 st1 ex1 <*> Moore i2 st2 ex2 =
-    Moore
+  GMooreT (GMoore i1 (Cell k1 o1)) <*> GMooreT (GMoore i2 (Cell k2 o2)) =
+    moore
       (\a -> (i1 a, i2 a))
-      (\(s1, s2) a -> (st1 s1 a, st2 s2 a))
-      (\(s1, s2) -> ex1 s1 (ex2 s2))
+      (\(s1, s2) a -> (k1 (s1, a), k2 (s2, a)))
+      (\(s1, s2) -> o1 s1 (o2 s2))
   {-# INLINEABLE (<*>) #-}
 
 instance Assoc (,) (GMooreT (,) (->)) where
-  assoc = Moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
-  assoc' = Moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
+  assoc = moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
+  assoc' = moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
 
 instance Slide (,) (GMooreT (,) (->)) where
-  slide = Moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
+  slide = moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
 instance Strength (,) (GMooreT (,) (->)) where
-  strength (Moore i st ex) =
-    Moore
+  strength (GMooreT (GMoore i (Cell k o))) =
+    moore
       (\(~(a, b)) -> (a, i b))
-      (\(~(_, s)) (~(a', b)) -> (a', st s b))
-      (\(~(a, s)) -> (a, ex s))
+      (\(~(_, s)) (~(a', b)) -> (a', k (s, b)))
+      (\(~(a, s)) -> (a, o s))
 
 instance Yank (,) (GMooreT (,) (->)) where
-  yank (Moore i st ex) =
-    Moore
-      (\b -> let s0 = i (a0, b); a0 = fst (ex s0) in s0)
+  yank (GMooreT (GMoore i (Cell k o))) =
+    moore
+      (\b -> let s0 = i (a0, b); a0 = fst (o s0) in s0)
       ( \s b ->
-          let (s', _a) = fix (\ ~(s'', a') -> (st s (a', b), fst (ex s'')))
+          let (s', _a) = fix (\ ~(s'', a') -> (k (s, (a', b)), fst (o s'')))
            in s'
       )
-      (snd . ex)
+      (snd . o)
     where
       fix f = let x = f x in x
 
 instance Unital (,) (GMooreT (,) (->)) where
-  unitl = Moore snd (\_ (_, a) -> a) id
-  unitl' = Moore id (\_ x -> x) ((),)
-  unitr = Moore fst (\_ (a, ()) -> a) id
-  unitr' = Moore id (\_ x -> x) (,())
+  unitl = moore snd (\_ (_, a) -> a) id
+  unitl' = moore id (\_ x -> x) ((),)
+  unitr = moore fst (\_ (a, ()) -> a) id
+  unitr' = moore id (\_ x -> x) (,())
 
 instance SemiTensor (,) (GMooreT (,) (->)) where
-  tensor (Moore i1 st1 ex1) (Moore i2 st2 ex2) =
-    Moore
+  tensor (GMooreT (GMoore i1 (Cell k1 o1))) (GMooreT (GMoore i2 (Cell k2 o2))) =
+    moore
       (bimap i1 i2)
-      (\(s1, s2) (a, c) -> (st1 s1 a, st2 s2 c))
-      (bimap ex1 ex2)
+      (\(s1, s2) (a, c) -> (k1 (s1, a), k2 (s2, c)))
+      (bimap o1 o2)
   {-# INLINE tensor #-}
 
 instance Tensor (,) (GMooreT (,) (->))
 
 instance Action (,) (GMooreT (,) (->)) where
-  braid = Moore id (const id) sw
+  braid = moore id (const id) sw
     where
       sw (a, b) = (b, a)
   {-# INLINE braid #-}
 
 delay :: s -> Moore s s
-delay s0 = Moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
+delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
 
 register :: s -> Moore (a, s) (b, s) -> Moore a b
-register s0 (Moore i st ex) = Moore (\a -> i (a, s0)) (\s a -> st s (a, snd (ex s))) (fst . ex)
+register s0 (GMooreT (GMoore i (Cell k o))) =
+  moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (o s)))) (fst . o)
 
 scanT :: (TensorSchedule t (->)) => GMooreT t (->) i o -> [i] -> [o]
 scanT (GMooreT (GMoore j (Cell k e))) = \case

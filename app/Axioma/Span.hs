@@ -1,12 +1,10 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Axioma.Span
   ( spanTopic,
   )
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.GMachine (Moore, Stratum (..), scan, pattern Moore)
+import Circuit.GMachine (Moore, Stratum (..), moore, scan)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,
@@ -98,7 +96,7 @@ spanTopic verbosity = do
         let sp0 = Span [W1, W2, W3] id spR
             inputs = [W1, W2, W3]
             Stratum f = bodyFromSpan sp0
-            run = Moore (\a -> f (inputs, a)) (\(s, _) a' -> f (s, a')) snd
+            run = moore (\a -> f (inputs, a)) (\(s, _) a' -> f (s, a')) snd
          in scan run inputs == map spR [W1, W2, W3],
       checkV verbosity "span composition agrees with the stratum cascade on pairs" $
         let p :: Span Pin Bit
