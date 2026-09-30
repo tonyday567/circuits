@@ -14,6 +14,8 @@ module Circuit.Category
     K (..),
     Comonad (..),
     CoK (..),
+    Dist (..),
+    BiK (..),
     Op (..),
     FunctionLike (..),
     Pointed (..),
@@ -76,11 +78,27 @@ instance Comonad Identity where
   extract = runIdentity
   duplicate = Identity
 
+instance Comonad ((,) s) where
+  extract = snd
+  duplicate (s, a) = (s, (s, a))
+
 newtype CoK c a b = CoK {runCoK :: c a -> b}
 
 instance (Comonad c) => Category (CoK c) where
   id = CoK extract
   CoK g . CoK f = CoK (\ca -> g (extend f ca))
+
+class (Comonad w, Monad m) => Dist w m where
+  dist :: w (m a) -> m (w a)
+
+instance (Monad m) => Dist ((,) s) m where
+  dist (s, mb) = (s,) <$> mb
+
+newtype BiK w m a b = BiK {runBiK :: w a -> m b}
+
+instance (Dist w m) => Category (BiK w m) where
+  id = BiK (pure . extract)
+  BiK g . BiK f = BiK (\wa -> dist (extend f wa) >>= g)
 
 newtype Op arr a b = Op {runOp :: arr b a}
 
