@@ -17,6 +17,8 @@
 # Suppressed (conflict with other tooling or intentional naming):
 - ignore: {name: "Use head"}        # conflicts with -Wx-partial warnings
 - ignore: {name: "Use sum"}         # often clearer as explicit foldr in witness code
+- ignore: {name: "Functor law", within: Axioma.GMachine}  # fmap composition is the witness under test
+- ignore: {name: "Use <$>", within: Axioma.GMachine}      # pure id <*> m is the applicative-identity witness
 - ignore: {name: "Use camelCase", within: Circuit.Logics.Laws}
 - ignore: {name: "Use camelCase", within: Circuit.Diff.Daisyworld}
 - ignore: {name: "Use camelCase", within: Circuit.Diff.DubinsChase}
