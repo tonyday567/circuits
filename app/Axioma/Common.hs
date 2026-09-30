@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PatternSynonyms #-}
 
 -- | Shared helpers for the circuits axioma topic modules.
 --
@@ -28,7 +27,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.GMachine (Moore, register, pattern Moore)
+import Circuit.GMachine (Moore, moore, register)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 
@@ -57,15 +56,15 @@ checkIOV _ _ act = act
 
 -- | Simple additive process for oracles.
 sumP :: Moore Int Int
-sumP = Moore id (+) id
+sumP = moore id (+) id
 
 -- | Pair braid for the (,) trace yanking oracle.
 swapPairP :: Moore (Int, Int) (Int, Int)
-swapPairP = Moore id (\_ x -> x) (\(a, b) -> (b, a))
+swapPairP = moore id (\_ x -> x) (\(a, b) -> (b, a))
 
 -- | Either braid for the Either trace yanking oracle.
 swapEitherP :: Moore (Either Int Int) (Either Int Int)
-swapEitherP = Moore id (\_ x -> x) swapEither
+swapEitherP = moore id (\_ x -> x) swapEither
   where
     swapEither (Left a) = Right a
     swapEither (Right b) = Left b
@@ -73,7 +72,7 @@ swapEitherP = Moore id (\_ x -> x) swapEither
 -- | EWMA body: stateless affine box with feedback.
 ewmaBody :: Double -> Moore (Double, Double) (Double, Double)
 ewmaBody alpha =
-  Moore
+  moore
     (\(x, prev) -> alpha * x + (1 - alpha) * prev)
     (\s (x, _) -> alpha * x + (1 - alpha) * s)
     (\s -> (s, s))
@@ -84,8 +83,8 @@ ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Shared-medium body: adds the input to the shared state and echoes it.
 sharedAddP :: Moore (Int, Int) (Int, Int)
-sharedAddP = Moore (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
+sharedAddP = moore (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
 
 -- | Shared-medium body: doubles the shared state and echoes the input.
 sharedDoubleP :: Moore (Int, Int) (Int, Int)
-sharedDoubleP = Moore (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
+sharedDoubleP = moore (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
