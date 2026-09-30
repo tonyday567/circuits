@@ -15,12 +15,13 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.GMachine (Body (Body), Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), bodyAsBodyTT, bodyTTAsBody, bodyTTAsCell, bodyTTAsCellD, cellAsBodyTT, cellAsLens, cellDAsBodyTT, scanT)
+import Circuit.GMachine (Body (Body), Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), Unfold (..), bodyAsBodyTT, bodyTTAsBody, bodyTTAsCell, bodyTTAsCellD, cellAsBodyTT, cellAsLens, cellDAsBodyTT, fold, scan, scanT, unfold)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
+import Data.List.NonEmpty (toList)
 import Data.Maybe (isNothing)
 import Data.These (These (..), these)
 import System.Timeout (timeout)
@@ -293,6 +294,25 @@ scanBoth (GMooreT (GMoore j (Cell k e))) = \case
     go _ [] = []
     go c (i : is) = let c' = k (These c i) in e c' : go c' is
 
+scanTheseRun :: GMoore (,) s (->) a b -> [a] -> [b]
+scanTheseRun (GMoore c (Cell k o)) = \case
+  [] -> []
+  (a : as) -> toList (unfold gen (Nothing, a, as))
+  where
+    gen (ms, a, rest) =
+      let s' = case ms of
+            Nothing -> c a
+            Just s -> k (s, a)
+       in case rest of
+            [] -> That (o s')
+            (a' : rest') -> These (Just s', a', rest') (o s')
+
+sumRun :: GMoore (,) Int (->) Int Int
+sumRun = GMoore id (Cell (uncurry (+)) id)
+
+meanRun :: GMoore (,) (Int, Int) (->) Int Int
+meanRun = GMoore (\a -> (1, a)) (Cell (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n))
+
 -- echoFold naturality: echoFold . tensor f f == f . echoFold at f = (+ 1).
 natPair :: Bool
 natPair =
@@ -341,6 +361,12 @@ gMachineTopic verbosity = do
       checkV verbosity "gmoorT Either scan anchor" (scanT eitherG xs == [2, 6, 8, 10]),
       checkV verbosity "gmoorT These scan anchor (That-injection)" (scanT theseG xs == [1, 3, 4, 5]),
       checkV verbosity "gmoorT These scanBoth anchor (full injection)" (scanBoth theseG xs == [1, 3, 6, 10]),
+      checkV verbosity "the These unfold agrees with scan and fold (an early That truncates the run to its first output)" $
+        let run = scanTheseRun sumRun xs
+         in scanTheseRun sumRun [] == []
+              && run == scan (GMooreT sumRun) xs
+              && scanTheseRun meanRun xs == scan (GMooreT meanRun) xs
+              && fold (GMooreT sumRun) xs == Just (last run),
       checkV verbosity "echoFold naturality at (,)" natPair,
       checkV verbosity "echoFold naturality at Either" natEither,
       checkV verbosity "echoFold naturality at These" natThese,

@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Circuit.GMachine
   ( Cell (..),
@@ -19,10 +20,6 @@ module Circuit.GMachine
     bodyTTAsBody,
     bodyBiK,
     Stratum (..),
-    ChannelA,
-    MonoBody,
-    monoIn,
-    monoDir,
     fuse,
     unfuse,
     Machine (..),
@@ -32,59 +29,44 @@ module Circuit.GMachine
     capT,
     close,
     unclose,
-    copycat,
-    poles0,
     polesK,
-    splay0,
     compose,
-    imap,
     iomap,
-    omap,
     peek,
     poke,
     polesOf,
     cellOf,
     processOf,
-    processFromSeed,
     GMoore (..),
     GMooreT (..),
     TensorSchedule (..),
     scanT,
     Moore,
     moore,
-    asMoore,
     before,
-    after,
     delay,
     register,
-    scanProcess,
     scan,
     fold,
-    foldProcess,
-    scanThese,
     Cocell,
     cocell,
     pair,
     closedToGenerator,
     Unfold (..),
-    observe',
     cellAsLens,
     lensAsCell,
-    cellAsEval,
-    evalAsCell,
   )
 where
 
 import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
 import Circuit.Category (BiK (..), Category (..), K (..), Op (..), (.>))
-import Circuit.Poly (Dir, Eval (..), Lens, Mono, Poly, Pos, applyLens, lens, monoDir, monoIn)
+import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..), toList, (<|))
 import Data.These (These (..), these)
-import Data.Void (Void)
 import Prelude hiding (id, init, read, (.))
 
 data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
@@ -176,8 +158,6 @@ bodyBiK (BodyTT k p) = BiK (p . k)
 
 newtype Stratum t ch arr i o = Stratum {morphism :: arr (t ch i) (t ch o)}
 
-type ChannelA ch arr i o = Stratum (,) ch arr i o
-
 instance (Category arr) => Category (Stratum t ch arr) where
   id :: forall a. Stratum t ch arr a a
   id = Stratum id
@@ -198,7 +178,7 @@ fuse (Cell k o) =
 unfuse ::
   forall s arr i o.
   (Tensor (,) arr, Discard arr s, Discard arr o) =>
-  ChannelA s arr i o ->
+  Stratum (,) s arr i o ->
   Cell (,) (s, o) arr i o
 unfuse (Stratum f) = Cell (tensor projFst id .> f) projSnd
   where
@@ -206,8 +186,6 @@ unfuse (Stratum f) = Cell (tensor projFst id .> f) projSnd
     projFst = unitr . tensor id discard
     projSnd :: arr (s, o) o
     projSnd = unitl . tensor discard id
-
-type MonoBody t s arr i o = Stratum t s arr (Either Void i) (o, ())
 
 newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly) = Machine
   {machineCell :: Cell t s arr (Dir p) (Pos p)}
@@ -234,29 +212,14 @@ close (Poles c o) = c .> o
 unclose :: (Category arr) => arr a b -> Poles b arr a b
 unclose f = Poles f id
 
-copycat :: (Category arr) => Poles ch arr ch ch
-copycat = unclose id
-
-poles0 :: arr a () -> arr () b -> Poles () arr a b
-poles0 = Poles
-
 polesK :: (a -> m ()) -> m b -> Poles () (K m) a b
 polesK write receive = Poles (K write) (K $ const receive)
-
-splay0 :: Poles () arr a b -> (arr a (), arr () b)
-splay0 (Poles c o) = (c, o)
 
 compose :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
 compose (Poles c1 o1) (Poles c2 o2) = Poles c1 (o1 .> c2 .> o2)
 
 iomap :: (Category arr) => arr a' a -> arr b b' -> Poles ch arr a b -> Poles ch arr a' b'
 iomap f g (Poles c o) = Poles (f .> c) (o .> g)
-
-imap :: (Category arr) => arr a' a -> Poles ch arr a b -> Poles ch arr a' b
-imap f (Poles c o) = Poles (f .> c) o
-
-omap :: (Category arr) => arr b b' -> Poles ch arr a b -> Poles ch arr a b'
-omap g (Poles c o) = Poles c (o .> g)
 
 peek :: (Category arr) => Point t arr s -> Cell t s arr a b -> arr (Unit t) b
 peek pt (Cell _ o) = runPoint pt .> o
@@ -277,9 +240,6 @@ cellOf (Cap cap) (Poles w r) =
 
 processOf :: (Category arr) => arr a (t s a) -> Cell t s arr a b -> GMoore t s arr a b
 processOf e (Cell k o) = GMoore (e .> k) (Cell k o)
-
-processFromSeed :: s -> Cell (,) s (->) a b -> GMoore (,) s (->) a b
-processFromSeed s0 (Cell k o) = GMoore (\a -> k (s0, a)) (Cell k o)
 
 data GMoore (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GMoore
   { init :: arr i ch,
@@ -325,9 +285,6 @@ type Moore = GMooreT (,) (->)
 moore :: (a -> s) -> (s -> a -> s) -> (s -> b) -> Moore a b
 moore i st ex = GMooreT (GMoore i (Cell (uncurry st) ex))
 
-asMoore :: GMoore (,) s (->) a b -> Moore a b
-asMoore (GMoore i c) = GMooreT (GMoore i c)
-
 instance Functor (GMooreT (,) (->) a) where
   fmap f (GMooreT (GMoore i (Cell k o))) = GMooreT (GMoore i (Cell k (f . o)))
   {-# INLINEABLE fmap #-}
@@ -336,10 +293,6 @@ before :: Moore b c -> (a -> b) -> Moore a c
 before (GMooreT (GMoore i (Cell k o))) f =
   GMooreT (GMoore (i . f) (Cell (\(s, a) -> k (s, f a)) o))
 {-# INLINEABLE before #-}
-
-after :: Moore a b -> (b -> c) -> Moore a c
-after (GMooreT (GMoore i (Cell k o))) f = GMooreT (GMoore i (Cell k (f . o)))
-{-# INLINEABLE after #-}
 
 instance Applicative (GMooreT (,) (->) a) where
   pure b = moore (const ()) (\_ _ -> ()) (const b)
@@ -516,30 +469,8 @@ instance Unfold These (->) where
         That b -> b :| []
         These ch' b -> b <| go ch'
 
--- | The eliminator consuming @(s, i)@, reflecting the input immediately
--- — the honest answer to input-blindness at the eliminator level.
--- Provisional name, standing until the haddock pass.
---
--- Variance account, pinned: the observation leg @arr ch o@ never mentions
--- the input, pre or post, by construction — the type has no slot for it.
--- A pre-step eliminator built on that leg therefore outputs a value that
--- provably ignores the current input; that is the old 'Moore' reading.
--- @observe'@ closes the gap in one step — absorb, then observe — so the
--- input is reflected immediately.
-observe' :: Cell (,) s (->) i o -> (s, i) -> o
-observe' (Cell k o) (s, i) = o (k (s, i))
-
 cellAsLens :: Cell (,) s (->) i o -> Lens s s o i
 cellAsLens (Cell k o) = lens o (curry k)
 
 lensAsCell :: Lens s s o i -> Cell (,) s (->) i o
 lensAsCell m = Cell (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
-
-cellAsEval :: Cell (,) s (->) i o -> s -> Eval (Mono i o) s
-cellAsEval (Cell k o) s = EP (EK (o s), EE (\i -> k (s, i)))
-
-evalAsCell :: (s -> Eval (Mono i o) s) -> Cell (,) s (->) i o
-evalAsCell f =
-  Cell
-    (\(s, i) -> case f s of EP (_, EE g) -> g i)
-    (\s -> case f s of EP (EK o, _) -> o)
