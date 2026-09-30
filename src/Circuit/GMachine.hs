@@ -19,6 +19,7 @@ module Circuit.GMachine
     bodyTTAsCellD,
     bodyAsBodyTT,
     bodyTTAsBody,
+    bodyBiK,
     Stratum (..),
     ChannelA,
     MonoBody,
@@ -77,7 +78,7 @@ module Circuit.GMachine
 where
 
 import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
-import Circuit.Category (Category (..), K (..), Op (..), (.>))
+import Circuit.Category (BiK (..), Category (..), K (..), Op (..), (.>))
 import Circuit.Poly (Dir, Eval (..), Lens, Mono, Poly, Pos, applyLens, lens, monoDir, monoIn)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -171,6 +172,9 @@ bodyAsBodyTT (Body k p) = BodyTT k p
 
 bodyTTAsBody :: BodyTT t t ch (->) i o -> Body t ch (->) i o
 bodyTTAsBody (BodyTT k p) = Body k p
+
+bodyBiK :: BodyTT (,) t' s (->) i o -> BiK ((,) s) (t' s) i o
+bodyBiK (BodyTT k p) = BiK (p . k)
 
 newtype Stratum t ch arr i o = Stratum {morphism :: arr (t ch i) (t ch o)}
 
