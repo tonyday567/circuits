@@ -149,8 +149,8 @@ and poles.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
 exactly when no input supplies one. `GMoore` keeps it explicit as the
-`init` leg — the seed as data, with `processFromSeed` spelling the common
-case at `(->)`; `Point` names the unit-tensor discharge. The
+`init` leg — the seed as data, with `moore` spelling the common case at
+`(->)`; `Point` names the unit-tensor discharge. The
 `Yank (,) Moore` instance discharges it through closure: `yank` ties the
 state channel in a lazy knot, and the absence of a seed is visible in the
 type. The discharges are not interchangeable: the lazy knot diverges on
@@ -158,7 +158,7 @@ strict accumulators — which is why `delay` and `register` exist as
 explicit wiring.
 
 ```haskell
-scanProcess (processFromSeed 0 (Cell (\(s, i) -> s + i) id)) [1, 2, 3]  -- explicit: the seed as data
+scan (moore (+ 0) (\s i -> s + i) id) [1, 2, 3]  -- explicit: the seed as data
 ```
 
 **A deck of languages.** The GADTs form a chain of free constructions, each

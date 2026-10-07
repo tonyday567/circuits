@@ -75,37 +75,30 @@
 -- with two legs over a hidden channel: 'absorb' folds the input into the
 -- channel, and the observation leg reads an output back out. 'Body' keeps
 -- both legs at the tensor, and 'Stratum' — met in the syntax section — is
--- the category they compose in. 'processFromSeed' points a cell at an
--- initial channel and 'scanProcess' runs it down an input list.
+-- the category they compose in. 'moore' repackages the legs as a triple —
+-- init, step, extract — pointed at an initial channel, and 'scan' runs
+-- the machine down an input list.
 --
 -- The counter as a cell — absorb adds the input to the channel, the
--- observation leg reads the channel:
+-- observation leg reads the channel. Pointed at seed 0, the init leg
+-- absorbs the seed with the first input, so every observation is
+-- post-step:
 --
 -- >>> let counter = Cell (\(n, i) -> n + i) id
--- >>> scanProcess (processFromSeed 0 counter) [1,1,1]
+-- >>> scan (moore (+ 0) (\n i -> n + i) id) [1,1,1]
 -- [1,2,3]
 --
--- 'processFromSeed' absorbs the seed with the first input, so every
--- observation above is post-step; 'observe'' is the post-step observation
--- spelled as one absorb followed by the observation leg. The plain leg
--- @observe@ reads the pre-step channel, but the unqualified name belongs
--- to `Hyper`'s `observe` in this umbrella — the leg itself is exported
--- from "Circuit.GMachine".
+-- A one-shot post-step observation is one 'absorb' followed by the
+-- observation leg. The leg's selector is hidden in this umbrella — the
+-- unqualified `observe` belongs to `Hyper` — so the match is direct:
 --
--- >>> observe' counter (0, 1)
+-- >>> case counter of Cell k o -> o (k (0, 1))
 -- 1
 --
--- The existential 'Moore' pattern repackages the cell as a triple —
--- init, step, extract — with the channel type hidden, and composes as a
--- category in its own right:
---
--- >>> scan (asMoore (processFromSeed 0 counter)) [1,1,1]
--- [1,2,3]
---
 -- 'GMoore' names the pointed carrier, and 'GMooreT' — the channel
--- existentially hidden — is the 'Category' the library proved, with
--- 'TensorSchedule' pricing the tensor's constructor grammar and 'scanT'
--- running an input list through it:
+-- existentially hidden, the 'Moore' pattern — is the 'Category' the
+-- library proved, with 'TensorSchedule' pricing the tensor's constructor
+-- grammar and 'scanT' running an input list through it:
 --
 -- >>> let g = GMooreT (GMoore id (Cell (uncurry (+)) id)) :: GMooreT (,) (->) Int Int
 -- >>> scanT g [1,2,3]
@@ -115,7 +108,7 @@
 -- monomial @Mono Int Int@, directions in, positions out:
 --
 -- >>> let mac = Machine (Cell (\(n, d) -> n + monoDir d) (\n -> (n, ()))) :: Machine (,) Int (->) (Mono Int Int)
--- >>> observe' (machineCell mac) (0, monoIn 1)
+-- >>> case machineCell mac of Cell k o -> o (k (0, monoIn 1))
 -- (1,())
 --
 -- === Streams: the neutral interface
@@ -139,7 +132,7 @@
 -- A 'Poles' pair over the unit carrier closes with 'close' to a plain
 -- morphism, and a closed morphism lifts straight into a stratum:
 --
--- >>> let p = poles0 (const ()) (const 42) :: Poles () (->) () Int
+-- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
 -- >>> close p ()
 -- 42
 -- >>> let s = Stratum (\((), ()) -> ((), close p ())) :: Stratum (,) () (->) () Int
@@ -149,7 +142,7 @@
 -- Cells and lenses interconvert; the round trip is the identity on runs:
 --
 -- >>> let acc = Cell (\(s, i) -> s + i) (* 2)
--- >>> scanProcess (processFromSeed 0 (lensAsCell (cellAsLens acc))) [1,2,3]
+-- >>> scan (GMooreT (GMoore (+ 0) (lensAsCell (cellAsLens acc)))) [1,2,3]
 -- [2,6,12]
 --
 -- A 'Point' plugs straight into the write leg of a 'Poles' pair:
