@@ -56,8 +56,6 @@ Circuit.GMachine    — Machines over a channel: Cell (absorb/observe legs),
                       pattern with delay/register, scan/fold eliminators,
                       and the lens dictionary (cellAsLens/lensAsCell).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
-Circuit.Rel         — Finite relations, two reference grades: explicit
-                      relations (Rel, Fin) and GF(2) linear relations (FinRel).
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use.
@@ -202,6 +200,10 @@ Solid examples to learn from: `parser.md`, `while.md`, `pipes.md`.
 
 ## sibling libraries
 
+- **circuits-rel** — finite relations, the reference semantics in two
+  grades (explicit relations and GF(2) linear relations). Formerly
+  `Circuit.Rel` in core; moved out with its `circuits-rel-axioma` oracle
+  runner.
 - **circuits-parser** — `Trace Either (->)` with `These` output for
   backtracking parsers.
 - **circuits-meter** — one-line performance metering.

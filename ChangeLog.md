@@ -100,6 +100,10 @@ move from `Loop` to `Trace`.
   are superseded by `Circuit.Moore`'s `MachineP` and `Circuit.Process`'s
   conversions.
 - `Circuit.Fragment` and its bundled `SigBimonoid` are gone.
+- `Circuit.Rel` (finite relations, the two-grade reference semantics) moves
+  to the new sibling package `circuits-rel`, along with the `FinRel` topic
+  of the `circuits-axioma` oracle runner (now `circuits-rel-axioma`). The
+  `Circuit` umbrella no longer re-exports it.
 - `Circuit.Free`, `Circuit.Sym`, `Circuit.Algebra`, `Circuit.Classes`,
   `Circuit.Monoidal`, `Circuit.Strength`, `Circuit.Adjunction`,
   `Circuit.Signature`, `Circuit.Box`, `Circuit.Queue`, `Circuit.Loopd`, and

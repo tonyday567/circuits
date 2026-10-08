@@ -55,7 +55,6 @@ library
     Circuit.Net
     Circuit.Poly
     Circuit.Pullback
-    Circuit.Rel
     Circuit.Shared
     Circuit.Span
     Circuit.Stream
@@ -78,7 +77,6 @@ executable circuits-axioma
     Axioma.Common
     Axioma.Container
     Axioma.Effect
-    Axioma.FinRel
     Axioma.GMachine
     Axioma.Poles
     Axioma.Pullback

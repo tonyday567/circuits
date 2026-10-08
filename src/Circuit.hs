@@ -14,8 +14,9 @@
 -- the tensor action and braiding. "Circuit.Traced" chooses the feedback
 -- discipline: lazy knots over @(,)@, terminating iteration over `Either`,
 -- scheduling over `Data.These.These`. "Circuit.Bimonoid" is the bimonoid
--- layer of circuit wiring, copy and discard. "Circuit.Rel" is finite
--- relations, the reference semantics in two grades.
+-- layer of circuit wiring, copy and discard. Finite relations — the
+-- reference semantics in two grades — live in the sibling package
+-- @circuits-rel@ as "Circuit.Rel".
 --
 -- The counter at this level is a bare function, an update paired with an
 -- observation:
@@ -185,7 +186,6 @@ module Circuit
     module Circuit.Traced,
     module Circuit.Tensor,
     module Circuit.Bimonoid,
-    module Circuit.Rel,
 
     -- * Syntax
     module Circuit.Syntax,
@@ -218,7 +218,6 @@ import Circuit.Linear
 import Circuit.Net
 import Circuit.Poly hiding (Point)
 import Circuit.Pullback
-import Circuit.Rel
 import Circuit.Shared
 import Circuit.Span
 import Circuit.Stream
