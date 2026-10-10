@@ -5,7 +5,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (BiK (..), Dist (..), K (..), id, (.))
-import Circuit.GMachine (BodyTT (..), bodyBiK)
+import Circuit.GMachine (Body (..), bodyBiK)
 import Circuit.Traced (Strength (..))
 import Control.Monad (when)
 import Prelude hiding (id, (.))
@@ -89,14 +89,16 @@ jermaineEitherOk :: Bool
 jermaineEitherOk =
   runBiK (stageTwo . stageOne) (5, 0) == Left 6
   where
+    -- init is dead weight here: the BiK arrow sees only commit and emit.
     stageOne =
       bodyBiK
-        ( BodyTT
+        ( Body
+            id
             (\(s, _) -> s + 1)
             (\s -> Left s) ::
-            BodyTT (,) Either Int (->) Int Int
+            Body (,) Either Int Int (->) Int Int
         )
-    stageTwo = bodyBiK (BodyTT (\(s, _) -> s * 2) (\s -> Right (s + 100)))
+    stageTwo = bodyBiK (Body id (\(s, _) -> s * 2) (\s -> Right (s + 100)))
 
 biKTopic :: Verbosity -> IO [Bool]
 biKTopic verbosity = do

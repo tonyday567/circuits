@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 -- | Effectful oracles over 'K IO' and 'Trace (,) (K IO)': Central Sliding,
--- Stratum composition, and Trace normal-form order preservation.
+-- Step composition, and Trace normal-form order preservation.
 module Axioma.Effect
   ( effectTopic,
   )
@@ -10,7 +10,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Category (K (..), id, runK, (.))
-import Circuit.GMachine qualified as Stratum
+import Circuit.GMachine qualified as Step
 import Circuit.Syntax (Syntax (Lift))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)
@@ -44,22 +44,22 @@ effectTopic verbosity = do
               pre = yank (f . tensor @(,) @(K IO) g id)
           (l, r) <- (,) <$> runK post () <*> runK pre ()
           pure (l /= r),
-      -- Stratum (,) (K IO) must compose as a category. This is the untested
-      -- edge of parameterising Stratum over arr; Z2's Trace-level witness
-      -- stands on it. The stratums touch a shared IORef to confirm
+      -- Step (,) (K IO) must compose as a category. This is the untested
+      -- edge of parameterising Step over arr; Z2's Trace-level witness
+      -- stands on it. The steps touch a shared IORef to confirm
       -- composition threads state through the K base, not just the function
       -- base.
-      checkIOV verbosity "Stratum (,) (K IO) composes as a category" $
+      checkIOV verbosity "Step (,) (K IO) composes as a category" $
         do
           ref <- newIORef (0 :: Int)
-          let f = Stratum.Stratum $ K $ \((s, a) :: (Int, Int)) -> do
+          let f = Step.Step $ K $ \((s, a) :: (Int, Int)) -> do
                 writeIORef ref (s + 1)
                 pure (s + 1, a + 1)
-              g = Stratum.Stratum $ K $ \(s, b) -> do
+              g = Step.Step $ K $ \(s, b) -> do
                 v <- readIORef ref
                 pure (s + v, b * 2)
               gf = g . f
-          (sOut, c) <- runK (Stratum.morphism gf) (0, 5)
+          (sOut, c) <- runK (Step.run gf) (0, 5)
           pure (sOut == 2 && c == 12),
       -- Benton-Hyland Def 3.2 at the Trace level: Trace's yank inherits the
       -- Central Sliding side-condition from its base. A non-central effectful

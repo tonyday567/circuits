@@ -1,254 +1,175 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+-- | The machine layer: the tick, the machines built on it, and the
+-- runners that drive them.
+--
+-- A 'Step' is one tick: an arrow from the grammared source @t ch i@ to
+-- the grammared target @t' ch' o@. A machine pairs an initial step with
+-- the iterating tick, in two spellings. 'Cell' keeps the tick fused and
+-- seeds the channel from the tensor's unit. 'Body' factors the tick
+-- through the channel — 'commit' writes it, 'emit' reads the freshly
+-- written value — and seeds from the first input. 'Moore' is 'Body'
+-- with the target grammar sealed to 'Const'; 'MooreT' hides the channel
+-- existentially and carries the machine 'Category'. 'Poles' is the
+-- memoryless corner, where the channel never carries across a tick.
 module Circuit.GMachine
-  ( Cell (..),
-    Body (..),
-    CellD (..),
-    BodyTT (..),
-    cellAsBody,
-    cellAsBodyTT,
-    bodyTTAsCell,
-    cellDAsBodyTT,
-    bodyTTAsCellD,
-    bodyAsBodyTT,
-    bodyTTAsBody,
-    bodyBiK,
-    Stratum (..),
+  ( -- * the tick
+    Step (..),
     fuse,
-    unfuse,
-    Machine (..),
+
+    -- * machines
+    Cell (..),
+    Mealy,
+    MealyT (..),
+    Body (..),
+    Moore,
+    MooreT (..),
+    MealyP,
+    MooreP,
+
+    -- * the memoryless corner
     Poles (..),
-    Point (..),
-    Cap (..),
-    capT,
     close,
     unclose,
     polesK,
     compose,
     iomap,
-    peek,
-    poke,
-    polesOf,
-    cellOf,
-    processOf,
-    GMoore (..),
-    GMooreT (..),
+
+    -- * the natural merge
     MergeNat (..),
-    scanT,
-    Moore,
+
+    -- * builders
     moore,
     before,
     delay,
     register,
+    processOf,
+
+    -- * runners
+    scanT,
     scan,
     fold,
-    Cocell,
-    cocell,
-    pair,
+    scanProcess,
+    foldProcess,
+
+    -- * bridges
+    bodyBiK,
+    bodyAsLens,
+    lensAsBody,
     closedToGenerator,
+
+    -- * coiteration
     Unfold (..),
-    cellAsLens,
-    lensAsCell,
   )
 where
 
-import Circuit.Bimonoid (CopyT (..), Discard (..), DiscardT (..))
-import Circuit.Category (BiK (..), Category (..), K (..), Op (..), (.>))
+import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
-import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..))
+import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..), unConst)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
-import Data.List.NonEmpty (NonEmpty (..), toList, (<|))
+import Data.List.NonEmpty (NonEmpty (..), (<|))
 import Data.These (These (..), these)
-import Prelude hiding (id, init, read, (.))
+import Prelude hiding (id, init, (.))
 
-data Cell (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Cell
-  { absorb :: arr (t ch i) ch,
-    observe :: arr ch o
-  }
+-- | One tick of a machine: the arrow from the grammared source
+-- @t ch i@ to the grammared target @t' ch' o@. Composition needs the
+-- diagonal — the channel and grammar the tick writes must be the ones
+-- the next tick reads.
+newtype Step t t' ch ch' arr i o = Step {run :: arr (t ch i) (t' ch' o)}
 
-data Body (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = Body
-  { consume :: arr (t ch i) ch,
-    produce :: arr ch (t ch o)
-  }
-
--- | The @(Const, t)@ corner of the 'Body' rectangle: absorb bare, emit
--- grammared.
---
--- The rectangle is spanned by which legs carry the channel grammar.
--- 'Cell' is the @(t, Const)@ corner — 'absorb' takes the grammared
--- @t ch i@, 'observe' emits bare @o@; the @(Const, Const)@ corner is the
--- closed machine, a plain @arr i o@ with no channel at all; the @(t, t)@
--- diagonal is 'Body', with 'Stratum' the fully fused spelling.
---
--- 'expunge' commits passively from the input alone — no history, the
--- @Const@ row — and it is the write leg of 'Poles'. 'imbue' is the
--- produce of 'Body' — the channel update rides out in the emit package
--- @arr ch (t ch o)@.
---
--- Memoryless BY CONSTRUCTION: 'expunge' never sees the channel, so it
--- cannot thread state, and @imbue@'s update is emitted (logging) but
--- never carried forward into the next step. If threading is wanted, the
--- record to use is 'Body' with 'produce'.
---
--- At @t = 'Either'@, @imbue@'s package carries completion: 'Left' =
--- evolve, 'Right' = done — the exit constructor that the observe of
--- 'Cell', @arr ch o@ with no constructors, cannot say. The witnesses
--- live in "Axioma.GMachine".
-data CellD (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = CellD
-  { expunge :: arr i ch,
-    imbue :: arr ch (t ch o)
-  }
-
--- | The general two-legged machine: 'consume' takes the input grammar
--- @t ch i@, 'produce' emits the output grammar @t' ch o@ — the record
--- the corner family factors through. 'Cell' is the @(t, Const)@ corner,
--- 'CellD' the @(Const, t)@ corner, 'Body' the @(t, t)@ diagonal, and
--- @(Const, Const)@ the closed machine; see 'CellD' for the corner
--- reading.
---
--- Two free tensors do not compose (@t' ch b@ cannot feed @t ch b@), so
--- the 'Category' lives on the diagonal — this record says the mixed
--- corners without composing them.
---
--- The lifts to and from the corner records land at @arr = (->)@:
--- wrapping and unwrapping the 'Const' grammar is a pure map, and the
--- library has no general pure lift into @arr@ (the story is collected
--- on the arr card, out of scope here).
-data BodyTT (t :: Type -> Type -> Type) (t' :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = BodyTT
-  { consume :: arr (t ch i) ch,
-    produce :: arr ch (t' ch o)
-  }
-
--- Cell to the update package: copy-gated, the same price fuse pays.
-cellAsBody :: (CopyT t arr ch) => Cell t ch arr i o -> Body t ch arr i o
-cellAsBody (Cell k p) = Body k (copyT .> tensor id p)
-
--- The corner isomorphisms at the (->) corner — each direction names
--- its corner in the term. The general-arr spelling needs a pure lift
--- into arr the library does not have; the round trips are witnessed in
--- "Axioma.GMachine".
-cellAsBodyTT :: Cell t ch (->) i o -> BodyTT t Const ch (->) i o
-cellAsBodyTT (Cell k p) = BodyTT k (Const . p)
-
-bodyTTAsCell :: BodyTT t Const ch (->) i o -> Cell t ch (->) i o
-bodyTTAsCell (BodyTT k p) = Cell k (\c -> case p c of Const o -> o)
-
-cellDAsBodyTT :: CellD t ch (->) i o -> BodyTT Const t ch (->) i o
-cellDAsBodyTT (CellD x g) = BodyTT (\(Const i) -> x i) g
-
-bodyTTAsCellD :: BodyTT Const t ch (->) i o -> CellD t ch (->) i o
-bodyTTAsCellD (BodyTT k g) = CellD (\i -> k (Const i)) g
-
-bodyAsBodyTT :: Body t ch (->) i o -> BodyTT t t ch (->) i o
-bodyAsBodyTT (Body k p) = BodyTT k p
-
-bodyTTAsBody :: BodyTT t t ch (->) i o -> Body t ch (->) i o
-bodyTTAsBody (BodyTT k p) = Body k p
-
-bodyBiK :: BodyTT (,) t' s (->) i o -> BiK ((,) s) (t' s) i o
-bodyBiK (BodyTT k p) = BiK (p . k)
-
-newtype Stratum t ch arr i o = Stratum {morphism :: arr (t ch i) (t ch o)}
-
-instance (Category arr) => Category (Stratum t ch arr) where
-  id :: forall a. Stratum t ch arr a a
-  id = Stratum id
+instance (Category arr) => Category (Step t t ch ch arr) where
+  id :: forall a. Step t t ch ch arr a a
+  id = Step id
   {-# INLINE id #-}
 
-  (.) :: forall a b c. Stratum t ch arr b c -> Stratum t ch arr a b -> Stratum t ch arr a c
-  Stratum g . Stratum f = Stratum (g . f)
+  (.) :: forall a b c. Step t t ch ch arr b c -> Step t t ch ch arr a b -> Step t t ch ch arr a c
+  Step g . Step f = Step (g . f)
   {-# INLINE (.) #-}
 
-fuse ::
-  forall t s arr a b.
-  (CopyT t arr (t s a), DiscardT t arr a) =>
-  Cell t s arr a b ->
-  Stratum t s arr a b
-fuse (Cell k o) =
-  Stratum (tensor k (o . unitr . tensor id (discardT @t)) . copyT)
-
-unfuse ::
-  forall s arr i o.
-  (Tensor (,) arr, Discard arr s, Discard arr o) =>
-  Stratum (,) s arr i o ->
-  Cell (,) (s, o) arr i o
-unfuse (Stratum f) = Cell (tensor projFst id .> f) projSnd
-  where
-    projFst :: arr (s, o) s
-    projFst = unitr . tensor id discard
-    projSnd :: arr (s, o) o
-    projSnd = unitl . tensor discard id
-
-newtype Machine (t :: Type -> Type -> Type) s (arr :: Type -> Type -> Type) (p :: Poly) = Machine
-  {machineCell :: Cell t s arr (Dir p) (Pos p)}
-
-data Poles ch arr a b = Poles
-  { write :: arr a ch,
-    read :: arr ch b
+-- | The fused machine: a given seed leg at the tensor's unit, and one
+-- iterating 'Step'. 'Mealy' is the diagonal; 'MealyT' seals the
+-- channel existentially.
+data Cell t t' ch ch' arr i o = Cell
+  { seed :: arr (Unit t) ch,
+    step :: Step t t' ch ch' arr i o
   }
 
-newtype Point t arr ch = Point
-  { runPoint :: arr (Unit t) ch
-  }
+type Mealy t ch arr i o = Cell t t ch ch arr i o
 
-newtype Cap t arr ch = Cap
-  { runCap :: arr ch (Unit t)
-  }
+data MealyT t arr i o = forall ch. MealyT (Mealy t ch arr i o)
 
-capT :: forall t arr ch. (DiscardT t arr ch) => Cap t arr ch
-capT = Cap (discardT @t)
-
-close :: (Category arr) => Poles ch arr a b -> arr a b
-close (Poles c o) = c .> o
-
-unclose :: (Category arr) => arr a b -> Poles b arr a b
-unclose f = Poles f id
-
-polesK :: (a -> m ()) -> m b -> Poles () (K m) a b
-polesK write receive = Poles (K write) (K $ const receive)
-
-compose :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
-compose (Poles c1 o1) (Poles c2 o2) = Poles c1 (o1 .> c2 .> o2)
-
-iomap :: (Category arr) => arr a' a -> arr b b' -> Poles ch arr a b -> Poles ch arr a' b'
-iomap f g (Poles c o) = Poles (f .> c) (o .> g)
-
-peek :: (Category arr) => Point t arr s -> Cell t s arr a b -> arr (Unit t) b
-peek pt (Cell _ o) = runPoint pt .> o
-
-poke :: (Tensor t arr) => Point t arr s -> Cell t s arr a b -> arr a s
-poke pt (Cell k _) = unitl' .> tensor (runPoint pt) id .> k
-
-polesOf ::
-  (Tensor t arr) =>
-  Point t arr ch ->
-  Machine t ch arr p ->
-  Poles ch arr (Dir p) (Pos p)
-polesOf pt (Machine c@(Cell _ o)) = Poles (poke pt c) o
-
-cellOf :: (Tensor t arr) => Cap t arr ch -> Poles ch arr a b -> Cell t ch arr a b
-cellOf (Cap cap) (Poles w r) =
-  Cell (tensor cap id .> unitl .> w) r
-
-processOf :: (Category arr) => arr a (t s a) -> Cell t s arr a b -> GMoore t s arr a b
-processOf e (Cell k o) = GMoore (e .> k) (Cell k o)
-
-data GMoore (t :: Type -> Type -> Type) ch (arr :: Type -> Type -> Type) i o = GMoore
+-- | The factored machine: 'init' seeds the channel from the first
+-- input, 'commit' writes the channel from the grammared tick, and
+-- 'emit' reads the freshly written channel into the target grammar.
+-- Because 'emit' reads @ch'@ post-commit, the output carries no direct
+-- entanglement with this tick's input — the Moore discipline.
+data Body t t' ch ch' arr i o = Body
   { init :: arr i ch,
-    cell :: Cell t ch arr i o
+    commit :: arr (t ch i) ch',
+    emit :: arr ch' (t' ch' o)
   }
 
-data GMooreT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) i o
-  = forall ch.
-    GMooreT (GMoore t ch arr i o)
+-- | The 'Body' corner with the target grammar sealed to 'Const': emit
+-- reads the channel to a bare output.
+type Moore t ch arr i o = Body t Const ch ch arr i o
+
+-- | The channel existentially hidden — the price of machines as arrows
+-- of one 'Category'. Composition merges two different channels into a
+-- pair nobody names; build-and-run never needs the seal.
+data MooreT t arr i o = forall ch. MooreT (Moore t ch arr i o)
+
+-- | A machine whose interface is a polynomial: directions in,
+-- positions out.
+type MooreP t ch arr (p :: Poly) = Moore t ch arr (Dir p) (Pos p)
+
+-- | The fused counterpart of 'MooreP'.
+type MealyP t ch arr (p :: Poly) = Mealy t ch arr (Dir p) (Pos p)
+
+-- | The factored body fused into a single tick — 'init' is not part of
+-- the tick, so it is out of scope here. Total and gate-free: 'emit'
+-- reads the freshly written channel, so no copy is owed.
+fuse :: (Category arr) => Body t t' ch ch' arr i o -> Step t t' ch ch' arr i o
+fuse (Body _ k p) = Step (p . k)
+
+-- | The memoryless machine: 'Body' at the @(Const, Const)@ corner,
+-- spelt as its own record so the legs stay arr-general — erasing the
+-- 'Const' grammar is an @(->)@-only map. 'init' and 'commit' share the
+-- type @arr i ch@ but not the job: 'init' fires tick one, 'commit' the
+-- rest. With no channel slot in the tick source, nothing carries across
+-- a tick.
+data Poles ch arr i o = Poles
+  { init :: arr i ch,
+    commit :: arr i ch,
+    emit :: arr ch o
+  }
+
+-- | The one-shot close: fire tick one — 'init', then 'emit'.
+close :: (Category arr) => Poles ch arr i o -> arr i o
+close (Poles j _ o) = j .> o
+
+-- | A plain arrow as 'Poles', trivially middled.
+unclose :: (Category arr) => arr i o -> Poles o arr i o
+unclose f = Poles f f id
+
+-- | 'Poles' over a Kleisli arrow: the write effect, then the read.
+polesK :: (a -> m ()) -> m b -> Poles () (K m) a b
+polesK write receive = Poles (K write) (K write) (K $ const receive)
+
+-- | One-shot composition: the first pair's 'emit' crosses into the
+-- second's tick-one write.
+compose :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
+compose (Poles j1 k1 o1) (Poles j2 _ o2) = Poles j1 k1 (o1 .> j2 .> o2)
+
+-- | Precompose both write legs, postcompose the read leg.
+iomap :: (Category arr) => arr i' i -> arr o o' -> Poles ch arr i o -> Poles ch arr i' o'
+iomap f g (Poles j k o) = Poles (f .> j) (f .> k) (o .> g)
 
 -- | The natural merge of the tensor's diagonal: one arrow for every
 -- payload, and the law is naturality itself —
@@ -271,180 +192,174 @@ instance MergeNat These (->) where
   mergeNat = these id id (\_ i -> i)
   {-# INLINE mergeNat #-}
 
-instance (MergeNat t (->)) => Category (GMooreT t (->)) where
-  id = GMooreT (GMoore id (Cell mergeNat id))
+instance (MergeNat t (->)) => Category (MooreT t (->)) where
+  id = MooreT (Body id mergeNat Const)
   {-# INLINE id #-}
-  GMooreT (GMoore j2 (Cell k2 e2)) . GMooreT (GMoore j1 (Cell k1 e1)) =
-    GMooreT (GMoore j (Cell k e))
+
+  MooreT (Body j2 k2 e2) . MooreT (Body j1 k1 e1) =
+    MooreT (Body j k e)
     where
-      j i = let c1 = j1 i in (c1, j2 (e1 c1))
-      k x = let c1' = k1 (tensor fst id x) in (c1', k2 (tensor snd (const (e1 c1')) x))
-      e = e2 . snd
+      j i = let c1 = j1 i in (c1, j2 (unConst (e1 c1)))
+      k x = let c1' = k1 (tensor fst id x) in (c1', k2 (tensor snd (const (unConst (e1 c1'))) x))
+      e = Const . unConst . e2 . snd
   {-# INLINE (.) #-}
 
--- Moore is the cartesian specialisation of the existential machine: the
--- same existential channel, the same run semantics, one spelling.
-type Moore = GMooreT (,) (->)
+-- | The curried builder for the cartesian sealed machine: init, step,
+-- extract.
+moore :: (a -> s) -> (s -> a -> s) -> (s -> b) -> MooreT (,) (->) a b
+moore i st ex = MooreT (Body i (uncurry st) (Const . ex))
 
-moore :: (a -> s) -> (s -> a -> s) -> (s -> b) -> Moore a b
-moore i st ex = GMooreT (GMoore i (Cell (uncurry st) ex))
-
-instance Functor (GMooreT (,) (->) a) where
-  fmap f (GMooreT (GMoore i (Cell k o))) = GMooreT (GMoore i (Cell k (f . o)))
+instance Functor (MooreT (,) (->) a) where
+  fmap f (MooreT (Body i k o)) = MooreT (Body i k (Const . f . unConst . o))
   {-# INLINEABLE fmap #-}
 
-before :: Moore b c -> (a -> b) -> Moore a c
-before (GMooreT (GMoore i (Cell k o))) f =
-  GMooreT (GMoore (i . f) (Cell (\(s, a) -> k (s, f a)) o))
-{-# INLINEABLE before #-}
-
-instance Applicative (GMooreT (,) (->) a) where
+instance Applicative (MooreT (,) (->) a) where
   pure b = moore (const ()) (\_ _ -> ()) (const b)
   {-# INLINEABLE pure #-}
-  GMooreT (GMoore i1 (Cell k1 o1)) <*> GMooreT (GMoore i2 (Cell k2 o2)) =
+  MooreT (Body i1 k1 o1) <*> MooreT (Body i2 k2 o2) =
     moore
       (\a -> (i1 a, i2 a))
       (\(s1, s2) a -> (k1 (s1, a), k2 (s2, a)))
-      (\(s1, s2) -> o1 s1 (o2 s2))
+      (\(s1, s2) -> unConst (o1 s1) (unConst (o2 s2)))
   {-# INLINEABLE (<*>) #-}
 
--- These instances make @GMooreT (,) (->)@ — 'Moore' — a traced monoidal
--- category under the cartesian tensor, ported from the retired Process
--- module — the yank ties a lazy self-referential knot and is productive
--- only when the body is non-strict in the feedback channel. Strict
--- accumulators diverge under the @(,)@ yank; use 'register' for those.
+-- These instances make @MooreT (,) (->)@ a traced monoidal category
+-- under the cartesian tensor — the yank ties a lazy self-referential
+-- knot and is productive only when the body is non-strict in the
+-- feedback channel. Strict accumulators diverge under the @(,)@ yank;
+-- use 'register' for those.
 
-instance Assoc (,) (GMooreT (,) (->)) where
+instance Assoc (,) (MooreT (,) (->)) where
   assoc = moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
   assoc' = moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
 
-instance Slide (,) (GMooreT (,) (->)) where
+instance Slide (,) (MooreT (,) (->)) where
   slide = moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
-instance Strength (,) (GMooreT (,) (->)) where
-  strength (GMooreT (GMoore i (Cell k o))) =
+instance Strength (,) (MooreT (,) (->)) where
+  strength (MooreT (Body i k o)) =
     moore
       (\(~(a, b)) -> (a, i b))
       (\(~(_, s)) (~(a', b)) -> (a', k (s, b)))
-      (\(~(a, s)) -> (a, o s))
+      (\(~(a, s)) -> (a, unConst (o s)))
 
-instance Yank (,) (GMooreT (,) (->)) where
-  yank (GMooreT (GMoore i (Cell k o))) =
+instance Yank (,) (MooreT (,) (->)) where
+  yank (MooreT (Body i k o)) =
     moore
-      (\b -> let s0 = i (a0, b); a0 = fst (o s0) in s0)
+      (\b -> let s0 = i (a0, b); a0 = fst (unConst (o s0)) in s0)
       ( \s b ->
-          let (s', _a) = fix (\ ~(s'', a') -> (k (s, (a', b)), fst (o s'')))
+          let (s', _a) = fix (\ ~(s'', a') -> (k (s, (a', b)), fst (unConst (o s''))))
            in s'
       )
-      (snd . o)
+      (snd . unConst . o)
     where
       fix f = let x = f x in x
 
-instance Unital (,) (GMooreT (,) (->)) where
+instance Unital (,) (MooreT (,) (->)) where
   unitl = moore snd (\_ (_, a) -> a) id
   unitl' = moore id (\_ x -> x) ((),)
   unitr = moore fst (\_ (a, ()) -> a) id
   unitr' = moore id (\_ x -> x) (,())
 
-instance SemiTensor (,) (GMooreT (,) (->)) where
-  tensor (GMooreT (GMoore i1 (Cell k1 o1))) (GMooreT (GMoore i2 (Cell k2 o2))) =
+instance SemiTensor (,) (MooreT (,) (->)) where
+  tensor (MooreT (Body i1 k1 o1)) (MooreT (Body i2 k2 o2)) =
     moore
       (bimap i1 i2)
       (\(s1, s2) (a, c) -> (k1 (s1, a), k2 (s2, c)))
-      (bimap o1 o2)
+      (bimap (unConst . o1) (unConst . o2))
   {-# INLINE tensor #-}
 
--- | 'Tensor' for 'GMooreT' is the conjunction: 'Unital' (GMachine) plus
--- this 'SemiTensor'.
-instance Tensor (,) (GMooreT (,) (->))
+-- | 'Tensor' for 'MooreT' is the conjunction: 'Unital' plus this
+-- 'SemiTensor'.
+instance Tensor (,) (MooreT (,) (->))
 
-instance Action (,) (GMooreT (,) (->)) where
+instance Action (,) (MooreT (,) (->)) where
   braid = moore id (const id) sw
     where
       sw (a, b) = (b, a)
   {-# INLINE braid #-}
 
-delay :: s -> Moore s s
+-- | Precompose the machine with a pure map on the input.
+before :: MooreT (,) (->) b c -> (a -> b) -> MooreT (,) (->) a c
+before (MooreT (Body i k o)) f =
+  MooreT (Body (i . f) (\(s, a) -> k (s, f a)) o)
+{-# INLINEABLE before #-}
+
+-- | One tick of delay: the channel holds the previous input.
+delay :: s -> MooreT (,) (->) s s
 delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
 
-register :: s -> Moore (a, s) (b, s) -> Moore a b
-register s0 (GMooreT (GMoore i (Cell k o))) =
-  moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (o s)))) (fst . o)
+-- | Feed a strict machine its own previous output as a second channel —
+-- the strict-body alternative to the lazy 'yank' knot.
+register :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
+register s0 (MooreT (Body i k o)) =
+  moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (unConst (o s))))) (fst . unConst . o)
 
--- Input-list elimination: each step injects the input through the
+-- | Replace a machine's seed leg: the new 'init' injects the input
+-- through the given arrow into 'commit'. The body's own init is
+-- discarded.
+processOf :: (Category arr) => arr a (t s a) -> Moore t s arr a b -> Moore t s arr a b
+processOf e (Body _ k o) = Body (e .> k) k o
+
+-- | Input-list elimination: each step injects the input through the
 -- tensor's own left unit — memoryless at Either, That-biased at These.
-scanT :: (Tensor t (->)) => GMooreT t (->) i o -> [i] -> [o]
-scanT (GMooreT (GMoore j (Cell k e))) = \case
+scanT :: (Tensor t (->)) => MooreT t (->) i o -> [i] -> [o]
+scanT (MooreT (Body j k e)) = \case
   [] -> []
-  (i : is) -> let c = j i in e c : go c is
+  (i : is) -> let c = j i in unConst (e c) : go c is
   where
     go _ [] = []
-    go c (i : is) = let c' = k (tensor (const c) id (unitl' i)) in e c' : go c' is
+    go c (i : is) = let c' = k (tensor (const c) id (unitl' i)) in unConst (e c') : go c' is
 
-scanProcess :: GMoore (,) s (->) a b -> [a] -> [b]
-scanProcess (GMoore c (Cell k o)) = \case
+-- | The visible-channel scan: run a 'Moore' body down an input list,
+-- emitting after each commit.
+scanProcess :: Moore (,) s (->) a b -> [a] -> [b]
+scanProcess (Body c k o) = \case
   [] -> []
-  (a : as) -> let s0 = c a in o s0 : go s0 as
+  (a : as) -> let s0 = c a in unConst (o s0) : go s0 as
   where
-    go s (a : as) = let s' = k (s, a) in o s' : go s' as
+    go s (a : as) = let s' = k (s, a) in unConst (o s') : go s' as
     go _ [] = []
 
-scan :: Moore a b -> [a] -> [b]
-scan (GMooreT (GMoore i c)) = scanProcess (GMoore i c)
+scan :: MooreT (,) (->) a b -> [a] -> [b]
+scan (MooreT m) = scanProcess m
 
-fold :: Moore a b -> [a] -> Maybe b
-fold (GMooreT (GMoore i c)) = foldProcess (GMoore i c)
+fold :: MooreT (,) (->) a b -> [a] -> Maybe b
+fold (MooreT m) = foldProcess m
 
-foldProcess :: GMoore (,) s (->) a b -> [a] -> Maybe b
-foldProcess (GMoore c (Cell k o)) = \case
+-- | The visible-channel fold: run a 'Moore' body down an input list,
+-- answering only the final emit.
+foldProcess :: Moore (,) s (->) a b -> [a] -> Maybe b
+foldProcess (Body c k o) = \case
   [] -> Nothing
   (a : as) -> Just (go (c a) as)
   where
     go s (a : as) = go (k (s, a)) as
-    go s [] = o s
+    go s [] = unConst (o s)
 
-scanThese :: forall s a b. GMoore (,) s (->) a b -> [a] -> [b]
-scanThese (GMoore c (Cell k o)) = \case
-  [] -> []
-  (a : as) -> toList (unfold gen (Nothing, a, as))
-  where
-    gen :: (Maybe s, a, [a]) -> These (Maybe s, a, [a]) b
-    gen (ms, a, rest) =
-      let s' = case ms of
-            Nothing -> c a
-            Just s -> k (s, a)
-       in case rest of
-            [] -> That (o s')
-            (a' : rest') -> These (Just s', a', rest') (o s')
+-- | The 'BiK' bridge: a body's commit/emit legs as one BiK arrow. The
+-- seed leg is not part of the arrow.
+bodyBiK :: Body (,) t' s s (->) i o -> BiK ((,) s) (t' s) i o
+bodyBiK (Body _ k p) = BiK (p . k)
 
-type Cocell t ch arr a b = Cell t ch (Op arr) a b
+-- | The lens bridge: a body's commit/emit legs as a lens — 'init' is
+-- out of scope; a lens has no seed station. Diagonal: the view leg
+-- reads the tick-start channel, the commit leg writes it, and only at
+-- @ch' ~ ch@ do the two share a carrier.
+bodyAsLens :: Body (,) Const ch ch (->) i o -> Lens ch ch o i
+bodyAsLens (Body _ k e) = lens (unConst . e) (curry k)
 
-cocell :: arr b ch -> arr ch (t ch a) -> Cocell t ch arr a b
-cocell o s = Cell (Op s) (Op o)
+-- | A lens plus a seeding is a body: the lens supplies the commit/emit
+-- legs, the caller supplies 'init'.
+lensAsBody :: (i -> ch) -> Lens ch ch o i -> Body (,) Const ch ch (->) i o
+lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyLens m)
 
-pair ::
-  forall t chP chC arr a x b.
-  (Action t arr, DiscardT t arr chP) =>
-  Cocell t chP arr a x ->
-  Cell t chC arr a b ->
-  Cell t (t chP chC) arr (Unit t) b
-pair (Cell pk _) (Cell k o) = Cell consumeP produceP
-  where
-    produceP :: arr (t chP chC) b
-    produceP = tensor (discardT @t) o .> unitl
-    consumeP :: arr (t (t chP chC) (Unit t)) (t chP chC)
-    consumeP = unitr .> tensor (runOp pk) idC .> assoc .> tensor idP (braid .> k)
-    idP :: arr chP chP
-    idP = id
-    idC :: arr chC chC
-    idC = id
-
-closedToGenerator ::
-  forall t ch arr b.
-  (CopyT t arr (t ch (Unit t)), DiscardT t arr (Unit t)) =>
-  Cell t ch arr (Unit t) b ->
-  arr ch (t ch b)
-closedToGenerator c = unitr' .> morphism (fuse c)
+-- | The closed branch as a generator coalgebra: input closed at the
+-- tensor's unit, the tick's two legs chained into one arrow on the
+-- channel. The body's 'init' is the seed of a run, not of the coalgebra
+-- — 'unfold' supplies that — so it is out of scope here.
+closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
+closedToGenerator (Body _ k p) = unitr' .> k .> p
 
 class
   (Category arr) =>
@@ -472,9 +387,3 @@ instance Unfold These (->) where
         This ch' -> go ch'
         That b -> b :| []
         These ch' b -> b <| go ch'
-
-cellAsLens :: Cell (,) s (->) i o -> Lens s s o i
-cellAsLens (Cell k o) = lens o (curry k)
-
-lensAsCell :: Lens s s o i -> Cell (,) s (->) i o
-lensAsCell m = Cell (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)

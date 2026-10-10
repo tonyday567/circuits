@@ -3,9 +3,9 @@
 --
 -- The positive witnesses run: 'tensor' functoriality at 'Const' on named,
 -- payload-carrying values with distinct payload types — a leg swap is a
--- type error here, as in the GMooreT witnesses; the 'Assoc' round trip on
+-- type error here, as in the MooreT witnesses; the 'Assoc' round trip on
 -- a heterogeneously nested payload; and a 'Circuit.GMachine.Poles'
--- write/read pair built into a 'Const' machine, where the write leg is the
+-- triple built into a 'Const' machine, where the write leg is the
 -- absorb and the run commits from the input alone.
 --
 -- The negative half cannot be a runtime witness, and none is faked: there
@@ -69,17 +69,16 @@ tryAssocRoundTripConst =
     w = Const (Const (7, "seven")) :: Const Char (Const Bool (Int, String))
 
 -- | A 'Poles' write/read pair built into a 'Const' machine:
--- @tensor (write p) (read p)@ — the write leg is the absorb, so the run
--- commits from the input alone: feeding the written channel value through
--- reproduces 'close'.
+-- @tensor j o@ — 'Const' discards its left arrow, so the write leg is
+-- the absorb and the run commits from the input alone: feeding the
+-- written channel value through reproduces 'close'.
 tryPolesAbsorbConst :: Bool
 tryPolesAbsorbConst =
-  machine (Const (write p "abc")) == Const (close p "abc")
+  case p of
+    Poles j _ o -> tensor j o (Const (j "abc")) == Const (close p "abc")
   where
     p :: Poles Int (->) String Int
-    p = Poles length (+ 1)
-    machine :: Const String Int -> Const Int Int
-    machine = tensor (write p) (read p)
+    p = Poles length length (+ 1)
 
 -- * Distributivity
 

@@ -44,17 +44,17 @@
 -- folds (@run@, @eval@, @bind@) and injections (@unit@, `Lift`).
 -- "Circuit.Trace" adds feedback to the free syntax, making it traced.
 -- "Circuit.Net" packages the free symmetric monoidal category with a
--- bimonoid over a primitive set. 'Stratum' — from "Circuit.GMachine" — is
--- the knot-body category @arr (t ch a) (t ch b)@, the stateful shape
+-- bimonoid over a primitive set. 'Step' — from "Circuit.GMachine" — is
+-- the knot-body arrow @arr (t ch a) (t' ch' b)@, the stateful tick
 -- that tracing hides. "Circuit.Hyper" is the final, coinductive encoding.
 -- "Circuit.Span" is finite spans, the residual-remembering rung of the
 -- equipment ladder.
 --
--- As a stratum, the counter is one morphism @arr (Int, Int) (Int, Int)@,
+-- As a single step, the counter is one morphism @(Int, Int) -> (Int, Int)@,
 -- run through its own arrow:
 --
--- >>> let counterStratum = Stratum (\(n, i) -> (n + i, n)) :: Stratum (,) Int (->) Int Int
--- >>> morphism counterStratum (0, 1)
+-- >>> let counterStep = Step (\(n, i) -> (n + i, n)) :: Step (,) (,) Int Int (->) Int Int
+-- >>> case counterStep of Step f -> f (0, 1)
 -- (1,0)
 --
 -- The same wiring can be written in free syntax and run. `widen` embeds
@@ -72,44 +72,41 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.GMachine" is the machine layer. A 'Cell' is a stateful device
--- with two legs over a hidden channel: 'absorb' folds the input into the
--- channel, and the observation leg reads an output back out. 'Body' keeps
--- both legs at the tensor, and 'Stratum' — met in the syntax section — is
--- the category they compose in. 'moore' repackages the legs as a triple —
--- init, step, extract — pointed at an initial channel, and 'scan' runs
--- the machine down an input list.
+-- "Circuit.GMachine" is the machine layer. A 'Body' is a stateful device
+-- with three legs over a channel: 'init' seeds the channel from the
+-- first input, 'commit' folds each tick's input into the channel, and
+-- 'emit' reads the freshly written channel out. 'Moore' is the corner
+-- with the output grammar sealed to 'Const'; 'MooreT' hides the channel
+-- existentially, and 'scan' runs a sealed machine down an input list.
 --
--- The counter as a cell — absorb adds the input to the channel, the
--- observation leg reads the channel. Pointed at seed 0, the init leg
--- absorbs the seed with the first input, so every observation is
--- post-step:
+-- The counter as a body — commit adds the input to the channel, emit
+-- reads it; init absorbs the first input with the seed, so every
+-- observation is post-step:
 --
--- >>> let counter = Cell (\(n, i) -> n + i) id
--- >>> scan (moore (+ 0) (\n i -> n + i) id) [1,1,1]
+-- >>> let counter = Body (+ 0) (\(n, i) -> n + i) Const :: Moore (,) Int (->) Int Int
+-- >>> scan (MooreT counter) [1,1,1]
 -- [1,2,3]
 --
--- A one-shot post-step observation is one 'absorb' followed by the
--- observation leg. The leg's selector is hidden in this umbrella — the
--- unqualified `observe` belongs to `Hyper` — so the match is direct:
+-- A one-shot post-step observation is one 'commit' followed by 'emit',
+-- the 'Const' wrapper peeled by 'unConst':
 --
--- >>> case counter of Cell k o -> o (k (0, 1))
+-- >>> case counter of Body _ k o -> unConst (o (k (0, 1)))
 -- 1
 --
--- 'GMoore' names the pointed carrier, and 'GMooreT' — the channel
--- existentially hidden, the 'Moore' pattern — is the 'Category' the
--- library proved, with 'MergeNat' pricing the tensor's constructor
--- grammar and 'scanT' running an input list through it:
+-- 'MooreT' is the 'Category' the library proved, with 'MergeNat'
+-- pricing the tensor's constructor grammar and 'scanT' running an
+-- input list through a machine at any tensor:
 --
--- >>> let g = GMooreT (GMoore id (Cell (uncurry (+)) id)) :: GMooreT (,) (->) Int Int
+-- >>> let g = MooreT (Body id (uncurry (+)) Const) :: MooreT (,) (->) Int Int
 -- >>> scanT g [1,2,3]
 -- [1,3,6]
 --
--- A bare 'Machine' hangs the cell on a polynomial interface — here the
--- monomial @Mono Int Int@, directions in, positions out:
+-- A body can be hung on a polynomial interface — 'MooreP' types the
+-- interface by a polynomial, here the monomial @Mono Int Int@,
+-- directions in, positions out:
 --
--- >>> let mac = Machine (Cell (\(n, d) -> n + monoDir d) (\n -> (n, ()))) :: Machine (,) Int (->) (Mono Int Int)
--- >>> case machineCell mac of Cell k o -> o (k (0, monoIn 1))
+-- >>> let mac = Body ((+ 0) . monoDir) (\(n, d) -> n + monoDir d) (Const . (\n -> (n, ()))) :: MooreP (,) Int (->) (Mono Int Int)
+-- >>> case mac of Body _ k o -> unConst (o (k (0, monoIn 1)))
 -- (1,())
 --
 -- === Streams: the neutral interface
@@ -127,30 +124,26 @@
 -- "Circuit.Shared" fuses two bodies on one shared channel.
 -- "Circuit.Pullback" is linear cotangent maps, the base arrow for
 -- reverse-mode gradients. From "Circuit.GMachine", 'Poles' is the
--- equipment surface — a write/read pair of legs over a channel — and
--- 'Point' names a channel value explicitly, at the tensor unit.
+-- memoryless corner — 'init' and 'commit' the write legs over a
+-- channel, 'emit' reading it back.
 --
--- A 'Poles' pair over the unit carrier closes with 'close' to a plain
--- morphism, and a closed morphism lifts straight into a stratum:
+-- A 'Poles' triple over the unit carrier closes with 'close' to a plain
+-- morphism, and a closed morphism lifts straight into a step:
 --
--- >>> let p = Poles (const ()) (const 42) :: Poles () (->) () Int
+-- >>> let p = Poles (const ()) (const ()) (const 42) :: Poles () (->) () Int
 -- >>> close p ()
 -- 42
--- >>> let s = Stratum (\((), ()) -> ((), close p ())) :: Stratum (,) () (->) () Int
--- >>> morphism s ((), ())
+-- >>> let s = Step (\((), ()) -> ((), close p ())) :: Step (,) (,) () () (->) () Int
+-- >>> case s of Step f -> f ((), ())
 -- ((),42)
 --
--- Cells and lenses interconvert; the round trip is the identity on runs:
+-- A body's commit/emit legs are a lens ('bodyAsLens'), and a lens plus
+-- a seeding is a body ('lensAsBody'); the round trip is the identity on
+-- runs:
 --
--- >>> let acc = Cell (\(s, i) -> s + i) (* 2)
--- >>> scan (GMooreT (GMoore (+ 0) (lensAsCell (cellAsLens acc)))) [1,2,3]
+-- >>> let acc = Body (+ 0) (\(s, i) -> s + i) (Const . (* 2)) :: Moore (,) Int (->) Int Int
+-- >>> scan (MooreT (lensAsBody (+ 0) (bodyAsLens acc))) [1,2,3]
 -- [2,6,12]
---
--- A 'Point' plugs straight into the write leg of a 'Poles' pair:
---
--- >>> let pt = Point (const 7) :: Point (,) (->) Int
--- >>> close (Poles (runPoint pt) (id :: Int -> Int)) ()
--- 7
 --
 -- Pullback nets compose as cotangent chains — the circuits-diff name for
 -- this is reverse mode:
@@ -212,7 +205,7 @@ where
 import Circuit.Bimonoid
 import Circuit.Category
 import Circuit.Container
-import Circuit.GMachine hiding (observe)
+import Circuit.GMachine hiding (run)
 import Circuit.Hyper
 import Circuit.Linear
 import Circuit.Net
@@ -223,7 +216,7 @@ import Circuit.Span
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor
-import Circuit.Trace
+import Circuit.Trace hiding (Step)
 import Circuit.Traced
 import Prelude hiding (id, (.))
 

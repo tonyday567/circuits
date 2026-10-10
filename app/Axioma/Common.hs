@@ -27,7 +27,7 @@ where
 
 import Circuit.Axioma.Test (check)
 import Circuit.Category (id)
-import Circuit.GMachine (Moore, moore, register)
+import Circuit.GMachine (MooreT, moore, register)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 
@@ -55,22 +55,22 @@ checkIOV Axioms name act = do
 checkIOV _ _ act = act
 
 -- | Simple additive process for oracles.
-sumP :: Moore Int Int
+sumP :: MooreT (,) (->) Int Int
 sumP = moore id (+) id
 
 -- | Pair braid for the (,) trace yanking oracle.
-swapPairP :: Moore (Int, Int) (Int, Int)
+swapPairP :: MooreT (,) (->) (Int, Int) (Int, Int)
 swapPairP = moore id (\_ x -> x) (\(a, b) -> (b, a))
 
 -- | Either braid for the Either trace yanking oracle.
-swapEitherP :: Moore (Either Int Int) (Either Int Int)
+swapEitherP :: MooreT (,) (->) (Either Int Int) (Either Int Int)
 swapEitherP = moore id (\_ x -> x) swapEither
   where
     swapEither (Left a) = Right a
     swapEither (Right b) = Left b
 
 -- | EWMA body: stateless affine box with feedback.
-ewmaBody :: Double -> Moore (Double, Double) (Double, Double)
+ewmaBody :: Double -> MooreT (,) (->) (Double, Double) (Double, Double)
 ewmaBody alpha =
   moore
     (\(x, prev) -> alpha * x + (1 - alpha) * prev)
@@ -78,13 +78,13 @@ ewmaBody alpha =
     (\s -> (s, s))
 
 -- | Exponentially weighted moving average with initial feedback.
-ewma :: Double -> Double -> Moore Double Double
+ewma :: Double -> Double -> MooreT (,) (->) Double Double
 ewma alpha s0 = register s0 (ewmaBody alpha)
 
 -- | Shared-medium body: adds the input to the shared state and echoes it.
-sharedAddP :: Moore (Int, Int) (Int, Int)
+sharedAddP :: MooreT (,) (->) (Int, Int) (Int, Int)
 sharedAddP = moore (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
 
 -- | Shared-medium body: doubles the shared state and echoes the input.
-sharedDoubleP :: Moore (Int, Int) (Int, Int)
+sharedDoubleP :: MooreT (,) (->) (Int, Int) (Int, Int)
 sharedDoubleP = moore (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))

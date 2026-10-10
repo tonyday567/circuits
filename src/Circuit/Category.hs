@@ -156,8 +156,7 @@ instance (Dist w m) => Category (BiK w m) where
 -- | The opposite category: morphisms are reversed.
 --
 -- @Op arr a b@ is the same hom-set as @arr b a@.  This is the arrow used to
--- make the @Set^op@ rung of the polynomial equipment explicit — see
--- 'Cocell' in "Circuit.GMachine".
+-- make the @Set^op@ rung of the polynomial equipment explicit.
 newtype Op arr a b = Op {runOp :: arr b a}
 
 instance (Category arr) => Category (Op arr) where

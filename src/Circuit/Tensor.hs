@@ -49,6 +49,7 @@ module Circuit.Tensor
 
     -- * Forgetful semigroupoidal tensor
     Const (..),
+    unConst,
 
     -- * Cartesian / cocartesian associators
     reassocL,
@@ -276,6 +277,11 @@ class (Tensor t arr) => Action t arr where
 -- the payload lazy, as the haddock above says openly (see .hlint.yaml).
 data Const ch i = Const i
   deriving (Eq, Show)
+
+-- | The 'Const' payload, unwrapped. A pure map on data — erasing the
+-- Const grammar is free at @(->)@ and has no general-arr arrow.
+unConst :: Const ch i -> i
+unConst (Const i) = i
 
 -- | Reassociation for 'Const' is the payload identity: both directions
 -- carry the payload across unchanged and only re-nest the phantoms around
