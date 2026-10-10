@@ -39,7 +39,7 @@ module Circuit.GMachine
     processOf,
     GMoore (..),
     GMooreT (..),
-    TensorSchedule (..),
+    MergeNat (..),
     scanT,
     Moore,
     moore,
@@ -250,25 +250,29 @@ data GMooreT (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) i o
   = forall ch.
     GMooreT (GMoore t ch arr i o)
 
--- The constructor grammar of t priced as one method.
--- Law: echoFold . tensor f f = f . echoFold
-class (Tensor t arr) => TensorSchedule t arr where
-  echoFold :: arr (t a a) a
+-- | The natural merge of the tensor's diagonal: one arrow for every
+-- payload, and the law is naturality itself —
+-- @mergeNat . tensor f f = f . mergeNat@. The machine Category's
+-- identity spends it: the commit leg folds (stale channel, fresh
+-- input) so the fresh tick wins. Distinct from MergeT — plusT is
+-- per-carrier (Int merges by addition); mergeNat is functor-level.
+class (Tensor t arr) => MergeNat t arr where
+  mergeNat :: arr (t a a) a
 
-instance TensorSchedule (,) (->) where
-  echoFold = snd
-  {-# INLINE echoFold #-}
+instance MergeNat (,) (->) where
+  mergeNat = snd
+  {-# INLINE mergeNat #-}
 
-instance TensorSchedule Either (->) where
-  echoFold = either id id
-  {-# INLINE echoFold #-}
+instance MergeNat Either (->) where
+  mergeNat = either id id
+  {-# INLINE mergeNat #-}
 
-instance TensorSchedule These (->) where
-  echoFold = these id id (\_ i -> i)
-  {-# INLINE echoFold #-}
+instance MergeNat These (->) where
+  mergeNat = these id id (\_ i -> i)
+  {-# INLINE mergeNat #-}
 
-instance (TensorSchedule t (->)) => Category (GMooreT t (->)) where
-  id = GMooreT (GMoore id (Cell echoFold id))
+instance (MergeNat t (->)) => Category (GMooreT t (->)) where
+  id = GMooreT (GMoore id (Cell mergeNat id))
   {-# INLINE id #-}
   GMooreT (GMoore j2 (Cell k2 e2)) . GMooreT (GMoore j1 (Cell k1 e1)) =
     GMooreT (GMoore j (Cell k e))
@@ -369,7 +373,7 @@ register s0 (GMooreT (GMoore i (Cell k o))) =
 
 -- Input-list elimination: each step injects the input through the
 -- tensor's own left unit — memoryless at Either, That-biased at These.
-scanT :: (TensorSchedule t (->)) => GMooreT t (->) i o -> [i] -> [o]
+scanT :: (Tensor t (->)) => GMooreT t (->) i o -> [i] -> [o]
 scanT (GMooreT (GMoore j (Cell k e))) = \case
   [] -> []
   (i : is) -> let c = j i in e c : go c is

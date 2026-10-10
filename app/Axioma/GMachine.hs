@@ -13,7 +13,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.GMachine (Body (Body), Cell (..), CellD (..), GMoore (..), GMooreT (..), Moore, TensorSchedule (..), Unfold (..), bodyAsBodyTT, bodyTTAsBody, bodyTTAsCell, bodyTTAsCellD, cellAsBodyTT, cellAsLens, cellDAsBodyTT, fold, scan, scanT, unfold)
+import Circuit.GMachine (Body (Body), Cell (..), CellD (..), GMoore (..), GMooreT (..), MergeNat (..), Moore, Unfold (..), bodyAsBodyTT, bodyTTAsBody, bodyTTAsCell, bodyTTAsCellD, cellAsBodyTT, cellAsLens, cellDAsBodyTT, fold, scan, scanT, unfold)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -311,11 +311,11 @@ sumRun = GMoore id (Cell (uncurry (+)) id)
 meanRun :: GMoore (,) (Int, Int) (->) Int Int
 meanRun = GMoore (\a -> (1, a)) (Cell (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n))
 
--- echoFold naturality: echoFold . tensor f f == f . echoFold at f = (+ 1).
+-- mergeNat naturality: mergeNat . tensor f f == f . mergeNat at f = (+ 1).
 natPair :: Bool
 natPair =
   all
-    (\x -> echoFold (tensor f f x) == f (echoFold x))
+    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
     [(0, 5), (3, 7)]
   where
     f :: Int -> Int
@@ -324,7 +324,7 @@ natPair =
 natEither :: Bool
 natEither =
   all
-    (\x -> echoFold (tensor f f x) == f (echoFold x))
+    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
     [Left 0, Right 5]
   where
     f :: Int -> Int
@@ -333,7 +333,7 @@ natEither =
 natThese :: Bool
 natThese =
   all
-    (\x -> echoFold (tensor f f x) == f (echoFold x))
+    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
     [This 0, That 5, These 0 5]
   where
     f :: Int -> Int
@@ -365,9 +365,9 @@ gMachineTopic verbosity = do
               && run == scan (GMooreT sumRun) xs
               && scanTheseRun meanRun xs == scan (GMooreT meanRun) xs
               && fold (GMooreT sumRun) xs == Just (last run),
-      checkV verbosity "echoFold naturality at (,)" natPair,
-      checkV verbosity "echoFold naturality at Either" natEither,
-      checkV verbosity "echoFold naturality at These" natThese,
+      checkV verbosity "mergeNat naturality at (,)" natPair,
+      checkV verbosity "mergeNat naturality at Either" natEither,
+      checkV verbosity "mergeNat naturality at These" natThese,
       checkV verbosity "gmoorT unit L at (,): scanT (id . m) == scanT m" (scanT (id . sumG) xs == scanT sumG xs),
       checkV verbosity "gmoorT unit R at (,): scanT (m . id) == scanT m" (scanT (sumG . id) xs == scanT sumG xs),
       checkV verbosity "gmoorT unit L at Either" (scanT (id . eitherG) xs == scanT eitherG xs),

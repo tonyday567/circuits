@@ -98,7 +98,7 @@
 --
 -- 'GMoore' names the pointed carrier, and 'GMooreT' — the channel
 -- existentially hidden, the 'Moore' pattern — is the 'Category' the
--- library proved, with 'TensorSchedule' pricing the tensor's constructor
+-- library proved, with 'MergeNat' pricing the tensor's constructor
 -- grammar and 'scanT' running an input list through it:
 --
 -- >>> let g = GMooreT (GMoore id (Cell (uncurry (+)) id)) :: GMooreT (,) (->) Int Int
