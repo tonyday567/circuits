@@ -81,6 +81,7 @@ module Circuit.Machine
     closedToGenerator,
 
     -- * coiteration
+    (:.) (..),
     Unfold (..),
   )
 where
@@ -97,11 +98,11 @@ import Prelude hiding (id, init, (.))
 
 -- $setup
 -- >>> import Circuit.Machine
--- >>> import Circuit.Tensor (unConst)
+-- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Data.These (These (..), these)
 
 -- | One tick of a machine: the arrow from the grammared source
--- @t ch i@ to the grammared target @t' ch' o@. Composition needs the
+-- @t ch i@ to the grammared target @t' ch' o@. Nestosition needs the
 -- diagonal — the channel and grammar the tick writes must be the ones
 -- the next tick reads.
 newtype Step t t' ch ch' arr i o = Step {run :: arr (t ch i) (t' ch' o)}
@@ -143,7 +144,7 @@ data Body t t' ch ch' arr i o = Body
 type Moore t ch arr i o = Body t Const ch ch arr i o
 
 -- | The channel existentially hidden — the price of machines as arrows
--- of one 'Category'. Composition merges two different channels into a
+-- of one 'Category'. Nestosition merges two different channels into a
 -- pair nobody names; build-and-run never needs the seal.
 data MooreT t arr i o = forall ch. MooreT (Moore t ch arr i o)
 
@@ -460,31 +461,54 @@ scanT (MooreT (Body j k e)) = \case
     go _ [] = []
     go c (i : is) = let c' = k (tensor (const c) id (unitl' i)) in unConst (e c') : go c' is
 
--- | The visible-channel scan: run a 'Moore' body down an input list,
--- emitting after each commit.
+-- | The visible-channel scan: the body's legs compiled to one generator
+-- over the @(Maybe ch, tape)@ channel — the 'Nothing' channel is the
+-- seed station, 'init' firing inside the loop — run at the uncons
+-- grammar (@Maybe :. (,)@): emit per step, halt omits.
+--
+-- >>> let sumM = Body id (uncurry (+)) Const :: Moore (,) Int (->) Int Int
+-- >>> scanProcess sumM [1,2,3,4]
+-- [1,3,6,10]
+-- >>> scanProcess sumM []
+-- []
 scanProcess :: Moore (,) s (->) a b -> [a] -> [b]
-scanProcess (Body c k o) = \case
-  [] -> []
-  (a : as) -> let s0 = c a in unConst (o s0) : go s0 as
+scanProcess (Body j k e) as = unfold gen (Nothing, as)
   where
-    go s (a : as) = let s' = k (s, a) in unConst (o s') : go s' as
-    go _ [] = []
+    gen (_, []) = Nest Nothing
+    gen (ms, a : rest) =
+      let s' = case ms of
+            Nothing -> j a
+            Just s -> k (s, a)
+       in Nest (Just ((Just s', rest), unConst (e s')))
 
+-- | The sealed 'scanProcess': the channel hidden behind 'MooreT'.
 scan :: MooreT (,) (->) a b -> [a] -> [b]
 scan (MooreT m) = scanProcess m
 
+-- | The sealed 'foldProcess': the channel hidden behind 'MooreT'.
 fold :: MooreT (,) (->) a b -> [a] -> Maybe b
 fold (MooreT m) = foldProcess m
 
--- | The visible-channel fold: run a 'Moore' body down an input list,
--- answering only the final emit.
+-- | The visible-channel fold: the same @(Maybe ch, tape)@ channel and
+-- seed discipline as 'scanProcess', run at the maybe-one grammar
+-- (@Maybe :. Either@) — nothing emitted per step, the answer at the
+-- tape's end, 'Nothing' on the empty tape.
+--
+-- >>> let sumM = Body id (uncurry (+)) Const :: Moore (,) Int (->) Int Int
+-- >>> foldProcess sumM [1,2,3,4]
+-- Just 10
+-- >>> foldProcess sumM []
+-- Nothing
 foldProcess :: Moore (,) s (->) a b -> [a] -> Maybe b
-foldProcess (Body c k o) = \case
-  [] -> Nothing
-  (a : as) -> Just (go (c a) as)
+foldProcess (Body j k e) as = unfold gen (Nothing, as)
   where
-    go s (a : as) = go (k (s, a)) as
-    go s [] = unConst (o s)
+    gen (Nothing, []) = Nest Nothing
+    gen (Just s, []) = Nest (Just (Right (unConst (e s))))
+    gen (ms, a : rest) =
+      let s' = case ms of
+            Nothing -> j a
+            Just s -> k (s, a)
+       in Nest (Just (Left (Just s', rest)))
 
 -- | The 'BiK' bridge: a body's commit/emit legs as one BiK arrow. The
 -- seed leg is not part of the arrow.
@@ -510,6 +534,27 @@ lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyL
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
 closedToGenerator (Body _ k p) = unitr' .> k .> p
 
+-- * coiteration
+
+-- | Grammar composition: an outer functor around an inner grammar — the
+-- partial fragment's spelling. @Maybe :. (,)@ is the uncons grammar
+-- (the step may halt, one output per taken step); @Maybe :. Either@ is
+-- the maybe-one grammar (halt silent, continue, or halt with the
+-- answer).
+newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
+
+-- | Coiteration: 'unfold' runs a coalgebra to the grammar's output
+-- shape — 'Nu' is what a run delivers. At @(,)@ a stream, at 'Either'
+-- one answer, at 'These' a non-empty stream; at the partial grammars a
+-- finite list (@Maybe :. (,)@) or a maybe-one (@Maybe :. Either@). The
+-- class asks for 'Category' only — no tensor laws — so partial
+-- grammars are legal, and the tape-driven runners ('scanProcess',
+-- 'foldProcess') live in the partial fragment.
+--
+-- The 'Either' corner is the codiagonal correspondence: iteration is a
+-- loop whose entry and feedback wires are joined — @unfold g = yank
+-- (either g g)@, and 'Circuit.Bimonoid.plusT' is that join at 'Either'
+-- (the agreement is witnessed at a point in "Circuit.Net").
 class
   (Category arr) =>
   Unfold (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
@@ -518,16 +563,20 @@ class
 
   unfold :: arr ch (t ch b) -> arr ch (Nu t arr b)
 
+-- | The stream grammar: every step emits; no halt.
 instance Unfold (,) (->) where
   type Nu (,) (->) b = [b]
   unfold g = go
     where
       go ch = case g ch of (ch', b) -> b : go ch'
 
+-- | The terminal grammar: 'Left' continues, 'Right' answers — the
+-- codiagonal correspondence is the definition.
 instance Unfold Either (->) where
   type Nu Either (->) b = b
   unfold g = yank (either g g)
 
+-- | The non-empty grammar: 'That' answers, 'These' emits and continues.
 instance Unfold These (->) where
   type Nu These (->) b = NonEmpty b
   unfold g = go
@@ -536,3 +585,36 @@ instance Unfold These (->) where
         This ch' -> go ch'
         That b -> b :| []
         These ch' b -> b <| go ch'
+
+-- | The uncons grammar: the step may halt, and emits once per taken
+-- step — 'Data.List.unfoldr' as an 'Unfold' instance, and the
+-- 'scanProcess' loop.
+--
+-- >>> let gen n = Nest (if n <= (0 :: Int) then Nothing else Just (n - 1, n * 10))
+-- >>> unfold gen 3
+-- [30,20,10]
+instance Unfold (Maybe :. (,)) (->) where
+  type Nu (Maybe :. (,)) (->) b = [b]
+  unfold g = go
+    where
+      go ch = case g ch of
+        Nest Nothing -> []
+        Nest (Just (ch', b)) -> b : go ch'
+
+-- | The maybe-one grammar: halt silent, continue, or halt with the
+-- answer — the 'foldProcess' loop.
+--
+-- >>> let gen n = Nest (if n <= (0 :: Int) then Just (Right (n + 100)) else Just (Left (n - 1)))
+-- >>> unfold gen 3
+-- Just 100
+-- >>> let stop n = Nest (if n <= (0 :: Int) then Nothing else Just (Left (n - 1)))
+-- >>> unfold stop 3 :: Maybe Int
+-- Nothing
+instance Unfold (Maybe :. Either) (->) where
+  type Nu (Maybe :. Either) (->) b = Maybe b
+  unfold g = go
+    where
+      go ch = case g ch of
+        Nest Nothing -> Nothing
+        Nest (Just (Left ch')) -> go ch'
+        Nest (Just (Right b)) -> Just b

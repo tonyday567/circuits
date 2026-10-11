@@ -241,7 +241,7 @@ instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
 
 -- ** Iteration as a loop with joined wires
 
--- The codiagonal theorem (stated and cited in "Circuit.Machine"'s
+-- The codiagonal theorem (stated in "Circuit.Machine"'s
 -- 'Circuit.Machine.Unfold'): @unfold g = yank (g . plusT)@ — an iteration
 -- is a loop whose entry and feedback wires are joined. The composite
 -- needs no new syntax: the 'SigPlus' node 'Net' already has supplies the

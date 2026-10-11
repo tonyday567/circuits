@@ -349,6 +349,9 @@ machineTopic verbosity = do
               && run == scan (MooreT sumRun) xs
               && scanTheseRun meanRun xs == scan (MooreT meanRun) xs
               && fold (MooreT sumRun) xs == Just (last run),
+      checkIOV verbosity "scan is spine-lazy: a prefix delivers on an infinite tape" $ do
+        result <- timeout 1000000 $ evaluate (take 3 (scan (MooreT sumRun) [1 ..]) == [1, 3, 6])
+        pure (result == Just True),
       checkV verbosity "mergeNat naturality at (,)" natPair,
       checkV verbosity "mergeNat naturality at Either" natEither,
       checkV verbosity "mergeNat naturality at These" natThese,

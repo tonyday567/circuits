@@ -637,7 +637,7 @@ instance {-# OVERLAPPABLE #-} (Merge arr a, Tensor (,) arr) => MergeT (,) arr a 
 -- | The coproduct's merge is free for every object — the codiagonal,
 -- uniform in a way the cartesian merge is not. This uniformity is the
 -- coproduct fact the trace-to-iteration correspondence lives on:
--- @unfold g = yank (g . plusT)@ at 'Either', stated and cited in
+-- @unfold g = yank (g . plusT)@ at 'Either', stated in
 -- "Circuit.Machine"'s 'Circuit.Machine.Unfold'.
 --
 -- >>> (plusT :: Either Int Int -> Int) (Left 3)
