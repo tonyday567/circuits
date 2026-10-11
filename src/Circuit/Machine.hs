@@ -16,7 +16,7 @@
 -- seeds from the first input. 'Moore' is 'Body' with the target grammar
 -- sealed to 'Const'; 'MooreT' hides the channel existentially and
 -- carries the machine 'Category'. 'Poles' is the memoryless corner,
--- where the channel never carries across a tick. The bundles — 'Foldl',
+-- where the channel never carries across a tick. The bundles — 'FBody',
 -- 'TBody', 'SBody', 'LBody', 'PBody' — are the partial decompositions:
 -- each names a live-leg pattern, and each fuse lands it back in a
 -- 'Step'. Coiteration — 'Unfold', 'Nu', the partial grammars — lives in
@@ -45,12 +45,12 @@ module Circuit.Machine
     iomap,
 
     -- * the bundles
-    Foldl (..),
+    FBody (..),
     TBody (..),
     SBody (..),
     LBody (..),
     PBody (..),
-    fuseFoldl,
+    fuseFBody,
     fuseTBody,
     fuseSBody,
     fuseLBody,
@@ -200,9 +200,9 @@ iomap f g (Poles j k o) = Poles (f .> j) (f .> k) (o .> g)
 -- * the bundles
 
 -- | The strict-fold bundle: a seed at the tensor's unit, a commit leg
--- writing the channel, and a bare extract. 'fuseFoldl' is the tick;
+-- writing the channel, and a bare extract. 'fuseFBody' is the tick;
 -- 'begin' is not part of it.
-data Foldl t ch arr i o = Foldl
+data FBody t ch arr i o = FBody
   { begin :: arr (Unit t) ch,
     step :: arr (t ch i) ch,
     extract :: arr ch o
@@ -248,15 +248,15 @@ data PBody t ch ch' arr i o = PBody
     post :: arr ch' o
   }
 
--- | Fuse a 'Foldl' into one tick: commit and extract pair at the @(,)@
+-- | Fuse a 'FBody' into one tick: commit and extract pair at the @(,)@
 -- target. @(->)@-only: the fanout owes a copy the substrate does not
 -- yet price for a general arrow.
 --
--- >>> let sb = Foldl (const 0) (\(c, i) -> c + i) (* 2) :: Foldl (,) Int (->) Int Int
--- >>> case fuseFoldl sb of Step f -> f (3, 4 :: Int)
+-- >>> let sb = FBody (const 0) (\(c, i) -> c + i) (* 2) :: FBody (,) Int (->) Int Int
+-- >>> case fuseFBody sb of Step f -> f (3, 4 :: Int)
 -- (7,14)
-fuseFoldl :: Foldl t ch (->) i o -> Step t (,) ch ch (->) i o
-fuseFoldl (Foldl _ k e) = Step (\ci -> let c' = k ci in (c', e c'))
+fuseFBody :: FBody t ch (->) i o -> Step t (,) ch ch (->) i o
+fuseFBody (FBody _ k e) = Step (\ci -> let c' = k ci in (c', e c'))
 
 -- | Fuse a 'TBody' into one tick: the three legs are the 'These'
 -- eliminator. @(->)@-only: eliminating a 'These' sum is not yet an
