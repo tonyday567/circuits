@@ -157,7 +157,11 @@ type MealyP t ch arr (p :: Poly) = Mealy t ch arr (Dir p) (Pos p)
 
 -- | The factored body fused into a single tick — 'init' is not part of
 -- the tick, so it is out of scope here. Total and gate-free: 'emit'
--- reads the freshly written channel, so no copy is owed.
+-- reads the freshly written channel, so no copy is owed. There is no
+-- inverse: an unfuse would have 'emit' regenerate the output from the
+-- channel alone, blind to the tick input, short of widening the channel
+-- past what 'init' can seed. The universal splits are the source-side
+-- ones ('unfuseSBody', 'unfuseTBody').
 fuse :: (Category arr) => Body t t' ch ch' arr i o -> Step t t' ch ch' arr i o
 fuse (Body _ k p) = Step (p . k)
 
