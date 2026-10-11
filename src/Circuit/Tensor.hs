@@ -51,6 +51,11 @@ module Circuit.Tensor
     Const (..),
     unConst,
 
+    -- * Coproduct eliminators and phantom injection
+    Cocartesian (..),
+    TheseElim (..),
+    ConstInject (..),
+
     -- * Cartesian / cocartesian associators
     reassocL,
     reassocR,
@@ -72,7 +77,7 @@ import Circuit.Traced (Assoc (..), Strength (..), TraceC, Yank (..))
 import Circuit.Traced qualified as Ch
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
-import Data.These (These (..))
+import Data.These (These (..), these)
 import Data.Void (Void, absurd)
 import Prelude hiding (id, (.))
 
@@ -608,6 +613,75 @@ instance (Unital t arr) => Unital t (Cat.Op arr) where
   unitl' = Cat.Op unitl
   unitr = Cat.Op unitr'
   unitr' = Cat.Op unitr
+
+-- * Coproduct and These eliminators
+
+-- | A coproduct tensor @t@ on a category @arr@: injections and a case
+-- eliminator. The canonical example is @t = Either@, where 'elim' is
+-- 'either' and the injections are 'Left' and 'Right'.
+class (Tensor t arr) => Cocartesian t arr where
+  injectL :: arr a (t a b)
+  injectR :: arr b (t a b)
+  elim :: arr a c -> arr b c -> arr (t a b) c
+
+-- | Eliminate a 'These' sum into an arrow. The three legs cover the
+-- 'This', 'That', and 'These' constructors respectively; the third leg
+-- consumes the pair of simultaneous values.
+class (Category arr) => TheseElim arr where
+  theseElim :: arr a c -> arr b c -> arr (a, b) c -> arr (These a b) c
+
+-- | Inject a payload into the phantom 'Const' grammar. The channel slot
+-- is parametric: @ConstInject@ gives one arrow @o -> Const ch o@ for
+-- every phantom @ch@.
+class (Category arr) => ConstInject arr where
+  constIn :: arr o (Const ch o)
+
+-- | @(->)@ is cocartesian at 'Either'.
+instance Cocartesian Either (->) where
+  injectL = Left
+  {-# INLINE injectL #-}
+  injectR = Right
+  {-# INLINE injectR #-}
+  elim f g = either f g
+  {-# INLINE elim #-}
+
+-- | @(->)@ eliminates 'These'.
+instance TheseElim (->) where
+  theseElim f g h = these f g (curry h)
+  {-# INLINE theseElim #-}
+
+-- | @(->)@ injects into 'Const'.
+instance ConstInject (->) where
+  constIn = Const
+  {-# INLINE constIn #-}
+
+-- | @K m@ is cocartesian at 'Either'.
+instance (Monad m) => Cocartesian Either (K m) where
+  injectL = K $ pure . Left
+  {-# INLINE injectL #-}
+  injectR = K $ pure . Right
+  {-# INLINE injectR #-}
+  elim (K f) (K g) = K $ either f g
+  {-# INLINE elim #-}
+
+-- | @K m@ eliminates 'These'.
+instance (Monad m) => TheseElim (K m) where
+  theseElim (K f) (K g) (K h) =
+    K $ \case
+      This a -> f a
+      That b -> g b
+      These a b -> h (a, b)
+  {-# INLINE theseElim #-}
+
+-- | @K m@ injects into 'Const'.
+instance (Monad m) => ConstInject (K m) where
+  constIn = K $ pure . Const
+  {-# INLINE constIn #-}
+
+-- | Lift 'ConstInject' through 'Trace'.
+instance (ConstInject arr) => ConstInject (Trace t' arr) where
+  constIn = Lift constIn
+  {-# INLINE constIn #-}
 
 -- | Lift 'SemiTensor' through 'Trace'.
 --

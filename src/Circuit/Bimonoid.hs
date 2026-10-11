@@ -80,7 +80,7 @@ module Circuit.Bimonoid
   )
 where
 
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), K (..))
 import Circuit.Syntax (Algebra (..), (:+:) (..))
 import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -616,6 +616,16 @@ instance Algebra (SigZero w) arr arr' where
 
 -- | Monoid operations: plus and zero.
 type SigMergeZero w = SigPlus w :+: SigZero w
+
+-- | @K m@ copies and discards structurally: duplication and weakening are
+-- performed in the monad around the unchanged value.
+instance (Monad m) => Copy (K m) a where
+  copy = K $ \a -> pure (a, a)
+  {-# INLINE copy #-}
+
+instance (Monad m) => Discard (K m) a where
+  discard = K $ const (pure ())
+  {-# INLINE discard #-}
 
 -- * Default tensor-generic instances for the cartesian tensor
 

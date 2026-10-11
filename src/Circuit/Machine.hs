@@ -88,11 +88,12 @@ module Circuit.Machine
   )
 where
 
+import Circuit.Bimonoid (Copy (..), Discard (..))
 import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
 import Circuit.Step (Step (..))
 import Circuit.Syntax (evalInto)
-import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..), unConst)
+import Circuit.Tensor (Action (..), Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Tensor, TheseElim (..), Unit, Unital (..), unConst)
 import Circuit.Trace (Knot (..), Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
@@ -249,56 +250,55 @@ data PBody t ch ch' arr i o = PBody
   }
 
 -- | Fuse a 'FBody' into one tick: commit and extract pair at the @(,)@
--- target. @(->)@-only: the fanout owes a copy the substrate does not
--- yet price for a general arrow.
+-- target. Requires 'Copy' on the channel and the cartesian tensor to
+-- duplicate the new channel for the extract leg.
 --
 -- >>> let sb = FBody (const 0) (\(c, i) -> c + i) (* 2) :: FBody (,) Int (->) Int Int
 -- >>> case fuseFBody sb of Step f -> f (3, 4 :: Int)
 -- (7,14)
-fuseFBody :: FBody t ch (->) i o -> Step t (,) ch ch (->) i o
-fuseFBody (FBody _ k e) = Step (\ci -> let c' = k ci in (c', e c'))
+fuseFBody :: (Tensor (,) arr, Copy arr ch) => FBody t ch arr i o -> Step t (,) ch ch arr i o
+fuseFBody (FBody _ k e) = Step (k .> copy .> tensor id e)
 
 -- | Fuse a 'TBody' into one tick: the three legs are the 'These'
--- eliminator. @(->)@-only: eliminating a 'These' sum is not yet an
--- arrow the substrate prices.
+-- eliminator. Requires 'TheseElim' on the base arrow.
 --
 -- >>> let tb = TBody Left Right (\(c, i) -> Right (c + i)) :: TBody Either Int Int (->) Int Int
 -- >>> let Step f = fuseTBody tb
 -- >>> [f (This 5), f (That 5), f (These 3 4)]
 -- [Left 5,Right 5,Right 7]
-fuseTBody :: TBody t' ch ch' (->) i o -> Step These t' ch ch' (->) i o
-fuseTBody (TBody ch i b) = Step (these ch i (curry b))
+fuseTBody :: (TheseElim arr) => TBody t' ch ch' arr i o -> Step These t' ch ch' arr i o
+fuseTBody (TBody ch i b) = Step (theseElim ch i b)
 
 -- | Fuse an 'SBody' into one tick: 'collapse' to 'Either', then the
--- legs. @(->)@-only for the eliminator.
+-- legs. Requires 'Cocartesian Either' on the base arrow.
 --
 -- >>> let sb = SBody (Left . (* 10)) (Right . (+ 1)) id :: SBody Either Either Int Int (->) Int Int
 -- >>> let Step f = fuseSBody sb
 -- >>> [f (Left 5), f (Right 5)]
 -- [Left 50,Right 6]
-fuseSBody :: SBody Either t' ch ch' (->) i o -> Step Either t' ch ch' (->) i o
-fuseSBody (SBody ch i c) = Step (either ch i . c)
+fuseSBody :: (Cocartesian Either arr) => SBody Either t' ch ch' arr i o -> Step Either t' ch ch' arr i o
+fuseSBody (SBody ch i c) = Step (c .> elim ch i)
 
 -- | Fuse an 'LBody' into one tick: the parallel legs land at the @(,)@
 -- target — 'set' writes the channel while 'view' reads the tick-start
--- channel, pre-set. @(->)@-only with a cartesian source: the copy and
--- the channel projection are both @(,)@.
+-- channel, pre-set. Requires 'Copy' to duplicate the input pair and
+-- 'Discard' to project the channel for the view leg.
 --
 -- >>> let lb = LBody (\(c, i) -> c + i) (* 2) :: LBody (,) Int Int (->) Int Int
 -- >>> case fuseLBody lb of Step f -> f (3, 4 :: Int)
 -- (7,6)
-fuseLBody :: LBody (,) ch ch' (->) i o -> Step (,) (,) ch ch' (->) i o
-fuseLBody (LBody s v) = Step (\(c, i) -> (s (c, i), v c))
+fuseLBody :: (Tensor (,) arr, Copy arr (ch, i), Discard arr i) => LBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
+fuseLBody (LBody s v) = Step (copy .> tensor s (tensor id discard .> unitr .> v))
 
 -- | Fuse a 'PBody' into one tick at the 'Const' target: pre, pmap,
--- post, then the 'Const' injection — free at @(->)@, where the phantom
--- channel costs nothing.
+-- post, then the 'Const' injection. Requires 'ConstInject' on the base
+-- arrow.
 --
 -- >>> let pb = PBody (\(c, i) -> c + i) (* 10) (+ 1) :: PBody (,) Int Int (->) Int Int
 -- >>> case fusePBody pb of Step f -> unConst (f (3, 4 :: Int))
 -- 71
-fusePBody :: PBody t ch ch' (->) i o -> Step t Const ch ch' (->) i o
-fusePBody (PBody a n o) = Step (Const . o . n . a)
+fusePBody :: (ConstInject arr) => PBody t ch ch' arr i o -> Step t Const ch ch' arr i o
+fusePBody (PBody a n o) = Step (a .> n .> o .> constIn)
 
 -- | The 'Either' source-split is universal: every arrow out of
 -- @Either ch i@ is uniquely its pair of legs, so a tick at the

@@ -12,8 +12,8 @@ module Axioma.Machine
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
-import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), Cell (..), LBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, lbodyAsLens, lensAsLBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
+import Circuit.Category (K (..), id, (.))
+import Circuit.Machine (Body (Body), Cell (..), FBody (..), LBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), PBody (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseFBody, fuseLBody, fusePBody, fuseSBody, fuseTBody, lbodyAsLens, lensAsLBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
 import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
@@ -21,6 +21,7 @@ import Circuit.Trace (Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
+import Data.Functor.Identity (Identity (..))
 import Data.List.NonEmpty (toList)
 import Data.Maybe (isNothing)
 import Data.These (These (..), these)
@@ -398,6 +399,42 @@ tbodyLegs =
         && and [i' i == Right i | i <- [0 .. 2]]
         && and [b' (c, i) == Right (c + i) | c <- [0 .. 2], i <- [0 .. 2]]
 
+-- | The bundle fuses are no longer @(->)@-only: they work over any
+-- arrow that supplies the required structural dictionaries. Witnesses
+-- on @K Identity@ exercise the new substrate instances without IO.
+fuseFBodyK :: Bool
+fuseFBodyK =
+  let fb = FBody (K $ const (pure 0)) (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: FBody (,) Int (K Identity) Int Int
+      Step (K f) = fuseFBody fb
+   in runIdentity (f (3, 4)) == (7, 14)
+
+fuseLBodyK :: Bool
+fuseLBodyK =
+  let lb = LBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: LBody (,) Int Int (K Identity) Int Int
+      Step (K f) = fuseLBody lb
+   in runIdentity (f (3, 4)) == (7, 6)
+
+fuseSBodyK :: Bool
+fuseSBodyK =
+  let sb = SBody (K $ pure . Left . (* 2)) (K $ pure . Right . (+ 1)) (K pure) :: SBody Either Either Int Int (K Identity) Int Int
+      Step (K f) = fuseSBody sb
+   in runIdentity (f (Left 3)) == Left 6
+        && runIdentity (f (Right 3)) == Right 4
+
+fuseTBodyK :: Bool
+fuseTBodyK =
+  let tb = TBody (K $ pure . Left . (* 2)) (K $ pure . Right) (K $ \(c, i) -> pure (Right (c + i))) :: TBody Either Int Int (K Identity) Int Int
+      Step (K f) = fuseTBody tb
+   in runIdentity (f (This 3)) == Left 6
+        && runIdentity (f (That 3)) == Right 3
+        && runIdentity (f (These 3 4)) == Right 7
+
+fusePBodyK :: Bool
+fusePBodyK =
+  let pb = PBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 10)) (K $ \c -> pure (c + 1)) :: PBody (,) Int Int (K Identity) Int Int
+      Step (K f) = fusePBody pb
+   in unConst (runIdentity (f (3, 4))) == 71
+
 machineTopic :: Verbosity -> IO [Bool]
 machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
@@ -434,6 +471,11 @@ machineTopic verbosity = do
       checkV verbosity "TBody fuse after unfuse reproduces the tick (These Bool, exhaustive)" tbodyRT,
       checkV verbosity "SBody unfuse after fuse hands the legs back" sbodyLegs,
       checkV verbosity "TBody unfuse after fuse hands the legs back" tbodyLegs,
+      checkV verbosity "FBody fuse over K Identity" fuseFBodyK,
+      checkV verbosity "LBody fuse over K Identity" fuseLBodyK,
+      checkV verbosity "SBody fuse over K Identity" fuseSBodyK,
+      checkV verbosity "TBody fuse over K Identity" fuseTBodyK,
+      checkV verbosity "PBody fuse over K Identity" fusePBodyK,
       checkV verbosity "mooreT unit L at (,): scanT (id . m) == scanT m" (scanT (id . sumG) xs == scanT sumG xs),
       checkV verbosity "mooreT unit R at (,): scanT (m . id) == scanT m" (scanT (sumG . id) xs == scanT sumG xs),
       checkV verbosity "mooreT unit L at Either" (scanT (id . eitherG) xs == scanT eitherG xs),
