@@ -13,9 +13,11 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, scan, scanT, unfuseSBody, unfuseTBody)
+import Circuit.Machine (Body (Body), Cell (..), MealyT (..), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
 import Circuit.Poly (applyLens)
+import Circuit.Syntax qualified as S
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
+import Circuit.Trace (Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
@@ -164,6 +166,30 @@ theseG = MooreT (Body id (these id (+ 1) (\c i -> c + i)) Const)
 
 xs :: [Int]
 xs = [1, 2, 3, 4]
+
+-- MealyT witnesses. A Mealy machine exposes both the new channel and the
+-- output at each tick; the runner below is the cartesian @(->)@ spelling.
+runMealyT :: MealyT (,) (->) i o -> [i] -> [o]
+runMealyT (MealyT (Cell seed (Step f))) is =
+  let c0 = seed ()
+      go _ [] = []
+      go c (x : rest) =
+        let (c', y) = f (c, x)
+         in y : go c' rest
+   in go c0 is
+
+-- | Running sum: channel and output are both the accumulated sum.
+sumMealy :: MealyT (,) (->) Int Int
+sumMealy = MealyT (Cell (const 0) (Step (\(s, i) -> (s + i, s + i))))
+
+-- | Running product: channel and output are both the accumulated product.
+prodMealy :: MealyT (,) (->) Int Int
+prodMealy = MealyT (Cell (const 1) (Step (\(s, i) -> (s * i, s * i))))
+
+-- | Recent-window Mealy: productive when tied as a knot because the body
+-- is non-strict in the feedback channel.
+recentMealy :: MealyT (,) (->) Int [Int]
+recentMealy = MealyT (Cell (const []) (Step (\(ns, i) -> (i : ns, take 3 (i : ns)))))
 
 -- Ported-instance witnesses for MooreT (,) (->). Each witness is named
 -- for the counterexample it catches:
@@ -396,7 +422,16 @@ machineTopic verbosity = do
       checkV verbosity "mooreT (,) slide: sliding a wire past a product commutes with tensor nesting" $
         scanT (slide . sideM . slide) sideXs == scanT (tensor colM (tensor cntM cntM)) sideXs,
       checkV verbosity "mooreT (,) strength: strength lifts a machine to the second wire" $
-        scanT (strength bumpM) ([(1, 5), (2, 7), (3, 9)] :: [(Int, Int)]) == [(1, 105), (2, 107), (3, 109)]
+        scanT (strength bumpM) ([(1, 5), (2, 7), (3, 9)] :: [(Int, Int)]) == [(1, 105), (2, 107), (3, 109)],
+      checkV verbosity "mealyT (,) unit L" (runMealyT (id . sumMealy) xs == runMealyT sumMealy xs),
+      checkV verbosity "mealyT (,) unit R" (runMealyT (sumMealy . id) xs == runMealyT sumMealy xs),
+      checkV verbosity "mealyT (,) associativity on a three-machine chain" (runMealyT ((prodMealy . sumMealy) . sumMealy) xs == runMealyT (prodMealy . (sumMealy . sumMealy)) xs),
+      checkV verbosity "traceToMoore on a base arrow runs as the arrow" $
+        scan (traceToMoore (S.Lift (+ 1) :: Trace (,) (->) Int Int)) xs == [2, 3, 4, 5],
+      checkV verbosity "mooreToKnot on a memoryless Moore matches the one-tick output" $
+        S.run (mooreToKnot (MooreT (Body (const 0) snd (Const . (* 2)) :: Moore (,) Int (->) Int Int))) 5 == 10,
+      checkV verbosity "mealyToKnot on a productive body ties a constant-input knot" $
+        S.run (mealyToKnot recentMealy) 7 == [7, 7, 7]
     ]
   where
     points = [-1, 0, 5] :: [Int]

@@ -80,13 +80,18 @@ module Circuit.Machine
     bodyAsLens,
     lensAsBody,
     closedToGenerator,
+    mealyToKnot,
+    mooreToKnot,
+    traceToMoore,
   )
 where
 
 import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
 import Circuit.Step (Step (..))
+import Circuit.Syntax (evalInto)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..), unConst)
+import Circuit.Trace (Knot (..), Trace)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.These (These (..), these)
@@ -95,6 +100,8 @@ import Prelude hiding (id, init, (.))
 -- $setup
 -- >>> import Circuit.Machine
 -- >>> import Circuit.Tensor (Const (..), unConst)
+-- >>> import Circuit.Trace (Knot (..), Trace)
+-- >>> import qualified Circuit.Syntax as S
 -- >>> import Data.These (These (..), these)
 
 -- | The fused machine: a given seed leg at the tensor's unit, and one
@@ -108,6 +115,14 @@ data Cell t t' ch ch' arr i o = Cell
 type Mealy t ch arr i o = Cell t t ch ch arr i o
 
 data MealyT t arr i o = forall ch. MealyT (Mealy t ch arr i o)
+
+-- | 'MealyT' is a category under the same structural conditions as
+-- 'Circuit.Trace.Knot': composition pairs channels and sequences steps.
+-- The seed of a composite is the tensor of the two seeds at the unit.
+instance forall t arr. (Tensor t arr, Strength t arr) => Category (MealyT t arr) where
+  id = MealyT (Cell (unitl' @t) id)
+  MealyT (Cell seed2 (Step g)) . MealyT (Cell seed1 (Step f)) =
+    MealyT (Cell (unitl' @t .> tensor seed1 seed2) (Step (assoc .> slide .> strength f .> slide .> strength g .> assoc')))
 
 -- | The factored machine: 'init' seeds the channel from the first
 -- input, 'commit' writes the channel from the grammared tick, and
@@ -518,3 +533,34 @@ lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyL
 -- — 'unfold' supplies that — so it is out of scope here.
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
 closedToGenerator (Body _ k p) = unitr' .> k .> p
+
+-- * Machine / Trace bridges
+
+-- | A sealed Mealy machine is a 'Knot' plus a seed leg. Dropping the seed
+-- gives the knot body; the channel type is the machine's hidden channel.
+--
+-- >>> let win = Cell (const []) (Step (\(ns, i) -> (i : ns, take 3 (i : ns))))
+-- >>> S.run (mealyToKnot (MealyT win :: MealyT (,) (->) Int [Int])) 7
+-- [7,7,7]
+mealyToKnot :: MealyT t arr i o -> Knot t arr i o
+mealyToKnot (MealyT (Cell _ s)) = Knot (run s)
+
+-- | A cartesian Moore machine factors into a Mealy-style step by exposing
+-- the freshly written channel alongside the output. The initial 'init'
+-- leg is not part of the static knot; it belongs to the runner.
+--
+-- >>> let double = MooreT (Body (const 0) (\(_, i) -> i) (Const . (* 2)))
+-- >>> S.run (mooreToKnot double) 5
+-- 10
+mooreToKnot :: MooreT (,) (->) i o -> Knot (,) (->) i o
+mooreToKnot (MooreT (Body _ k o)) = Knot (\(s, i) -> (k (s, i), unConst (o (k (s, i)))))
+
+-- | Fold free traced syntax into 'MooreT (,) (->)': a base arrow becomes
+-- a Moore machine whose state is the input, overwritten each tick;
+-- composition and yank use the existing 'MooreT' traced-category
+-- structure.
+--
+-- >>> scan (traceToMoore (S.Lift (+ 1) :: Trace (,) (->) Int Int)) [1, 2, 3]
+-- [2,3,4]
+traceToMoore :: Trace (,) (->) a b -> MooreT (,) (->) a b
+traceToMoore = evalInto (\f -> MooreT (Body id snd (\s -> Const (f s))))
