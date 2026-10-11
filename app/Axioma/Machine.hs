@@ -13,8 +13,8 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), Cell (..), MealyT (..), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
-import Circuit.Poly (applyLens)
+import Circuit.Machine (Body (Body), Cell (..), LBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, lbodyAsLens, lensAsLBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
+import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
 import Circuit.Trace (Trace)
@@ -77,6 +77,52 @@ dictOk =
               && snd (applyLens (bodyAsLens regW) s) i == k (s, i)
         )
         [(s, i) | s <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+
+-- | A sample parallel-legs body: add the input to the channel, view the
+-- channel doubled. Its lens has source position Int and source direction
+-- Int (the diagonal case).
+sumLBody :: LBody (,) Int Int (->) Int Int
+sumLBody = LBody (uncurry (+)) (* 2)
+
+-- | The LBody lens round trip: lbodyAsLens extracts (view, set), and
+-- lensAsLBody rebuilds the same body.
+lbodyDictOk :: Bool
+lbodyDictOk =
+  let lb = lensAsLBody (lbodyAsLens sumLBody)
+   in and [view lb s == view sumLBody s && set lb (s, i) == set sumLBody (s, i) | s <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+
+-- | Hand-built lens round trip through the body: the view and put agree
+-- with the original lens.
+lensAsLBodyOk :: Bool
+lensAsLBodyOk =
+  let l :: Lens Int Int String Int
+      l = lens show (\n d -> n + d)
+      lb = lensAsLBody l
+      check s i =
+        view lb s == show s
+          && set lb (s, i) == s + i
+   in all (uncurry check) [(s, i) | s <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+
+-- | An off-diagonal LBody: the new channel type differs from the old.
+-- The corresponding lens has source position Int and source direction
+-- String.
+offDiagLBody :: LBody (,) Int String (->) Int Int
+offDiagLBody = LBody (\(s, i) -> show (s + i)) (* 2)
+
+-- | Off-diagonal round trip: the lens source direction is the new channel
+-- type, not the old.
+offDiagLBodyOk :: Bool
+offDiagLBodyOk =
+  let l :: Lens Int String Int Int
+      l = lbodyAsLens offDiagLBody
+      lb = lensAsLBody l
+   in and [view lb s == view offDiagLBody s && set lb (s, i) == set offDiagLBody (s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
 
@@ -357,6 +403,9 @@ machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
   sequence
     [ checkV verbosity "body lens dictionary: get = emit, put = curry commit" dictOk,
+      checkV verbosity "LBody lens dictionary round trip (diagonal)" lbodyDictOk,
+      checkV verbosity "lensAsLBody round trip" lensAsLBodyOk,
+      checkV verbosity "LBody lens dictionary round trip (off-diagonal)" offDiagLBodyOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),
       checkV verbosity "body GetPut catches the accumulator" (not (getPut accW 1)),
       checkV verbosity "body PutGet (register)" (all (\s -> putGet regW s 3) points),

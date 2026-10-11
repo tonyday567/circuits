@@ -79,6 +79,8 @@ module Circuit.Machine
     bodyBiK,
     bodyAsLens,
     lensAsBody,
+    lbodyAsLens,
+    lensAsLBody,
     closedToGenerator,
     mealyToKnot,
     mooreToKnot,
@@ -99,6 +101,7 @@ import Prelude hiding (id, init, (.))
 
 -- $setup
 -- >>> import Circuit.Machine
+-- >>> import Circuit.Poly (applyLens)
 -- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Circuit.Trace (Knot (..), Trace)
 -- >>> import qualified Circuit.Syntax as S
@@ -526,6 +529,24 @@ bodyAsLens (Body _ k e) = lens (unConst . e) (curry k)
 -- legs, the caller supplies 'init'.
 lensAsBody :: (i -> ch) -> Lens ch ch o i -> Body (,) Const ch ch (->) i o
 lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyLens m)
+
+-- | The parallel-legs body as a lens. 'view' is the getter (it reads the
+-- tick-start channel); 'set' is the putter (it consumes the old channel
+-- and the input to produce the new channel). At the diagonal @ch' ~ ch@
+-- this is the ordinary lens on the channel; off-diagonal it is a lens
+-- whose source position is @ch@ and source direction is @ch'@.
+--
+-- >>> let lb = LBody (\(c, i) -> c + i) (* 2) :: LBody (,) Int Int (->) Int Int
+-- >>> let (v, put) = applyLens (lbodyAsLens lb) 3 in (v, put 4)
+-- (6,7)
+lbodyAsLens :: LBody (,) ch ch' (->) i o -> Lens ch ch' o i
+lbodyAsLens (LBody s v) = lens v (curry s)
+
+-- | A lens as a parallel-legs body: the lens supplies the pre-set view
+-- and the commit leg; the target grammar is @(,)@ because the body
+-- exposes both the new channel and the output.
+lensAsLBody :: Lens ch ch' o i -> LBody (,) ch ch' (->) i o
+lensAsLBody m = LBody (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
 
 -- | The closed branch as a generator coalgebra: input closed at the
 -- tensor's unit, the tick's two legs chained into one arrow on the
