@@ -1,35 +1,16 @@
-{-# LANGUAGE DataKinds #-}
-
 -- | Shared helpers for the circuits axioma topic modules.
 --
--- These are small process bodies and assertion utilities that are used by
--- more than one topic.  Topic-specific helpers live in their own module.
+-- Assertion utilities used by more than one topic. Topic-specific
+-- helpers live in their own module.
 module Axioma.Common
   ( -- * Verbosity
     Verbosity (..),
     checkV,
     checkIOV,
-
-    -- * Simple additive processes
-    sumP,
-    swapPairP,
-    swapEitherP,
-
-    -- * EWMA process
-    ewmaBody,
-    ewma,
-
-    -- * Shared-medium process bodies
-    sharedAddP,
-    sharedDoubleP,
   )
 where
 
 import Circuit.Axioma.Test (check)
-import Circuit.Category (id)
-import Circuit.Machine (MooreT, moore, register)
-import Prelude hiding (curry, id, uncurry, (.))
-import Prelude qualified as Pre
 
 -- | Output granularity for the axioma runner.
 data Verbosity
@@ -53,38 +34,3 @@ checkIOV Axioms name act = do
   putStrLn $ (if ok then "PASS " else "FAIL ") ++ name
   pure ok
 checkIOV _ _ act = act
-
--- | Simple additive process for oracles.
-sumP :: MooreT (,) (->) Int Int
-sumP = moore id (+) id
-
--- | Pair braid for the (,) trace yanking oracle.
-swapPairP :: MooreT (,) (->) (Int, Int) (Int, Int)
-swapPairP = moore id (\_ x -> x) (\(a, b) -> (b, a))
-
--- | Either braid for the Either trace yanking oracle.
-swapEitherP :: MooreT (,) (->) (Either Int Int) (Either Int Int)
-swapEitherP = moore id (\_ x -> x) swapEither
-  where
-    swapEither (Left a) = Right a
-    swapEither (Right b) = Left b
-
--- | EWMA body: stateless affine box with feedback.
-ewmaBody :: Double -> MooreT (,) (->) (Double, Double) (Double, Double)
-ewmaBody alpha =
-  moore
-    (\(x, prev) -> alpha * x + (1 - alpha) * prev)
-    (\s (x, _) -> alpha * x + (1 - alpha) * s)
-    (\s -> (s, s))
-
--- | Exponentially weighted moving average with initial feedback.
-ewma :: Double -> Double -> MooreT (,) (->) Double Double
-ewma alpha s0 = register s0 (ewmaBody alpha)
-
--- | Shared-medium body: adds the input to the shared state and echoes it.
-sharedAddP :: MooreT (,) (->) (Int, Int) (Int, Int)
-sharedAddP = moore (Pre.uncurry (+)) (\s (_, a) -> s + a) (\s -> (s, s))
-
--- | Shared-medium body: doubles the shared state and echoes the input.
-sharedDoubleP :: MooreT (,) (->) (Int, Int) (Int, Int)
-sharedDoubleP = moore (\(s, _) -> s * 2) (\s (_, _) -> s * 2) (\s -> (s, s))
