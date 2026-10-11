@@ -1,25 +1,26 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 
--- | The machine layer: the tick, the machines built on it, and the
--- runners that drive them.
+-- | The machine layer: machines over a channel, and the runners that
+-- drive them.
 --
--- A 'Step' is one tick: an arrow from the grammared source @t ch i@ to
--- the grammared target @t' ch' o@. A machine pairs an initial step with
--- the iterating tick, in two spellings. 'Cell' keeps the tick fused and
--- seeds the channel from the tensor's unit. 'Body' factors the tick
--- through the channel — 'commit' writes it, 'emit' reads the freshly
--- written value — and seeds from the first input. 'Moore' is 'Body'
--- with the target grammar sealed to 'Const'; 'MooreT' hides the channel
--- existentially and carries the machine 'Category'. 'Poles' is the
--- memoryless corner, where the channel never carries across a tick.
--- The bundles — 'Foldl', 'TBody', 'SBody', 'LBody', 'PBody' — are the
--- partial decompositions: each names a live-leg pattern, and each fuse
--- lands it back in a 'Step'.
+-- The tick itself — 'Step', re-exported here — lives in
+-- "Circuit.Step": one arrow from the grammared source @t ch i@ to the
+-- grammared target @t' ch' o@, the shared currency of this lane and the
+-- traced lane. A machine pairs an initial step with the iterating tick,
+-- in two spellings. 'Cell' keeps the tick fused and seeds the channel
+-- from the tensor's unit. 'Body' factors the tick through the channel —
+-- 'commit' writes it, 'emit' reads the freshly written value — and
+-- seeds from the first input. 'Moore' is 'Body' with the target grammar
+-- sealed to 'Const'; 'MooreT' hides the channel existentially and
+-- carries the machine 'Category'. 'Poles' is the memoryless corner,
+-- where the channel never carries across a tick. The bundles — 'Foldl',
+-- 'TBody', 'SBody', 'LBody', 'PBody' — are the partial decompositions:
+-- each names a live-leg pattern, and each fuse lands it back in a
+-- 'Step'. Coiteration — 'Unfold', 'Nu', the partial grammars — lives in
+-- "Circuit.Traced", beside 'yank'.
 module Circuit.Machine
   ( -- * the tick
     Step (..),
@@ -79,20 +80,15 @@ module Circuit.Machine
     bodyAsLens,
     lensAsBody,
     closedToGenerator,
-
-    -- * coiteration
-    (:.) (..),
-    Unfold (..),
   )
 where
 
 import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
+import Circuit.Step (Step (..))
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unit, Unital (..), unConst)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
-import Data.Kind (Type)
-import Data.List.NonEmpty (NonEmpty (..), (<|))
 import Data.These (These (..), these)
 import Prelude hiding (id, init, (.))
 
@@ -100,21 +96,6 @@ import Prelude hiding (id, init, (.))
 -- >>> import Circuit.Machine
 -- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Data.These (These (..), these)
-
--- | One tick of a machine: the arrow from the grammared source
--- @t ch i@ to the grammared target @t' ch' o@. Nestosition needs the
--- diagonal — the channel and grammar the tick writes must be the ones
--- the next tick reads.
-newtype Step t t' ch ch' arr i o = Step {run :: arr (t ch i) (t' ch' o)}
-
-instance (Category arr) => Category (Step t t ch ch arr) where
-  id :: forall a. Step t t ch ch arr a a
-  id = Step id
-  {-# INLINE id #-}
-
-  (.) :: forall a b c. Step t t ch ch arr b c -> Step t t ch ch arr a b -> Step t t ch ch arr a c
-  Step g . Step f = Step (g . f)
-  {-# INLINE (.) #-}
 
 -- | The fused machine: a given seed leg at the tensor's unit, and one
 -- iterating 'Step'. 'Mealy' is the diagonal; 'MealyT' seals the
@@ -144,7 +125,7 @@ data Body t t' ch ch' arr i o = Body
 type Moore t ch arr i o = Body t Const ch ch arr i o
 
 -- | The channel existentially hidden — the price of machines as arrows
--- of one 'Category'. Nestosition merges two different channels into a
+-- of one 'Category'. Composition merges two different channels into a
 -- pair nobody names; build-and-run never needs the seal.
 data MooreT t arr i o = forall ch. MooreT (Moore t ch arr i o)
 
@@ -537,88 +518,3 @@ lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyL
 -- — 'unfold' supplies that — so it is out of scope here.
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
 closedToGenerator (Body _ k p) = unitr' .> k .> p
-
--- * coiteration
-
--- | Grammar composition: an outer functor around an inner grammar — the
--- partial fragment's spelling. @Maybe :. (,)@ is the uncons grammar
--- (the step may halt, one output per taken step); @Maybe :. Either@ is
--- the maybe-one grammar (halt silent, continue, or halt with the
--- answer).
-newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
-
--- | Coiteration: 'unfold' runs a coalgebra to the grammar's output
--- shape — 'Nu' is what a run delivers. At @(,)@ a stream, at 'Either'
--- one answer, at 'These' a non-empty stream; at the partial grammars a
--- finite list (@Maybe :. (,)@) or a maybe-one (@Maybe :. Either@). The
--- class asks for 'Category' only — no tensor laws — so partial
--- grammars are legal, and the tape-driven runners ('scanProcess',
--- 'foldProcess') live in the partial fragment.
---
--- The 'Either' corner is the codiagonal correspondence: iteration is a
--- loop whose entry and feedback wires are joined — @unfold g = yank
--- (either g g)@, and 'Circuit.Bimonoid.plusT' is that join at 'Either'
--- (the agreement is witnessed at a point in "Circuit.Net").
-class
-  (Category arr) =>
-  Unfold (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
-  where
-  type Nu t arr b
-
-  unfold :: arr ch (t ch b) -> arr ch (Nu t arr b)
-
--- | The stream grammar: every step emits; no halt.
-instance Unfold (,) (->) where
-  type Nu (,) (->) b = [b]
-  unfold g = go
-    where
-      go ch = case g ch of (ch', b) -> b : go ch'
-
--- | The terminal grammar: 'Left' continues, 'Right' answers — the
--- codiagonal correspondence is the definition.
-instance Unfold Either (->) where
-  type Nu Either (->) b = b
-  unfold g = yank (either g g)
-
--- | The non-empty grammar: 'That' answers, 'These' emits and continues.
-instance Unfold These (->) where
-  type Nu These (->) b = NonEmpty b
-  unfold g = go
-    where
-      go ch = case g ch of
-        This ch' -> go ch'
-        That b -> b :| []
-        These ch' b -> b <| go ch'
-
--- | The uncons grammar: the step may halt, and emits once per taken
--- step — 'Data.List.unfoldr' as an 'Unfold' instance, and the
--- 'scanProcess' loop.
---
--- >>> let gen n = Nest (if n <= (0 :: Int) then Nothing else Just (n - 1, n * 10))
--- >>> unfold gen 3
--- [30,20,10]
-instance Unfold (Maybe :. (,)) (->) where
-  type Nu (Maybe :. (,)) (->) b = [b]
-  unfold g = go
-    where
-      go ch = case g ch of
-        Nest Nothing -> []
-        Nest (Just (ch', b)) -> b : go ch'
-
--- | The maybe-one grammar: halt silent, continue, or halt with the
--- answer — the 'foldProcess' loop.
---
--- >>> let gen n = Nest (if n <= (0 :: Int) then Just (Right (n + 100)) else Just (Left (n - 1)))
--- >>> unfold gen 3
--- Just 100
--- >>> let stop n = Nest (if n <= (0 :: Int) then Nothing else Just (Left (n - 1)))
--- >>> unfold stop 3 :: Maybe Int
--- Nothing
-instance Unfold (Maybe :. Either) (->) where
-  type Nu (Maybe :. Either) (->) b = Maybe b
-  unfold g = go
-    where
-      go ch = case g ch of
-        Nest Nothing -> Nothing
-        Nest (Just (Left ch')) -> go ch'
-        Nest (Just (Right b)) -> Just b

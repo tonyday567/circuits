@@ -57,6 +57,7 @@ library
     Circuit.Pullback
     Circuit.Shared
     Circuit.Span
+    Circuit.Step
     Circuit.Stream
     Circuit.Syntax
     Circuit.Tensor

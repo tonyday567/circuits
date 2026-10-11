@@ -30,6 +30,11 @@ Circuit.Category    — Local 'Category' class, 'K' Kleisli and 'CoK'
 Circuit.Traced     — Structural class ladder: Assoc, Slide, Strength, Yank.
                       Instances for (->) and K m; (,), Either, These tensors.
                       Left = feedback/continue, Right = exit for Either yank.
+                      Unfold lives here too: coiteration over a grammar,
+                      Nu the run's output shape; the Either corner is the
+                      codiagonal correspondence with yank, and the partial
+                      grammars Maybe :. (,) and Maybe :. Either serve the
+                      tape-driven runners.
 Circuit.Tensor      — Tensor/Action classes, braiding, cartesian/cocartesian
                       plumbing, and superpose (fused parallel composition).
 Circuit.Trace       — Free traced monoidal category syntax (Trace, base, yank).
@@ -47,15 +52,20 @@ Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
                       ⅋/Bot with distributors, Lolli (⊸), Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.Machine     — Machines over a channel: Step (the tick, widened off
-                      the diagonal), Cell (seed+step; Mealy on the
-                      diagonal), Body (init/commit/emit), Moore/MooreT
+Circuit.Step       — The machine tick: Step, one arrow from the grammared
+                      source to the grammared target, shared by the machine
+                      lane and the traced lane; its haddock carries the
+                      runner-fit conditions (Moore-discipline, productivity)
+                      and a worked example run both ways.
+Circuit.Machine     — Machines over a channel: Cell (seed+step; Mealy on
+                      the diagonal), Body (init/commit/emit), Moore/MooreT
                       (the Const-target corner and its proven Category),
                       MooreP/MealyP (polynomial interfaces), Poles (the
                       memoryless corner), the Moore pattern with
-                      delay/register, scan/fold eliminators, MergeNat,
-                      Unfold, and the lens dictionary
-                      (bodyAsLens/lensAsBody).
+                      delay/register, scan/fold eliminators (unfolds at the
+                      partial grammars), MergeNat, and the lens dictionary
+                      (bodyAsLens/lensAsBody). Re-exports Step from
+                      Circuit.Step.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import

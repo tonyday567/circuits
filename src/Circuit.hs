@@ -44,9 +44,10 @@
 -- folds (@run@, @eval@, @bind@) and injections (@unit@, `Lift`).
 -- "Circuit.Trace" adds feedback to the free syntax, making it traced.
 -- "Circuit.Net" packages the free symmetric monoidal category with a
--- bimonoid over a primitive set. 'Step' — from "Circuit.Machine" — is
--- the knot-body arrow @arr (t ch a) (t' ch' b)@, the stateful tick
--- that tracing hides. "Circuit.Hyper" is the final, coinductive encoding.
+-- bimonoid over a primitive set. 'Step' — from "Circuit.Step" — is
+-- the knot-body arrow @arr (t ch a) (t' ch' b)@, the stateful tick the
+-- machine and traced lanes share. "Circuit.Hyper" is the final,
+-- coinductive encoding.
 -- "Circuit.Span" is finite spans, the residual-remembering rung of the
 -- equipment ladder.
 --
@@ -188,6 +189,7 @@ module Circuit
     module Circuit.Span,
 
     -- * Machines
+    module Circuit.Step,
     module Circuit.Machine,
 
     -- * Streams
@@ -213,6 +215,7 @@ import Circuit.Poly hiding (Point)
 import Circuit.Pullback
 import Circuit.Shared
 import Circuit.Span
+import Circuit.Step hiding (run)
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor

@@ -28,7 +28,7 @@ module Circuit.Span
 where
 
 import Circuit.Category (id, (.))
-import Circuit.Machine (Step (..))
+import Circuit.Step (Step (..))
 import Data.Maybe (fromMaybe)
 import Prelude hiding (id, (.))
 

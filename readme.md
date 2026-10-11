@@ -82,6 +82,7 @@ graph LR
   Dagger["Dagger (Circuit.Bimonoid)"]
   Poly["Circuit.Poly"]
   Machine["Circuit.Machine"]
+  Step["Circuit.Step"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
   Linear["Circuit.Linear"]
@@ -98,6 +99,8 @@ graph LR
   Shared --> Trace
   Bimonoid --> Net
   Linear --> Shared
+  Machine --> Step
+  Trace --> Step
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
@@ -105,6 +108,7 @@ graph LR
   linkStyle 7,8,9 stroke:#9B6BC0,stroke-width:2px
   linkStyle 10,11,12,13 stroke:#4B96B0,stroke-width:2px
   linkStyle 14,15 stroke:#D98A3A,stroke-width:2px
+  linkStyle 16,17 stroke:#4B9680,stroke-width:2px
 
   style Channel fill:transparent,stroke:#4B7FBD,stroke-width:2px,stroke-dasharray: 5 5
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
@@ -123,6 +127,7 @@ graph LR
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Machine fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Step fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Linear fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
@@ -142,10 +147,12 @@ Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
 **A common shape.** Under all the syntax lives `Step t t' ch ch' arr i o`,
-the morphism `arr (t ch i) (t' ch' o)`. A step threads an ambient channel
-`ch` alongside a payload, under a tensor `t`. It is the shared shape the
-machines of `Circuit.Machine` are factorised from: cells, bodies, Moore
-machines, and poles.
+the morphism `arr (t ch i) (t' ch' o)`, in its own module `Circuit.Step`.
+A step threads an ambient channel `ch` alongside a payload, under a
+tensor `t`. It is the shared shape both lanes are built on: the machines
+of `Circuit.Machine` are factorised from it (cells, bodies, Moore
+machines, poles), and the loop bodies of `Circuit.Trace` are yanked from
+it.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
 exactly when no input supplies one. `Body` keeps it explicit as the

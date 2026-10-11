@@ -241,17 +241,17 @@ instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
 
 -- ** Iteration as a loop with joined wires
 
--- The codiagonal theorem (stated in "Circuit.Machine"'s
--- 'Circuit.Machine.Unfold'): @unfold g = yank (g . plusT)@ — an iteration
+-- The codiagonal theorem (stated in "Circuit.Traced"'s
+-- 'Circuit.Traced.Unfold'): @unfold g = yank (g . plusT)@ — an iteration
 -- is a loop whose entry and feedback wires are joined. The composite
 -- needs no new syntax: the 'SigPlus' node 'Net' already has supplies the
 -- join, and the 'Circuit.Trace.SigYank' node supplies the loop. The body
 -- melts Net to a function through the 'Circuit.Bimonoid.MergeT' Either
 -- dictionary, lifts into 'Trace', and folds through 'Yank' Either —
--- agreeing with 'Circuit.Machine.unfold' at a point:
+-- agreeing with 'Circuit.Traced.unfold' at a point:
 --
 -- >>> import Circuit.Bimonoid (SigPlus (..))
--- >>> import Circuit.Machine (unfold)
+-- >>> import Circuit.Traced (unfold)
 -- >>> import Circuit.Syntax (Syntax (..))
 -- >>> import Circuit.Traced (yank)
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)

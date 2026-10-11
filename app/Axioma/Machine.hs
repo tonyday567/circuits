@@ -13,10 +13,10 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), Unfold (..), bodyAsLens, fold, fuseSBody, fuseTBody, scan, scanT, unfold, unfuseSBody, unfuseTBody)
+import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseSBody, fuseTBody, scan, scanT, unfuseSBody, unfuseTBody)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.List.NonEmpty (toList)
