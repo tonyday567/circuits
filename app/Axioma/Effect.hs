@@ -10,7 +10,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV)
 import Circuit.Category (K (..), id, runK, (.))
-import Circuit.GMachine qualified as Step
+import Circuit.Machine qualified as Step
 import Circuit.Syntax (Syntax (Lift))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (tensor)

@@ -4,7 +4,7 @@ import Axioma.BiK (biKTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
-import Axioma.GMachine (gMachineTopic)
+import Axioma.Machine (machineTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Pullback (pullbackTopic)
 import Axioma.SemiTensor (semiTensorTopic)
@@ -20,7 +20,7 @@ data Topic
   = All
   | BiK
   | Container
-  | GMachine
+  | Machine
   | Effect
   | Poles
   | Pullback
@@ -35,7 +35,7 @@ topicName :: Topic -> String
 topicName All = "all"
 topicName BiK = "bik"
 topicName Container = "container"
-topicName GMachine = "gmachine"
+topicName Machine = "machine"
 topicName Effect = "effect"
 topicName Poles = "poles"
 topicName Pullback = "pullback"
@@ -49,7 +49,7 @@ topicDesc :: Topic -> String
 topicDesc All = "run all topics"
 topicDesc BiK = "BiK oracles: biaction category laws, the strength spend, and the Either bridge"
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
-topicDesc GMachine = "GMachine oracles"
+topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and Trace (,) (K IO) oracles"
 topicDesc Poles = "Poles oracles: write/read legs, closing, and leg-mapping"
 topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent nets"
@@ -109,7 +109,7 @@ opts =
 runTopic :: Topic -> Verbosity -> IO [Bool]
 runTopic BiK = biKTopic
 runTopic Container = containerTopic
-runTopic GMachine = gMachineTopic
+runTopic Machine = machineTopic
 runTopic Effect = effectTopic
 runTopic Poles = polesTopic
 runTopic Pullback = pullbackTopic
@@ -121,7 +121,7 @@ runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [BiK, Container, Effect, GMachine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
+allTopics = [BiK, Container, Effect, Machine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"

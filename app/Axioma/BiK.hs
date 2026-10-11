@@ -5,7 +5,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (BiK (..), Dist (..), K (..), id, (.))
-import Circuit.GMachine (Body (..), bodyBiK)
+import Circuit.Machine (Body (..), bodyBiK)
 import Circuit.Traced (Strength (..))
 import Control.Monad (when)
 import Prelude hiding (id, (.))

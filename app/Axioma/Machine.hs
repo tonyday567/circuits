@@ -5,15 +5,15 @@
 -- @fmap f (fmap g m)@ and @pure id <*> m@ — hlint's functor-law and
 -- <$> rewrites for this module are suppressed in .hlint.yaml.
 
--- | GMachine oracles.
-module Axioma.GMachine
-  ( gMachineTopic,
+-- | Machine oracles.
+module Axioma.Machine
+  ( machineTopic,
   )
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.GMachine (Body (Body), MergeNat (..), Moore, MooreT (..), Unfold (..), bodyAsLens, fold, scan, scanT, unfold)
+import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), Unfold (..), bodyAsLens, fold, scan, scanT, unfold)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -289,9 +289,9 @@ natThese =
     f :: Int -> Int
     f = (+ 1)
 
-gMachineTopic :: Verbosity -> IO [Bool]
-gMachineTopic verbosity = do
-  when (verbosity == Axioms) $ putStrLn "GMachine oracles"
+machineTopic :: Verbosity -> IO [Bool]
+machineTopic verbosity = do
+  when (verbosity == Axioms) $ putStrLn "Machine oracles"
   sequence
     [ checkV verbosity "body lens dictionary: get = emit, put = curry commit" dictOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),

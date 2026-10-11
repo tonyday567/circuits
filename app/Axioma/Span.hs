@@ -5,7 +5,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.GMachine (Step (..), moore, scan)
+import Circuit.Machine (Step (..), moore, scan)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,

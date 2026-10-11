@@ -1,6 +1,6 @@
 ---
 name: circuits
-description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), GMachine (cells, bodies and Moore machines over a channel), plus Poly/Shared polynomial machinery.
+description: Free traced monoidal categories. Trace (inspectable syntax), Hyper (final encoding), Net (wiring with bimonoid), Machine (cells, bodies and Moore machines over a channel), plus Poly/Shared polynomial machinery.
 ---
 
 # circuits — field guide
@@ -47,14 +47,15 @@ Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
                       ⅋/Bot with distributors, Lolli (⊸), Exponential (!/?).
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.GMachine    — Machines over a channel: Cell (absorb/observe legs),
-                      Body (consume/produce), BodyTT (the t t' family) and
-                      its CellD (Const, t) corner, Stratum (the fused
-                      morphism),
-                      Machine, Poles (write/read channel ends) and Point,
-                      GMoore/GMooreT (the proven Category), the Moore
-                      pattern with delay/register, scan/fold eliminators,
-                      and the lens dictionary (cellAsLens/lensAsCell).
+Circuit.Machine     — Machines over a channel: Step (the tick, widened off
+                      the diagonal), Cell (seed+step; Mealy on the
+                      diagonal), Body (init/commit/emit), Moore/MooreT
+                      (the Const-target corner and its proven Category),
+                      MooreP/MealyP (polynomial interfaces), Poles (the
+                      memoryless corner), the Moore pattern with
+                      delay/register, scan/fold eliminators, MergeNat,
+                      Unfold, and the lens dictionary
+                      (bodyAsLens/lensAsBody).
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
@@ -155,9 +156,8 @@ returning. The convention is fixed by the class, not configurable.
 ### pointing: two discharges
 
 A stateful run needs an initial carrier value exactly where no input supplies
-one. `Moore` discharges pointing through the input; `GMoore`
-keeps the seed explicit as the `init` leg (`Point` names the unit-tensor
-discharge `Unit t -> ch`). Do not collapse the pair: input discharge agrees
+one. `Body` discharges pointing through the input (`init :: arr i ch`);
+`Cell` keeps the seed explicit as the `seed` leg (`arr (Unit t) ch`). Do not collapse the pair: input discharge agrees
 with an explicit seed only when the body never reads its initial state, which
 is why `delay` and `register` exist as explicit wiring.
 

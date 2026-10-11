@@ -49,7 +49,7 @@ library
     Circuit.Bimonoid
     Circuit.Category
     Circuit.Container
-    Circuit.GMachine
+    Circuit.Machine
     Circuit.Hyper
     Circuit.Linear
     Circuit.Net
@@ -77,7 +77,7 @@ executable circuits-axioma
     Axioma.Common
     Axioma.Container
     Axioma.Effect
-    Axioma.GMachine
+    Axioma.Machine
     Axioma.Poles
     Axioma.Pullback
     Axioma.SemiTensor

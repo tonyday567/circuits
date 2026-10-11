@@ -44,7 +44,7 @@
 -- folds (@run@, @eval@, @bind@) and injections (@unit@, `Lift`).
 -- "Circuit.Trace" adds feedback to the free syntax, making it traced.
 -- "Circuit.Net" packages the free symmetric monoidal category with a
--- bimonoid over a primitive set. 'Step' — from "Circuit.GMachine" — is
+-- bimonoid over a primitive set. 'Step' — from "Circuit.Machine" — is
 -- the knot-body arrow @arr (t ch a) (t' ch' b)@, the stateful tick
 -- that tracing hides. "Circuit.Hyper" is the final, coinductive encoding.
 -- "Circuit.Span" is finite spans, the residual-remembering rung of the
@@ -72,7 +72,7 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.GMachine" is the machine layer. A 'Body' is a stateful device
+-- "Circuit.Machine" is the machine layer. A 'Body' is a stateful device
 -- with three legs over a channel: 'init' seeds the channel from the
 -- first input, 'commit' folds each tick's input into the channel, and
 -- 'emit' reads the freshly written channel out. 'Moore' is the corner
@@ -123,7 +123,7 @@
 -- "Circuit.Linear" is linear-logic connectives over a base category.
 -- "Circuit.Shared" fuses two bodies on one shared channel.
 -- "Circuit.Pullback" is linear cotangent maps, the base arrow for
--- reverse-mode gradients. From "Circuit.GMachine", 'Poles' is the
+-- reverse-mode gradients. From "Circuit.Machine", 'Poles' is the
 -- memoryless corner — 'init' and 'commit' the write legs over a
 -- channel, 'emit' reading it back.
 --
@@ -188,7 +188,7 @@ module Circuit
     module Circuit.Span,
 
     -- * Machines
-    module Circuit.GMachine,
+    module Circuit.Machine,
 
     -- * Streams
     module Circuit.Stream,
@@ -205,9 +205,9 @@ where
 import Circuit.Bimonoid
 import Circuit.Category
 import Circuit.Container
-import Circuit.GMachine hiding (run)
 import Circuit.Hyper
 import Circuit.Linear
+import Circuit.Machine hiding (run)
 import Circuit.Net
 import Circuit.Poly hiding (Point)
 import Circuit.Pullback

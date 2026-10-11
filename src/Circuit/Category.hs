@@ -197,7 +197,7 @@ instance (Monad m) => FunctionLike (K m) where
 --
 -- This is the EM side of pointing — an algebra of the @Maybe@ monad,
 -- structure on the object. The runner-facing presentation of the same
--- pointing is 'Point' in "Circuit.GMachine".
+-- pointing is the 'Cell' seed leg in "Circuit.Machine".
 class Pointed a where
   point :: a
 

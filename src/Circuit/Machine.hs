@@ -17,7 +17,7 @@
 -- with the target grammar sealed to 'Const'; 'MooreT' hides the channel
 -- existentially and carries the machine 'Category'. 'Poles' is the
 -- memoryless corner, where the channel never carries across a tick.
-module Circuit.GMachine
+module Circuit.Machine
   ( -- * the tick
     Step (..),
     fuse,

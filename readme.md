@@ -81,7 +81,7 @@ graph LR
   Hyper["Circuit.Hyper"]
   Dagger["Dagger (Circuit.Bimonoid)"]
   Poly["Circuit.Poly"]
-  GMachine["Circuit.GMachine"]
+  Machine["Circuit.Machine"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
   Linear["Circuit.Linear"]
@@ -92,9 +92,9 @@ graph LR
   Net --> Trace
   Trace --> Hyper
   Dagger --> Net
-  GMachine --> Poly
-  GMachine --> Bimonoid
-  GMachine --> Yank
+  Machine --> Poly
+  Machine --> Bimonoid
+  Machine --> Yank
   Shared --> Trace
   Bimonoid --> Net
   Linear --> Shared
@@ -122,7 +122,7 @@ graph LR
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style GMachine fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style Machine fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Linear fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
@@ -141,19 +141,19 @@ strength, feedback via yank) and `Tensor → Action` (the concrete `(,)` and
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
-**A common shape.** Under all the syntax lives `Stratum t ch arr i o`, the
-morphism `arr (t ch i) (t ch o)`. A stratum threads an ambient channel `ch`
-alongside a payload, under a tensor `t`. It is the shared shape the machines
-of `Circuit.GMachine` are factorised from: cells, bodies, Moore machines,
-and poles.
+**A common shape.** Under all the syntax lives `Step t t' ch ch' arr i o`,
+the morphism `arr (t ch i) (t' ch' o)`. A step threads an ambient channel
+`ch` alongside a payload, under a tensor `t`. It is the shared shape the
+machines of `Circuit.Machine` are factorised from: cells, bodies, Moore
+machines, and poles.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
-exactly when no input supplies one. `GMoore` keeps it explicit as the
+exactly when no input supplies one. `Body` keeps it explicit as the
 `init` leg — the seed as data, with `moore` spelling the common case at
-`(->)`; `Point` names the unit-tensor discharge. The
-`Yank (,) Moore` instance discharges it through closure: `yank` ties the
-state channel in a lazy knot, and the absence of a seed is visible in the
-type. The discharges are not interchangeable: the lazy knot diverges on
+`(->)`; `Cell` carries it as the `seed` leg at the tensor's unit. The
+`Yank (,) (MooreT (,) (->))` instance discharges it through closure:
+`yank` ties the state channel in a lazy knot, and the absence of a seed
+is visible in the type. The discharges are not interchangeable: the lazy knot diverges on
 strict accumulators — which is why `delay` and `register` exist as
 explicit wiring.
 
