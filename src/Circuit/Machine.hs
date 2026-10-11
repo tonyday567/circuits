@@ -17,6 +17,9 @@
 -- with the target grammar sealed to 'Const'; 'MooreT' hides the channel
 -- existentially and carries the machine 'Category'. 'Poles' is the
 -- memoryless corner, where the channel never carries across a tick.
+-- The bundles — 'Foldl', 'TBody', 'SBody', 'LBody', 'PBody' — are the
+-- partial decompositions: each names a live-leg pattern, and each fuse
+-- lands it back in a 'Step'.
 module Circuit.Machine
   ( -- * the tick
     Step (..),
@@ -39,6 +42,20 @@ module Circuit.Machine
     polesK,
     compose,
     iomap,
+
+    -- * the bundles
+    Foldl (..),
+    TBody (..),
+    SBody (..),
+    LBody (..),
+    PBody (..),
+    fuseFoldl,
+    fuseTBody,
+    fuseSBody,
+    fuseLBody,
+    fusePBody,
+    unfuseSBody,
+    unfuseTBody,
 
     -- * the natural merge
     MergeNat (..),
@@ -77,6 +94,11 @@ import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty (..), (<|))
 import Data.These (These (..), these)
 import Prelude hiding (id, init, (.))
+
+-- $setup
+-- >>> import Circuit.Machine
+-- >>> import Circuit.Tensor (unConst)
+-- >>> import Data.These (These (..), these)
 
 -- | One tick of a machine: the arrow from the grammared source
 -- @t ch i@ to the grammared target @t' ch' o@. Composition needs the
@@ -170,6 +192,133 @@ compose (Poles j1 k1 o1) (Poles j2 _ o2) = Poles j1 k1 (o1 .> j2 .> o2)
 -- | Precompose both write legs, postcompose the read leg.
 iomap :: (Category arr) => arr i' i -> arr o o' -> Poles ch arr i o -> Poles ch arr i' o'
 iomap f g (Poles j k o) = Poles (f .> j) (f .> k) (o .> g)
+
+-- * the bundles
+
+-- | The strict-fold bundle: a seed at the tensor's unit, a commit leg
+-- writing the channel, and a bare extract. 'fuseFoldl' is the tick;
+-- 'begin' is not part of it.
+data Foldl t ch arr i o = Foldl
+  { begin :: arr (Unit t) ch,
+    step :: arr (t ch i) ch,
+    extract :: arr ch o
+  }
+
+-- | The 'These' source-split: one leg per presence pattern. Total, and
+-- an isomorphism at the 'These' source — every arrow out of
+-- @These ch i@ is uniquely a triple — so 'unfuseTBody' inverts
+-- 'fuseTBody' on the nose.
+data TBody t' ch ch' arr i o = TBody
+  { chLeg :: arr ch (t' ch' o),
+    iLeg :: arr i (t' ch' o),
+    bothLeg :: arr (ch, i) (t' ch' o)
+  }
+
+-- | The 'Either' source-split with an explicit collapse. 'collapse' is
+-- the identity at @t ~ Either@ — the machine it names; at other tensors
+-- it must pick a side and is lossy.
+data SBody t t' ch ch' arr i o = SBody
+  { chLeg :: arr ch (t' ch' o),
+    iLeg :: arr i (t' ch' o),
+    collapse :: arr (t ch i) (Either ch i)
+  }
+
+-- | The parallel-legs tick (the lens body): 'set' is the commit corner,
+-- 'view' the emit corner reading the tick-start channel — pre-set,
+-- where 'Body's emit reads the channel post-commit. Independence pays a
+-- copy.
+data LBody t ch ch' arr i o = LBody
+  { set :: arr (t ch i) ch',
+    view :: arr ch o
+  }
+
+-- | The profunctor-shaped bundle: a pre-compose leg, the nuclear hom
+-- 'pmap' — the catalogue's only grammar-free, interface-free leg — and
+-- a post-compose leg. The non-uniqueness (slide an automorphism across
+-- the pmap|post boundary) is the coend of the profunctor
+-- representation theorem; the residual pair @(ch, ch')@ is what a
+-- forall would seal.
+data PBody t ch ch' arr i o = PBody
+  { pre :: arr (t ch i) ch,
+    pmap :: arr ch ch',
+    post :: arr ch' o
+  }
+
+-- | Fuse a 'Foldl' into one tick: commit and extract pair at the @(,)@
+-- target. @(->)@-only: the fanout owes a copy the substrate does not
+-- yet price for a general arrow.
+--
+-- >>> let sb = Foldl (const 0) (\(c, i) -> c + i) (* 2) :: Foldl (,) Int (->) Int Int
+-- >>> case fuseFoldl sb of Step f -> f (3, 4 :: Int)
+-- (7,14)
+fuseFoldl :: Foldl t ch (->) i o -> Step t (,) ch ch (->) i o
+fuseFoldl (Foldl _ k e) = Step (\ci -> let c' = k ci in (c', e c'))
+
+-- | Fuse a 'TBody' into one tick: the three legs are the 'These'
+-- eliminator. @(->)@-only: eliminating a 'These' sum is not yet an
+-- arrow the substrate prices.
+--
+-- >>> let tb = TBody Left Right (\(c, i) -> Right (c + i)) :: TBody Either Int Int (->) Int Int
+-- >>> let Step f = fuseTBody tb
+-- >>> [f (This 5), f (That 5), f (These 3 4)]
+-- [Left 5,Right 5,Right 7]
+fuseTBody :: TBody t' ch ch' (->) i o -> Step These t' ch ch' (->) i o
+fuseTBody (TBody ch i b) = Step (these ch i (curry b))
+
+-- | Fuse an 'SBody' into one tick: 'collapse' to 'Either', then the
+-- legs. @(->)@-only for the eliminator.
+--
+-- >>> let sb = SBody (Left . (* 10)) (Right . (+ 1)) id :: SBody Either Either Int Int (->) Int Int
+-- >>> let Step f = fuseSBody sb
+-- >>> [f (Left 5), f (Right 5)]
+-- [Left 50,Right 6]
+fuseSBody :: SBody Either t' ch ch' (->) i o -> Step Either t' ch ch' (->) i o
+fuseSBody (SBody ch i c) = Step (either ch i . c)
+
+-- | Fuse an 'LBody' into one tick: the parallel legs land at the @(,)@
+-- target — 'set' writes the channel while 'view' reads the tick-start
+-- channel, pre-set. @(->)@-only with a cartesian source: the copy and
+-- the channel projection are both @(,)@.
+--
+-- >>> let lb = LBody (\(c, i) -> c + i) (* 2) :: LBody (,) Int Int (->) Int Int
+-- >>> case fuseLBody lb of Step f -> f (3, 4 :: Int)
+-- (7,6)
+fuseLBody :: LBody (,) ch ch' (->) i o -> Step (,) (,) ch ch' (->) i o
+fuseLBody (LBody s v) = Step (\(c, i) -> (s (c, i), v c))
+
+-- | Fuse a 'PBody' into one tick at the 'Const' target: pre, pmap,
+-- post, then the 'Const' injection — free at @(->)@, where the phantom
+-- channel costs nothing.
+--
+-- >>> let pb = PBody (\(c, i) -> c + i) (* 10) (+ 1) :: PBody (,) Int Int (->) Int Int
+-- >>> case fusePBody pb of Step f -> unConst (f (3, 4 :: Int))
+-- 71
+fusePBody :: PBody t ch ch' (->) i o -> Step t Const ch ch' (->) i o
+fusePBody (PBody a n o) = Step (Const . o . n . a)
+
+-- | The 'Either' source-split is universal: every arrow out of
+-- @Either ch i@ is uniquely its pair of legs, so a tick at the
+-- 'Either' source is exactly an 'SBody' with 'collapse' the identity.
+-- Inverse to 'fuseSBody' — the round trip is witnessed exhaustively in
+-- "Axioma.Machine".
+--
+-- >>> let g = either (Left . (* 2)) (Right . (+ 1)) :: Either Int Int -> Either Int Int
+-- >>> let Step h = fuseSBody (unfuseSBody (Step g))
+-- >>> [h (Left 3), h (Right 3)] == [g (Left 3), g (Right 3)]
+-- True
+unfuseSBody :: Step Either t' ch ch' (->) i o -> SBody Either t' ch ch' (->) i o
+unfuseSBody (Step f) = SBody (f . Left) (f . Right) id
+
+-- | The 'These' source-split is universal: a tick at the 'These'
+-- source is exactly a 'TBody'. Inverse to 'fuseTBody' — the round trip
+-- is witnessed exhaustively in "Axioma.Machine".
+--
+-- >>> let g = these Left Right (\c i -> Right (c + i)) :: These Int Int -> Either Int Int
+-- >>> let Step h = fuseTBody (unfuseTBody (Step g))
+-- >>> [h (This 3), h (That 3), h (These 3 4)] == [g (This 3), g (That 3), g (These 3 4)]
+-- True
+unfuseTBody :: Step These t' ch ch' (->) i o -> TBody t' ch ch' (->) i o
+unfuseTBody (Step f) = TBody (f . This) (f . That) (f . uncurry These)
 
 -- | The natural merge of the tensor's diagonal: one arrow for every
 -- payload, and the law is naturality itself —

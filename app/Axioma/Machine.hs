@@ -13,7 +13,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), Unfold (..), bodyAsLens, fold, scan, scanT, unfold)
+import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), SBody (..), Step (..), TBody (..), Unfold (..), bodyAsLens, fold, fuseSBody, fuseTBody, scan, scanT, unfold, unfuseSBody, unfuseTBody)
 import Circuit.Poly (applyLens)
 import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
@@ -289,6 +289,43 @@ natThese =
     f :: Int -> Int
     f = (+ 1)
 
+-- The bundle round trips, exhaustive over small finite inputs: a tick
+-- at the Either or These source is exactly its legs, so fuse after
+-- unfuse must reproduce the arrow at every point, and unfuse after
+-- fuse must hand the legs back unchanged.
+sbodyRT :: Bool
+sbodyRT =
+  and
+    [ f' x == g x
+    | g <- [either Right Left, either (Left . not) (const (Right True))],
+      let Step f' = fuseSBody (unfuseSBody (Step g)),
+      x <- [Left False, Left True, Right False, Right True]
+    ]
+
+tbodyRT :: Bool
+tbodyRT =
+  and
+    [ f' x == g x
+    | g <- [these This That These, these (That . not) This (\c i -> These (not c) i)],
+      let Step f' = fuseTBody (unfuseTBody (Step g)),
+      x <- [This False, This True, That False, That True, These False False, These False True, These True False, These True True]
+    ]
+
+sbodyLegs :: Bool
+sbodyLegs =
+  let sb = SBody (Left . (* 2)) (Right . (+ 1)) id :: SBody Either Either Int Int (->) Int Int
+      SBody ch' i' _ = unfuseSBody (fuseSBody sb)
+   in and [ch' c == Left (2 * c) | c <- [0 .. 2]]
+        && and [i' i == Right (i + 1) | i <- [0 .. 2]]
+
+tbodyLegs :: Bool
+tbodyLegs =
+  let tb = TBody Left Right (\(c, i) -> Right (c + i)) :: TBody Either Int Int (->) Int Int
+      TBody ch' i' b' = unfuseTBody (fuseTBody tb)
+   in and [ch' c == Left c | c <- [0 .. 2]]
+        && and [i' i == Right i | i <- [0 .. 2]]
+        && and [b' (c, i) == Right (c + i) | c <- [0 .. 2], i <- [0 .. 2]]
+
 machineTopic :: Verbosity -> IO [Bool]
 machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
@@ -315,6 +352,10 @@ machineTopic verbosity = do
       checkV verbosity "mergeNat naturality at (,)" natPair,
       checkV verbosity "mergeNat naturality at Either" natEither,
       checkV verbosity "mergeNat naturality at These" natThese,
+      checkV verbosity "SBody fuse after unfuse reproduces the tick (Either Bool, exhaustive)" sbodyRT,
+      checkV verbosity "TBody fuse after unfuse reproduces the tick (These Bool, exhaustive)" tbodyRT,
+      checkV verbosity "SBody unfuse after fuse hands the legs back" sbodyLegs,
+      checkV verbosity "TBody unfuse after fuse hands the legs back" tbodyLegs,
       checkV verbosity "mooreT unit L at (,): scanT (id . m) == scanT m" (scanT (id . sumG) xs == scanT sumG xs),
       checkV verbosity "mooreT unit R at (,): scanT (m . id) == scanT m" (scanT (sumG . id) xs == scanT sumG xs),
       checkV verbosity "mooreT unit L at Either" (scanT (id . eitherG) xs == scanT eitherG xs),
