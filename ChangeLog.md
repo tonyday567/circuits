@@ -3,107 +3,90 @@
 ## 0.3.0.0 — unreleased
 
 Linear-logic refactor: multiplicative/additive/exponential connectives, the
-knot-body category, polynomial interfaces, shared-medium scheduling, and the
-move from `Loop` to `Trace`.
+factored machine core, polynomial interfaces, shared-medium scheduling, and
+the move from `Loop` to `Trace`. A second consolidation then merged the
+machine vocabulary into `Circuit.Machine` / `Circuit.Step`; the entries
+below describe the tree as it stands.
 
-*Knot-body category and trace syntax*
+*Machine core*
 
-- `Circuit.Body` introduces `Body t ch arr a b`, the category
-  `arr (t ch a) (t ch b)` that underlies loops, processes, machines, and
-  channel poles.
-- The free traced monoidal category is now `Circuit.Trace.Trace` (with
-  constructors `base` and `yank`), replacing the old `Circuit.Loop.Loop`.
-- `Circuit.Layer` hosts the free category `Free`, with `freeze` for
-  same-category interpretation. `Layer.run` now defaults to `bind id`.
-- `Run Free arr` now includes `Discrete arr`, which is the price of the
-  default. `freeze` remains available for same-category folds that do not
-  have a `Discrete` base.
+- `Circuit.Machine` hosts the factored machine: `Body` (init/commit/emit),
+  `Step` (the one-tick arrow), `Moore`/`MooreT` (the channel sealed behind
+  the body), and `Poles` (init/commit/emit ends). Runners `scan`, `fold`,
+  `delay`, `register`, and `mealyToKnot` live here.
+- Cells, bodies, Moore machines, and poles are all factorisations of the
+  one `Step`/`Body` shape over a channel, under tensors `t t'`, in a base
+  arrow `arr`.
 
-*Polynomial interfaces and stateful processes*
+*Free traced syntax*
 
-- New modules `Circuit.Poly` and `Circuit.Moore`. `Poly` promotes
-  polynomial expressions to a kind, with `Eval`, position/direction families
-  `Pos`/`Dir`, the netlist view (`Netlist`), lenses and prisms, and the
-  structured channel family `Chs`. `Moore`'s `MachineP t s arr p` is a state
-  machine fibered over a polynomial interface, with eval/arrow conversion,
-  parallel wiring, branching, duplication, coalgebras, and channel-pole
-  views (`machinePToPoles`, `machinePToPolesChs`).
-- `Circuit.Process` provides `Process` as a Moore-machine base arrow,
-  with `scan`, `fold`, `mealy`, `delay`, `register`, and conversions to/from
-  `Body`, `MachineP`, and `Trace Either (->)`. The pointed form is
-  `ProcessP` (explicit seed); boundary machines (`markProcessP`,
-  `scheduleAsProcessP`) and receipt transcripts live here and in
-  `Circuit.Shared`.
+- `Circuit.Trace` is the free traced monoidal category (constructors
+  `base` and `yank`), replacing the old `Circuit.Loop`. It documents the
+  Central Sliding side-condition (Benton–Hyland Def 3.2): the free normal
+  form is sound over a premonoidal base only when structural maps are
+  central.
+- `Circuit.Syntax` is the generic substrate and its interpretation
+  (`eval`, `run`, `Lift`).
+- `Circuit.Net` is wiring with bimonoid rows; `melt` forgets wiring into
+  `Trace`. Constructors carry the precise structural constraints:
+  `Copy`/`Discard` require `CopyDiscard`, `Plus`/`Zero` require
+  `MergeZero`.
+- `Circuit.Stream` holds the neutral stream interface (`Uncons`, `Snoc`)
+  used by stream runners.
+- `Circuit.Span` (spans, `bodyFromSpan`/`spanFromBody`) and
+  `Circuit.Pullback` (linear cotangent maps for reverse mode) fill the
+  equipment ladder.
 
-*Multiplicative/additive connectives and scheduling*
+*Polynomial interfaces*
+
+- `Circuit.Poly` promotes polynomial expressions to a kind, with the `Eval`
+  GADT witnessing the value shape, position/direction families `Pos`/`Dir`,
+  and the `PTensor` Dirichlet product.
+
+*Connectives and scheduling*
 
 - `Circuit.Linear` adds linear-logic classes: `Lolli` (internal hom) and
   `Exponential` with `Bang`/`WhyNot` modalities.
-- `Circuit.Par` provides the multiplicative disjunction `⅋`, `Bot`, and
-  linear distributors `distL` / `distR` / `mix`.
-- `Circuit.Shared` gives shared-medium fusion (`sharedBy`) over a single
-  feedback channel, driven by a `Schedule` and `Pick` (`PickL`/`PickR`/
-  `Both Bias`), and receipt transcripts (`transcriptSharedBy`).
+- `Circuit.Shared` gives shared-medium fusion (`sharedBy`) over a feedback
+  channel, driven by a `Schedule` and `Pick` (`PickL`/`PickR`/`Both Bias`),
+  receipt transcripts, and the `Stamped` boundary token.
 - `Circuit.Tensor.superpose` fuses two independent-feedback bodies when the
   tensor matches.
-- `Bias` is reused for additive disjunction in `Circuit.Equip`.
-
-*Channel poles and arrow equipment*
-
-- `Circuit.Equip` replaces the old `Circuit.Ends` API (via the retired
-  `Circuit.Poles` rename): explicit-carrier `Poles ch ch' arrW arrR a b`
-  with the plug family (`plug`, `close`, `plugSplit`, `plugBridge`),
-  additive `pair`/`race`, tight companions (`companionTight`,
-  `conjointTight`), squares (`Sq`, `TwoCell`) and their whisker algebra,
-  boundary tokens (`Boundary`, `Stamped`), and unit cells (`UnitCell`) —
-  the explicit discharge of pointing.
-- Structural `Strength` is the base's requirement for trace syntax; the
-  co-trace is `Yank t (Op arr)`, completing the structural ladder for
-  codata bodies.
-- `Circuit.Span` (spans, `bodyFromSpan`/`spanFromBody`),
-  `Circuit.Optic` (mixed optics as residual maps), and
-  `Circuit.Pullback` (linear cotangent maps for reverse mode) fill the
-  equipment ladder; `Circuit.Rel` is a finite-relation reference semantics.
 - `Circuit.Bimonoid` splits the structural rules into `Copy`/`Discard`
   (`CopyDiscard`) and `Merge`/`Zero` (`MergeZero`).
-- `Circuit.Net` constructors now carry the precise constraint:
-  `Copy`/`Discard` require `CopyDiscard`, `Plus`/`Zero` require `MergeZero`.
-- `Circuit.Dagger` provides the free dagger category and `transpose`.
 
-*Free syntax substrate*
+*Structural ladder*
 
-- `Circuit.Fragment` is removed. Free syntax is now built from the generic
-  substrate in `Circuit.Syntax` plus the signature modules in
-  `Circuit.Trace`, `Circuit.SMC`, `Circuit.Net`, and `Circuit.Shared`.
-- `Circuit.SMC` is the free symmetric monoidal category over a wiring tensor.
-- `Circuit.Net` is `SMC` plus bimonoid rows; `melt` forgets wiring into
-  `Trace`.
-- `Circuit.Stream` holds the neutral stream interface (`Uncons`, `Snoc`)
-  used by stream runners.
+- `Circuit.Traced` is the structural class ladder: `Assoc`, `Slide`,
+  `Strength`, `Yank`; instances for `(->)` and `K m` over the `(,)`,
+  `Either`, and `These` tensors. `Unfold` lives here too: coiteration over a
+  grammar, with `Nu` the run's output shape.
 
-*Trace honesty and oracles*
+*Oracles*
 
-- `Circuit.Trace` documents the Central Sliding side-condition
-  (Benton–Hyland Def 3.2): the free traced monoidal normal form is sound over
-  a premonoidal base only when structural maps are central.
-- `Circuit.FinRel` provides GF(2) linear relations as a reference semantics.
-- The `circuits-axioma` executable witnesses bimonoid laws, `Process`
-  semantics, `Body` conversions, centrality, shared-medium scheduling,
-  split-pole bridges, boundary receipts, and polynomial poles.
+- The `circuits-axioma` executable and its `Axioma.*` topic modules witness
+  bimonoid laws, machine conversions, centrality, shared-medium scheduling,
+  and polynomial poles.
 
-*Removed / merged*
+*Removed / merged (cumulative over both consolidations)*
 
 - `Circuit.Loop` is retired; use `Circuit.Trace`.
-- `Circuit.Ends` is replaced by `Circuit.Equip`; the intermediate
-  `Circuit.Poles` rename and `Circuit.Ends.State.*` modules are gone.
-- `Circuit.Channel` and `Circuit.System` are retired; `SystemT`/`mooreSystem`
-  are superseded by `Circuit.Moore`'s `MachineP` and `Circuit.Process`'s
-  conversions.
-- `Circuit.Fragment` and its bundled `SigBimonoid` are gone.
-- `Circuit.Rel` (finite relations, the two-grade reference semantics) moves
-  to the new sibling package `circuits-rel`, along with the `FinRel` topic
-  of the `circuits-axioma` oracle runner (now `circuits-rel-axioma`). The
-  `Circuit` umbrella no longer re-exports it.
+- `Circuit.Ends`, the intermediate `Circuit.Poles` module, and
+  `Circuit.Equip` are retired; the surviving ends vocabulary is `Poles` in
+  `Circuit.Machine` and the one-tick arrow in `Circuit.Step`.
+- `Circuit.Channel` and `Circuit.System` are retired, with `SystemT` and
+  `mooreSystem` superseded by the `Machine`/`Body` families.
+- `Circuit.Moore` and `Circuit.Process` no longer exist as modules; the
+  Moore machine and its process spellings live in `Circuit.Machine`.
+  `Circuit.Par`, `Circuit.Optic`, `Circuit.Layer`, and `Circuit.Dagger`
+  were withdrawn in the second consolidation.
+- `Circuit.Fragment` and its bundled `SigBimonoid` are gone; free syntax is
+  built from the generic substrate in `Circuit.Syntax` plus the signature
+  modules `Circuit.Trace` and `Circuit.Net`.
+- `Circuit.Rel` (finite relations, the two-grade reference semantics) moved
+  to the sibling package `circuits-rel`, along with the `FinRel` topic of
+  the oracle runner (now `circuits-rel-axioma`). The `Circuit` umbrella no
+  longer re-exports it.
 - `Circuit.Free`, `Circuit.Sym`, `Circuit.Algebra`, `Circuit.Classes`,
   `Circuit.Monoidal`, `Circuit.Strength`, `Circuit.Adjunction`,
   `Circuit.Signature`, `Circuit.Box`, `Circuit.Queue`, `Circuit.Loopd`, and

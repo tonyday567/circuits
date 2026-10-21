@@ -8,10 +8,11 @@ description: Free traced monoidal categories. Trace (inspectable syntax), Hyper 
 A free traced monoidal category over any base arrow. The library has one
 common shape and three views of it:
 
-- `Stratum t ch arr i o = arr (t ch i) (t ch o)` — a morphism that threads
-  an ambient channel `ch` alongside a payload, under a tensor `t`, in a base
-  arrow `arr`. Cells, bodies, Moore machines, and poles are all
-  factorisations or wrappers of this shape.
+- `Step t t' ch ch' arr i o` / `Body t t' ch ch' arr i o` — the one-tick
+  morphism and its factored init/commit/emit form, threading a channel `ch`
+  alongside a payload under tensors `t t'` in a base arrow `arr`. Cells,
+  Moore machines, and poles are all factorisations or wrappers of this
+  shape.
 - `Trace t arr a b` — the inspectable initial/free syntax for traced
   monoidal categories (`base` + `yank`).
 - `Hyper` / `HyperA arr` — the final coinductive encoding over `(->)` and
