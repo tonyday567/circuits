@@ -12,32 +12,32 @@ draws on when it folds. ([open full page](other/circuits-class.html))
 graph LR
   Category["Category"]
   Assoc["Assoc"]
-  Slide["Slide"]
+  OuterSwap["OuterSwap"]
   Strength["Strength"]
-  Yank["Yank"]
+  Trace["Trace"]
   Tensor["Tensor"]
-  Action["Action"]
+  Symmetric["Symmetric"]
   Bimonoid["Bimonoid"]
 
   Free["Free"]
   SMC["SMC"]
   Net["Net"]
-  Trace["Trace"]
+  FreeTrace["FreeTrace"]
 
   Category -.-> Free
-  Assoc -.-> Trace
-  Slide -.-> Trace
-  Strength -.-> Trace
-  Yank -.-> Trace
-  Action -.-> SMC
-  Action -.-> Net
+  Assoc -.-> FreeTrace
+  OuterSwap -.-> FreeTrace
+  Strength -.-> FreeTrace
+  Trace -.-> FreeTrace
+  Symmetric -.-> SMC
+  Symmetric -.-> Net
   Bimonoid -.-> Net
 
-  Category --> Assoc --> Strength --> Yank
-  Category --> Slide --> Strength
-  Category --> Tensor --> Action
+  Category --> Assoc --> Strength --> Trace
+  Category --> OuterSwap --> Strength
+  Category --> Tensor --> Symmetric
   Free --> SMC --> Net
-  Net --> Trace
+  Net --> FreeTrace
 
   linkStyle 0,1,2,3,4,5,6 stroke:#C44E8A,stroke-width:2px
   linkStyle 7,8,9,10,11 stroke:#4B7FBD,stroke-width:2px
@@ -45,16 +45,16 @@ graph LR
 
   style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
   style Assoc fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
-  style Slide fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style OuterSwap fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
-  style Yank fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style Trace fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
   style Tensor fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Symmetric fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Trace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style FreeTrace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
 ```
 
 The module view groups the classes into their source files and adds the
@@ -66,18 +66,18 @@ graph LR
 
   subgraph Channel ["Circuit.Traced"]
     Assoc["Assoc"]
-    Slide["Slide"]
+    OuterSwap["OuterSwap"]
     Strength["Strength"]
-    Yank["Yank"]
+    Trace["Trace"]
   end
 
   subgraph Tensor ["Circuit.Tensor"]
     TensorClass["Tensor"]
-    Action["Action"]
+    Symmetric["Symmetric"]
   end
 
   Net["Circuit.Net"]
-  Trace["Circuit.Trace"]
+  FreeTrace["Circuit.Trace"]
   Hyper["Circuit.Hyper"]
   Dagger["Dagger (Circuit.Bimonoid)"]
   Poly["Circuit.Poly"]
@@ -87,20 +87,20 @@ graph LR
   Bimonoid["Circuit.Bimonoid"]
   Linear["Circuit.Linear"]
 
-  Category --> Assoc --> Strength --> Yank
-  Category --> Slide --> Strength
-  Category --> TensorClass --> Action
-  Net --> Trace
-  Trace --> Hyper
+  Category --> Assoc --> Strength --> Trace
+  Category --> OuterSwap --> Strength
+  Category --> TensorClass --> Symmetric
+  Net --> FreeTrace
+  FreeTrace --> Hyper
   Dagger --> Net
   Machine --> Poly
   Machine --> Bimonoid
-  Machine --> Yank
-  Shared --> Trace
+  Machine --> Trace
+  Shared --> FreeTrace
   Bimonoid --> Net
   Linear --> Shared
   Machine --> Step
-  Trace --> Step
+  FreeTrace --> Step
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
   linkStyle 3,4 stroke:#4B9680,stroke-width:2px
@@ -114,15 +114,15 @@ graph LR
   style Tensor fill:transparent,stroke:#D98A3A,stroke-width:2px,stroke-dasharray: 5 5
   style Category fill:#1F7050,stroke:#1F7050,color:#1b1e23
   style Assoc fill:#4B7FBD,stroke:#4B7FBD,color:#1b1e23
-  style Slide fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
+  style OuterSwap fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
   style Strength fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
-  style Yank fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
+  style Trace fill:#3D3D7A,stroke:#3D3D7A,color:#c8ccd4
   style TensorClass fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Action fill:#4B9680,stroke:#4B9680,color:#1b1e23
+  style Symmetric fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Free fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style SMC fill:#8FB83A,stroke:#8FB83A,color:#1b1e23
   style Net fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
-  style Trace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
+  style FreeTrace fill:#C44E8A,stroke:#C44E8A,color:#1b1e23
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
@@ -140,9 +140,9 @@ Everything is built over a base arrow that you bring — `(->)`, `K m`,
 semantics; it adds structure along two ladders and one common shape.
 
 **A ladder of laws.** The type classes form chains out of `Category`:
-`Assoc / Slide → Strength → Yank` (monoidal associator, slide, tensorial
-strength, feedback via yank) and `Tensor → Action` (the concrete `(,)` and
-`Either` machinery).
+`Assoc / OuterSwap → Strength → Trace` (monoidal associator, outer swap,
+tensorial strength, feedback via trace) and `Tensor → Symmetric` (the
+concrete `(,)` and `Either` machinery).
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
@@ -151,17 +151,17 @@ the morphism `arr (t ch i) (t' ch' o)`, in its own module `Circuit.Step`.
 A step threads an ambient channel `ch` alongside a payload, under a
 tensor `t`. It is the shared shape both lanes are built on: the machines
 of `Circuit.Machine` are factorised from it (cells, bodies, Moore
-machines, poles), and the loop bodies of `Circuit.Trace` are yanked from
-it.
+machines, poles), and the loop bodies of `Circuit.Trace`'s free syntax are
+traced from it.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
 exactly when no input supplies one. `Body` keeps it explicit as the
 `init` leg — the seed as data, with `moore` spelling the common case at
 `(->)`; `Cell` carries it as the `seed` leg at the tensor's unit. The
-`Yank (,) (MooreT (,) (->))` instance discharges it through closure:
-`yank` ties the state channel in a lazy knot, and the absence of a seed
+`Trace (,) (MooreT (,) (->))` instance discharges it through closure:
+`trace` ties the state channel in a lazy knot, and the absence of a seed
 is visible in the type. The discharges are not interchangeable: the lazy knot diverges on
-strict accumulators — which is why `delay` and `register` exist as
+strict accumulators — which is why `delay` and `feedback` exist as
 explicit wiring.
 
 ```haskell
@@ -173,16 +173,17 @@ rung one enrichment of the last:
 
     Free = Lift + Compose
     SMC  = Free + Par + Swap
-    Net  = SMC + Copy + Discard + Plus + Zero
+    Net  = SMC + Copy + Discard + Merge + Zero
 
 `Free` is the free category; `SMC` the free symmetric monoidal category; `Net`
 the free symmetric monoidal category with a bimonoid, where every wire is a
-constructor you can inspect. `Trace` sits to the side of this chain rather than
-on it: it is the free traced monoidal category *in normal form*. Its laws are
-performed by its instances, so every value collapses to at most one `yank` over
-a base arrow. `Net` and `Trace` are the two poles of the library — wiring you
-can read backwards, and wiring that has been melted into a single loop. `melt`
-goes from `Net` to `Trace`; feedback lives in `Trace`, not in `Net`.
+constructor you can inspect. `FreeTrace` sits to the side of this chain rather
+than on it: it is the free traced monoidal category *in normal form*. Its laws
+are performed by its instances, so every value collapses to at most one `trace`
+over a lifted base arrow. `Net` and `FreeTrace` are the two poles of the
+library — wiring you can read backwards (`daggerNet` reads it backwards
+literally), and wiring that has been melted into a single loop. `melt` goes
+from `Net` to `FreeTrace`; feedback lives in `FreeTrace`, not in `Net`.
 
 **Between the ladders** there is a family of folds. Each free construction can
 be evaluated into any target category that satisfies the right laws; the GADT's
@@ -194,17 +195,15 @@ functors.
 
 - `t` — the feedback tensor: `(,)` for lazy dataflow, `Either` for iteration,
   `These` for scheduling / shared-medium fusion.
-- `arr` — the base arrow: `(->)`, `K m` for effects, `Process` for streaming,
-  `FinRel` for nondeterminism, matrices over a semiring.
-- `s` / `ch` — the residual state carried by a `Body` / `System`; `Body` makes
-  this channel explicit before tracing.
+- `arr` — the base arrow: `(->)`, `K m` for effects, `FinRel` for
+  nondeterminism, matrices over a semiring.
+- `s` / `ch` — the residual state carried by a `Body`; `Body` makes this
+  channel explicit before tracing.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
-  machine / lens, general `p` adds sums, products, dependent lenses and prisms,
-  giving `Circuit.Channel` its interactive channel model.
+  machine / lens, general `p` adds sums, products, dependent lenses and prisms.
 
-The recent refactor crystallised this around `Body t ch arr a b`. Everything
-stateful — `Process`, `Moore`, `Poles` — is a specialisation or projection of
-it.
+The machine core crystallised around `Body t ch arr a b`. Everything stateful
+— `Moore`/`MooreT`, `Poles` — is a specialisation or projection of it.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a
@@ -220,7 +219,7 @@ The core stays small; companion libraries apply it to specific domains.
 
 | library | what it adds |
 |---------|-------------|
-| [circuits-ad](https://github.com/tonyday567/circuits-ad) | reverse-mode automatic differentiation, pullbacks, and star-elimination |
+| [circuits-diff](https://github.com/tonyday567/circuits-diff) | reverse-mode automatic differentiation, pullbacks, and star-elimination |
 | [circuits-examples](https://github.com/tonyday567/circuits-examples) | paste-into-GHCi example cards |
 | [circuits-int](https://github.com/tonyday567/circuits-int) | Int construction and polynomial-functor sketches |
 | [circuits-io](https://github.com/tonyday567/circuits-io) | sockets, queues, servers, and concrete IO transports |

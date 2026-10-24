@@ -17,9 +17,9 @@
 -- The tip of the operator points in the direction of data flow.
 --
 -- * @|@ means /apply/ to a value: @('|>')@ feeds a value into a function
---   (forward application, like @&@). @('<|')@ is not provided: it duplicates
---   @'$'@ and collides with 'Data.List.NonEmpty.NonEmpty' — kept off the
---   vocabulary deliberately.
+--   (forward application, like @&@). Backward application ((<|)) is not
+--   provided: it duplicates @'$'@ and collides with
+--   'Data.List.NonEmpty.NonEmpty' — kept off the vocabulary deliberately.
 -- * @.@ means /compose/ morphisms: @('.>')@ is forward composition,
 --   @('.')@ is backward composition as usual, and @('<.')@ is the same
 --   backward composition under a non-Prelude name.
@@ -190,7 +190,7 @@ instance (Monad m) => FunctionLike (K m) where
 --
 -- This is the EM side of pointing — an algebra of the @Maybe@ monad,
 -- structure on the object. The runner-facing presentation of the same
--- pointing is the 'Cell' seed leg in "Circuit.Machine".
+-- pointing is the 'Circuit.Machine.Cell' seed leg in "Circuit.Machine".
 class Pointed a where
   point :: a
 

@@ -279,7 +279,7 @@ instance Layer Free where
   bind h (FreeLift f) = h f
   bind h (FreeCompose @_ @_ g f) = bind h g . bind h f
 
--- | Lift the 'Channel' structure through 'Free'.
+-- | Lift the 'Assoc' structure through 'Free'.
 instance (Assoc t arr) => Assoc t (Free arr) where
   assoc = FreeLift assoc
   assoc' = FreeLift assoc'
@@ -287,7 +287,7 @@ instance (Assoc t arr) => Assoc t (Free arr) where
 instance (OuterSwap t arr) => OuterSwap t (Free arr) where
   outerSwap = FreeLift outerSwap
 
--- | Lift the 'Channel' structure through 'Free'.
+-- | Lift the 'Strength' structure through 'Free'.
 --
 -- A morphism is run back to the base arrow before tensoring with the
 -- feedback channel.

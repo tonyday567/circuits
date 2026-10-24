@@ -163,7 +163,7 @@
 -- == Usage
 --
 -- The library brings its own 'id' and '(.)'. Importing it unqualified
--- alongside 'Prelude' requires hiding the duplicates:
+-- alongside Prelude requires hiding the duplicates:
 --
 -- @
 -- import Prelude hiding (id, (.))

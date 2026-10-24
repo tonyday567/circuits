@@ -18,7 +18,7 @@
 --
 -- The wall between the grades is 'Sum': a flat direction
 -- @Either (Dir p) (Dir q)@ cannot be narrowed to the branch the
--- position selected, which is why 'Netlist' has no @Sum@ instance.
+-- position selected, which is why 'Circuit.Poly.Netlist' has no @Sum@ instance.
 -- The fibre depends on the position only
 -- through its 'Sum'-branch choices — the constructor, never the
 -- payload — so a position splits into a promotable skeleton
@@ -36,7 +36,7 @@
 -- /Second wall:/ @'Comp'@ does not admit a 'DirAt' equation at all —
 -- its inner skeleton is determined by a /runtime/ direction, a
 -- genuine term-to-type dependency that Haskell cannot express.
--- 'compToNested' is the escape hatch: @Eval p (Eval q x)@ is
+-- 'Circuit.Poly.compToNested' is the escape hatch: @Eval p (Eval q x)@ is
 -- fibre-honest at both levels by construction.  This module
 -- deliberately has no @'Comp'@ cases.
 --
@@ -284,7 +284,7 @@ instance (Located p, Located q) => Located (PTensor p q) where
 
 -- | The container isomorphism: 'Eval' values are positions with pin
 -- assignments.  Instances exist at every structural constructor
--- including 'Sum' — the round trip 'netRoundTrip' cannot express.
+-- including 'Sum' — the round trip 'Circuit.Poly.netRoundTrip' cannot express.
 --
 -- The @'PTensor'@ instance additionally demands 'FlatFibre' on both
 -- factors: an 'ET' value stores a flat function, and meeting the
@@ -331,7 +331,7 @@ instance
 -- | The flat netlist view, derived /through/ the fibred one: project
 -- the position, and compose the pin map with the total narrowing.
 --
--- Wherever 'Netlist' holds, @p@ is @Sum@-free, so 'Container' and
+-- Wherever 'Circuit.Poly.Netlist' holds, @p@ is @Sum@-free, so 'Container' and
 -- 'FlatFibre' both hold and this agrees with 'Circuit.Poly.toNet' —
 -- checked by oracle in \"Axioma.Container\", not asserted by a
 -- superclass.  The class tower stays unconstrained.
@@ -342,7 +342,7 @@ netViaFibred v = case toFibred v of
 -- | A morphism read at the fibre: the target position plus the
 -- pullback on pins, both at the skeleton.  The target may be a
 -- 'Sum' — which is exactly what 'Circuit.Poly.morphAt' cannot
--- express, since it demands 'Netlist' of the target.
+-- express, since it demands 'Circuit.Poly.Netlist' of the target.
 --
 -- >>> let p = prism (\case Left n -> Left n; Right s -> Right (Right s)) Left :: Morphism (Mono (Either Int String) (Either Int String)) (Sum (Mono Int Int) (Mono (Either Int String) (Either Int String)))
 -- >>> case morphAtC p (PosP (PosK (Left 7)) PosE) of Bundle (PosL (PosP (PosK n) PosE)) k -> (n, k (Right 3))
@@ -363,7 +363,7 @@ morphAtC m i = case toFibred (runMorphism m v) of
     v = fromFibred (Fibred i id)
 
 -- | Functorial action of the Dirichlet tensor on container factors.
--- Where 'Circuit.Poly.parT' demands 'Netlist' of all four factors,
+-- Where 'Circuit.Poly.parT' demands 'Circuit.Poly.Netlist' of all four factors,
 -- 'parTC' demands 'Container' — so a prism (or any morphism with a
 -- 'Sum' side) may appear as a factor, and the backward maps run at
 -- the fibre: off-fibre pins are not representable, by construction.
@@ -393,4 +393,4 @@ monoFibreFlat = Refl
 -- (Right (),True)
 --
 -- A 'Sum' value on the /right/ branch yields a position whose pins
--- are the /right/ factor's — the thing 'Netlist' cannot say.
+-- are the /right/ factor's — the thing 'Circuit.Poly.Netlist' cannot say.

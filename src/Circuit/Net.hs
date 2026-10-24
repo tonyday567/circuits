@@ -340,7 +340,8 @@ melt = evalInto Lift
 -- | Free symmetric monoidal category with a bimonoid.
 --
 -- Structural rows are interpreted in the target category: parallel
--- composition uses 'tensor', braiding uses 'braid', and the bimonoid
+-- composition uses 'Circuit.Tensor.tensor', braiding uses
+-- 'Circuit.Tensor.braid', and the bimonoid
 -- generators are the images under @h@ of the source dictionaries carried
 -- by the 'SigCopy', 'SigDiscard', 'SigMerge', and 'SigZero' constructors.
 --

@@ -13,7 +13,7 @@
 -- This is the linear semantics behind reverse-mode automatic
 -- differentiation: a 'Net' whose wires carry pullbacks rather than smooth
 -- maps, avoiding the second-derivative confusion that comes from trying to
--- compose 'Diff' arrows directly.
+-- compose Diff arrows directly.
 module Circuit.Pullback
   ( -- * Linear cotangent arrow
     Pullback (..),
