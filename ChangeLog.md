@@ -10,6 +10,27 @@ put the public vocabulary on canonical domain terms — operations are named
 for what they do, laws keep their names (`yanking`, `sliding`, the trace
 axioms) — and the entries below describe the tree as it stands.
 
+*OpticBody — the residual decomposition*
+
+- `Circuit.Machine` gains the `OpticBody` bundle: the residual
+  (existential) split of a lens tick — `focus` from the tick-start
+  channel to the output and a residual, `rebuild` from the residual and
+  the tick input to the new channel. `fuseOpticBody` needs only
+  `Symmetric (,) arr`; the fuse pays no copy and no discard. The bridges
+  `lensBodyToOptic` / `opticToLensBody` (the `LensBody` case `r ~ ch`)
+  and `lensAsOptic` / `opticAsLens` (the canonical residual
+  `r ~ i -> ch'`) land it beside the existing getter/putter and lens
+  bridges.
+- `fuseLensBody` is now `fuseOpticBody . lensBodyToOptic`: its
+  constraints drop from `Copy arr (ch, i)` + `Discard arr i` to
+  `Symmetric (,) arr` + `Copy arr ch`. **Effect-order change at
+  effectful arrows**: the old formulation ran `set` before `view`
+  (`copy .> tensor set (… view)`); the residual route runs `view`
+  (inside `focus`) before `set` (inside `rebuild`). The new order is the
+  intended one — the view reads the tick-start channel, and the paper's
+  rule produces the output before the input is supplied — and is
+  witnessed over `K IO` in "Axioma.Machine" (`K Identity` cannot see it).
+
 *The naming pass, final vocabulary*
 
 - Traced core: `Yank`/`yank` → `Trace`/`trace`; `Slide`/`slide` →

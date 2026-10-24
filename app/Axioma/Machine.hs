@@ -13,7 +13,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (K (..), id, (.))
-import Circuit.Machine (Body (Body), Cell (..), EitherBody (..), FoldBody (..), LensBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), ProfunctorBody (..), Step (..), TheseBody (..), bodyAsLens, fold, fuseEitherBody, fuseFoldBody, fuseLensBody, fuseProfunctorBody, fuseTheseBody, lensAsLensBody, lensBodyAsLens, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseEitherBody, unfuseTheseBody)
+import Circuit.Machine (Body (Body), Cell (..), EitherBody (..), FoldBody (..), LensBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), OpticBody (..), ProfunctorBody (..), Step (..), TheseBody (..), bodyAsLens, fold, fuseEitherBody, fuseFoldBody, fuseLensBody, fuseOpticBody, fuseProfunctorBody, fuseTheseBody, lensAsLensBody, lensAsOptic, lensBodyAsLens, lensBodyToOptic, mealyToKnot, mooreToKnot, opticAsLens, opticToLensBody, scan, scanT, traceToMoore, unfuseEitherBody, unfuseTheseBody)
 import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
 import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
@@ -22,6 +22,7 @@ import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Un
 import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.Functor.Identity (Identity (..))
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List.NonEmpty (toList)
 import Data.Maybe (isNothing)
 import Data.These (These (..), these)
@@ -126,6 +127,135 @@ offDiagLensBodyOk =
    in and [view lb s == view offDiagLensBody s && set lb (s, i) == set offDiagLensBody (s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
+
+-- The OpticBody round trips. The residual is existential, so every
+-- round-trip witness compares fused ticks — never residuals. The spec
+-- witnesses spell the fused semantics directly: after the 'fuseLensBody'
+-- relaxation every round trip routes through 'fuseOpticBody' on at
+-- least one side, so without them a shared bug in the fuse would pass
+-- both sides unnoticed.
+
+-- | The reference semantics of a fused optic body, spelt directly: the
+-- tick pairs the rebuilt channel with the output, the residual threaded
+-- from 'focus' into 'rebuild'.
+opticSpecOk :: Bool
+opticSpecOk =
+  and [f (c, i) == let (o, r) = foc c in (reb (r, i), o) | c <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    foc c = (c * 2, c + 1)
+    reb = uncurry (+)
+    Step f = fuseOpticBody (OpticBody foc reb :: OpticBody (,) Int Int (->) Int Int)
+
+-- | The reference semantics of a fused lens body, spelt directly: the
+-- tick pairs the new channel ('set') with the tick-start view.
+lensBodySpecOk :: Bool
+lensBodySpecOk =
+  and [f (c, i) == (s (c, i), v c) | c <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    LensBody s v = sumLensBody
+    Step f = fuseLensBody sumLensBody
+
+-- | Fuse after the bridge agrees with 'fuseLensBody', on the diagonal
+-- and off-diagonal bodies: the residual route copies the channel alone,
+-- but the fused tick is identical.
+opticFuseLensOk :: Bool
+opticFuseLensOk =
+  and
+    [ f1 (s, i) == f2 (s, i) && g1 (s, i) == g2 (s, i)
+    | s <- points,
+      i <- points
+    ]
+  where
+    points = [-1, 0, 5] :: [Int]
+    Step f1 = fuseOpticBody (lensBodyToOptic sumLensBody)
+    Step f2 = fuseLensBody sumLensBody
+    Step g1 = fuseOpticBody (lensBodyToOptic offDiagLensBody)
+    Step g2 = fuseLensBody offDiagLensBody
+
+-- | The bridge there and back — 'opticToLensBody' after 'lensBodyToOptic'.
+-- 'LensBody' has no existential, nothing to quotient by: the legs come
+-- back exactly, and the fused tick is the original's.
+opticBodyBridgeOk :: Bool
+opticBodyBridgeOk =
+  and
+    [ f1 (s, i) == f2 (s, i)
+        && view lb s == view sumLensBody s
+        && set lb (s, i) == set sumLensBody (s, i)
+    | s <- points,
+      i <- points
+    ]
+  where
+    points = [-1, 0, 5] :: [Int]
+    lb = opticToLensBody (lensBodyToOptic sumLensBody)
+    Step f1 = fuseLensBody lb
+    Step f2 = fuseLensBody sumLensBody
+
+-- | The coend quotient: the residual body keeps the channel's successor
+-- as residual, which the getter/putter spelling has to drop — the
+-- residual changes across the bridge, the fused tick doesn't.
+opticCoendOk :: Bool
+opticCoendOk =
+  and [f1 (s, i) == f2 (s, i) | s <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    ob = OpticBody (\c -> (c * 2, c + 1)) (uncurry (+)) :: OpticBody (,) Int Int (->) Int Int
+    Step f1 = fuseOpticBody (lensBodyToOptic (opticToLensBody ob))
+    Step f2 = fuseOpticBody ob
+
+-- | The coend quotient across a residual of a different type: the
+-- residual body pairs the channel with a flag, which the getter/putter
+-- spelling has to drop entirely — the residual's type changes across
+-- the bridge, the fused tick doesn't.
+opticCoendTypedOk :: Bool
+opticCoendTypedOk =
+  and [f1 (c, i) == f2 (c, i) | c <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    ob = OpticBody (\c -> (c * 2, (c, even c))) (\((r, _), i) -> r + i) :: OpticBody (,) Int Int (->) Int Int
+    Step f1 = fuseOpticBody (lensBodyToOptic (opticToLensBody ob))
+    Step f2 = fuseOpticBody ob
+
+-- | A fused tick whose channel, input and output are three different
+-- types (Int, String, Bool): a swapped braid or crossed wire is a type
+-- error here, not a value accident.
+opticTypedOk :: Bool
+opticTypedOk =
+  and [f (c, i) == (show (c * 2) ++ i, even c) | c <- points, i <- strs]
+  where
+    points = [-1, 0, 5] :: [Int]
+    strs = ["", "x"] :: [String]
+    ob = OpticBody (\c -> (even c, c * 2)) (\(r, i) -> show r ++ i) :: OpticBody (,) Int String (->) String Bool
+    Step f = fuseOpticBody ob
+
+-- | The canonical residual fuses like the getter/putter spelling:
+-- 'fuseOpticBody' after 'lensAsOptic' agrees with 'fuseLensBody' after
+-- 'lensAsLensBody'.
+lensAsOpticOk :: Bool
+lensAsOpticOk =
+  and [f1 (s, i) == f2 (s, i) | s <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    l = lensBodyAsLens sumLensBody
+    Step f1 = fuseOpticBody (lensAsOptic l)
+    Step f2 = fuseLensBody (lensAsLensBody l)
+
+-- | 'opticAsLens' after 'lensAsOptic' returns the lens. The put runs
+-- 'focus' a second time, so the round trip is witnessed through
+-- 'applyLens', extensionally.
+opticAsLensOk :: Bool
+opticAsLensOk =
+  and
+    [ let (a1, p1) = applyLens (opticAsLens (lensAsOptic l)) s
+          (a2, p2) = applyLens l s
+       in (a1, p1 i) == (a2, p2 i)
+    | s <- points,
+      i <- points
+    ]
+  where
+    points = [-1, 0, 5] :: [Int]
+    l = lensBodyAsLens sumLensBody
 
 -- | A named 'Body' at the @(Const, (,))@ corner: 'commit' writes the
 -- channel from the input alone (its length) — the @Const@ tick source
@@ -414,6 +544,24 @@ fuseLensBodyK =
       Step (K f) = fuseLensBody lb
    in runIdentity (f (3, 4)) == (7, 6)
 
+-- | The relaxed fuse's effect order over 'K IO': the residual route runs
+-- the view (inside 'focus') before the set (inside 'rebuild') — the
+-- output is produced before the input is consumed. Each leg logs to a
+-- shared IORef; the old formulation ran set-then-view, and 'K Identity'
+-- cannot see either order.
+fuseLensBodyOrderOk :: IO Bool
+fuseLensBodyOrderOk = do
+  ref <- newIORef []
+  let lb =
+        LensBody
+          (K $ \(c, i) -> modifyIORef' ref ("set" :) >> pure (c + i))
+          (K $ \c -> modifyIORef' ref ("view" :) >> pure (c * 2)) ::
+          LensBody (,) Int Int (K IO) Int Int
+      Step (K f) = fuseLensBody lb
+  out <- f (3, 4)
+  entries <- reverse <$> readIORef ref
+  pure (out == (7, 6) && entries == ["view", "set"])
+
 fuseEitherBodyK :: Bool
 fuseEitherBodyK =
   let sb = EitherBody (K $ pure . Left . (* 2)) (K $ pure . Right . (+ 1)) (K pure) :: EitherBody Either Either Int Int (K Identity) Int Int
@@ -443,6 +591,15 @@ machineTopic verbosity = do
       checkV verbosity "LensBody lens dictionary round trip (diagonal)" lbodyDictOk,
       checkV verbosity "lensAsLensBody round trip" lensAsLensBodyOk,
       checkV verbosity "LensBody lens dictionary round trip (off-diagonal)" offDiagLensBodyOk,
+      checkV verbosity "OpticBody spec: the fused tick pairs the rebuilt channel with the output (spelt directly)" opticSpecOk,
+      checkV verbosity "LensBody spec: the fused tick pairs set with the tick-start view (spelt directly)" lensBodySpecOk,
+      checkV verbosity "OpticBody fuse after lensBodyToOptic agrees with fuseLensBody (diagonal and off-diagonal)" opticFuseLensOk,
+      checkV verbosity "opticToLensBody after lensBodyToOptic hands the legs back exactly" opticBodyBridgeOk,
+      checkV verbosity "OpticBody coend quotient: the residual changes, the fused tick doesn't" opticCoendOk,
+      checkV verbosity "OpticBody coend quotient across a residual of a different type (Int, Bool)" opticCoendTypedOk,
+      checkV verbosity "OpticBody fused tick at three distinct carrier types (Int, String, Bool)" opticTypedOk,
+      checkV verbosity "fuseOpticBody . lensAsOptic agrees with fuseLensBody . lensAsLensBody" lensAsOpticOk,
+      checkV verbosity "opticAsLens after lensAsOptic returns the lens (witnessed through applyLens)" opticAsLensOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),
       checkV verbosity "body GetPut catches the accumulator" (not (getPut accW 1)),
       checkV verbosity "body PutGet (register)" (all (\s -> putGet regW s 3) points),
@@ -473,6 +630,7 @@ machineTopic verbosity = do
       checkV verbosity "TheseBody unfuse after fuse hands the legs back" tbodyLegs,
       checkV verbosity "FoldBody fuse over K Identity" fuseFoldBodyK,
       checkV verbosity "LensBody fuse over K Identity" fuseLensBodyK,
+      checkIOV verbosity "fuseLensBody runs view before set over K IO (the residual route's effect order)" fuseLensBodyOrderOk,
       checkV verbosity "EitherBody fuse over K Identity" fuseEitherBodyK,
       checkV verbosity "TheseBody fuse over K Identity" fuseTheseBodyK,
       checkV verbosity "ProfunctorBody fuse over K Identity" fuseProfunctorBodyK,
