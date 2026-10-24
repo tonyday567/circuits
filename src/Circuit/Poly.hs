@@ -32,7 +32,7 @@
 --
 -- Two extra constructors make dependent lenses expressible:
 --
--- * 'Global' introduces a global element (a constant position).
+-- * 'Constant' introduces a constant position (a global element).
 -- * 'Depend' is the copower universal property: a @Konst a@-indexed family
 --   of morphisms @p -> q@.
 --
@@ -463,7 +463,7 @@ tensorEval v w =
 -- bundle map: a function on positions together with a contravariant
 -- family of functions on directions.
 --
--- 'Global' and 'Depend' extend the original Poly sketch so that backward
+-- 'Constant' and 'Depend' extend the original Poly sketch so that backward
 -- maps can depend on the current position, giving point-dependent lenses.
 data Morphism (p :: Poly) (q :: Poly) where
   -- | Identity morphism.
@@ -490,8 +490,8 @@ data Morphism (p :: Poly) (q :: Poly) where
   Snd :: Morphism ('Prod p q) q
   -- | Product pairing.
   Pair :: Morphism r p -> Morphism r q -> Morphism r ('Prod p q)
-  -- | Global element (constant introduction).
-  Global :: b -> Morphism p ('Konst b)
+  -- | Constant position (global-element introduction).
+  Constant :: b -> Morphism p ('Konst b)
   -- | Copower universal property: a @Konst a@-indexed family of morphisms.
   Depend :: (a -> Morphism p q) -> Morphism ('Prod ('Konst a) p) q
   -- | Left associator for the Dirichlet tensor:
@@ -563,7 +563,7 @@ runMorphism = \case
   Fst -> \(EP (a, _)) -> a
   Snd -> \(EP (_, b)) -> b
   Pair f g -> \r -> EP (runMorphism f r, runMorphism g r)
-  Global b -> \_ -> EK b
+  Constant b -> \_ -> EK b
   Depend k -> \(EP (EK a, p)) -> runMorphism (k a) p
   TensorAssocL -> \(ET ((pp, pq), pr) f) ->
     ET (pp, (pq, pr)) (f . (\(dp, (dq, dr)) -> ((dp, dq), dr)))
@@ -720,11 +720,11 @@ type Lens s t a b = Morphism (Mono t s) (Mono b a)
 -- >>> let (v, put) = applyLens l 40 in (v, put 2)
 -- ("40",42)
 lens :: (s -> a) -> (s -> b -> t) -> Lens s t a b
-lens f g = Depend (\s -> Pair (Global (f s)) (ExpMap (g s)))
+lens f g = Depend (\s -> Pair (Constant (f s)) (ExpMap (g s)))
 
 -- | The position-independent dagger case.
 --
--- Expressible without 'Global' or 'Depend'.
+-- Expressible without 'Constant' or 'Depend'.
 --
 -- >>> let d = dagger (+1) (subtract 1) :: Lens Int Int Int Int
 -- >>> let (v, put) = applyLens d 5 in (v, put 6)

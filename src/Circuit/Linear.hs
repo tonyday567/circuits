@@ -18,8 +18,8 @@ module Circuit.Linear
     Par (..),
 
     -- * Linear distributors and mix
-    distL,
-    distR,
+    affineDistL,
+    affineDistR,
     mix,
 
     -- * Linear implication (internal hom)
@@ -112,19 +112,19 @@ instance (Monad m) => Par Either (K m) where
 -- Note that @(_, Right c) = Right c@ discards the @a@; this is legal
 -- affinely but not in strict MLL. The distributors already live in the
 -- affine fragment.
-distL :: (a, Either b c) -> Either (a, b) c
-distL (a, Left b) = Left (a, b)
-distL (_, Right c) = Right c
-{-# INLINE distL #-}
+affineDistL :: (a, Either b c) -> Either (a, b) c
+affineDistL (a, Left b) = Left (a, b)
+affineDistL (_, Right c) = Right c
+{-# INLINE affineDistL #-}
 
 -- | Right linear distributor: @(B ⅋ C) ⊗ A -> B ⅋ (C ⊗ A)@.
 --
--- Mirror of 'distL': the same affine discard is present when the left
+-- Mirror of 'affineDistL': the same affine discard is present when the left
 -- summand is taken.
-distR :: (Either b c, a) -> Either b (c, a)
-distR (Left b, _) = Left b
-distR (Right c, a) = Right (c, a)
-{-# INLINE distR #-}
+affineDistR :: (Either b c, a) -> Either b (c, a)
+affineDistR (Left b, _) = Left b
+affineDistR (Right c, a) = Right (c, a)
+{-# INLINE affineDistR #-}
 
 -- | Mix: the canonical map @⊥ -> 1@ from tensor unit to tensor unit.
 --
@@ -210,7 +210,7 @@ class (Exponential t arr) => BangCopy t arr where
 
 -- | Weakening half of @!A@: dereliction @!A → A@ and discard @!A → I@.
 class (Exponential t arr) => BangWeaken t arr where
-  discardE ::
+  weaken ::
     arr (Bang t arr a) (Unit t)
 
   derelict ::
@@ -252,8 +252,8 @@ instance BangCopy (,) (->) where
   {-# INLINE copyE #-}
 
 instance BangWeaken (,) (->) where
-  discardE _ = ()
-  {-# INLINE discardE #-}
+  weaken _ = ()
+  {-# INLINE weaken #-}
   derelict = id
   {-# INLINE derelict #-}
 

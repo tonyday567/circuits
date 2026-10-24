@@ -14,7 +14,7 @@ import Axioma.Common
     checkV,
   )
 import Circuit.Category (id, (.), (.>))
-import Circuit.Shared (AlgShared, Pick (..), Schedule (..), SigShared (..), Stamped (..), sharedBy, transcriptSharedBy)
+import Circuit.Shared (Pick (..), Schedule (..), SharedTrace, SigShared (..), Stamped (..), sharedBy, transcriptSharedBy)
 import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
@@ -265,11 +265,11 @@ sharedTopic verbosity = do
             bodySet = sort . these id id (++)
          in bodySet leftResult == [0, 0, 1, 1, 2, 2]
               && bodySet rightResult == [0, 0, 1, 1, 2, 2],
-      -- Free-syntax bridge: AlgShared is the algebraic par connective
-      checkV verbosity "AlgShared Syn.eval agrees with sharedBy" $
+      -- Free-syntax bridge: SharedTrace is the shared-fusion connective
+      checkV verbosity "SharedTrace Syn.eval agrees with sharedBy" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
+            term :: SharedTrace (,) (->) ((), ()) (These [Int] [Int])
             term =
               Oper
                 ( Syn.R
@@ -284,11 +284,11 @@ sharedTopic verbosity = do
                     )
                 )
          in eval term ((), ()) == Syn.eval (traceFun (sharedBy pureLeft k1 k2)) ((), ()),
-      checkV verbosity "AlgShared L schedule gates right body" $
+      checkV verbosity "SharedTrace L schedule gates right body" $
         let k1 = markerBody 1
             k2 = markerBody 2
             leftOnly = Schedule (,Shared.PickL) :: Schedule [Int]
-            term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
+            term :: SharedTrace (,) (->) ((), ()) (These [Int] [Int])
             term =
               Oper
                 ( Syn.R
@@ -303,11 +303,11 @@ sharedTopic verbosity = do
                     )
                 )
          in eval term ((), ()) == This [1, 1, 1],
-      checkV verbosity "AlgShared R schedule gates left body" $
+      checkV verbosity "SharedTrace R schedule gates left body" $
         let k1 = markerBody 1
             k2 = markerBody 2
             rightOnly = Schedule (,Shared.PickR) :: Schedule [Int]
-            term :: AlgShared (,) (->) ((), ()) (These [Int] [Int])
+            term :: SharedTrace (,) (->) ((), ()) (These [Int] [Int])
             term =
               Oper
                 ( Syn.R

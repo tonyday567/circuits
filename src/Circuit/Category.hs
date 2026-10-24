@@ -17,8 +17,9 @@
 -- The tip of the operator points in the direction of data flow.
 --
 -- * @|@ means /apply/ to a value: @('|>')@ feeds a value into a function
---   (forward application, like @&@), and @('<|')@ applies a function
---   to a value (backward application, like @'$'@).
+--   (forward application, like @&@). @('<|')@ is not provided: it duplicates
+--   @'$'@ and collides with 'Data.List.NonEmpty.NonEmpty' — kept off the
+--   vocabulary deliberately.
 -- * @.@ means /compose/ morphisms: @('.>')@ is forward composition,
 --   @('.')@ is backward composition as usual, and @('<.')@ is the same
 --   backward composition under a non-Prelude name.
@@ -27,7 +28,6 @@ module Circuit.Category
     (.>),
     (<.),
     (|>),
-    (<|),
     K (..),
     Comonad (..),
     CoK (..),
@@ -80,13 +80,6 @@ x |> f = f x
 {-# INLINE (|>) #-}
 
 infixl 1 |>
-
--- | Backward application. @f <| x = f x@
-(<|) :: (a -> b) -> a -> b
-f <| x = f x
-{-# INLINE (<|) #-}
-
-infixr 0 <|
 
 -- | Unconstrained function category.
 instance Category (->) where

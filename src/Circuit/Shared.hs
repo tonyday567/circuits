@@ -36,7 +36,7 @@ module Circuit.Shared
     SigShared (..),
 
     -- * Free traced category with shared-medium fusion
-    AlgShared,
+    SharedTrace,
   )
 where
 
@@ -222,4 +222,4 @@ instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
-type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigTrace t) arr
+type SharedTrace t arr = Syntax (SigCompose :+: SigShared t :+: SigTrace t) arr
