@@ -78,7 +78,7 @@ import Prelude hiding (id, (.))
 -- @t ch i@ to the grammared target @t' ch' o@. Composition needs the
 -- diagonal — the channel and grammar the tick writes must be the ones
 -- the next tick reads.
-newtype Step t t' ch ch' arr i o = Step {run :: arr (t ch i) (t' ch' o)}
+newtype Step t t' ch ch' arr i o = Step {step :: arr (t ch i) (t' ch' o)}
 
 instance (Category arr) => Category (Step t t ch ch arr) where
   id :: forall a. Step t t ch ch arr a a

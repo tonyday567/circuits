@@ -59,7 +59,8 @@ effectTopic verbosity = do
                 v <- readIORef ref
                 pure (s + v, b * 2)
               gf = g . f
-          (sOut, c) <- runK (Step.run gf) (0, 5)
+              Step.Step gfK = gf
+          (sOut, c) <- runK gfK (0, 5)
           pure (sOut == 2 && c == 12),
       -- Benton-Hyland Def 3.2 at the FreeTrace level: FreeTrace's trace inherits the
       -- Central Sliding side-condition from its base. A non-central effectful

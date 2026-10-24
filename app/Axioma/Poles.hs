@@ -9,8 +9,8 @@ import Circuit.Category (K (..), runK)
 import Circuit.Machine
   ( Poles (..),
     close,
-    compose,
     iomap,
+    pipe,
     polesK,
     unclose,
   )
@@ -31,13 +31,13 @@ polesTopic verbosity = do
             p = Poles (const ()) (const ()) (const 42)
          in case p of
               Poles j k o -> j 7 == () && k 7 == () && o () == 42 && close p 7 == 42,
-      checkV verbosity "compose pipes the read leg into the next write leg" $
+      checkV verbosity "pipe pipelines the read leg into the next write leg" $
         let p1 :: Poles Int (->) Int Int
             p1 = Poles (+ 1) (+ 1) (* 2)
             p2 :: Poles Int (->) Int Int
             p2 = Poles (+ 10) (+ 10) (subtract 3)
-         in close (compose p1 p2) 5 == close p2 (close p1 5)
-              && close (compose p1 p2) 5 == 19,
+         in close (pipe p1 p2) 5 == close p2 (close p1 5)
+              && close (pipe p1 p2) 5 == 19,
       checkV verbosity "iomap f id precomposes the write legs" $
         let p :: Poles Int (->) Int Int
             p = Poles (+ 1) (+ 1) (* 2)

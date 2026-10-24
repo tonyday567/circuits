@@ -1,3 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 -- | Circuit: free traced monoidal categories and hyperfunctions.
 --
 -- == Tutorial

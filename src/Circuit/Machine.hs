@@ -16,8 +16,8 @@
 -- seeds from the first input. 'Moore' is 'Body' with the target grammar
 -- sealed to 'Const'; 'MooreT' hides the channel existentially and
 -- carries the machine 'Category'. 'Poles' is the memoryless corner,
--- where the channel never carries across a tick. The bundles — 'FBody',
--- 'TBody', 'SBody', 'LBody', 'PBody' — are the partial decompositions:
+-- where the channel never carries across a tick. The bundles — 'FoldBody',
+-- 'TheseBody', 'EitherBody', 'LensBody', 'ProfunctorBody' — are the partial decompositions:
 -- each names a live-leg pattern, and each fuse lands it back in a
 -- 'Step'. Coiteration — 'Unfold', 'Nu', the partial grammars — lives in
 -- "Circuit.Traced", beside 'trace'.
@@ -41,22 +41,22 @@ module Circuit.Machine
     close,
     unclose,
     polesK,
-    compose,
+    pipe,
     iomap,
 
     -- * the bundles
-    FBody (..),
-    TBody (..),
-    SBody (..),
-    LBody (..),
-    PBody (..),
-    fuseFBody,
-    fuseTBody,
-    fuseSBody,
-    fuseLBody,
-    fusePBody,
-    unfuseSBody,
-    unfuseTBody,
+    FoldBody (..),
+    TheseBody (..),
+    EitherBody (..),
+    LensBody (..),
+    ProfunctorBody (..),
+    fuseFoldBody,
+    fuseTheseBody,
+    fuseEitherBody,
+    fuseLensBody,
+    fuseProfunctorBody,
+    unfuseEitherBody,
+    unfuseTheseBody,
 
     -- * the natural merge
     MergeNat (..),
@@ -65,7 +65,7 @@ module Circuit.Machine
     moore,
     before,
     delay,
-    register,
+    feedback,
     processOf,
 
     -- * runners
@@ -79,8 +79,8 @@ module Circuit.Machine
     bodyBiK,
     bodyAsLens,
     lensAsBody,
-    lbodyAsLens,
-    lensAsLBody,
+    lensBodyAsLens,
+    lensAsLensBody,
     closedToGenerator,
     mealyToKnot,
     mooreToKnot,
@@ -161,7 +161,7 @@ type MealyP t ch arr (p :: Poly) = Mealy t ch arr (Dir p) (Pos p)
 -- inverse: an unfuse would have 'emit' regenerate the output from the
 -- channel alone, blind to the tick input, short of widening the channel
 -- past what 'init' can seed. The universal splits are the source-side
--- ones ('unfuseSBody', 'unfuseTBody').
+-- ones ('unfuseEitherBody', 'unfuseTheseBody').
 fuse :: (Category arr) => Body t t' ch ch' arr i o -> Step t t' ch ch' arr i o
 fuse (Body _ k p) = Step (p . k)
 
@@ -189,10 +189,10 @@ unclose f = Poles f f id
 polesK :: (a -> m ()) -> m b -> Poles () (K m) a b
 polesK write receive = Poles (K write) (K write) (K $ const receive)
 
--- | One-shot composition: the first pair's 'emit' crosses into the
+-- | One-shot pipeline: the first pair's 'emit' crosses into the
 -- second's tick-one write.
-compose :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
-compose (Poles j1 k1 o1) (Poles j2 _ o2) = Poles j1 k1 (o1 .> j2 .> o2)
+pipe :: (Category arr) => Poles ch1 arr a b -> Poles ch2 arr b c -> Poles ch1 arr a c
+pipe (Poles j1 k1 o1) (Poles j2 _ o2) = Poles j1 k1 (o1 .> j2 .> o2)
 
 -- | Precompose both write legs, postcompose the read leg.
 iomap :: (Category arr) => arr i' i -> arr o o' -> Poles ch arr i o -> Poles ch arr i' o'
@@ -201,9 +201,9 @@ iomap f g (Poles j k o) = Poles (f .> j) (f .> k) (o .> g)
 -- * the bundles
 
 -- | The strict-fold bundle: a seed at the tensor's unit, a commit leg
--- writing the channel, and a bare extract. 'fuseFBody' is the tick;
+-- writing the channel, and a bare extract. 'fuseFoldBody' is the tick;
 -- 'begin' is not part of it.
-data FBody t ch arr i o = FBody
+data FoldBody t ch arr i o = FoldBody
   { begin :: arr (Unit t) ch,
     step :: arr (t ch i) ch,
     extract :: arr ch o
@@ -211,9 +211,9 @@ data FBody t ch arr i o = FBody
 
 -- | The 'These' source-split: one leg per presence pattern. Total, and
 -- an isomorphism at the 'These' source — every arrow out of
--- @These ch i@ is uniquely a triple — so 'unfuseTBody' inverts
--- 'fuseTBody' on the nose.
-data TBody t' ch ch' arr i o = TBody
+-- @These ch i@ is uniquely a triple — so 'unfuseTheseBody' inverts
+-- 'fuseTheseBody' on the nose.
+data TheseBody t' ch ch' arr i o = TheseBody
   { chLeg :: arr ch (t' ch' o),
     iLeg :: arr i (t' ch' o),
     bothLeg :: arr (ch, i) (t' ch' o)
@@ -222,7 +222,7 @@ data TBody t' ch ch' arr i o = TBody
 -- | The 'Either' source-split with an explicit collapse. 'collapse' is
 -- the identity at @t ~ Either@ — the machine it names; at other tensors
 -- it must pick a side and is lossy.
-data SBody t t' ch ch' arr i o = SBody
+data EitherBody t t' ch ch' arr i o = EitherBody
   { chLeg :: arr ch (t' ch' o),
     iLeg :: arr i (t' ch' o),
     collapse :: arr (t ch i) (Either ch i)
@@ -232,7 +232,7 @@ data SBody t t' ch ch' arr i o = SBody
 -- 'view' the emit corner reading the tick-start channel — pre-set,
 -- where 'Body's emit reads the channel post-commit. Independence pays a
 -- copy.
-data LBody t ch ch' arr i o = LBody
+data LensBody t ch ch' arr i o = LensBody
   { set :: arr (t ch i) ch',
     view :: arr ch o
   }
@@ -243,86 +243,86 @@ data LBody t ch ch' arr i o = LBody
 -- the pmap|post boundary) is the coend of the profunctor
 -- representation theorem; the residual pair @(ch, ch')@ is what a
 -- forall would seal.
-data PBody t ch ch' arr i o = PBody
+data ProfunctorBody t ch ch' arr i o = ProfunctorBody
   { pre :: arr (t ch i) ch,
     pmap :: arr ch ch',
     post :: arr ch' o
   }
 
--- | Fuse a 'FBody' into one tick: commit and extract pair at the @(,)@
+-- | Fuse a 'FoldBody' into one tick: commit and extract pair at the @(,)@
 -- target. Requires 'Copy' on the channel and the cartesian tensor to
 -- duplicate the new channel for the extract leg.
 --
--- >>> let sb = FBody (const 0) (\(c, i) -> c + i) (* 2) :: FBody (,) Int (->) Int Int
--- >>> case fuseFBody sb of Step f -> f (3, 4 :: Int)
+-- >>> let sb = FoldBody (const 0) (\(c, i) -> c + i) (* 2) :: FoldBody (,) Int (->) Int Int
+-- >>> case fuseFoldBody sb of Step f -> f (3, 4 :: Int)
 -- (7,14)
-fuseFBody :: (Tensor (,) arr, Copy arr ch) => FBody t ch arr i o -> Step t (,) ch ch arr i o
-fuseFBody (FBody _ k e) = Step (k .> copy .> tensor id e)
+fuseFoldBody :: (Tensor (,) arr, Copy arr ch) => FoldBody t ch arr i o -> Step t (,) ch ch arr i o
+fuseFoldBody (FoldBody _ k e) = Step (k .> copy .> tensor id e)
 
--- | Fuse a 'TBody' into one tick: the three legs are the 'These'
+-- | Fuse a 'TheseBody' into one tick: the three legs are the 'These'
 -- eliminator. Requires 'TheseElim' on the base arrow.
 --
--- >>> let tb = TBody Left Right (\(c, i) -> Right (c + i)) :: TBody Either Int Int (->) Int Int
--- >>> let Step f = fuseTBody tb
+-- >>> let tb = TheseBody Left Right (\(c, i) -> Right (c + i)) :: TheseBody Either Int Int (->) Int Int
+-- >>> let Step f = fuseTheseBody tb
 -- >>> [f (This 5), f (That 5), f (These 3 4)]
 -- [Left 5,Right 5,Right 7]
-fuseTBody :: (TheseElim arr) => TBody t' ch ch' arr i o -> Step These t' ch ch' arr i o
-fuseTBody (TBody ch i b) = Step (theseElim ch i b)
+fuseTheseBody :: (TheseElim arr) => TheseBody t' ch ch' arr i o -> Step These t' ch ch' arr i o
+fuseTheseBody (TheseBody ch i b) = Step (theseElim ch i b)
 
--- | Fuse an 'SBody' into one tick: 'collapse' to 'Either', then the
+-- | Fuse an 'EitherBody' into one tick: 'collapse' to 'Either', then the
 -- legs. Requires 'Cocartesian Either' on the base arrow.
 --
--- >>> let sb = SBody (Left . (* 10)) (Right . (+ 1)) id :: SBody Either Either Int Int (->) Int Int
--- >>> let Step f = fuseSBody sb
+-- >>> let sb = EitherBody (Left . (* 10)) (Right . (+ 1)) id :: EitherBody Either Either Int Int (->) Int Int
+-- >>> let Step f = fuseEitherBody sb
 -- >>> [f (Left 5), f (Right 5)]
 -- [Left 50,Right 6]
-fuseSBody :: (Cocartesian Either arr) => SBody Either t' ch ch' arr i o -> Step Either t' ch ch' arr i o
-fuseSBody (SBody ch i c) = Step (c .> elim ch i)
+fuseEitherBody :: (Cocartesian Either arr) => EitherBody Either t' ch ch' arr i o -> Step Either t' ch ch' arr i o
+fuseEitherBody (EitherBody ch i c) = Step (c .> elim ch i)
 
--- | Fuse an 'LBody' into one tick: the parallel legs land at the @(,)@
+-- | Fuse an 'LensBody' into one tick: the parallel legs land at the @(,)@
 -- target — 'set' writes the channel while 'view' reads the tick-start
 -- channel, pre-set. Requires 'Copy' to duplicate the input pair and
 -- 'Discard' to project the channel for the view leg.
 --
--- >>> let lb = LBody (\(c, i) -> c + i) (* 2) :: LBody (,) Int Int (->) Int Int
--- >>> case fuseLBody lb of Step f -> f (3, 4 :: Int)
+-- >>> let lb = LensBody (\(c, i) -> c + i) (* 2) :: LensBody (,) Int Int (->) Int Int
+-- >>> case fuseLensBody lb of Step f -> f (3, 4 :: Int)
 -- (7,6)
-fuseLBody :: (Tensor (,) arr, Copy arr (ch, i), Discard arr i) => LBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
-fuseLBody (LBody s v) = Step (copy .> tensor s (tensor id discard .> unitr .> v))
+fuseLensBody :: (Tensor (,) arr, Copy arr (ch, i), Discard arr i) => LensBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
+fuseLensBody (LensBody s v) = Step (copy .> tensor s (tensor id discard .> unitr .> v))
 
--- | Fuse a 'PBody' into one tick at the 'Const' target: pre, pmap,
+-- | Fuse a 'ProfunctorBody' into one tick at the 'Const' target: pre, pmap,
 -- post, then the 'Const' injection. Requires 'ConstInject' on the base
 -- arrow.
 --
--- >>> let pb = PBody (\(c, i) -> c + i) (* 10) (+ 1) :: PBody (,) Int Int (->) Int Int
--- >>> case fusePBody pb of Step f -> unConst (f (3, 4 :: Int))
+-- >>> let pb = ProfunctorBody (\(c, i) -> c + i) (* 10) (+ 1) :: ProfunctorBody (,) Int Int (->) Int Int
+-- >>> case fuseProfunctorBody pb of Step f -> unConst (f (3, 4 :: Int))
 -- 71
-fusePBody :: (ConstInject arr) => PBody t ch ch' arr i o -> Step t Const ch ch' arr i o
-fusePBody (PBody a n o) = Step (a .> n .> o .> constIn)
+fuseProfunctorBody :: (ConstInject arr) => ProfunctorBody t ch ch' arr i o -> Step t Const ch ch' arr i o
+fuseProfunctorBody (ProfunctorBody a n o) = Step (a .> n .> o .> constIn)
 
 -- | The 'Either' source-split is universal: every arrow out of
 -- @Either ch i@ is uniquely its pair of legs, so a tick at the
--- 'Either' source is exactly an 'SBody' with 'collapse' the identity.
--- Inverse to 'fuseSBody' — the round trip is witnessed exhaustively in
+-- 'Either' source is exactly an 'EitherBody' with 'collapse' the identity.
+-- Inverse to 'fuseEitherBody' — the round trip is witnessed exhaustively in
 -- "Axioma.Machine".
 --
 -- >>> let g = either (Left . (* 2)) (Right . (+ 1)) :: Either Int Int -> Either Int Int
--- >>> let Step h = fuseSBody (unfuseSBody (Step g))
+-- >>> let Step h = fuseEitherBody (unfuseEitherBody (Step g))
 -- >>> [h (Left 3), h (Right 3)] == [g (Left 3), g (Right 3)]
 -- True
-unfuseSBody :: Step Either t' ch ch' (->) i o -> SBody Either t' ch ch' (->) i o
-unfuseSBody (Step f) = SBody (f . Left) (f . Right) id
+unfuseEitherBody :: Step Either t' ch ch' (->) i o -> EitherBody Either t' ch ch' (->) i o
+unfuseEitherBody (Step f) = EitherBody (f . Left) (f . Right) id
 
 -- | The 'These' source-split is universal: a tick at the 'These'
--- source is exactly a 'TBody'. Inverse to 'fuseTBody' — the round trip
+-- source is exactly a 'TheseBody'. Inverse to 'fuseTheseBody' — the round trip
 -- is witnessed exhaustively in "Axioma.Machine".
 --
 -- >>> let g = these Left Right (\c i -> Right (c + i)) :: These Int Int -> Either Int Int
--- >>> let Step h = fuseTBody (unfuseTBody (Step g))
+-- >>> let Step h = fuseTheseBody (unfuseTheseBody (Step g))
 -- >>> [h (This 3), h (That 3), h (These 3 4)] == [g (This 3), g (That 3), g (These 3 4)]
 -- True
-unfuseTBody :: Step These t' ch ch' (->) i o -> TBody t' ch ch' (->) i o
-unfuseTBody (Step f) = TBody (f . This) (f . That) (f . uncurry These)
+unfuseTheseBody :: Step These t' ch ch' (->) i o -> TheseBody t' ch ch' (->) i o
+unfuseTheseBody (Step f) = TheseBody (f . This) (f . That) (f . uncurry These)
 
 -- | The natural merge of the tensor's diagonal: one arrow for every
 -- payload, and the law is naturality itself —
@@ -380,7 +380,7 @@ instance Applicative (MooreT (,) (->) a) where
 -- under the cartesian tensor — the trace ties a lazy self-referential
 -- knot and is productive only when the body is non-strict in the
 -- feedback channel. Strict accumulators diverge under the @(,)@ trace;
--- use 'register' for those.
+-- use 'feedback' for those.
 
 instance Assoc (,) (MooreT (,) (->)) where
   assoc = moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
@@ -444,8 +444,8 @@ delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
 
 -- | Feed a strict machine its own previous output as a second channel —
 -- the strict-body alternative to the lazy 'trace' knot.
-register :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
-register s0 (MooreT (Body i k o)) =
+feedback :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
+feedback s0 (MooreT (Body i k o)) =
   moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (unConst (o s))))) (fst . unConst . o)
 
 -- | Replace a machine's seed leg: the new 'init' injects the input
@@ -536,17 +536,17 @@ lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyL
 -- this is the ordinary lens on the channel; off-diagonal it is a lens
 -- whose source position is @ch@ and source direction is @ch'@.
 --
--- >>> let lb = LBody (\(c, i) -> c + i) (* 2) :: LBody (,) Int Int (->) Int Int
--- >>> let (v, put) = applyLens (lbodyAsLens lb) 3 in (v, put 4)
+-- >>> let lb = LensBody (\(c, i) -> c + i) (* 2) :: LensBody (,) Int Int (->) Int Int
+-- >>> let (v, put) = applyLens (lensBodyAsLens lb) 3 in (v, put 4)
 -- (6,7)
-lbodyAsLens :: LBody (,) ch ch' (->) i o -> Lens ch ch' o i
-lbodyAsLens (LBody s v) = lens v (curry s)
+lensBodyAsLens :: LensBody (,) ch ch' (->) i o -> Lens ch ch' o i
+lensBodyAsLens (LensBody s v) = lens v (curry s)
 
 -- | A lens as a parallel-legs body: the lens supplies the pre-set view
 -- and the commit leg; the target grammar is @(,)@ because the body
 -- exposes both the new channel and the output.
-lensAsLBody :: Lens ch ch' o i -> LBody (,) ch ch' (->) i o
-lensAsLBody m = LBody (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
+lensAsLensBody :: Lens ch ch' o i -> LensBody (,) ch ch' (->) i o
+lensAsLensBody m = LensBody (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
 
 -- | The closed branch as a generator coalgebra: input closed at the
 -- tensor's unit, the tick's two legs chained into one arrow on the
@@ -564,7 +564,7 @@ closedToGenerator (Body _ k p) = unitr' .> k .> p
 -- >>> S.run (mealyToKnot (MealyT win :: MealyT (,) (->) Int [Int])) 7
 -- [7,7,7]
 mealyToKnot :: MealyT t arr i o -> Knot t arr i o
-mealyToKnot (MealyT (Cell _ s)) = Knot (run s)
+mealyToKnot (MealyT (Cell _ (Step f))) = Knot f
 
 -- | A cartesian Moore machine factors into a Mealy-style step by exposing
 -- the freshly written channel alongside the output. The initial 'init'

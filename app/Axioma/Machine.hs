@@ -13,7 +13,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (K (..), id, (.))
-import Circuit.Machine (Body (Body), Cell (..), FBody (..), LBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), PBody (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseFBody, fuseLBody, fusePBody, fuseSBody, fuseTBody, lbodyAsLens, lensAsLBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
+import Circuit.Machine (Body (Body), Cell (..), EitherBody (..), FoldBody (..), LensBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), ProfunctorBody (..), Step (..), TheseBody (..), bodyAsLens, fold, fuseEitherBody, fuseFoldBody, fuseLensBody, fuseProfunctorBody, fuseTheseBody, lensAsLensBody, lensBodyAsLens, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseEitherBody, unfuseTheseBody)
 import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
 import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
@@ -84,25 +84,25 @@ dictOk =
 -- | A sample parallel-legs body: add the input to the channel, view the
 -- channel doubled. Its lens has source position Int and source direction
 -- Int (the diagonal case).
-sumLBody :: LBody (,) Int Int (->) Int Int
-sumLBody = LBody (uncurry (+)) (* 2)
+sumLensBody :: LensBody (,) Int Int (->) Int Int
+sumLensBody = LensBody (uncurry (+)) (* 2)
 
--- | The LBody lens round trip: lbodyAsLens extracts (view, set), and
--- lensAsLBody rebuilds the same body.
+-- | The LensBody lens round trip: lensBodyAsLens extracts (view, set), and
+-- lensAsLensBody rebuilds the same body.
 lbodyDictOk :: Bool
 lbodyDictOk =
-  let lb = lensAsLBody (lbodyAsLens sumLBody)
-   in and [view lb s == view sumLBody s && set lb (s, i) == set sumLBody (s, i) | s <- points, i <- points]
+  let lb = lensAsLensBody (lensBodyAsLens sumLensBody)
+   in and [view lb s == view sumLensBody s && set lb (s, i) == set sumLensBody (s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
 
 -- | Hand-built lens round trip through the body: the view and put agree
 -- with the original lens.
-lensAsLBodyOk :: Bool
-lensAsLBodyOk =
+lensAsLensBodyOk :: Bool
+lensAsLensBodyOk =
   let l :: Lens Int Int String Int
       l = lens show (\n d -> n + d)
-      lb = lensAsLBody l
+      lb = lensAsLensBody l
       check s i =
         view lb s == show s
           && set lb (s, i) == s + i
@@ -110,20 +110,20 @@ lensAsLBodyOk =
   where
     points = [-1, 0, 5] :: [Int]
 
--- | An off-diagonal LBody: the new channel type differs from the old.
+-- | An off-diagonal LensBody: the new channel type differs from the old.
 -- The corresponding lens has source position Int and source direction
 -- String.
-offDiagLBody :: LBody (,) Int String (->) Int Int
-offDiagLBody = LBody (\(s, i) -> show (s + i)) (* 2)
+offDiagLensBody :: LensBody (,) Int String (->) Int Int
+offDiagLensBody = LensBody (\(s, i) -> show (s + i)) (* 2)
 
 -- | Off-diagonal round trip: the lens source direction is the new channel
 -- type, not the old.
-offDiagLBodyOk :: Bool
-offDiagLBodyOk =
+offDiagLensBodyOk :: Bool
+offDiagLensBodyOk =
   let l :: Lens Int String Int Int
-      l = lbodyAsLens offDiagLBody
-      lb = lensAsLBody l
-   in and [view lb s == view offDiagLBody s && set lb (s, i) == set offDiagLBody (s, i) | s <- points, i <- points]
+      l = lensBodyAsLens offDiagLensBody
+      lb = lensAsLensBody l
+   in and [view lb s == view offDiagLensBody s && set lb (s, i) == set offDiagLensBody (s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
 
@@ -371,7 +371,7 @@ sbodyRT =
   and
     [ f' x == g x
     | g <- [either Right Left, either (Left . not) (const (Right True))],
-      let Step f' = fuseSBody (unfuseSBody (Step g)),
+      let Step f' = fuseEitherBody (unfuseEitherBody (Step g)),
       x <- [Left False, Left True, Right False, Right True]
     ]
 
@@ -380,21 +380,21 @@ tbodyRT =
   and
     [ f' x == g x
     | g <- [these This That These, these (That . not) This (\c i -> These (not c) i)],
-      let Step f' = fuseTBody (unfuseTBody (Step g)),
+      let Step f' = fuseTheseBody (unfuseTheseBody (Step g)),
       x <- [This False, This True, That False, That True, These False False, These False True, These True False, These True True]
     ]
 
 sbodyLegs :: Bool
 sbodyLegs =
-  let sb = SBody (Left . (* 2)) (Right . (+ 1)) id :: SBody Either Either Int Int (->) Int Int
-      SBody ch' i' _ = unfuseSBody (fuseSBody sb)
+  let sb = EitherBody (Left . (* 2)) (Right . (+ 1)) id :: EitherBody Either Either Int Int (->) Int Int
+      EitherBody ch' i' _ = unfuseEitherBody (fuseEitherBody sb)
    in and [ch' c == Left (2 * c) | c <- [0 .. 2]]
         && and [i' i == Right (i + 1) | i <- [0 .. 2]]
 
 tbodyLegs :: Bool
 tbodyLegs =
-  let tb = TBody Left Right (\(c, i) -> Right (c + i)) :: TBody Either Int Int (->) Int Int
-      TBody ch' i' b' = unfuseTBody (fuseTBody tb)
+  let tb = TheseBody Left Right (\(c, i) -> Right (c + i)) :: TheseBody Either Int Int (->) Int Int
+      TheseBody ch' i' b' = unfuseTheseBody (fuseTheseBody tb)
    in and [ch' c == Left c | c <- [0 .. 2]]
         && and [i' i == Right i | i <- [0 .. 2]]
         && and [b' (c, i) == Right (c + i) | c <- [0 .. 2], i <- [0 .. 2]]
@@ -402,37 +402,37 @@ tbodyLegs =
 -- | The bundle fuses are no longer @(->)@-only: they work over any
 -- arrow that supplies the required structural dictionaries. Witnesses
 -- on @K Identity@ exercise the new substrate instances without IO.
-fuseFBodyK :: Bool
-fuseFBodyK =
-  let fb = FBody (K $ const (pure 0)) (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: FBody (,) Int (K Identity) Int Int
-      Step (K f) = fuseFBody fb
+fuseFoldBodyK :: Bool
+fuseFoldBodyK =
+  let fb = FoldBody (K $ const (pure 0)) (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: FoldBody (,) Int (K Identity) Int Int
+      Step (K f) = fuseFoldBody fb
    in runIdentity (f (3, 4)) == (7, 14)
 
-fuseLBodyK :: Bool
-fuseLBodyK =
-  let lb = LBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: LBody (,) Int Int (K Identity) Int Int
-      Step (K f) = fuseLBody lb
+fuseLensBodyK :: Bool
+fuseLensBodyK =
+  let lb = LensBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 2)) :: LensBody (,) Int Int (K Identity) Int Int
+      Step (K f) = fuseLensBody lb
    in runIdentity (f (3, 4)) == (7, 6)
 
-fuseSBodyK :: Bool
-fuseSBodyK =
-  let sb = SBody (K $ pure . Left . (* 2)) (K $ pure . Right . (+ 1)) (K pure) :: SBody Either Either Int Int (K Identity) Int Int
-      Step (K f) = fuseSBody sb
+fuseEitherBodyK :: Bool
+fuseEitherBodyK =
+  let sb = EitherBody (K $ pure . Left . (* 2)) (K $ pure . Right . (+ 1)) (K pure) :: EitherBody Either Either Int Int (K Identity) Int Int
+      Step (K f) = fuseEitherBody sb
    in runIdentity (f (Left 3)) == Left 6
         && runIdentity (f (Right 3)) == Right 4
 
-fuseTBodyK :: Bool
-fuseTBodyK =
-  let tb = TBody (K $ pure . Left . (* 2)) (K $ pure . Right) (K $ \(c, i) -> pure (Right (c + i))) :: TBody Either Int Int (K Identity) Int Int
-      Step (K f) = fuseTBody tb
+fuseTheseBodyK :: Bool
+fuseTheseBodyK =
+  let tb = TheseBody (K $ pure . Left . (* 2)) (K $ pure . Right) (K $ \(c, i) -> pure (Right (c + i))) :: TheseBody Either Int Int (K Identity) Int Int
+      Step (K f) = fuseTheseBody tb
    in runIdentity (f (This 3)) == Left 6
         && runIdentity (f (That 3)) == Right 3
         && runIdentity (f (These 3 4)) == Right 7
 
-fusePBodyK :: Bool
-fusePBodyK =
-  let pb = PBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 10)) (K $ \c -> pure (c + 1)) :: PBody (,) Int Int (K Identity) Int Int
-      Step (K f) = fusePBody pb
+fuseProfunctorBodyK :: Bool
+fuseProfunctorBodyK =
+  let pb = ProfunctorBody (K $ \(c, i) -> pure (c + i)) (K $ \c -> pure (c * 10)) (K $ \c -> pure (c + 1)) :: ProfunctorBody (,) Int Int (K Identity) Int Int
+      Step (K f) = fuseProfunctorBody pb
    in unConst (runIdentity (f (3, 4))) == 71
 
 machineTopic :: Verbosity -> IO [Bool]
@@ -440,9 +440,9 @@ machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
   sequence
     [ checkV verbosity "body lens dictionary: get = emit, put = curry commit" dictOk,
-      checkV verbosity "LBody lens dictionary round trip (diagonal)" lbodyDictOk,
-      checkV verbosity "lensAsLBody round trip" lensAsLBodyOk,
-      checkV verbosity "LBody lens dictionary round trip (off-diagonal)" offDiagLBodyOk,
+      checkV verbosity "LensBody lens dictionary round trip (diagonal)" lbodyDictOk,
+      checkV verbosity "lensAsLensBody round trip" lensAsLensBodyOk,
+      checkV verbosity "LensBody lens dictionary round trip (off-diagonal)" offDiagLensBodyOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),
       checkV verbosity "body GetPut catches the accumulator" (not (getPut accW 1)),
       checkV verbosity "body PutGet (register)" (all (\s -> putGet regW s 3) points),
@@ -467,15 +467,15 @@ machineTopic verbosity = do
       checkV verbosity "mergeNat naturality at (,)" natPair,
       checkV verbosity "mergeNat naturality at Either" natEither,
       checkV verbosity "mergeNat naturality at These" natThese,
-      checkV verbosity "SBody fuse after unfuse reproduces the tick (Either Bool, exhaustive)" sbodyRT,
-      checkV verbosity "TBody fuse after unfuse reproduces the tick (These Bool, exhaustive)" tbodyRT,
-      checkV verbosity "SBody unfuse after fuse hands the legs back" sbodyLegs,
-      checkV verbosity "TBody unfuse after fuse hands the legs back" tbodyLegs,
-      checkV verbosity "FBody fuse over K Identity" fuseFBodyK,
-      checkV verbosity "LBody fuse over K Identity" fuseLBodyK,
-      checkV verbosity "SBody fuse over K Identity" fuseSBodyK,
-      checkV verbosity "TBody fuse over K Identity" fuseTBodyK,
-      checkV verbosity "PBody fuse over K Identity" fusePBodyK,
+      checkV verbosity "EitherBody fuse after unfuse reproduces the tick (Either Bool, exhaustive)" sbodyRT,
+      checkV verbosity "TheseBody fuse after unfuse reproduces the tick (These Bool, exhaustive)" tbodyRT,
+      checkV verbosity "EitherBody unfuse after fuse hands the legs back" sbodyLegs,
+      checkV verbosity "TheseBody unfuse after fuse hands the legs back" tbodyLegs,
+      checkV verbosity "FoldBody fuse over K Identity" fuseFoldBodyK,
+      checkV verbosity "LensBody fuse over K Identity" fuseLensBodyK,
+      checkV verbosity "EitherBody fuse over K Identity" fuseEitherBodyK,
+      checkV verbosity "TheseBody fuse over K Identity" fuseTheseBodyK,
+      checkV verbosity "ProfunctorBody fuse over K Identity" fuseProfunctorBodyK,
       checkV verbosity "mooreT unit L at (,): scanT (id . m) == scanT m" (scanT (id . sumG) xs == scanT sumG xs),
       checkV verbosity "mooreT unit R at (,): scanT (m . id) == scanT m" (scanT (sumG . id) xs == scanT sumG xs),
       checkV verbosity "mooreT unit L at Either" (scanT (id . eitherG) xs == scanT eitherG xs),
@@ -495,7 +495,7 @@ machineTopic verbosity = do
         scanT ((,) <$> cntM <*> colM) xs == [(0, [1]), (1, [2, 1]), (2, [3, 2, 1]), (3, [4, 3, 2, 1])],
       checkV verbosity "mooreT (,) trace: lazy knot productive on a non-strict body" $
         scanT (trace powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
-      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges (use register)" $ do
+      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges (use feedback)" $ do
         result <- timeout 1000000 $ case scanT (trace strictBody) [1 :: Int] of
           (o : _) -> evaluate o
           [] -> pure 0

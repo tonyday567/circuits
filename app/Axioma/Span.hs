@@ -120,7 +120,9 @@ spanTopic verbosity = do
                 let (chP', b) = runP (chP, a)
                     (chQ', c) = runQ (chQ, b)
                  in ((chP', chQ'), c)
+            Step cascadedFn =
+              cascaded
          in all
-              (\a -> snd (direct (inputs, a)) == snd (run cascaded ((inputs, qInputs), a)))
+              (\a -> snd (direct (inputs, a)) == snd (cascadedFn ((inputs, qInputs), a)))
               inputs
     ]
