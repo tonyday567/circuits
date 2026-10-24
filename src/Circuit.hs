@@ -211,13 +211,13 @@ import Circuit.Category
 import Circuit.Container
 import Circuit.Hyper
 import Circuit.Linear
-import Circuit.Machine hiding (run)
+import Circuit.Machine
 import Circuit.Net
-import Circuit.Poly hiding (Point, dagger)
+import Circuit.Poly hiding (dagger)
 import Circuit.Pullback
 import Circuit.Shared
 import Circuit.Span
-import Circuit.Step hiding (run)
+import Circuit.Step
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor
