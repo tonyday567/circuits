@@ -142,13 +142,13 @@ instance Discard Pullback a where
 --
 -- Addition's pullback is copying; zero's pullback is discarding.
 --
--- >>> runPullback (plus :: Pullback (Int, Int) Int) (1, 2)
+-- >>> runPullback (merge :: Pullback (Int, Int) Int) (1, 2)
 -- 3
 -- >>> runPullback (zero :: Pullback () Int) ()
 -- 0
 instance (Merge (->) a) => Merge Pullback a where
-  plus = Pullback (\(b1, b2) -> plus (b1, b2))
-  {-# INLINE plus #-}
+  merge = Pullback (\(b1, b2) -> merge (b1, b2))
+  {-# INLINE merge #-}
 
 instance (Zero (->) a) => Zero Pullback a where
   zero = Pullback (\() -> zero ())

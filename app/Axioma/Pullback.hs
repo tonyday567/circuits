@@ -31,14 +31,14 @@ import Prelude hiding (id, (.))
 -- the primal map @u ↦ 2u + 3u@, built from copy, parallel scale, and merge
 -- rows.  Guards the 'evalPullback' chain-rule claim.
 chainNet :: Net (,) Pullback Double Double
-chainNet = plusN . parN . copyN
+chainNet = mergeN . parN . copyN
   where
     copyN :: Net (,) Pullback Double (Double, Double)
     copyN = unit (copy :: Pullback Double (Double, Double))
     parN :: Net (,) Pullback (Double, Double) (Double, Double)
     parN = widen (tensor (Lift (Pullback (* 2))) (Lift (Pullback (* 3))))
-    plusN :: Net (,) Pullback (Double, Double) Double
-    plusN = unit (plus :: Pullback (Double, Double) Double)
+    mergeN :: Net (,) Pullback (Double, Double) Double
+    mergeN = unit (merge :: Pullback (Double, Double) Double)
 
 -- | Convergent feedback body: the channel-out cotangent @dx = 3 dy@ has no
 -- self-coupling, so the lazy 'trace' knot terminates.  Primal story:

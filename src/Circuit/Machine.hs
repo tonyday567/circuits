@@ -328,7 +328,7 @@ unfuseTBody (Step f) = TBody (f . This) (f . That) (f . uncurry These)
 -- payload, and the law is naturality itself —
 -- @mergeNat . tensor f f = f . mergeNat@. The machine Category's
 -- identity spends it: the commit leg folds (stale channel, fresh
--- input) so the fresh tick wins. Distinct from MergeT — plusT is
+-- input) so the fresh tick wins. Distinct from MergeT — mergeT is
 -- per-carrier (Int merges by addition); mergeNat is functor-level.
 class (Tensor t arr) => MergeNat t arr where
   mergeNat :: arr (t a a) a

@@ -211,7 +211,7 @@ import Circuit.Hyper
 import Circuit.Linear
 import Circuit.Machine hiding (run)
 import Circuit.Net
-import Circuit.Poly hiding (Point)
+import Circuit.Poly hiding (Point, dagger)
 import Circuit.Pullback
 import Circuit.Shared
 import Circuit.Span

@@ -17,7 +17,7 @@
 -- | The free symmetric monoidal category with a bimonoid over a primitive set.
 --
 -- This module hosts the whole widen chain.  The symmetric-monoidal layer
--- ('SigPar', 'SigSwap', the 'SMC' syntax and its 'mirrorSMC' transpose) is
+-- ('SigPar', 'SigSwap', the 'SMC' syntax and its 'daggerSMC') is
 -- the layer on top of the generic free-construction substrate in
 -- "Circuit.Syntax"; 'Net' extends it with structural rows for the bimonoid
 -- operations: copy, discard, addition, and zero.  Where 'FreeTrace' keeps
@@ -27,8 +27,8 @@
 --
 -- The bimonoid rows are the dagger's fixed structure: they live in
 -- "Circuit.Bimonoid" alongside the 'Dagger' type, and 'Bm.BimonoidT' is
--- exactly the precondition that lets 'Net' transpose bimonoid rows over
--- @Dagger arr@ (see 'mirrorNet').
+-- exactly the precondition that lets 'Net' dagger bimonoid rows over
+-- @Dagger arr@ (see 'daggerNet').
 --
 -- @
 -- Free = Lift + Compose
@@ -48,13 +48,13 @@ module Circuit.Net
     melt,
 
     -- * Dagger
-    mirrorNet,
+    daggerNet,
 
     -- * Symmetric-monoidal layer
     SMC,
 
     -- ** Dagger mirror
-    mirrorSMC,
+    daggerSMC,
 
     -- ** Signatures (exported for other syntax layers)
     SigPar (..),
@@ -66,9 +66,9 @@ import Circuit.Bimonoid
   ( Dagger (..),
     SigCopy (..),
     SigDiscard (..),
-    SigPlus (..),
+    SigMerge (..),
     SigZero (..),
-    transpose,
+    dagger,
   )
 import Circuit.Bimonoid qualified as Bm
 import Circuit.Category (Category (..))
@@ -90,7 +90,7 @@ import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Bimonoid (Dagger (..), transpose)
+-- >>> import Circuit.Bimonoid (Dagger (..), dagger)
 -- >>> import Circuit.Net
 -- >>> import Circuit.Trace (FreeTrace)
 -- >>> import Circuit.Syntax (Syntax (Lift), bind, eval, evalInto, run)
@@ -171,9 +171,9 @@ type SMC w arr = Syntax (SigCompose :+: SigPar w :+: SigSwap w) arr
 -- Coherence: mirroring commutes with 'widen'.
 --
 -- >>> let dm = Lift (Dagger (+1) (subtract 1)) . Lift (Dagger (*2) (\x -> x `div` 2)) :: SMC (,) (Dagger (->)) Int Int
--- >>> front (transpose (eval dm)) 10
+-- >>> front (dagger (eval dm)) 10
 -- 4
--- >>> front (transpose (run (widen dm :: Net (,) (Dagger (->)) Int Int))) 10
+-- >>> front (dagger (run (widen dm :: Net (,) (Dagger (->)) Int Int))) 10
 -- 4
 widen :: SMC w arr a b -> Net w arr a b
 widen (Lift f) = Lift f
@@ -184,17 +184,17 @@ widen (Oper op) = case op of
 
 -- | Mirror an 'SMC' built over 'Dagger'.
 --
--- Reverses composition, transposes each Lifted arrow, and leaves 'Circuit.Tensor.tensor'
--- and 'Circuit.Tensor.braid' self-dual. This is the structural transpose of the SMC
--- layer that 'mirrorNet' inlines.
-mirrorSMC ::
+-- Reverses composition, daggers each Lifted arrow, and leaves 'Circuit.Tensor.tensor'
+-- and 'Circuit.Tensor.braid' self-dual. This is the structural dagger of the SMC
+-- layer that 'daggerNet' inlines.
+daggerSMC ::
   forall w arr a b.
   SMC w (Dagger arr) a b ->
   SMC w (Dagger arr) b a
-mirrorSMC (Lift d) = Lift (transpose d)
-mirrorSMC (Oper op) = case op of
-  L (SigCompose g f) -> Oper (L (SigCompose (mirrorSMC f) (mirrorSMC g)))
-  R (L (SigPar f g)) -> Oper (R (L (SigPar (mirrorSMC f) (mirrorSMC g))))
+daggerSMC (Lift d) = Lift (dagger d)
+daggerSMC (Oper op) = case op of
+  L (SigCompose g f) -> Oper (L (SigCompose (daggerSMC f) (daggerSMC g)))
+  R (L (SigPar f g)) -> Oper (R (L (SigPar (daggerSMC f) (daggerSMC g))))
   R (R SigSwap) -> Oper (R (R SigSwap))
 
 -- ** Instances for the free symmetric monoidal category
@@ -235,20 +235,20 @@ instance (Trace t arr, Symmetric w arr) => Trace t (SMC w arr) where
 -- ** Iteration as a loop with joined wires
 
 -- The codiagonal theorem (stated in "Circuit.Traced"'s
--- 'Circuit.Traced.Unfold'): @unfold g = trace (g . plusT)@ — an iteration
+-- 'Circuit.Traced.Unfold'): @unfold g = trace (g . mergeT)@ — an iteration
 -- is a loop whose entry and feedback wires are joined. The composite
--- needs no new syntax: the 'SigPlus' node 'Net' already has supplies the
+-- needs no new syntax: the 'SigMerge' node 'Net' already has supplies the
 -- join, and the 'Circuit.Trace.SigTrace' node supplies the loop. The body
 -- melts Net to a function through the 'Circuit.Bimonoid.MergeT' Either
 -- dictionary, lifts into 'FreeTrace', and folds through 'Trace' Either —
 -- agreeing with 'Circuit.Traced.unfold' at a point:
 --
--- >>> import Circuit.Bimonoid (SigPlus (..))
+-- >>> import Circuit.Bimonoid (SigMerge (..))
 -- >>> import Circuit.Traced (unfold)
 -- >>> import Circuit.Syntax (Syntax (..))
 -- >>> import Circuit.Traced (trace)
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
--- >>> let body = Lift down . Oper (R (R (R (R (R (L SigPlus)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
+-- >>> let body = Lift down . Oper (R (R (R (R (R (L SigMerge)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
 -- >>> run (trace (Lift (run body)) :: FreeTrace Either (->) Int Int) 5
 -- 0
 -- >>> unfold down 5
@@ -261,13 +261,13 @@ instance (Trace t arr, Symmetric w arr) => Trace t (SMC w arr) where
 -- 'Net' is the free 'Syntax' over the signature sum
 --
 -- @
--- 'SigCompose' ':+:' 'SigPar' w ':+:' 'SigSwap' w ':+:' 'SigCopy' w ':+:' 'SigDiscard' w ':+:' 'SigPlus' w ':+:' 'SigZero' w
+-- 'SigCompose' ':+:' 'SigPar' w ':+:' 'SigSwap' w ':+:' 'SigCopy' w ':+:' 'SigDiscard' w ':+:' 'SigMerge' w ':+:' 'SigZero' w
 -- @
 --
 -- The 'Lift' constructor embeds a base arrow; the 'Oper' constructor holds
 -- one of the signature nodes.  'widen' embeds an entire 'SMC' circuit.
 type Net (w :: Type -> Type -> Type) arr =
-  Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr
+  Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w) arr
 
 -- | The 'Category' instance is the generic free-category instance:
 -- 'id' is a lifted identity and composition is a 'SigCompose' node.
@@ -277,7 +277,7 @@ instance (Category arr) => Category (Net w arr) where
 
 -- | Mirror a 'Net' over 'Dagger'.
 --
--- The dagger dualizes the bimonoid rows: 'SigCopy' becomes 'SigPlus',
+-- The dagger dualizes the bimonoid rows: 'SigCopy' becomes 'SigMerge',
 -- 'SigDiscard' becomes 'SigZero', and vice versa.  Composition is reversed;
 -- parallel composition and the braiding are self-dual.
 --
@@ -286,19 +286,19 @@ instance (Category arr) => Category (Net w arr) where
 -- @'Bm.BimonoidT' w arr x@ holds for all @x@.  That precondition is the
 -- tensor-generic form of the 'Bm.BimonoidT' constraint that makes 'Dagger'
 -- and the bimonoid rows presentable as one structure.
-mirrorNet ::
+daggerNet ::
   forall w arr a b.
   (forall x. Bm.BimonoidT w arr x) =>
   Net w (Dagger arr) a b ->
   Net w (Dagger arr) b a
-mirrorNet (Lift d) = Lift (transpose d)
-mirrorNet (Oper op) = case op of
-  L (SigCompose g f) -> Oper (L (SigCompose (mirrorNet f) (mirrorNet g)))
-  R (L (SigPar f g)) -> Oper (R (L (SigPar (mirrorNet f) (mirrorNet g))))
+daggerNet (Lift d) = Lift (dagger d)
+daggerNet (Oper op) = case op of
+  L (SigCompose g f) -> Oper (L (SigCompose (daggerNet f) (daggerNet g)))
+  R (L (SigPar f g)) -> Oper (R (L (SigPar (daggerNet f) (daggerNet g))))
   R (R (L SigSwap)) -> Oper (R (R (L SigSwap)))
-  R (R (R (L SigCopy))) -> Oper (R (R (R (R (R (L SigPlus))))))
+  R (R (R (L SigCopy))) -> Oper (R (R (R (R (R (L SigMerge))))))
   R (R (R (R (L SigDiscard)))) -> Oper (R (R (R (R (R (R SigZero))))))
-  R (R (R (R (R (L SigPlus))))) -> Oper (R (R (R (L SigCopy))))
+  R (R (R (R (R (L SigMerge))))) -> Oper (R (R (R (L SigCopy))))
   R (R (R (R (R (R SigZero))))) -> Oper (R (R (R (R (L SigDiscard)))))
 
 -- * Interpretation
@@ -307,7 +307,7 @@ mirrorNet (Oper op) = case op of
 --
 -- The interpretation from the free symmetric monoidal category with a
 -- bimonoid to the free traced monoidal category, at one tensor: structural
--- rows ('SigPar', 'SigCopy', 'SigPlus', etc.) become opaque base-arrow
+-- rows ('SigPar', 'SigCopy', 'SigMerge', etc.) become opaque base-arrow
 -- operations wrapped in 'Lift'; @SigCompose@ uses the 'Category' instance
 -- of 'FreeTrace'. Totality is free — 'Net' has no feedback constructor, so
 -- the domain is a finite wiring tree and 'evalInto' is structural.
@@ -323,7 +323,7 @@ mirrorNet (Oper op) = case op of
 -- On the Either iteration example above, melting commutes with the fold:
 --
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
--- >>> let body = Lift down . Oper (R (R (R (R (R (L SigPlus)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
+-- >>> let body = Lift down . Oper (R (R (R (R (R (L SigMerge)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
 -- >>> run body (Right 5)
 -- Left 4
 -- >>> eval (melt body) (Right 5)
@@ -342,21 +342,21 @@ melt = evalInto Lift
 -- Structural rows are interpreted in the target category: parallel
 -- composition uses 'tensor', braiding uses 'braid', and the bimonoid
 -- generators are the images under @h@ of the source dictionaries carried
--- by the 'SigCopy', 'SigDiscard', 'SigPlus', and 'SigZero' constructors.
+-- by the 'SigCopy', 'SigDiscard', 'SigMerge', and 'SigZero' constructors.
 --
 -- [Conditional] 'bind' @h@ interprets bimonoid generators as images under
 -- @h@ of the source arrow's dictionaries.  This is the free-PROP fold
 -- only when @h@ is a bimonoid homomorphism (automatic for the generator
 -- embedding, but must be verified for custom @h@).
-instance Layer (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) where
-  type Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr' = Symmetric w arr'
-  type Run (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = Symmetric w arr
-  type Bind (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = ()
+instance Layer (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w)) where
+  type Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w)) arr' = Symmetric w arr'
+  type Run (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w)) arr = Symmetric w arr
+  type Bind (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w)) arr = ()
   unit = Lift
   bind ::
     forall arr' arr a b.
-    (Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr') =>
+    (Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w)) arr') =>
     (arr :~> arr') ->
-    Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w) arr a b ->
+    Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigMerge w :+: SigZero w) arr a b ->
     arr' a b
   bind = evalInto

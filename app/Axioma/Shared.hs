@@ -225,7 +225,7 @@ sharedTopic verbosity = do
       checkV verbosity "discard witnesses centrality wrt state-touching body at a point" $
         let input = (0, (1, 2)) :: (Int, (Int, Int))
          in bodyCentral (liftBody (const ())) sharedAddF input,
-      checkV verbosity "plus witnesses centrality wrt state-touching body at a point" $
+      checkV verbosity "merge witnesses centrality wrt state-touching body at a point" $
         let input = (0, ((1, 2), 3)) :: (Int, ((Int, Int), Int))
          in bodyCentral (liftBody (Pre.uncurry (+))) sharedAddF input,
       checkV verbosity "zero witnesses centrality wrt state-touching body at a point" $

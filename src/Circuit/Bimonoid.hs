@@ -17,7 +17,7 @@
 --
 -- * 'Copy' / 'Discard' — the comonoid on channel objects (fan-out / weakening).
 -- * 'Merge' / 'Zero' — the monoid on channel objects (fan-in / introduction).
--- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.mirrorNet'
+-- * 'Bimonoid' — all four together, the precondition for 'Circuit.Net.daggerNet'
 --   to be total on a cartesian base arrow.
 --
 -- For a generic wiring tensor @t@ the tensor-generic classes 'CopyT',
@@ -25,12 +25,12 @@
 -- are the special case @t = (,)@, recovered via the @OVERLAPPABLE@ default
 -- instances at the bottom of this module.
 --
--- The module also hosts the free dagger category ('Dagger', 'transpose'):
+-- The module also hosts the free dagger category ('Dagger', 'dagger'):
 -- a value pairs a forward arrow with a backward arrow, composition runs
--- covariant forward and contravariant backward, and 'transpose' swaps the
+-- covariant forward and contravariant backward, and 'dagger' swaps the
 -- two directions.  The dagger dualises the bimonoid laws — forward copy is
 -- backward merge, forward discard is backward zero, and vice versa — and
--- that interlock is the missing lemma that makes 'Circuit.Net.mirrorNet'
+-- that interlock is the missing lemma that makes 'Circuit.Net.daggerNet'
 -- total over a generic wiring tensor.
 --
 -- Design note: $copy-discard-design.
@@ -56,7 +56,7 @@ module Circuit.Bimonoid
     SigCopy (..),
     SigDiscard (..),
     SigCopyDiscard,
-    SigPlus (..),
+    SigMerge (..),
     SigZero (..),
     SigMergeZero,
 
@@ -76,7 +76,7 @@ module Circuit.Bimonoid
 
     -- * Free dagger category
     Dagger (..),
-    transpose,
+    dagger,
   )
 where
 
@@ -106,9 +106,9 @@ import Prelude hiding (id, (.))
 -- Not the same as arithmetic '+'; this is the monoid operation by which
 -- parallel contributions to the same wire combine.
 class Merge arr a where
-  plus :: arr (a, a) a
+  merge :: arr (a, a) a
 
--- | The neutral element for 'plus'.
+-- | The neutral element for 'merge'.
 class Zero arr a where
   zero :: arr () a
 
@@ -117,55 +117,55 @@ type MergeZero arr a = (Merge arr a, Zero arr a)
 
 -- | The unit type carries the trivial monoid.
 --
--- >>> plus ((), ()) :: ()
+-- >>> merge ((), ()) :: ()
 -- ()
 -- >>> zero () :: ()
 -- ()
 instance Merge (->) () where
-  plus _ = ()
-  {-# INLINE plus #-}
+  merge _ = ()
+  {-# INLINE merge #-}
 
 instance Zero (->) () where
   zero _ = ()
   {-# INLINE zero #-}
 
--- | Numeric carriers.  'plus' is addition, 'zero' is 0.
+-- | Numeric carriers.  'merge' is addition, 'zero' is 0.
 --
--- >>> plus (1, 2) :: Int
+-- >>> merge (1, 2) :: Int
 -- 3
 -- >>> zero () :: Int
 -- 0
--- >>> plus (1.0, 2.0) :: Double
+-- >>> merge (1.0, 2.0) :: Double
 -- 3.0
 -- >>> zero () :: Double
 -- 0.0
 instance Merge (->) Int where
-  plus = uncurry (+)
-  {-# INLINE plus #-}
+  merge = uncurry (+)
+  {-# INLINE merge #-}
 
 instance Zero (->) Int where
   zero _ = 0
   {-# INLINE zero #-}
 
 instance Merge (->) Integer where
-  plus = uncurry (+)
-  {-# INLINE plus #-}
+  merge = uncurry (+)
+  {-# INLINE merge #-}
 
 instance Zero (->) Integer where
   zero _ = 0
   {-# INLINE zero #-}
 
 instance Merge (->) Double where
-  plus = uncurry (+)
-  {-# INLINE plus #-}
+  merge = uncurry (+)
+  {-# INLINE merge #-}
 
 instance Zero (->) Double where
   zero _ = 0
   {-# INLINE zero #-}
 
 instance Merge (->) Float where
-  plus = uncurry (+)
-  {-# INLINE plus #-}
+  merge = uncurry (+)
+  {-# INLINE merge #-}
 
 instance Zero (->) Float where
   zero _ = 0
@@ -175,47 +175,47 @@ instance Zero (->) Float where
 --
 -- Idempotent because @True || True = True@.
 --
--- >>> plus (True, False) :: Bool
+-- >>> merge (True, False) :: Bool
 -- True
 -- >>> zero () :: Bool
 -- False
 instance Merge (->) Bool where
-  plus = uncurry (||)
-  {-# INLINE plus #-}
+  merge = uncurry (||)
+  {-# INLINE merge #-}
 
 instance Zero (->) Bool where
   zero _ = False
   {-# INLINE zero #-}
 
--- | Componentwise 'plus' on pairs.
+-- | Componentwise 'merge' on pairs.
 --
--- >>> plus ((3, 4), (5, 6)) :: (Int, Int)
+-- >>> merge ((3, 4), (5, 6)) :: (Int, Int)
 -- (8,10)
 instance (Merge (->) a, Merge (->) b) => Merge (->) (a, b) where
-  plus ((a, b), (a', b')) = (plus (a, a'), plus (b, b'))
-  {-# INLINE plus #-}
+  merge ((a, b), (a', b')) = (merge (a, a'), merge (b, b'))
+  {-# INLINE merge #-}
 
 instance (Zero (->) a, Zero (->) b) => Zero (->) (a, b) where
   zero u = (zero u, zero u)
   {-# INLINE zero #-}
 
--- | Lists via elementwise 'plus', padded with 'zero'.
+-- | Lists via elementwise 'merge', padded with 'zero'.
 --
 -- For lists of unequal length, the shorter list is implicitly extended
 -- with the element 'zero'. The unit is the empty list.
 --
--- >>> plus ([1, 2], [3, 4, 5]) :: [Int]
+-- >>> merge ([1, 2], [3, 4, 5]) :: [Int]
 -- [4,6,5]
--- >>> plus ([], [3, 4, 5]) :: [Int]
+-- >>> merge ([], [3, 4, 5]) :: [Int]
 -- [3,4,5]
 instance (Merge (->) a, Zero (->) a) => Merge (->) [a] where
-  plus (xs, ys) = go xs ys
+  merge (xs, ys) = go xs ys
     where
       go [] [] = []
-      go [] (y : ys') = plus (zero (), y) : go [] ys'
-      go (x : xs') [] = plus (x, zero ()) : go xs' []
-      go (x : xs') (y : ys') = plus (x, y) : go xs' ys'
-  {-# INLINE plus #-}
+      go [] (y : ys') = merge (zero (), y) : go [] ys'
+      go (x : xs') [] = merge (x, zero ()) : go xs' []
+      go (x : xs') (y : ys') = merge (x, y) : go xs' ys'
+  {-# INLINE merge #-}
 
 instance Zero (->) [a] where
   zero _ = []
@@ -247,13 +247,13 @@ type CopyDiscard arr a = (Copy arr a, Discard arr a)
 --
 -- A constraint synonym — no instance required.  On a cartesian base arrow,
 -- every type carries both structures.  This is the precondition for
--- 'Circuit.Net.mirrorNet' to be total on that base arrow.
+-- 'Circuit.Net.daggerNet' to be total on that base arrow.
 type Bimonoid arr a = (Copy arr a, Discard arr a, Merge arr a, Zero arr a)
 
 -- | Tensor-generic bimonoid: all four structural capabilities on the tensor.
 --
 -- This is the tensor-generic form of 'Bimonoid'.  It is the precondition for
--- 'Circuit.Net.mirrorNet' over a generic wiring tensor.
+-- 'Circuit.Net.daggerNet' over a generic wiring tensor.
 class (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
 
 instance (CopyT t arr a, DiscardT t arr a, MergeT t arr a, ZeroT t arr a) => BimonoidT t arr a
@@ -278,7 +278,7 @@ class (Tensor t arr) => DiscardT t arr a where
 -- @(,)@ it reduces to @arr (a, a) a@ and the existing 'Merge' class is
 -- recovered. Other wiring tensors may supply their own instances.
 class (Tensor t arr) => MergeT t arr a where
-  plusT :: arr (t a a) a
+  mergeT :: arr (t a a) a
 
 -- | The neutral element under the tensor product.
 class (Tensor t arr) => ZeroT t arr a where
@@ -287,7 +287,7 @@ class (Tensor t arr) => ZeroT t arr a where
 -- * Free dagger category
 
 -- The free dagger category itself — pairing a forward arrow with a backward
--- arrow and swapping them with 'transpose' — and the bimonoid interlock
+-- arrow and swapping them with 'dagger' — and the bimonoid interlock
 -- instances that dualise the structural rules.
 
 -- | The free dagger category over a base arrow.
@@ -310,9 +310,9 @@ data Dagger arr a b = Dagger
 
 -- | The dagger operation: braid forward and backward.
 --
--- Involutive: @transpose . transpose = id@.
-transpose :: Dagger arr a b -> Dagger arr b a
-transpose (Dagger f g) = Dagger g f
+-- Involutive: @dagger . dagger = id@.
+dagger :: Dagger arr a b -> Dagger arr b a
+dagger (Dagger f g) = Dagger g f
 
 instance (Category arr) => Category (Dagger arr) where
   id = Dagger id id
@@ -336,7 +336,7 @@ instance (Trace t arr) => Trace t (Dagger arr) where
 -- separately in this construction; @Dagger (FinRel k)@ is where that
 -- collapse becomes observable (see the @circuits-axioma@ oracle).
 instance (Copy arr a, Merge arr a) => Copy (Dagger arr) a where
-  copy = Dagger copy plus
+  copy = Dagger copy merge
   {-# INLINE copy #-}
 
 instance (Discard arr a, Zero arr a) => Discard (Dagger arr) a where
@@ -345,8 +345,8 @@ instance (Discard arr a, Zero arr a) => Discard (Dagger arr) a where
 
 -- | Forward add, backward copy.
 instance (Merge arr a, Copy arr a) => Merge (Dagger arr) a where
-  plus = Dagger plus copy
-  {-# INLINE plus #-}
+  merge = Dagger merge copy
+  {-# INLINE merge #-}
 
 instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
   zero = Dagger zero discard
@@ -355,19 +355,19 @@ instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
 -- | Tensor-generic bimonoid interlock through @Dagger@.
 --
 -- These instances mirror the cartesian ones above, but work for any wiring
--- tensor @t@.  They are the missing lemma that makes 'Circuit.Net.mirrorNet'
--- total: a 'Circuit.Net.Net' over 'Dagger arr' can transpose its bimonoid rows because
+-- tensor @t@.  They are the missing lemma that makes 'Circuit.Net.daggerNet'
+-- total: a 'Circuit.Net.Net' over 'Dagger arr' can dagger its bimonoid rows because
 -- the dagger swaps the tensor-comonoid and tensor-monoid dictionaries.
 --
 -- The overlap with the default instances below at @CopyT (,) (Dagger arr) a@
--- is forced, not accidental: mirrorNet totality needs these instances for
+-- is forced, not accidental: daggerNet totality needs these instances for
 -- every tensor @t@, and @t = (,)@ is also served by the OVERLAPPABLE
 -- defaults.  It is coherent because both routes compute the same arrow —
--- the default route reduces @copy \@(Dagger arr)@ to @Dagger copy plus@ on
+-- the default route reduces @copy \@(Dagger arr)@ to @Dagger copy merge@ on
 -- the base, which is exactly the body here.
 --
 -- The instances are INCOHERENT, and that is a load-bearing choice, not a
--- convenience: 'Circuit.Net.mirrorNet' re-emits the 'SigCopy'/'SigPlus'
+-- convenience: 'Circuit.Net.daggerNet' re-emits the 'SigCopy'/'SigMerge'
 -- rows at polymorphic types, so the goal @MergeT w (Dagger arr) a@ (and its
 -- three siblings) must be resolved while @w@ and @arr@ are still type
 -- variables — no specificity ordering between this head and the default's
@@ -384,7 +384,7 @@ instance (Zero arr a, Discard arr a) => Zero (Dagger arr) a where
 -- >>> back d (2, 3)
 -- 5
 instance {-# INCOHERENT #-} (CopyT t arr a, MergeT t arr a) => CopyT t (Dagger arr) a where
-  copyT = Dagger (copyT @t) (plusT @t)
+  copyT = Dagger (copyT @t) (mergeT @t)
   {-# INLINE copyT #-}
 
 instance {-# INCOHERENT #-} (DiscardT t arr a, ZeroT t arr a) => DiscardT t (Dagger arr) a where
@@ -392,8 +392,8 @@ instance {-# INCOHERENT #-} (DiscardT t arr a, ZeroT t arr a) => DiscardT t (Dag
   {-# INLINE discardT #-}
 
 instance {-# INCOHERENT #-} (MergeT t arr a, CopyT t arr a) => MergeT t (Dagger arr) a where
-  plusT = Dagger (plusT @t) (copyT @t)
-  {-# INLINE plusT #-}
+  mergeT = Dagger (mergeT @t) (copyT @t)
+  {-# INLINE mergeT #-}
 
 instance {-# INCOHERENT #-} (ZeroT t arr a, DiscardT t arr a) => ZeroT t (Dagger arr) a where
   zeroT = Dagger (zeroT @t) (discardT @t)
@@ -414,7 +414,7 @@ instance (SemiTensor t arr) => SemiTensor t (Dagger arr) where
   {-# INLINE tensor #-}
 
 -- | 'Tensor' for 'Dagger' is the conjunction: the 'Unital' dagger above
--- plus this 'SemiTensor' dagger.
+-- merge this 'SemiTensor' dagger.
 instance (Tensor t arr) => Tensor t (Dagger arr)
 
 instance (Symmetric t arr) => Symmetric t (Dagger arr) where
@@ -592,14 +592,14 @@ type SigCopyDiscard w = SigCopy w :+: SigDiscard w
 --
 -- The constructor carries a 'MergeT' constraint on the wiring tensor @w@,
 -- resolved at pattern-match time rather than in the algebra context.
-data SigPlus (w :: Type -> Type -> Type) arr rec a b where
-  SigPlus ::
+data SigMerge (w :: Type -> Type -> Type) arr rec a b where
+  SigMerge ::
     (MergeT w arr a) =>
-    SigPlus w arr rec (w a a) a
+    SigMerge w arr rec (w a a) a
 
-instance Algebra (SigPlus w) arr arr' where
-  type Ctx (SigPlus w) arr arr' = ()
-  alg emb _ SigPlus = emb (plusT @w)
+instance Algebra (SigMerge w) arr arr' where
+  type Ctx (SigMerge w) arr arr' = ()
+  alg emb _ SigMerge = emb (mergeT @w)
 
 -- | Zero: the unit half of the monoid.
 --
@@ -614,8 +614,8 @@ instance Algebra (SigZero w) arr arr' where
   type Ctx (SigZero w) arr arr' = ()
   alg emb _ SigZero = emb (zeroT @w)
 
--- | Monoid operations: plus and zero.
-type SigMergeZero w = SigPlus w :+: SigZero w
+-- | Monoid operations: merge and zero.
+type SigMergeZero w = SigMerge w :+: SigZero w
 
 -- | @K m@ copies and discards structurally: duplication and weakening are
 -- performed in the monad around the unchanged value.
@@ -641,22 +641,22 @@ instance {-# OVERLAPPABLE #-} (Discard arr a, Tensor (,) arr) => DiscardT (,) ar
 
 -- | Every 'Merge' instance gives a 'MergeT' instance for the cartesian tensor.
 instance {-# OVERLAPPABLE #-} (Merge arr a, Tensor (,) arr) => MergeT (,) arr a where
-  plusT = plus
-  {-# INLINE plusT #-}
+  mergeT = merge
+  {-# INLINE mergeT #-}
 
 -- | The coproduct's merge is free for every object — the codiagonal,
 -- uniform in a way the cartesian merge is not. This uniformity is the
 -- coproduct fact the trace-to-iteration correspondence lives on:
--- @unfold g = trace (g . plusT)@ at 'Either', stated in
+-- @unfold g = trace (g . mergeT)@ at 'Either', stated in
 -- "Circuit.Traced"'s 'Circuit.Traced.Unfold'.
 --
--- >>> (plusT :: Either Int Int -> Int) (Left 3)
+-- >>> (mergeT :: Either Int Int -> Int) (Left 3)
 -- 3
--- >>> (plusT :: Either Int Int -> Int) (Right 3)
+-- >>> (mergeT :: Either Int Int -> Int) (Right 3)
 -- 3
 instance MergeT Either (->) a where
-  plusT = either id id
-  {-# INLINE plusT #-}
+  mergeT = either id id
+  {-# INLINE mergeT #-}
 
 -- | Every 'Zero' instance gives a 'ZeroT' instance for the cartesian tensor.
 instance {-# OVERLAPPABLE #-} (Zero arr a, Tensor (,) arr) => ZeroT (,) arr a where

@@ -744,7 +744,7 @@ newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
 --
 -- The 'Either' corner is the codiagonal correspondence: iteration is a
 -- loop whose entry and feedback wires are joined — @unfold g = trace
--- (either g g)@, and 'Circuit.Bimonoid.plusT' is that join at 'Either'
+-- (either g g)@, and 'Circuit.Bimonoid.mergeT' is that join at 'Either'
 -- (the agreement is witnessed at a point in "Circuit.Net").
 class
   (Category arr) =>
