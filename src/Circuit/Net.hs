@@ -316,12 +316,14 @@ daggerNet (Oper op) = case op of
 -- base arrow agrees with melting to 'FreeTrace' and evaluating there.
 --
 -- >>> import Circuit.Bimonoid (SigCopy (..))
+-- >>> import Circuit.Syntax (Syntax (..), (:+:) (..))
 -- >>> let copyNet = Lift (+1) .> Oper (R (R (R (L SigCopy)))) :: Net (,) (->) Int (Int, Int)
 -- >>> eval (melt copyNet :: FreeTrace (,) (->) Int (Int, Int)) 5
 -- (6,6)
 --
 -- On the Either iteration example above, melting commutes with the fold:
 --
+-- >>> import Circuit.Bimonoid (SigMerge (..))
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
 -- >>> let body = Lift down . Oper (R (R (R (R (R (L SigMerge)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
 -- >>> run body (Right 5)

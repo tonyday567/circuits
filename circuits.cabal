@@ -49,9 +49,9 @@ library
     Circuit.Bimonoid
     Circuit.Category
     Circuit.Container
-    Circuit.Machine
     Circuit.Hyper
     Circuit.Linear
+    Circuit.Machine
     Circuit.Net
     Circuit.Poly
     Circuit.Pullback
