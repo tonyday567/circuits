@@ -1,10 +1,10 @@
 -- | Pullback oracles — the chain-rule-under-feedback claim of
 -- 'Circuit.Pullback.evalPullback' and the affine-feedback claim of the
--- @Yank (,) Pullback@ instance.
+-- @Trace (,) Pullback@ instance.
 --
 -- Each clause is the named creditor of the haddock claim it guards:
 -- 'evalPullback' claims the cotangent of a composite is the composite of
--- the cotangents, and the @Yank (,) Pullback@ instance claims the lazy
+-- the cotangents, and the @Trace (,) Pullback@ instance claims the lazy
 -- knot solves the affine cotangent equation, diverging on strict carriers
 -- exactly when the channel self-coupling is nonzero.
 module Axioma.Pullback
@@ -20,7 +20,7 @@ import Circuit.Net (Net, widen)
 import Circuit.Pullback (Pullback (..), evalPullback)
 import Circuit.Syntax (Layer (unit), Syntax (Lift))
 import Circuit.Tensor (SemiTensor (..), Tensor)
-import Circuit.Traced (Yank (..))
+import Circuit.Traced (Trace (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.Maybe (isNothing)
@@ -41,17 +41,17 @@ chainNet = plusN . parN . copyN
     plusN = unit (plus :: Pullback (Double, Double) Double)
 
 -- | Convergent feedback body: the channel-out cotangent @dx = 3 dy@ has no
--- self-coupling, so the lazy 'yank' knot terminates.  Primal story:
+-- self-coupling, so the lazy 'trace' knot terminates.  Primal story:
 -- @x' = 2u@, @y = 3x@, composite gradient @dy/du = 6@.  Guards the
--- @Yank (,) Pullback@ zero-coupling half of the affine-feedback claim.
+-- @Trace (,) Pullback@ zero-coupling half of the affine-feedback claim.
 convergentBody :: Pullback (Double, Double) (Double, Double)
 convergentBody = Pullback (\(dx', dy) -> (3.0 * dy, 2.0 * dx'))
 
 -- | Divergent feedback body: channel self-coupling @a = 0.5@ sends the lazy
--- 'yank' knot into a strict 'Double' loop.  Primal story: @x' = 0.5x + 2u@,
+-- 'trace' knot into a strict 'Double' loop.  Primal story: @x' = 0.5x + 2u@,
 -- @y = 2x@, fixpoint @x = 4u@, composite gradient @8@.  The gradient is
 -- read in closed form @b ⋅ star a ⋅ c@ with @star a = 1/(1-a)@ — the
--- star-elimination route the @Yank (,) Pullback@ haddock points at.
+-- star-elimination route the @Trace (,) Pullback@ haddock points at.
 divergentBody :: Pullback (Double, Double) (Double, Double)
 divergentBody = Pullback (\(dx', dy) -> (a * dx' + c * dy, b * dx'))
   where
@@ -82,11 +82,11 @@ pullbackTopic verbosity = do
   sequence
     [ checkV verbosity "evalPullback: cotangent of a composite is the composite of cotangents" $
         approx (evalPullback chainNet 1.0) 5.0,
-      checkV verbosity "yank (Pullback): zero channel self-coupling solves the affine cotangent equation" $
-        approx (runPullback (yank convergentBody) 1.0) 6.0,
+      checkV verbosity "trace (Pullback): zero channel self-coupling solves the affine cotangent equation" $
+        approx (runPullback (trace convergentBody) 1.0) 6.0,
       checkV verbosity "evalPullback: closed-form feedback gradient composes with downstream stages" $
         approx (divergentGradient 1.0) 16.0,
-      checkIOV verbosity "yank (Pullback): nonzero channel self-coupling diverges on strict Double" $ do
-        result <- timeout 1000000 (evaluate (runPullback (yank divergentBody) 1.0))
+      checkIOV verbosity "trace (Pullback): nonzero channel self-coupling diverges on strict Double" $ do
+        result <- timeout 1000000 (evaluate (runPullback (trace divergentBody) 1.0))
         pure (isNothing result)
     ]

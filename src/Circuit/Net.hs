@@ -20,8 +20,8 @@
 -- ('SigPar', 'SigSwap', the 'SMC' syntax and its 'mirrorSMC' transpose) is
 -- the layer on top of the generic free-construction substrate in
 -- "Circuit.Syntax"; 'Net' extends it with structural rows for the bimonoid
--- operations: copy, discard, addition, and zero.  Where 'Trace' keeps
--- only 'Lift' arrows and 'yank' in normal form, 'Net' keeps the wiring
+-- operations: copy, discard, addition, and zero.  Where 'FreeTrace' keeps
+-- only 'Lift' arrows and 'trace' in normal form, 'Net' keeps the wiring
 -- inspectable — the difference between wiring you can read backwards and
 -- wiring that has been folded into a single loop.
 --
@@ -37,14 +37,15 @@
 -- @
 --
 -- 'run' @Net@ interprets a 'Net' to a plain arrow; @'evalInto' 'Lift'@
--- reinterprets the structural rows into the free 'Trace' syntax (bimonoid
--- rows become opaque lifted arrows).
+-- reinterprets the structural rows into the free traced syntax
+-- ('FreeTrace'; bimonoid rows become opaque lifted arrows).
 module Circuit.Net
   ( -- * Net
     Net,
 
     -- * Conversion
     widen,
+    melt,
 
     -- * Dagger
     mirrorNet,
@@ -54,9 +55,6 @@ module Circuit.Net
 
     -- ** Dagger mirror
     mirrorSMC,
-
-    -- ** Constraint synonym used by Net's Layer law
-    FreeSMC,
 
     -- ** Signatures (exported for other syntax layers)
     SigPar (..),
@@ -84,19 +82,19 @@ import Circuit.Syntax
     (:+:) (..),
     (:~>),
   )
-import Circuit.Tensor (Action, SemiTensor, Tensor, Unital)
+import Circuit.Tensor (SemiTensor, Symmetric, Tensor, Unital)
 import Circuit.Tensor qualified as T
-import Circuit.Trace (Trace)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Trace (FreeTrace)
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Bimonoid (Dagger (..), transpose)
 -- >>> import Circuit.Net
--- >>> import Circuit.Trace (Trace)
+-- >>> import Circuit.Trace (FreeTrace)
 -- >>> import Circuit.Syntax (Syntax (Lift), bind, eval, evalInto, run)
--- >>> import Circuit.Category ((.))
+-- >>> import Circuit.Category ((.), (.>))
 -- >>> import Prelude hiding (id, (.))
 
 -- * Symmetric-monoidal layer
@@ -113,8 +111,8 @@ import Prelude hiding (id, (.))
 -- parallel composition over the wiring tensor @w@, and 'SigSwap' w provides
 -- the symmetry / braiding.
 --
--- The 'Tensor' and 'Action' instances are the syntactic constructors:
--- @'Tensor.tensor' f g@ builds a 'SigPar' node and @'Action.braid'@ builds
+-- The 'Tensor' and 'Symmetric' instances are the syntactic constructors:
+-- @'Tensor.tensor' f g@ builds a 'SigPar' node and @'Symmetric.braid'@ builds
 -- a 'SigSwap' node. Folding uses 'Circuit.Syntax.eval' or
 -- 'Circuit.Syntax.evalInto'.
 
@@ -135,8 +133,8 @@ instance (Tensor w arr') => Algebra (SigPar w) arr arr' where
 data SigSwap (w :: Type -> Type -> Type) arr rec a b where
   SigSwap :: SigSwap w arr rec (w a b) (w b a)
 
-instance (Action w arr') => Algebra (SigSwap w) arr arr' where
-  type Ctx (SigSwap w) arr arr' = Action w arr'
+instance (Symmetric w arr') => Algebra (SigSwap w) arr arr' where
+  type Ctx (SigSwap w) arr arr' = Symmetric w arr'
   alg _ _ SigSwap = T.braid
 
 -- ** Free symmetric monoidal category
@@ -199,11 +197,6 @@ mirrorSMC (Oper op) = case op of
   R (L (SigPar f g)) -> Oper (R (L (SigPar (mirrorSMC f) (mirrorSMC g))))
   R (R SigSwap) -> Oper (R (R SigSwap))
 
--- | Free 'SMC' folds target any category with @w@-monoidal action.
-class (Action w arr) => FreeSMC w arr
-
-instance (Action w arr) => FreeSMC w arr
-
 -- ** Instances for the free symmetric monoidal category
 
 instance (Category arr) => Category (SMC w arr) where
@@ -223,40 +216,40 @@ instance (SemiTensor w arr) => SemiTensor w (SMC w arr) where
 -- this 'SemiTensor' lift.
 instance (Tensor w arr) => Tensor w (SMC w arr)
 
-instance (Action w arr) => Action w (SMC w arr) where
+instance (Symmetric w arr) => Symmetric w (SMC w arr) where
   braid = Oper (R (R SigSwap))
 
 instance (Category arr, Assoc t arr) => Assoc t (SMC w arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
 
-instance (Category arr, Slide t arr) => Slide t (SMC w arr) where
-  slide = Lift slide
+instance (Category arr, OuterSwap t arr) => OuterSwap t (SMC w arr) where
+  outerSwap = Lift outerSwap
 
-instance (Strength t arr, Action w arr) => Strength t (SMC w arr) where
+instance (Strength t arr, Symmetric w arr) => Strength t (SMC w arr) where
   strength f = Lift (strength (eval f))
 
-instance (Yank t arr, Action w arr) => Yank t (SMC w arr) where
-  yank body = Lift (yank (eval body))
+instance (Trace t arr, Symmetric w arr) => Trace t (SMC w arr) where
+  trace body = Lift (trace (eval body))
 
 -- ** Iteration as a loop with joined wires
 
 -- The codiagonal theorem (stated in "Circuit.Traced"'s
--- 'Circuit.Traced.Unfold'): @unfold g = yank (g . plusT)@ — an iteration
+-- 'Circuit.Traced.Unfold'): @unfold g = trace (g . plusT)@ — an iteration
 -- is a loop whose entry and feedback wires are joined. The composite
 -- needs no new syntax: the 'SigPlus' node 'Net' already has supplies the
--- join, and the 'Circuit.Trace.SigYank' node supplies the loop. The body
+-- join, and the 'Circuit.Trace.SigTrace' node supplies the loop. The body
 -- melts Net to a function through the 'Circuit.Bimonoid.MergeT' Either
--- dictionary, lifts into 'Trace', and folds through 'Yank' Either —
+-- dictionary, lifts into 'FreeTrace', and folds through 'Trace' Either —
 -- agreeing with 'Circuit.Traced.unfold' at a point:
 --
 -- >>> import Circuit.Bimonoid (SigPlus (..))
 -- >>> import Circuit.Traced (unfold)
 -- >>> import Circuit.Syntax (Syntax (..))
--- >>> import Circuit.Traced (yank)
+-- >>> import Circuit.Traced (trace)
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
 -- >>> let body = Lift down . Oper (R (R (R (R (R (L SigPlus)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
--- >>> run (yank (Lift (run body)) :: Trace Either (->) Int Int) 5
+-- >>> run (trace (Lift (run body)) :: FreeTrace Either (->) Int Int) 5
 -- 0
 -- >>> unfold down 5
 -- 0
@@ -308,6 +301,42 @@ mirrorNet (Oper op) = case op of
   R (R (R (R (R (L SigPlus))))) -> Oper (R (R (R (L SigCopy))))
   R (R (R (R (R (R SigZero))))) -> Oper (R (R (R (R (L SigDiscard)))))
 
+-- * Interpretation
+
+-- | Melt the structural rows of a 'Net' into the free traced syntax.
+--
+-- The interpretation from the free symmetric monoidal category with a
+-- bimonoid to the free traced monoidal category, at one tensor: structural
+-- rows ('SigPar', 'SigCopy', 'SigPlus', etc.) become opaque base-arrow
+-- operations wrapped in 'Lift'; @SigCompose@ uses the 'Category' instance
+-- of 'FreeTrace'. Totality is free — 'Net' has no feedback constructor, so
+-- the domain is a finite wiring tree and 'evalInto' is structural.
+--
+-- The law: @'run' \@Net = 'eval' . 'melt'@ — folding a net straight to the
+-- base arrow agrees with melting to 'FreeTrace' and evaluating there.
+--
+-- >>> import Circuit.Bimonoid (SigCopy (..))
+-- >>> let copyNet = Lift (+1) .> Oper (R (R (R (L SigCopy)))) :: Net (,) (->) Int (Int, Int)
+-- >>> eval (melt copyNet :: FreeTrace (,) (->) Int (Int, Int)) 5
+-- (6,6)
+--
+-- On the Either iteration example above, melting commutes with the fold:
+--
+-- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
+-- >>> let body = Lift down . Oper (R (R (R (R (R (L SigPlus)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
+-- >>> run body (Right 5)
+-- Left 4
+-- >>> eval (melt body) (Right 5)
+-- Left 4
+--
+-- The cross-tensor spelling @Net w arr -> FreeTrace t arr@ is deliberately
+-- not restored: the through-'Trace' 'Assoc' instance forces @w ~ t@.
+melt ::
+  (Symmetric w arr, Trace w arr) =>
+  Net w arr a b ->
+  FreeTrace w arr a b
+melt = evalInto Lift
+
 -- | Free symmetric monoidal category with a bimonoid.
 --
 -- Structural rows are interpreted in the target category: parallel
@@ -320,8 +349,8 @@ mirrorNet (Oper op) = case op of
 -- only when @h@ is a bimonoid homomorphism (automatic for the generator
 -- embedding, but must be verified for custom @h@).
 instance Layer (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) where
-  type Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr' = FreeSMC w arr'
-  type Run (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = Action w arr
+  type Law (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr' = Symmetric w arr'
+  type Run (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = Symmetric w arr
   type Bind (Syntax (SigCompose :+: SigPar w :+: SigSwap w :+: SigCopy w :+: SigDiscard w :+: SigPlus w :+: SigZero w)) arr = ()
   unit = Lift
   bind ::

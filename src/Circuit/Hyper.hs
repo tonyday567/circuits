@@ -27,12 +27,12 @@
 -- === doctests
 --
 -- >>> import Circuit.Hyper
--- >>> import Circuit.Traced (yank)
+-- >>> import Circuit.Traced (trace)
 -- >>> import Circuit.Category (K (..))
 -- >>> import Data.Functor.Identity (Identity (..))
 --
 -- >>> let body = liftK (K (\(xs, ()) -> Identity (0 : xs, take 3 xs)) :: K Identity ([Int], ()) ([Int], [Int]))
--- >>> runIdentity (observeK (yank body) ())
+-- >>> runIdentity (observeK (trace body) ())
 -- [0,0,0]
 module Circuit.Hyper
   ( -- * Parameterised hyperfunctions
@@ -67,8 +67,8 @@ where
 import Circuit.Category (Category (..), K (..))
 import Circuit.Syntax (SigCompose (..), (:+:) (..))
 import Circuit.Syntax qualified as Syn
-import Circuit.Trace (SigYank (..), Trace)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Trace (FreeTrace, SigTrace (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Bifunctor (second)
 import Prelude hiding (id, (.))
@@ -166,14 +166,14 @@ instance Assoc (,) Hyper where
   assoc = lift assoc
   assoc' = lift assoc'
 
-instance Slide (,) Hyper where
-  slide = lift slide
+instance OuterSwap (,) Hyper where
+  outerSwap = lift outerSwap
 
 instance Strength (,) Hyper where
   strength h = lift $ second (observe h)
 
-instance Yank (,) Hyper where
-  yank body = HyperA $ \k ->
+instance Trace (,) Hyper where
+  trace body = HyperA $ \k ->
     let pair = invoke body cont
         cont = HyperA $ const (second (observe k) pair)
      in snd pair
@@ -188,14 +188,14 @@ instance (Monad m) => Assoc (,) (HyperA (K m)) where
   assoc = liftK assoc
   assoc' = liftK assoc'
 
-instance (Monad m) => Slide (,) (HyperA (K m)) where
-  slide = liftK slide
+instance (Monad m) => OuterSwap (,) (HyperA (K m)) where
+  outerSwap = liftK outerSwap
 
 instance (Monad m) => Strength (,) (HyperA (K m)) where
   strength h = liftK $ K $ \(a, b) -> (a,) <$> observeK h b
 
-instance (MonadFix m) => Yank (,) (HyperA (K m)) where
-  yank body = HyperA $ K $ \k -> do
+instance (MonadFix m) => Trace (,) (HyperA (K m)) where
+  trace body = HyperA $ K $ \k -> do
     pair <- mfix $ \pair -> do
       let cont =
             HyperA $ K $ \_ -> do
@@ -208,7 +208,7 @@ instance (MonadFix m) => Yank (,) (HyperA (K m)) where
 
 -- | Encode an Either-loop as a self-referential 'Hyper'.
 --
--- Whereas 'encode' handles the @(,)@ tensor using @Hyper@'s own 'Yank'
+-- Whereas 'encode' handles the @(,)@ tensor using @Hyper@'s own 'Trace'
 -- instance, this preserves the Either-loop state in the function domain.
 -- @Left a@ feeds back; @Right c@ terminates with output.
 --
@@ -255,31 +255,31 @@ runEither f b = runHyper (encodeEither f) (Right b)
 
 -- * Bridges from initial syntax
 
--- | Encode a function-category 'Trace' into a 'Hyper'.
+-- | Encode a function-category 'FreeTrace' into a 'Hyper'.
 --
--- This is the unique traced functor from the initial syntax ('Trace')
+-- This is the unique traced functor from the initial syntax ('FreeTrace')
 -- to the final object ('Hyper'), satisfying the commuting triangle
 -- @'observe' . 'encode' = 'Circuit.Syntax.eval'@.
 --
--- 'baseHyper' and 'baseK' constructors embed directly via 'lift'; 'Circuit.Trace.yank'
--- constructors become 'yank' over a hyperfunction.
+-- 'baseHyper' and 'baseK' constructors embed directly via 'lift'; the
+-- 'Circuit.Trace.SigTrace' constructors become 'trace' over a hyperfunction.
 --
 -- >>> import qualified Circuit.Trace as Trace
 -- >>> import Circuit.Syntax (Syntax (Lift))
--- >>> observe (encode (Lift (+1) :: Trace.Trace (,) (->) Int Int)) 5
+-- >>> observe (encode (Lift (+1) :: Trace.FreeTrace (,) (->) Int Int)) 5
 -- 6
 encode ::
-  Trace (,) (->) a b ->
+  FreeTrace (,) (->) a b ->
   Hyper a b
 encode (Syn.Lift f) = lift f
 encode (Syn.Oper (L (SigCompose g f))) = encode g . encode f
-encode (Syn.Oper (R (YankBody body))) = yank (encode body)
+encode (Syn.Oper (R (SigTrace body))) = trace (encode body)
 
--- | Encode a Kleisli 'Trace' into a @'HyperA' ('K' m)@.
+-- | Encode a Kleisli 'FreeTrace' into a @'HyperA' ('K' m)@.
 encodeK ::
   (MonadFix m) =>
-  Trace (,) (K m) a b ->
+  FreeTrace (,) (K m) a b ->
   HyperA (K m) a b
 encodeK (Syn.Lift f) = liftK f
 encodeK (Syn.Oper (L (SigCompose g f))) = encodeK g . encodeK f
-encodeK (Syn.Oper (R (YankBody body))) = yank (encodeK body)
+encodeK (Syn.Oper (R (SigTrace body))) = trace (encodeK body)

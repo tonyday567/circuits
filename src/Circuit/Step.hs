@@ -14,10 +14,10 @@
 --   ('Circuit.Machine.MooreT' seals it), and 'Circuit.Machine.fuse'
 --   lands a body back here.
 -- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
---   existentially, and its one run is 'Circuit.Traced.yank'.
+--   existentially, and its one run is 'Circuit.Traced.trace'.
 --
 -- The tick means the same thing in every packaging; the runners are what
--- differ. 'Circuit.Traced.yank' ties the channel as a fixpoint — lazily
+-- differ. 'Circuit.Traced.trace' ties the channel as a fixpoint — lazily
 -- at @(,)@, by closed iteration at 'Either' — while the machine runners
 -- ('Circuit.Machine.scan', 'Circuit.Machine.fold', and the
 -- 'Circuit.Traced.Unfold' family) iterate the tick over a tape or from a
@@ -30,10 +30,10 @@
 --   step factors as @f x = (k x, e (k x))@. The shift register
 --   @\\(s, i) -> (i, s)@ fails here — its output reads the stale
 --   channel.
--- * A step yanks at @(,)@ iff it is productive: the fresh channel's
+-- * A step traces at @(,)@ iff it is productive: the fresh channel's
 --   constructor is produced before the stale channel is demanded. The
 --   accumulator @\\(n, i) -> (n + i, n + i)@ fails here — the knot is
---   circular. At 'Either' the yank iterates strictly and productivity is
+--   circular. At 'Either' the trace iterates strictly and productivity is
 --   free.
 --
 -- == A worked example
@@ -53,11 +53,11 @@
 -- >>> scan m [1,2,3,4]
 -- [[1],[2,1],[3,2,1],[4,3,2]]
 --
--- As a knot, run by 'Circuit.Traced.yank' (the 'Circuit.Trace.Knot'
+-- As a knot, run by 'Circuit.Traced.trace' (the 'Circuit.Trace.Knot'
 -- packaging folds to exactly this): the channel ties to a constant
 -- stream and the window is constant — no tape exists in a knot:
 --
--- >>> yank win 7
+-- >>> trace win 7
 -- [7,7,7]
 --
 -- Same step, two runs, different answers: the runner is the semantics.
@@ -72,7 +72,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> import Circuit.Machine (Body (..), MooreT (..), scan)
 -- >>> import Circuit.Tensor (Const (..))
--- >>> import Circuit.Traced (yank)
+-- >>> import Circuit.Traced (trace)
 
 -- | One tick of a machine: the arrow from the grammared source
 -- @t ch i@ to the grammared target @t' ch' o@. Composition needs the

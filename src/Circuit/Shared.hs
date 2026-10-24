@@ -48,7 +48,7 @@ import Circuit.Syntax
     (:+:),
   )
 import Circuit.Tensor (Bias (..), Tensor)
-import Circuit.Trace (SigYank)
+import Circuit.Trace (SigTrace)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
 import Data.These (These (..))
@@ -208,7 +208,7 @@ transcriptSharedBy sched f g s0 = go s0
 -- | Shared-medium fusion (the tensor product ⅋), parameterised by a schedule.
 --
 -- The constructor takes two bodies that already share a feedback type @s@ and
--- produces the untraced shared body.  The surrounding 'SigYank' closes the
+-- produces the untraced shared body.  The surrounding 'SigTrace' closes the
 -- feedback loop over @s@, yielding a morphism @t a c -> These b d@.
 data SigShared (t :: Type -> Type -> Type) arr rec i o where
   SigShared ::
@@ -222,4 +222,4 @@ instance (Shared t arr') => Algebra (SigShared t) arr arr' where
   alg _ rec (SigShared sched f g) = sharedBy sched (rec f) (rec g)
 
 -- | Free traced category with shared-medium fusion (the ⅋ connective).
-type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigYank t) arr
+type AlgShared t arr = Syntax (SigCompose :+: SigShared t :+: SigTrace t) arr

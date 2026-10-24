@@ -16,9 +16,9 @@ import Circuit.Category (K (..), id, (.))
 import Circuit.Machine (Body (Body), Cell (..), FBody (..), LBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), PBody (..), SBody (..), Step (..), TBody (..), bodyAsLens, fold, fuseFBody, fuseLBody, fusePBody, fuseSBody, fuseTBody, lbodyAsLens, lensAsLBody, mealyToKnot, mooreToKnot, scan, scanT, traceToMoore, unfuseSBody, unfuseTBody)
 import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
-import Circuit.Tensor (Action (..), Const (..), SemiTensor (..), Tensor, Unital (..), unConst)
-import Circuit.Trace (Trace)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..))
+import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
+import Circuit.Trace (FreeTrace)
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.Functor.Identity (Identity (..))
@@ -247,11 +247,11 @@ recentMealy = MealyT (Cell (const []) (Step (\(ns, i) -> (i : ns, take 3 (i : ns
 --   * the applicative product runs catch crossed (ch1, ch2) wiring — the
 --     counter and collector channels differ, so a crossed commit is a type
 --     error and a crossed observation swaps the pair;
---   * the yank runs catch a strict knot tie (the strictBody divergence)
+--   * the trace runs catch a strict knot tie (the strictBody divergence)
 --     and a dropped feedback (powersBody would return a wrong stream);
 --   * the unital, tensor, and braid runs catch swapped unitors and
 --     swapped product wires;
---   * the assoc and slide round trips catch a state-threading slip past
+--   * the assoc and outerSwap round trips catch a state-threading slip past
 --     the reassociated or slid product;
 --   * the strength run catches a swapped fst/snd wire in the strengthened
 --     machine.
@@ -283,7 +283,7 @@ bumpM = MooreT (Body id snd (Const . (+ 100)))
 nestedM :: MooreT (,) (->) ((Int, Int), Int) ((Int, [Int]), Int)
 nestedM = tensor (tensor cntM colM) cntM
 
--- | Right-nested product for the slide round trip and the associator RHS.
+-- | Right-nested product for the outerSwap round trip and the associator RHS.
 sideM :: MooreT (,) (->) (Int, (Int, Int)) (Int, ([Int], Int))
 sideM = tensor cntM (tensor colM cntM)
 
@@ -291,16 +291,16 @@ sideXs :: [(Int, (Int, Int))]
 sideXs = [(1, (10, 100)), (2, (20, 200)), (3, (30, 300)), (4, (40, 400))]
 
 -- | Powers-of-two body for the lazy-knot productivity witness: the initial
--- channel is @1 : map (* 2) ns@ with the feedback @ns@ tied by the yank —
--- the machine counterpart of the cartesian @(->)@ 'yank' powers example.
--- Guards the Yank productivity clause: a strict knot tie diverges here.
+-- channel is @1 : map (* 2) ns@ with the feedback @ns@ tied by the trace —
+-- the machine counterpart of the cartesian @(->)@ 'trace' powers example.
+-- Guards the Trace productivity clause: a strict knot tie diverges here.
 powersBody :: MooreT (,) (->) ([Integer], ()) ([Integer], [Integer])
 powersBody = MooreT (Body (\(ns, ()) -> 1 : map (* 2) ns) (\(s, (_, ())) -> s) (Const . (\s -> (s, take 5 s))))
 
 -- | Strict accumulator body for the divergence witness: init and step are
 -- strict in the feedback channel, so the lazy knot is circular and the run
--- never terminates. Guards the Yank non-strictness clause, modelled on the
--- Pullback yank-divergence oracle.
+-- never terminates. Guards the Trace non-strictness clause, modelled on the
+-- Pullback trace-divergence oracle.
 strictBody :: MooreT (,) (->) (Int, Int) (Int, Int)
 strictBody = MooreT (Body (uncurry (+)) (\(s, (fb, x)) -> s + fb + x) (Const . (\s -> (s, s))))
 
@@ -493,10 +493,10 @@ machineTopic verbosity = do
         scanT (pure id <*> sumG) xs == [1, 3, 6, 10],
       checkV verbosity "mooreT (,) applicative product: distinct channels stay on their own legs" $
         scanT ((,) <$> cntM <*> colM) xs == [(0, [1]), (1, [2, 1]), (2, [3, 2, 1]), (3, [4, 3, 2, 1])],
-      checkV verbosity "mooreT (,) yank: lazy knot productive on a non-strict body" $
-        scanT (yank powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
-      checkIOV verbosity "mooreT (,) yank: strict accumulator diverges (use register)" $ do
-        result <- timeout 1000000 $ case scanT (yank strictBody) [1 :: Int] of
+      checkV verbosity "mooreT (,) trace: lazy knot productive on a non-strict body" $
+        scanT (trace powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
+      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges (use register)" $ do
+        result <- timeout 1000000 $ case scanT (trace strictBody) [1 :: Int] of
           (o : _) -> evaluate o
           [] -> pure 0
         pure (isNothing result),
@@ -510,15 +510,15 @@ machineTopic verbosity = do
         scanT (braid . tensor cntM colM) (zip [1 .. 2] [10, 20]) == [([10], 0), ([20, 10], 1)],
       checkV verbosity "mooreT (,) assoc: reassociating wires commutes with tensor nesting" $
         scanT (assoc . nestedM . assoc') sideXs == scanT sideM sideXs,
-      checkV verbosity "mooreT (,) slide: sliding a wire past a product commutes with tensor nesting" $
-        scanT (slide . sideM . slide) sideXs == scanT (tensor colM (tensor cntM cntM)) sideXs,
+      checkV verbosity "mooreT (,) outerSwap: sliding a wire past a product commutes with tensor nesting" $
+        scanT (outerSwap . sideM . outerSwap) sideXs == scanT (tensor colM (tensor cntM cntM)) sideXs,
       checkV verbosity "mooreT (,) strength: strength lifts a machine to the second wire" $
         scanT (strength bumpM) ([(1, 5), (2, 7), (3, 9)] :: [(Int, Int)]) == [(1, 105), (2, 107), (3, 109)],
       checkV verbosity "mealyT (,) unit L" (runMealyT (id . sumMealy) xs == runMealyT sumMealy xs),
       checkV verbosity "mealyT (,) unit R" (runMealyT (sumMealy . id) xs == runMealyT sumMealy xs),
       checkV verbosity "mealyT (,) associativity on a three-machine chain" (runMealyT ((prodMealy . sumMealy) . sumMealy) xs == runMealyT (prodMealy . (sumMealy . sumMealy)) xs),
       checkV verbosity "traceToMoore on a base arrow runs as the arrow" $
-        scan (traceToMoore (S.Lift (+ 1) :: Trace (,) (->) Int Int)) xs == [2, 3, 4, 5],
+        scan (traceToMoore (S.Lift (+ 1) :: FreeTrace (,) (->) Int Int)) xs == [2, 3, 4, 5],
       checkV verbosity "mooreToKnot on a memoryless Moore matches the one-tick output" $
         S.run (mooreToKnot (MooreT (Body (const 0) snd (Const . (* 2)) :: Moore (,) Int (->) Int Int))) 5 == 10,
       checkV verbosity "mealyToKnot on a productive body ties a constant-input knot" $

@@ -19,20 +19,20 @@ import Circuit.Shared qualified as Shared
 import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 import Circuit.Syntax qualified as Syn
 import Circuit.Tensor (Bias (..), SemiTensor (..), Tensor, superpose)
-import Circuit.Trace (SigYank (..), Trace)
-import Circuit.Traced (assoc, assoc', slide, yank)
+import Circuit.Trace (FreeTrace, SigTrace (..))
+import Circuit.Traced (assoc, assoc', outerSwap, trace)
 import Control.Monad (when)
 import Data.List (sort)
 import Data.These (These (..), these)
 import Prelude hiding (curry, id, uncurry, (.))
 import Prelude qualified as Pre
 
--- | Helper that fixes the cartesian tensor for 'yank' over plain functions.
+-- | Helper that fixes the cartesian tensor for 'trace' over plain functions.
 --
--- The class method needs the 'Trace' tensor to be inferable; this wrapper
+-- The class method needs the 'FreeTrace' tensor to be inferable; this wrapper
 -- pins it to @(,)@ via the argument shape.
-yankFun :: ((s, a) -> (s, b)) -> Trace (,) (->) a b
-yankFun = yank . Lift
+traceFun :: ((s, a) -> (s, b)) -> FreeTrace (,) (->) a b
+traceFun = trace . Lift
 
 -- | Body that prepends a marker to the shared feedback list and emits the
 -- first three elements.  Used to make the shared-medium interleaving observable.
@@ -104,7 +104,7 @@ bodyParR f g (s, (a, c)) =
 bodyCentral :: (Eq s, Eq b, Eq d) => ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> (s, (a, c)) -> Bool
 bodyCentral f g input = bodyParL f g input == bodyParR f g input
 
--- | Premonoidal left-first whiskering built from assoc / slide / first.
+-- | Premonoidal left-first whiskering built from assoc / outerSwap / first.
 --
 -- This is the composite @(f ⊗ id) ; (id ⊗ g)@ expressed with the cartesian
 -- structural maps.  It threads state through @f@ first, then @g@.
@@ -113,18 +113,18 @@ whiskerL f g =
   assoc' @(,) @(->)
     .> tensor @(,) @(->) f id
     .> assoc @(,) @(->)
-    .> slide @(,) @(->)
+    .> outerSwap @(,) @(->)
     .> tensor @(,) @(->) id g
-    .> slide @(,) @(->)
+    .> outerSwap @(,) @(->)
 
--- | Premonoidal right-first whiskering built from assoc / slide / first.
+-- | Premonoidal right-first whiskering built from assoc / outerSwap / first.
 --
 -- This is the composite @(id ⊗ g) ; (f ⊗ id)@.
 whiskerR :: ((s, a) -> (s, b)) -> ((s, c) -> (s, d)) -> ((s, (a, c)) -> (s, (b, d)))
 whiskerR f g =
-  slide @(,) @(->)
+  outerSwap @(,) @(->)
     .> tensor @(,) @(->) id g
-    .> slide @(,) @(->)
+    .> outerSwap @(,) @(->)
     .> assoc' @(,) @(->)
     .> tensor @(,) @(->) f id
     .> assoc @(,) @(->)
@@ -148,21 +148,21 @@ sharedTopic verbosity = do
       checkV verbosity "pure order braid is invisible at the shared channel (sliding axiom)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yankFun (sharedBy pureLeft k1 k2)) ((), ())
-              == Syn.eval (yankFun (sharedBy pureRight k1 k2)) ((), ()),
+         in Syn.eval (traceFun (sharedBy pureLeft k1 k2)) ((), ())
+              == Syn.eval (traceFun (sharedBy pureRight k1 k2)) ((), ()),
       checkV verbosity "sharedBy differs from superpose (shared vs independent feedback)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             theseToPair (This a) = (a, [])
             theseToPair (That b) = ([], b)
             theseToPair (These a b) = (a, b)
-         in Syn.eval (superpose (yankFun k1) (yankFun k2)) ((), ())
-              /= theseToPair (Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())),
+         in Syn.eval (superpose (traceFun k1) (traceFun k2)) ((), ())
+              /= theseToPair (Syn.eval (traceFun (sharedBy leftFirst k1 k2)) ((), ())),
       checkV verbosity "sharedBy schedule changes observable interleaving" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yankFun (sharedBy rightFirst k1 k2)) ((), ())
-              /= Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ()),
+         in Syn.eval (traceFun (sharedBy rightFirst k1 k2)) ((), ())
+              /= Syn.eval (traceFun (sharedBy leftFirst k1 k2)) ((), ()),
       checkV verbosity "sharedBy Both LeftFirst equals premonoidal left-first product" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -215,8 +215,8 @@ sharedTopic verbosity = do
       checkV verbosity "marker bodies have equal trace under left-first and right-first threading (not centrality)" $
         let k1 = markerBody 1
             k2 = markerBody 2
-         in Syn.eval (yankFun (bodyParL k1 k2)) ((), ())
-              == Syn.eval (yankFun (bodyParR k1 k2)) ((), ()),
+         in Syn.eval (traceFun (bodyParL k1 k2)) ((), ())
+              == Syn.eval (traceFun (bodyParR k1 k2)) ((), ()),
       -- Structural maps are central: they do not touch the shared state,
       -- so order of threading is invisible (Benton–Hyland centrality).
       checkV verbosity "copy witnesses centrality wrt state-touching body at a point" $
@@ -251,17 +251,17 @@ sharedTopic verbosity = do
         let k1 = markerBody 1
             k2 = markerBody 2
             leftOnly = Schedule (,Shared.PickL) :: Schedule [Int]
-         in Syn.eval (yankFun (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
+         in Syn.eval (traceFun (sharedBy leftOnly k1 k2)) ((), ()) == This [1, 1, 1],
       checkV verbosity "sharedBy R gates left body (output is That only)" $
         let k1 = markerBody 1
             k2 = markerBody 2
             rightOnly = Schedule (,Shared.PickR) :: Schedule [Int]
-         in Syn.eval (yankFun (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
+         in Syn.eval (traceFun (sharedBy rightOnly k1 k2)) ((), ()) == That [2, 2, 2],
       checkV verbosity "sharedBy left-first and right-first both agree on body sets" $
         let k1 = markerBody 1
             k2 = markerBody 2
-            leftResult = Syn.eval (yankFun (sharedBy leftFirst k1 k2)) ((), ())
-            rightResult = Syn.eval (yankFun (sharedBy rightFirst k1 k2)) ((), ())
+            leftResult = Syn.eval (traceFun (sharedBy leftFirst k1 k2)) ((), ())
+            rightResult = Syn.eval (traceFun (sharedBy rightFirst k1 k2)) ((), ())
             bodySet = sort . these id id (++)
          in bodySet leftResult == [0, 0, 1, 1, 2, 2]
               && bodySet rightResult == [0, 0, 1, 1, 2, 2],
@@ -274,7 +274,7 @@ sharedTopic verbosity = do
               Oper
                 ( Syn.R
                     ( Syn.R
-                        ( YankBody
+                        ( SigTrace
                             ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared pureLeft (Lift k1) (Lift k2)))
@@ -283,7 +283,7 @@ sharedTopic verbosity = do
                         )
                     )
                 )
-         in eval term ((), ()) == Syn.eval (yankFun (sharedBy pureLeft k1 k2)) ((), ()),
+         in eval term ((), ()) == Syn.eval (traceFun (sharedBy pureLeft k1 k2)) ((), ()),
       checkV verbosity "AlgShared L schedule gates right body" $
         let k1 = markerBody 1
             k2 = markerBody 2
@@ -293,7 +293,7 @@ sharedTopic verbosity = do
               Oper
                 ( Syn.R
                     ( Syn.R
-                        ( YankBody
+                        ( SigTrace
                             ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared leftOnly (Lift k1) (Lift k2)))
@@ -312,7 +312,7 @@ sharedTopic verbosity = do
               Oper
                 ( Syn.R
                     ( Syn.R
-                        ( YankBody
+                        ( SigTrace
                             ( Oper
                                 ( Syn.R
                                     (Syn.L (SigShared rightOnly (Lift k1) (Lift k2)))

@@ -82,20 +82,20 @@ where
 
 import Circuit.Category (Category (..), K (..))
 import Circuit.Syntax (Algebra (..), (:+:) (..))
-import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Tensor (SemiTensor (..), Symmetric (..), Tensor, Unit, Unital (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Data.Kind (Type)
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Bimonoid
--- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Symmetric (..), Tensor (..))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Bimonoid
--- >>> import Circuit.Tensor (Action (..), Tensor (..))
+-- >>> import Circuit.Tensor (Symmetric (..), Tensor (..))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
@@ -325,9 +325,9 @@ instance (Strength t arr) => Strength t (Dagger arr) where
   strength (Dagger f g) = Dagger (strength f) (strength g)
   {-# INLINE strength #-}
 
-instance (Yank t arr) => Yank t (Dagger arr) where
-  yank (Dagger f g) = Dagger (yank f) (yank g)
-  {-# INLINE yank #-}
+instance (Trace t arr) => Trace t (Dagger arr) where
+  trace (Dagger f g) = Dagger (trace f) (trace g)
+  {-# INLINE trace #-}
 
 -- | Forward copy, backward add — the bimonoid self-duality.
 --
@@ -417,7 +417,7 @@ instance (SemiTensor t arr) => SemiTensor t (Dagger arr) where
 -- plus this 'SemiTensor' dagger.
 instance (Tensor t arr) => Tensor t (Dagger arr)
 
-instance (Action t arr) => Action t (Dagger arr) where
+instance (Symmetric t arr) => Symmetric t (Dagger arr) where
   braid = Dagger braid braid
   {-# INLINE braid #-}
 
@@ -425,8 +425,8 @@ instance (Assoc t arr) => Assoc t (Dagger arr) where
   assoc = Dagger assoc assoc'
   assoc' = Dagger assoc' assoc
 
-instance (Slide t arr) => Slide t (Dagger arr) where
-  slide = Dagger slide slide
+instance (OuterSwap t arr) => OuterSwap t (Dagger arr) where
+  outerSwap = Dagger outerSwap outerSwap
 
 -- * The substructural square
 
@@ -647,7 +647,7 @@ instance {-# OVERLAPPABLE #-} (Merge arr a, Tensor (,) arr) => MergeT (,) arr a 
 -- | The coproduct's merge is free for every object — the codiagonal,
 -- uniform in a way the cartesian merge is not. This uniformity is the
 -- coproduct fact the trace-to-iteration correspondence lives on:
--- @unfold g = yank (g . plusT)@ at 'Either', stated in
+-- @unfold g = trace (g . plusT)@ at 'Either', stated in
 -- "Circuit.Traced"'s 'Circuit.Traced.Unfold'.
 --
 -- >>> (plusT :: Either Int Int -> Int) (Left 3)

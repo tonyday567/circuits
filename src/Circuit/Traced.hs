@@ -14,32 +14,32 @@
 -- | Structural semantics for traced monoidal categories.
 --
 -- This module collects the structural superclass chain
--- @Assoc → Slide → Strength → Yank@ and all base instances for the standard
--- base arrows @(->)@ and @K m@.  These classes describe the monoidal
--- associator, the slide (braiding-with-payload), tensorial strength, and
--- feedback-fixing trace that underlie the syntax in "Circuit.Trace".
+-- @Assoc → OuterSwap → Strength → Trace@ and all base instances for the
+-- standard base arrows @(->)@ and @K m@.  These classes describe the
+-- monoidal associator, the outer swap (braiding-with-payload), tensorial
+-- strength, and feedback-fixing trace that underlie the syntax in
+-- "Circuit.Trace".
 --
 -- Beside the ladder sits 'Unfold': coiteration over a grammar, the run's
 -- output shape fixed by the grammar's 'Nu'. Its 'Either' corner is the
--- yank itself — the codiagonal correspondence — and its partial grammars
+-- trace itself — the codiagonal correspondence — and its partial grammars
 -- (@Maybe :. (,)@, @Maybe :. Either@) serve the tape-driven runners in
 -- "Circuit.Machine".
 --
 -- 'assoc' and 'assoc'' here reassociate /rightward/ and /leftward/
 -- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
--- names but the opposite directions. Also, 'slide' here is the slide
--- @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
+-- names but the opposite directions. Also, 'outerSwap' here is the outer
+-- swap @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
 -- lives in Circuit.Tensor as braid. Where both structures exist,
--- @slide = assoc' .> tensor braid id .> assoc@.
+-- @outerSwap = assoc' .> tensor braid id .> assoc@.
 --
 -- @t@ and @arr@ are monomorphic at 'Type' so that downstream type-family
 -- carriers (for example in @circuits-chu@) can write explicit signatures.
 module Circuit.Traced
   ( Assoc (..),
-    Slide (..),
+    OuterSwap (..),
     Strength (..),
-    Yank (..),
-    TraceC,
+    Trace (..),
     Unfold (..),
     (:.) (..),
   )
@@ -57,7 +57,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XLambdaCase
 -- >>> import Circuit.Category ((.>))
--- >>> import Circuit.Traced (Yank (..), Unfold (..), (:.) (..))
+-- >>> import Circuit.Traced (Trace (..), Unfold (..), (:.) (..))
 -- >>> import Circuit.Tensor (unitl, unitl')
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Circuit.Category (Op (..))
@@ -139,76 +139,76 @@ instance Assoc These (->) where
 -- | Opposite category: structural morphisms are reversed.
 --
 -- @Op arr@ reverses every arrow, so the associator uses the inverse direction
--- and the slide (an involution for the standard tensors) stays the same.
+-- and the outerSwap (an involution for the standard tensors) stays the same.
 instance (Assoc t arr) => Assoc t (Op arr) where
   assoc = Op assoc'
   assoc' = Op assoc
 
--- * Slide
+-- * OuterSwap
 
--- | The slide for a tensor @t@ internal to the category @arr@.
+-- | The outer swap for a tensor @t@ internal to the category @arr@.
 --
--- 'slide' swaps the two outer positions, leaving the inner payload in place:
--- @t a (t b c) -> t b (t a c)@. It is the structural half-braid used by the
--- sliding axiom of a traced category.
+-- 'outerSwap' swaps the two outer positions, leaving the inner payload in
+-- place: @t a (t b c) -> t b (t a c)@. It is the structural half-braid used
+-- by the sliding axiom of a traced category.
 --
--- Law note: @slide@ must be an involution, @slide .> slide = id@, and this
--- is an instance obligation rather than something the type guarantees.
--- Two places spend it: the @Op@ instance below sets @slide = Op slide@,
--- which is correct only because the base slide is its own inverse, and the
--- free 'Circuit.Trace.Strength' instance slides the loop wire out of a
--- yanked body and back, assuming the round trip cancels. The
--- @circuits-axioma@ traced topic carries the pointwise slide-involution
--- witnesses at @(,)@, 'Either', @K m@, @Op arr@, and 'These'; the these
--- topic pins the hand-written 'These' instances against a reference
--- derived from @(,)@ and 'Either'.
+-- Law note: @outerSwap@ must be an involution, @outerSwap .> outerSwap = id@,
+-- and this is an instance obligation rather than something the type
+-- guarantees. Two places spend it: the @Op@ instance below sets
+-- @outerSwap = Op outerSwap@, which is correct only because the base
+-- outer swap is its own inverse, and the free 'Circuit.Trace.Strength'
+-- instance slides the loop wire out of a traced body and back, assuming
+-- the round trip cancels. The @circuits-axioma@ traced topic carries the
+-- pointwise outerSwap-involution witnesses at @(,)@, 'Either', @K m@,
+-- @Op arr@, and 'These'; the these topic pins the hand-written 'These'
+-- instances against a reference derived from @(,)@ and 'Either'.
 class
   (Category arr) =>
-  Slide (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
+  OuterSwap (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
   where
   -- | Swap the two outer positions, leaving the inner payload in place:
   -- @t a (t b c) -> t b (t a c)@.
-  slide ::
+  outerSwap ::
     arr (t a (t b c)) (t b (t a c))
 
--- | Cartesian slide for @(,)@.
+-- | Cartesian outer swap for @(,)@.
 --
--- >>> slide (1, (2, 3)) :: (Int, (Int, Int))
+-- >>> outerSwap (1, (2, 3)) :: (Int, (Int, Int))
 -- (2,(1,3))
-instance Slide (,) (->) where
-  slide ~(a, ~(b, c)) = (b, (a, c))
+instance OuterSwap (,) (->) where
+  outerSwap ~(a, ~(b, c)) = (b, (a, c))
 
--- | Cocartesian slide for @Either@.
+-- | Cocartesian outer swap for @Either@.
 --
--- >>> slide (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
+-- >>> outerSwap (Left 1 :: Either Int (Either Bool Char)) :: Either Bool (Either Int Char)
 -- Right (Left 1)
-instance Slide Either (->) where
-  slide (Left a) = Right (Left a)
-  slide (Right (Left b)) = Left b
-  slide (Right (Right c)) = Right (Right c)
+instance OuterSwap Either (->) where
+  outerSwap (Left a) = Right (Left a)
+  outerSwap (Right (Left b)) = Left b
+  outerSwap (Right (Right c)) = Right (Right c)
 
--- | Inclusive slide for @These@.
-instance Slide These (->) where
-  slide (This a) = That (This a)
-  slide (That (This b)) = This b
-  slide (That (That c)) = That (That c)
-  slide (That (These b c)) = These b (That c)
-  slide (These a (This b)) = These b (This a)
-  slide (These a (That c)) = That (These a c)
-  slide (These a (These b c)) = These b (These a c)
+-- | Inclusive outer swap for @These@.
+instance OuterSwap These (->) where
+  outerSwap (This a) = That (This a)
+  outerSwap (That (This b)) = This b
+  outerSwap (That (That c)) = That (That c)
+  outerSwap (That (These b c)) = These b (That c)
+  outerSwap (These a (This b)) = These b (This a)
+  outerSwap (These a (That c)) = That (These a c)
+  outerSwap (These a (These b c)) = These b (These a c)
 
--- | Opposite category: slide is an involution, so it stays the same.
-instance (Slide t arr) => Slide t (Op arr) where
-  slide = Op slide
+-- | Opposite category: the outer swap is an involution, so it stays the same.
+instance (OuterSwap t arr) => OuterSwap t (Op arr) where
+  outerSwap = Op outerSwap
 
 -- * Strength
 
 -- | Tensorial strength for a tensor @t@ inside a category @arr@.
 --
 -- 'strength' tensors a plain morphism with the ambient channel. It is
--- /not/ a syntactic inverse of 'yank'; it is the strength
+-- /not/ a syntactic inverse of 'trace'; it is the strength
 -- ("tensorial strength") of the tensor @t@ acting on morphisms.
-class (Assoc t arr, Slide t arr) => Strength (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
+class (Assoc t arr, OuterSwap t arr) => Strength (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
   strength ::
     arr b c ->
     arr (t a b) (t a c)
@@ -217,7 +217,7 @@ class (Assoc t arr, Slide t arr) => Strength (t :: Type -> Type -> Type) (arr ::
 --
 -- The implementation uses explicit projections so that the result pair
 -- constructor exists before the feedback channel is forced; this keeps
--- fused 'Circuit.Trace.yank' bodies productive even when the body has a strict
+-- fused free-'Trace' bodies productive even when the body has a strict
 -- top-level pattern on the recursive channel.
 --
 -- >>> strength (+1) (error "forced" :: (Int, Int)) `seq` ()
@@ -244,11 +244,11 @@ instance Strength These (->) where
 instance (Strength t arr) => Strength t (Op arr) where
   strength (Op f) = Op (strength f)
 
--- * Yank
+-- * Trace
 
 -- | A trace over a morphism @arr@ and tensor @t@.
 --
--- @yank@ closes the feedback loop, eliminating the tensor channel.
+-- @trace@ closes the feedback loop, eliminating the tensor channel.
 -- It extends the 'Strength' structure with the feedback-fixing operation.
 --
 -- Object constraints on the feedback channel (@a@) used to let constrained
@@ -260,22 +260,18 @@ instance (Strength t arr) => Strength t (Op arr) where
 -- premonoidal setting. Benton & Hyland, "Traced Premonoidal Categories"
 -- (2003, Def 3.2) replace unrestricted Sliding with /Central Sliding/:
 -- a morphism @g@ may slide past the trace only when @g@ is central.
--- Dually, /Centre Preservation/ says @yank f@ is central whenever @f@ is.
+-- Dually, /Centre Preservation/ says @trace f@ is central whenever @f@ is.
 -- This class does not enforce the side-conditions at the type level; lawful
 -- instances must guarantee them by construction. See the @circuits-axioma@
 -- sliding oracles for witnesses that the side-condition is not vacuous.
-class (Strength t arr) => Yank (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
-  yank ::
+class (Strength t arr) => Trace (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type) where
+  trace ::
     arr (t a b) (t a c) ->
     arr b c
 
--- | Constraint synonym bundling the four structural layers of a traced
--- monoidal category.
-type TraceC t arr = (Assoc t arr, Slide t arr, Strength t arr, Yank t arr)
-
 -- * Cartesian tensor — lazy knot
 
--- | The cartesian yank ties a lazy knot: the feedback value @a@ and
+-- | The cartesian trace ties a lazy knot: the feedback value @a@ and
 -- output @c@ are produced simultaneously in a single recursive binding.
 --
 -- Only works in a lazy setting — the feedback value is a self-referential
@@ -288,10 +284,10 @@ type TraceC t arr = (Assoc t arr, Slide t arr, Strength t arr, Yank t arr)
 --       (1 : map (*2) ns, take 5 ns)
 -- :}
 --
--- >>> yank powers () :: [Integer]
+-- >>> trace powers () :: [Integer]
 -- [1,2,4,8,16]
 --
--- >>> yank (\(acc, x) -> (acc, x + 1)) 5
+-- >>> trace (\(acc, x) -> (acc, x + 1)) 5
 -- 6
 --
 -- Vanishing (a): tracing over the unit does nothing.
@@ -301,51 +297,51 @@ type TraceC t arr = (Assoc t arr, Slide t arr, Strength t arr, Yank t arr)
 -- applying the payload morphism directly.
 --
 -- >>> let f = (+1) :: Int -> Int
--- >>> yank (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
+-- >>> trace (unitl' . f . unitl :: ((), Int) -> ((), Int)) 5
 -- 6
 --
--- >>> yank ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
+-- >>> trace ((unitl' . (+ 3) . unitl) :: ((), Int) -> ((), Int)) 0
 -- 3
 --
 -- Yanking: tracing a braid is the identity.
 --
 -- >>> let braid (x, y) = (y, x)
--- >>> yank braid 42
+-- >>> trace braid 42
 -- 42
 --
--- >>> yank ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
+-- >>> trace ((\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 42
 -- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
 -- >>> let f (x, a) = (x, a)
--- >>> yank ((\(x, a) -> (x, a + 1)) . f . (\(x, a) -> (x, a * 2))) 5
+-- >>> trace ((\(x, a) -> (x, a + 1)) . f . (\(x, a) -> (x, a * 2))) 5
 -- 11
 --
 -- Sliding: a morphism on the channel slides from one side to the other.
 --
 -- >>> let braid (x, y) = (y, x)
--- >>> yank ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
+-- >>> trace ((\(a, b) -> (b, a + 1)) . (\(a, b) -> (b, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
--- >>> yank ((\(a, b) -> (b + 1, a)) :: (Int, Int) -> (Int, Int)) 5
+-- >>> trace ((\(a, b) -> (b + 1, a)) :: (Int, Int) -> (Int, Int)) 5
 -- 6
 --
 -- Strength: an independent payload wire is invisible to the trace.
 --
 -- >>> let f (x, c) = (x, c + 1)
 -- >>> let g (x, (a, c)) = (x', (a * 2, d)) where (x', d) = f (x, c)
--- >>> yank g (3, 5)
+-- >>> trace g (3, 5)
 -- (6,6)
 --
--- >>> yank ((\(x, (p, q)) -> (x, (p + 7, q + 1))) :: (Int, (Int, Int)) -> (Int, (Int, Int))) (0, 5)
+-- >>> trace ((\(x, (p, q)) -> (x, (p + 7, q + 1))) :: (Int, (Int, Int)) -> (Int, (Int, Int))) (0, 5)
 -- (7,6)
-instance Yank (,) (->) where
-  yank f b = let ~(a, c) = f (a, b) in c
+instance Trace (,) (->) where
+  trace f b = let ~(a, c) = f (a, b) in c
 
 -- * Either tensor — iteration
 
--- | The Either yank iterates: 'Left' feeds back (continue), 'Right'
+-- | The Either trace iterates: 'Left' feeds back (continue), 'Right'
 -- terminates (exit). A compact, under-appreciated pattern for loops in Haskell.
 --
 -- >>> :{
@@ -353,7 +349,7 @@ instance Yank (,) (->) where
 --                  | otherwise = Left (n - 1, n * acc)
 -- :}
 --
--- >>> yank (either fac fac) (5, 1 :: Int)
+-- >>> trace (either fac fac) (5, 1 :: Int)
 -- 120
 --
 -- >>> :{
@@ -364,7 +360,7 @@ instance Yank (,) (->) where
 --               | otherwise -> Right n
 -- :}
 --
--- >>> yank countdown (3 :: Int)
+-- >>> trace countdown (3 :: Int)
 -- 0
 --
 -- Vanishing (a): tracing over the unit does nothing.
@@ -374,10 +370,10 @@ instance Yank (,) (->) where
 -- the same as applying the payload morphism directly.
 --
 -- >>> let f = (+1) :: Int -> Int
--- >>> yank (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
+-- >>> trace (unitl' . f . unitl :: Either Void Int -> Either Void Int) 5
 -- 6
 --
--- >>> yank ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
+-- >>> trace ((unitl' . (+ 3) . unitl) :: Either Void Int -> Either Void Int) 0
 -- 3
 --
 -- Yanking: tracing a braid is the identity.
@@ -387,22 +383,22 @@ instance Yank (,) (->) where
 --     swapEither (Right x) = Left x
 -- :}
 --
--- >>> yank swapEither 42
+-- >>> trace swapEither 42
 -- 42
 --
--- >>> yank ((\e -> case e of Left a -> Right a; Right a -> Left a) :: Either Int Int -> Either Int Int) 42
+-- >>> trace ((\e -> case e of Left a -> Right a; Right a -> Left a) :: Either Int Int -> Either Int Int) 42
 -- 42
 --
 -- Tightening: payload morphisms pass freely through the trace.
 --
 -- >>> let f = fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int)
--- >>> yank (f :: Either Void Int -> Either Void Int) 5
+-- >>> trace (f :: Either Void Int -> Either Void Int) 5
 -- 11
 --
--- >>> yank (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) 5
+-- >>> trace (fmap ((+1) :: Int -> Int) . fmap ((*2) :: Int -> Int) :: Either Void Int -> Either Void Int) 5
 -- 11
-instance Yank Either (->) where
-  yank f b = go (Right b)
+instance Trace Either (->) where
+  trace f b = go (Right b)
     where
       go x = case f x of
         Right c -> c
@@ -410,7 +406,7 @@ instance Yank Either (->) where
 
 -- * These tensor — scheduled interleaving
 
--- | The These yank schedules.  'This' feeds the residual back for another
+-- | The These trace schedules.  'This' feeds the residual back for another
 -- tick; 'That' halts with its payload, which is the trace's result;
 -- 'These' also halts with its payload, offering the final residual for
 -- inspection as it exits.  Only the residual channel is fed back — the
@@ -432,22 +428,22 @@ instance Yank Either (->) where
 --       This s -> These (s - 1) s
 -- :}
 --
--- >>> yank step 3
+-- >>> trace step 3
 -- 2
 --
 -- The body may also emit payload and residual together to exit with the
 -- payload while advertising the state it would have continued with:
 --
--- >>> yank (\case That x -> This x; This s -> These (s + 1) (s * 10)) (7 :: Int)
+-- >>> trace (\case That x -> This x; This s -> These (s + 1) (s * 10)) (7 :: Int)
 -- 70
 --
 -- Vanishing (a): tracing over the unit does nothing.  The unit is
 -- 'Data.Void.Void' for the 'These' tensor.
 --
--- >>> yank (unitl' . (+ 1) . unitl :: These Void Int -> These Void Int) 5
+-- >>> trace (unitl' . (+ 1) . unitl :: These Void Int -> These Void Int) 5
 -- 6
-instance Yank These (->) where
-  yank f b = go (That b)
+instance Trace These (->) where
+  trace f b = go (That b)
     where
       go x = case f x of
         That c -> c
@@ -507,32 +503,32 @@ instance (Monad m) => Assoc These (K m) where
         These a (That c) -> These (This a) c
         These a (These b c) -> These (These a b) c
 
--- | Cartesian slide for @K m@ with @(,)@.
+-- | Cartesian outer swap for @K m@ with @(,)@.
 --
 -- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
 -- required by the ladder's @Category arr@ superclass — needs @(>>=)@
 -- for composition. This body spends only @pure@.
-instance (Monad m) => Slide (,) (K m) where
-  slide = K $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
+instance (Monad m) => OuterSwap (,) (K m) where
+  outerSwap = K $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
--- | Cocartesian slide for @K m@ with 'Either'.
+-- | Cocartesian outer swap for @K m@ with 'Either'.
 --
 -- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
 -- required by the ladder's @Category arr@ superclass — needs @(>>=)@
 -- for composition. This body spends only @pure@.
-instance (Monad m) => Slide Either (K m) where
-  slide = K $ \case
+instance (Monad m) => OuterSwap Either (K m) where
+  outerSwap = K $ \case
     Left a -> pure (Right (Left a))
     Right (Left b) -> pure (Left b)
     Right (Right c) -> pure (Right (Right c))
 
--- | Inclusive slide for @K m@ with 'These'.
+-- | Inclusive outer swap for @K m@ with 'These'.
 --
 -- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
 -- required by the ladder's @Category arr@ superclass — needs @(>>=)@
 -- for composition. This body spends only @pure@.
-instance (Monad m) => Slide These (K m) where
-  slide =
+instance (Monad m) => OuterSwap These (K m) where
+  outerSwap =
     K $
       pure . \case
         This a -> That (This a)
@@ -548,7 +544,7 @@ instance (Monad m) => Slide These (K m) where
 -- | Strength for @K m@ with the cartesian tensor.
 --
 -- The implementation keeps the feedback channel lazy so that fused
--- 'Circuit.Trace.yank' bodies remain productive.
+-- free-'Trace' bodies remain productive.
 instance (Monad m) => Strength (,) (K m) where
   strength (K f) =
     K
@@ -557,11 +553,11 @@ instance (Monad m) => Strength (,) (K m) where
           pure (fst p, c)
       )
 
--- | Yank for @K m@ with the cartesian tensor, requiring @MonadFix m@.
+-- | Trace for @K m@ with the cartesian tensor, requiring @MonadFix m@.
 --
 -- The lazy knot is tied via 'mfix'. The feedback channel is lazy in the
 -- recursive binding — the body must not force the feedback value before
--- producing it, or 'mfix' will diverge (just as the pure @(,)@ yank
+-- producing it, or 'mfix' will diverge (just as the pure @(,)@ trace
 -- black-holes on strict fields).
 --
 -- >>> :{
@@ -569,10 +565,10 @@ instance (Monad m) => Strength (,) (K m) where
 --       pure (0 : 1 : zipWith (+) fibs (drop 1 fibs), take 3 fibs)
 -- :}
 --
--- >>> runK (yank fibs) ()
+-- >>> runK (trace fibs) ()
 -- [0,1,1]
-instance (MonadFix m) => Yank (,) (K m) where
-  yank (K f) =
+instance (MonadFix m) => Trace (,) (K m) where
+  trace (K f) =
     K
       ( \b -> do
           (_, c) <- mfix $ \ ~(s, _) -> f (s, b)
@@ -604,7 +600,7 @@ instance (Monad m) => Strength These (K m) where
       That b -> That <$> f b
       These a b -> These a <$> f b
 
--- | Yank for @K m@ with the 'Either' tensor, for any @Monad m@.
+-- | Trace for @K m@ with the 'Either' tensor, for any @Monad m@.
 --
 -- Iterates by feeding 'Left' back into the step function until a 'Right'
 -- is produced. Uses plain recursion — builds stack proportional to
@@ -621,10 +617,10 @@ instance (Monad m) => Strength These (K m) where
 --       Right ()            -> pure (Left 0)
 -- :}
 --
--- >>> runK (yank (countTo (3 :: Int))) ()
+-- >>> runK (trace (countTo (3 :: Int))) ()
 -- 3
-instance {-# OVERLAPPABLE #-} (Monad m) => Yank Either (K m) where
-  yank (K f) =
+instance {-# OVERLAPPABLE #-} (Monad m) => Trace Either (K m) where
+  trace (K f) =
     K $ \b -> go (Right b)
     where
       go x =
@@ -656,7 +652,7 @@ control0 (PromptTag t) f = IO (control0# t arg)
   where
     arg f# s = case f (\(IO x) -> IO (f# x)) of IO m -> m s
 
--- | Yank for @K IO@ with 'Either' tensor.
+-- | Trace for @K IO@ with 'Either' tensor.
 --
 -- Each iteration re-establishes the prompt boundary. When @control0@
 -- fires on @Left a@, it captures the continuation, wraps it around
@@ -667,10 +663,10 @@ control0 (PromptTag t) f = IO (control0# t arg)
 --       Right () -> pure (Right (42 :: Int))
 -- :}
 --
--- >>> runK (yank exit42) ()
+-- >>> runK (trace exit42) ()
 -- 42
-instance {-# OVERLAPPING #-} Yank Either (K IO) where
-  yank (K body) =
+instance {-# OVERLAPPING #-} Trace Either (K IO) where
+  trace (K body) =
     K
       ( \initial -> do
           tag <- newPromptTag
@@ -686,12 +682,12 @@ instance {-# OVERLAPPING #-} Yank Either (K IO) where
 
 -- * Op — the co-trace
 
--- | Yank for the opposite arrow: the co-trace.
+-- | Trace for the opposite arrow: the co-trace.
 --
--- Reversing the arrow reverses the body but not the loop: @yank (Op f)@ is
--- @Op (yank f)@ — the same knot equation, read contravariantly. This
--- completes the structural ladder: @TraceC t (Op arr)@ holds wherever
--- @TraceC t arr@ does, so loops over codata bodies (@Body t ch (Op arr)@)
+-- Reversing the arrow reverses the body but not the loop: @trace (Op f)@ is
+-- @Op (trace f)@ — the same knot equation, read contravariantly. This
+-- completes the structural ladder: @Trace t (Op arr)@ holds wherever
+-- @Trace t arr@ does, so loops over codata bodies (@Body t ch (Op arr)@)
 -- close with the same lazy knot and iteration as data bodies.
 --
 -- The cartesian co-knot is the knot, verbatim:
@@ -700,19 +696,19 @@ instance {-# OVERLAPPING #-} Yank Either (K IO) where
 -- let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
 -- :}
 --
--- >>> runOp (yank (Op powers)) () :: [Integer]
+-- >>> runOp (trace (Op powers)) () :: [Integer]
 -- [1,2,4,8,16]
 --
--- Co-trace agreement: on a named body, co-yanking the flipped body is the
--- knot itself.
+-- Co-trace agreement: on a named body, co-tracing the flipped body is
+-- the knot itself.
 --
 -- >>> let acc (s, a) = (s + a, a * 2)
--- >>> yank acc (5 :: Int)
+-- >>> trace acc (5 :: Int)
 -- 10
--- >>> runOp (yank (Op acc)) (5 :: Int)
+-- >>> runOp (trace (Op acc)) (5 :: Int)
 -- 10
 --
--- The Either co-yank iterates with the same Left-feeds-back / Right-exits
+-- The Either co-trace iterates with the same Left-feeds-back / Right-exits
 -- convention, driven by the contravariant body:
 --
 -- >>> :{
@@ -722,11 +718,11 @@ instance {-# OVERLAPPING #-} Yank Either (K IO) where
 --              | otherwise -> Left (n + 1)
 -- :}
 --
--- >>> runOp (yank (Op halveOrBump)) (5 :: Int)
+-- >>> runOp (trace (Op halveOrBump)) (5 :: Int)
 -- 3
-instance (Yank t arr) => Yank t (Op arr) where
-  yank :: forall a b c. Op arr (t a b) (t a c) -> Op arr b c
-  yank (Op f) = Op (yank f)
+instance (Trace t arr) => Trace t (Op arr) where
+  trace :: forall a b c. Op arr (t a b) (t a c) -> Op arr b c
+  trace (Op f) = Op (trace f)
 
 -- * Unfold — coiteration over a grammar
 
@@ -747,7 +743,7 @@ newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
 -- in the partial fragment.
 --
 -- The 'Either' corner is the codiagonal correspondence: iteration is a
--- loop whose entry and feedback wires are joined — @unfold g = yank
+-- loop whose entry and feedback wires are joined — @unfold g = trace
 -- (either g g)@, and 'Circuit.Bimonoid.plusT' is that join at 'Either'
 -- (the agreement is witnessed at a point in "Circuit.Net").
 class
@@ -769,7 +765,7 @@ instance Unfold (,) (->) where
 -- codiagonal correspondence is the definition.
 instance Unfold Either (->) where
   type Nu Either (->) b = b
-  unfold g = yank (either g g)
+  unfold g = trace (either g g)
 
 -- | The non-empty grammar: 'That' answers, 'These' emits and continues.
 instance Unfold These (->) where

@@ -17,7 +17,7 @@
 -- This module collects the cartesian and cocartesian structure over the
 -- standard tensors @(,)@ and 'Either', plus the tensor action on morphisms.
 --
--- The goal is to keep the core 'Trace' syntax and 'Circuit.Syntax.eval' fold
+-- The goal is to keep the core 'FreeTrace' syntax and 'Circuit.Syntax.eval' fold
 -- independent of these structural details.
 --
 -- Note: the monomorphic 'reassocL' and 'reassocR' helpers below move the
@@ -27,7 +27,7 @@
 -- bare 'assoc'/'assoc'' namespace, which belongs to the 'Circuit.Traced.Assoc'
 -- class imported throughout this module.
 --
--- 'SemiTensor' / 'Tensor' / 'Action' are kind-polymorphic, forming the
+-- 'SemiTensor' / 'Tensor' / 'Symmetric' are kind-polymorphic, forming the
 -- ladder from parallel composition through unitors to braiding; 'Const'
 -- is the forgetful semigroupoidal tensor that stops at the first rung.
 module Circuit.Tensor
@@ -42,7 +42,10 @@ module Circuit.Tensor
     Unital (..),
     SemiTensor (..),
     Tensor,
-    Action (..),
+    Symmetric (..),
+
+    -- * Derived swaps
+    innerSwap,
 
     -- * Distributivity of two tensors (multiplicative over additive)
     Distributive (..),
@@ -72,8 +75,8 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Category qualified as Cat (Op (..))
 import Circuit.Syntax (Syntax (..), eval, evalInto, (:+:) (..))
-import Circuit.Trace (Knot (..), SigYank (..), Trace)
-import Circuit.Traced (Assoc (..), Strength (..), TraceC, Yank (..))
+import Circuit.Trace (FreeTrace, Knot (..), SigTrace (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Circuit.Traced qualified as Ch
 import Data.Bifunctor (Bifunctor (..))
 import Data.Kind (Type)
@@ -83,8 +86,8 @@ import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> :set -XLambdaCase
--- >>> import Circuit.Trace (SigYank (..), Trace)
--- >>> import Circuit.Traced (Assoc (..), yank)
+-- >>> import Circuit.Trace (SigTrace (..), FreeTrace)
+-- >>> import Circuit.Traced (Assoc (..), trace)
 -- >>> import Circuit.Syntax (Syntax (..), eval, (:+:) (..))
 -- >>> import Circuit.Category (K (..), runK, (.))
 -- >>> import Data.Functor.Identity (Identity)
@@ -186,7 +189,7 @@ coreleaseR :: (s -> (s', t)) -> Either a (s, b) -> Either a (s', (t, b))
 coreleaseR f (Right (s, b)) = let (s', t) = f s in Right (s', (t, b))
 coreleaseR _ (Left a) = Left a
 
--- * Tensor / Action — tensor action on morphisms
+-- * Tensor / Symmetric — tensor action on morphisms
 
 -- | The unit object for a tensor @t@.
 --
@@ -224,7 +227,7 @@ class (Category arr) => Unital t arr where
 --
 -- 'tensor' is the tensor product of morphisms. Reassociation is inherited
 -- from the 'Assoc' superclass; the unitors, for tensors that have them,
--- live in 'Unital', and the braiding in 'Action'. Not every tensor climbs
+-- live in 'Unital', and the braiding in 'Symmetric'. Not every tensor climbs
 -- the whole ladder: 'Const' is semigroupoidal only, since its would-be
 -- right unitor would have to manufacture a payload from nothing.
 --
@@ -240,7 +243,7 @@ class (Category arr, Assoc t arr) => SemiTensor t arr where
 --
 -- 'Tensor' names the combination: 'tensor' from 'SemiTensor' together
 -- with the unit object structure from 'Unital'. The braiding stays at
--- 'Action'.
+-- 'Symmetric'.
 --
 -- Kind-polymorphic: @t@ and @arr@ share object kind (inferred via PolyKinds).
 class (Unital t arr, SemiTensor t arr) => Tensor t arr
@@ -251,12 +254,26 @@ class (Unital t arr, SemiTensor t arr) => Tensor t arr
 -- This is the self-action of a symmetric monoidal category: @t@ acts on
 -- @arr@ by taking morphisms to morphisms over paired objects, and 'braid'
 -- provides the symmetry.
-class (Tensor t arr) => Action t arr where
+class (Tensor t arr) => Symmetric t arr where
   -- | Symmetric braiding.
   --
   -- >>> braid (3, 4) :: (Int, Int)
   -- (4,3)
   braid :: arr (t a b) (t b a)
+
+-- | Derived adjacent transposition: @t (t a b) c -> t (t a c) b@.
+--
+-- Composed from the canonical maps — 'braid', 'outerSwap', and 'assoc'' —
+-- where 'braid' is available without an import cycle. It is /derived/:
+-- not a class method, not an instance obligation. Where 'outerSwap' is
+-- the half-braid swapping the two outer positions, 'innerSwap' swaps the
+-- two inner ones, leaving the outermost channel in place.
+--
+-- >>> innerSwap ((1, 2), 3 :: Int) :: ((Int, Int), Int)
+-- ((1,3),2)
+innerSwap :: (Symmetric t arr, OuterSwap t arr) => arr (t (t a b) c) (t (t a c) b)
+innerSwap = braid .> outerSwap .> assoc'
+{-# INLINE innerSwap #-}
 
 -- * The forgetful tensor
 
@@ -276,7 +293,7 @@ class (Tensor t arr) => Action t arr where
 -- projects the sole payload, would be free, but one unitor is not a unit.
 -- Braiding is impossible as well — a payload cannot be swapped with a
 -- phantom. 'Const' therefore receives 'SemiTensor' and 'Assoc' instances
--- only, never 'Unital', 'Tensor', or 'Action', and the witnesses in
+-- only, never 'Unital', 'Tensor', or 'Symmetric', and the witnesses in
 -- "Axioma.SemiTensor" are named for these counterexamples.
 -- A 'data' spelling is deliberate: the phantom slot stays decorative and
 -- the payload lazy, as the haddock above says openly (see .hlint.yaml).
@@ -362,7 +379,7 @@ instance SemiTensor (,) (->) where
 instance Tensor (,) (->)
 
 -- | Cartesian symmetry on functions.
-instance Action (,) (->) where
+instance Symmetric (,) (->) where
   braid (a, b) = (b, a)
   {-# INLINE braid #-}
 
@@ -416,7 +433,7 @@ instance (Monad m) => SemiTensor (,) (K m) where
 -- | Cartesian tensor on @K@: 'SemiTensor' with the 'Unital' unit.
 instance (Monad m) => Tensor (,) (K m)
 
-instance (Monad m) => Action (,) (K m) where
+instance (Monad m) => Symmetric (,) (K m) where
   braid = K $ \(a, b) -> pure (b, a)
   {-# INLINE braid #-}
 
@@ -485,7 +502,7 @@ instance Tensor Either (->)
 --
 -- >>> braid (Left 3 :: Either Int Int) :: Either Int Int
 -- Right 3
-instance Action Either (->) where
+instance Symmetric Either (->) where
   braid = \case
     Left a -> Right a
     Right b -> Left b
@@ -522,7 +539,7 @@ instance (Monad m) => SemiTensor Either (K m) where
 instance (Monad m) => Tensor Either (K m)
 
 -- | Coproduct symmetry on @K@ @m@.
-instance (Monad m) => Action Either (K m) where
+instance (Monad m) => Symmetric Either (K m) where
   braid = K $ pure . braid
   {-# INLINE braid #-}
 
@@ -555,7 +572,7 @@ instance SemiTensor These (->) where
 instance Tensor These (->)
 
 -- | Inclusive symmetry on functions.
-instance Action These (->) where
+instance Symmetric These (->) where
   braid (This a) = That a
   braid (That b) = This b
   braid (These a b) = These b a
@@ -591,7 +608,7 @@ instance (Monad m) => SemiTensor These (K m) where
 instance (Monad m) => Tensor These (K m)
 
 -- | Inclusive symmetry on @K@ @m@.
-instance (Monad m) => Action These (K m) where
+instance (Monad m) => Symmetric These (K m) where
   braid =
     K $
       pure . \case
@@ -600,8 +617,8 @@ instance (Monad m) => Action These (K m) where
         These a b -> These b a
   {-# INLINE braid #-}
 
--- | Lift 'Unital' through 'Trace'.
-instance (Unital t arr) => Unital t (Trace t' arr) where
+-- | Lift 'Unital' through 'FreeTrace'.
+instance (Unital t arr) => Unital t (FreeTrace t' arr) where
   unitl = Lift unitl
   unitl' = Lift unitl'
   unitr = Lift unitr
@@ -678,44 +695,45 @@ instance (Monad m) => ConstInject (K m) where
   constIn = K $ pure . Const
   {-# INLINE constIn #-}
 
--- | Lift 'ConstInject' through 'Trace'.
-instance (ConstInject arr) => ConstInject (Trace t' arr) where
+-- | Lift 'ConstInject' through 'FreeTrace'.
+instance (ConstInject arr) => ConstInject (FreeTrace t' arr) where
   constIn = Lift constIn
   {-# INLINE constIn #-}
 
--- | Lift 'SemiTensor' through 'Trace'.
+-- | Lift 'SemiTensor' through 'FreeTrace'.
 --
--- This is the single lawful instance: it evaluates each 'Trace' branch
+-- This is the single lawful instance: it evaluates each 'FreeTrace' branch
 -- independently with 'Circuit.Syntax.eval' and combines the results using the
 -- base arrow's tensor. It is correct and black-hole-free, but does not fuse
--- feedback loops. For the fused superposition of two 'Circuit.Trace.yank's,
+-- feedback loops. For the fused superposition of two 'Circuit.Trace.trace's,
 -- use 'superpose'.
 --
 -- The 'Assoc' constraint propagates: 'SemiTensor' inherits associativity,
--- and at 'Trace' it reaches the base arrow's associator whenever the
+-- and at 'FreeTrace' it reaches the base arrow's associator whenever the
 -- feedback tensor matches (@t ~ t'@, per the 'Assoc' lift in
 -- "Circuit.Trace").
 instance
-  (SemiTensor t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
-  SemiTensor t (Trace t' arr)
+  (SemiTensor t arr, Trace t' arr, Assoc t (FreeTrace t' arr)) =>
+  SemiTensor t (FreeTrace t' arr)
   where
   tensor f g = Lift (tensor (eval f) (eval g))
 
--- | 'Tensor' through 'Trace' is the conjunction instance: the 'Unital'
+-- | 'Tensor' through 'FreeTrace' is the conjunction instance: the 'Unital'
 -- lift above together with this 'SemiTensor' lift.
 instance
-  (Tensor t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
-  Tensor t (Trace t' arr)
+  (Tensor t arr, Trace t' arr, Assoc t (FreeTrace t' arr)) =>
+  Tensor t (FreeTrace t' arr)
 
 instance
-  (Action t arr, Yank t' arr, Assoc t (Trace t' arr)) =>
-  Action t (Trace t' arr)
+  (Symmetric t arr, Trace t' arr, Assoc t (FreeTrace t' arr)) =>
+  Symmetric t (FreeTrace t' arr)
   where
   braid = Lift braid
 
--- | Fused parallel composition for 'Trace' when the feedback tensor matches.
+-- | Fused parallel composition for 'FreeTrace' when the feedback tensor matches.
 --
--- Two 'Circuit.Traced.yank's in parallel superpose into one 'Circuit.Traced.yank' over a paired channel,
+-- Two 'Circuit.Traced.trace's in parallel superpose into one
+-- 'Circuit.Traced.trace' over a paired channel,
 -- satisfying the superposing axiom of traced monoidal categories:
 --
 -- @superpose (trace f) (trace g) = trace (pre . tensor f g . post)@
@@ -725,49 +743,49 @@ instance
 --
 -- Both inputs are normalised through the 'Knot' existential normal form
 -- ('evalInto' 'Arr') before the match, so fusion does not depend on the input
--- being a literal top-level 'yank': a loop with a lifted arrow in front,
--- @yank f . Lift g@, is one 'Knot' after normalisation and fuses like any
--- other loop.  The result is again a single yank over one lifted base
+-- being a literal top-level 'trace': a loop with a lifted arrow in front,
+-- @trace f . Lift g@, is one 'Knot' after normalisation and fuses like any
+-- other loop.  The result is again a single trace over one lifted base
 -- arrow.  There is no silent fallback to independent evaluation — every
 -- input shape takes the sharing-preserving path, and the 'Tensor'
--- instance for 'Trace' remains the lawful independent-evaluation form.
+-- instance for 'FreeTrace' remains the lawful independent-evaluation form.
 --
--- >>> let k1 = yank (Lift (\(ns, _) -> (1 : ns, take 3 ns))) :: Trace (,) (->) [Int] [Int]
--- >>> let k2 = yank (Lift (\(ns, _) -> (2 : ns, take 3 ns)))
+-- >>> let k1 = trace (Lift (\(ns, _) -> (1 : ns, take 3 ns))) :: FreeTrace (,) (->) [Int] [Int]
+-- >>> let k2 = trace (Lift (\(ns, _) -> (2 : ns, take 3 ns)))
 -- >>> eval (superpose k1 k2) ([], [])
 -- ([1,1,1],[2,2,2])
 --
 -- The same fusion works for @K@, preserving sharing across the
 -- recursive channels under @MonadFix@.
 --
--- >>> let k1 = yank (Lift (K $ \(ns, _) -> pure (1 : ns, take 3 ns))) :: Trace (,) (K Identity) [Int] [Int]
--- >>> let k2 = yank (Lift (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
+-- >>> let k1 = trace (Lift (K $ \(ns, _) -> pure (1 : ns, take 3 ns))) :: FreeTrace (,) (K Identity) [Int] [Int]
+-- >>> let k2 = trace (Lift (K $ \(ns, _) -> pure (2 : ns, take 3 ns)))
 -- >>> runK (eval (superpose k1 k2)) ([], [])
 -- Identity ([1,1,1],[2,2,2])
 --
 -- A composed input still fuses — normalisation, not surface shape, decides:
 --
--- >>> let composed = yank (Lift (\(ns, x) -> (1 : ns, take 3 ns ++ [x]))) . Lift (+ 100) :: Trace (,) (->) Int [Int]
--- >>> case superpose composed (Lift (* 2)) of { Oper (R (YankBody _)) -> "fused"; _ -> "fallback" }
+-- >>> let composed = trace (Lift (\(ns, x) -> (1 : ns, take 3 ns ++ [x]))) . Lift (+ 100) :: FreeTrace (,) (->) Int [Int]
+-- >>> case superpose composed (Lift (* 2)) of { Oper (R (SigTrace _)) -> "fused"; _ -> "fallback" }
 -- "fused"
 superpose ::
   forall t arr a b c d.
-  (Tensor t arr, TraceC t arr) =>
-  Trace t arr a b ->
-  Trace t arr c d ->
-  Trace t arr (t a c) (t b d)
+  (Tensor t arr, Trace t arr) =>
+  FreeTrace t arr a b ->
+  FreeTrace t arr c d ->
+  FreeTrace t arr (t a c) (t b d)
 superpose x y =
   case (toKnot x, toKnot y) of
     (Arr f, Arr g) ->
       Lift (tensor f g)
     (Knot f, Arr g) ->
-      yank (Lift (reassoc' .> tensor f g .> reassoc))
+      trace (Lift (reassoc' .> tensor f g .> reassoc))
     (Arr f, Knot g) ->
-      yank (Lift (shuffle .> tensor f g .> shuffle))
+      trace (Lift (shuffle .> tensor f g .> shuffle))
     (Knot f, Knot g) ->
-      yank (Lift (pre .> tensor f g .> post))
+      trace (Lift (pre .> tensor f g .> post))
   where
-    toKnot :: Trace t arr u v -> Knot t arr u v
+    toKnot :: FreeTrace t arr u v -> Knot t arr u v
     toKnot = evalInto Arr
 
     reassoc :: forall x y z. arr (t (t x y) z) (t x (t y z))
@@ -777,7 +795,7 @@ superpose x y =
     reassoc' = Ch.assoc'
 
     shuffle :: forall x y z. arr (t x (t y z)) (t y (t x z))
-    shuffle = Ch.slide
+    shuffle = Ch.outerSwap
 
     pre, post :: forall u v w x. arr (t (t u v) (t w x)) (t (t u w) (t v x))
     pre = reassoc .> strength shuffle .> reassoc'

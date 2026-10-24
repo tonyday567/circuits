@@ -16,7 +16,7 @@
 -- cannot be swapped with a phantom. The left unitor alone would be free
 -- (@unitl (Const x) = x@), but one unitor is not a unit, so 'Const'
 -- receives 'SemiTensor' and 'Assoc' instances only, never 'Unital',
--- 'Tensor', or 'Action'.
+-- 'Tensor', or 'Symmetric'.
 module Axioma.SemiTensor
   ( semiTensorTopic,
   )

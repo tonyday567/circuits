@@ -17,7 +17,7 @@
 --
 -- This module holds the à-la-carte machinery: signatures, the free
 -- construction over a signature, algebras, and the universal folds. Each
--- concrete language layer ('Circuit.Trace.Trace', 'Circuit.Net.SMC',
+-- concrete language layer ('Circuit.Trace.FreeTrace', 'Circuit.Net.SMC',
 -- 'Circuit.Net.Net', ...) is obtained by choosing a signature sum and adding
 -- smart constructors and structural instances on top of this substrate.
 --
@@ -82,7 +82,7 @@ module Circuit.Syntax
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Data.Kind (Constraint, Type)
 import Prelude hiding (id, (.))
 
@@ -181,14 +181,14 @@ instance (Category arr, Assoc t arr) => Assoc t (AlgCat arr) where
   assoc = Lift assoc
   assoc' = Lift assoc'
 
-instance (Category arr, Slide t arr) => Slide t (AlgCat arr) where
-  slide = Lift slide
+instance (Category arr, OuterSwap t arr) => OuterSwap t (AlgCat arr) where
+  outerSwap = Lift outerSwap
 
 instance (Category arr, Strength t arr) => Strength t (AlgCat arr) where
   strength f = Lift (strength (eval f))
 
-instance (Category arr, Yank t arr) => Yank t (AlgCat arr) where
-  yank body = Lift (yank (eval body))
+instance (Category arr, Trace t arr) => Trace t (AlgCat arr) where
+  trace body = Lift (trace (eval body))
 
 -- * Free-layer / free-forgetful adjunction tower
 
@@ -284,8 +284,8 @@ instance (Assoc t arr) => Assoc t (Free arr) where
   assoc = FreeLift assoc
   assoc' = FreeLift assoc'
 
-instance (Slide t arr) => Slide t (Free arr) where
-  slide = FreeLift slide
+instance (OuterSwap t arr) => OuterSwap t (Free arr) where
+  outerSwap = FreeLift outerSwap
 
 -- | Lift the 'Channel' structure through 'Free'.
 --
@@ -294,9 +294,9 @@ instance (Slide t arr) => Slide t (Free arr) where
 instance (Strength t arr) => Strength t (Free arr) where
   strength = FreeLift . strength . run
 
--- | Lift the 'Yank' class through 'Free'.
+-- | Lift the 'Trace' class through 'Free'.
 --
 -- A loop body in @Free arr@ is run back to the base arrow before calling
--- the base 'yank'.
-instance (Yank t arr) => Yank t (Free arr) where
-  yank = FreeLift . yank . run
+-- the base 'trace'.
+instance (Trace t arr) => Trace t (Free arr) where
+  trace = FreeLift . trace . run

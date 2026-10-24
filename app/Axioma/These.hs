@@ -1,12 +1,12 @@
 -- | These oracles: the derived-'These' reference block.
 --
 -- The hand-written 'These' instances for 'Circuit.Tensor' and
--- 'Circuit.Traced' have no surviving structural witness (only 'Yank
+-- 'Circuit.Traced' have no surviving structural witness (only 'Trace
 -- These' has doctests).  This topic pins each of them against an
 -- independent reference built from living @(,)@ + 'Either' vocabulary via
 -- the distributive iso @These a b ≅ a + b + a×b@ — the iso and the
 -- references use only base 'tensor' / unitors / 'braid' / 'strength' /
--- 'assoc' / 'slide', never the hand-written 'These' instances.
+-- 'assoc' / 'outerSwap', never the hand-written 'These' instances.
 --
 -- These are the strongest witnesses in the wave-4 rehome set: each
 -- catches a /consistent-but-wrong/ 'These' instance that round-trip
@@ -21,8 +21,8 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (id, (.))
-import Circuit.Tensor (Action (..), SemiTensor (..), Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..))
+import Circuit.Tensor (SemiTensor (..), Symmetric (..), Unital (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..))
 import Control.Monad (when)
 import Data.These (These (..))
 import Data.Void (Void, absurd)
@@ -141,16 +141,16 @@ refTheseAssoc' = eitherToThese . theseAssocPrimeOut . go . theseToEitherNested'
 
 -- | Convert the nested representation of @These b (These a c)@ into the
 -- target iso @Either b (Either (These a c) (b, These a c))@.
-theseSlideOut ::
+theseOuterSwapOut ::
   Either b (Either (Either a (Either c (a, c))) (b, Either a (Either c (a, c)))) ->
   Either b (Either (These a c) (b, These a c))
-theseSlideOut (Left b) = Left b
-theseSlideOut (Right (Left y)) = Right (Left (eitherToThese y))
-theseSlideOut (Right (Right (b, y))) = Right (Right (b, eitherToThese y))
+theseOuterSwapOut (Left b) = Left b
+theseOuterSwapOut (Right (Left y)) = Right (Left (eitherToThese y))
+theseOuterSwapOut (Right (Right (b, y))) = Right (Right (b, eitherToThese y))
 
--- | Reference 'slide' for 'These' derived from the iso.
-refTheseSlide :: These a (These b c) -> These b (These a c)
-refTheseSlide = eitherToThese . theseSlideOut . go . theseToEitherNested'
+-- | Reference 'outerSwap' for 'These' derived from the iso.
+refTheseOuterSwap :: These a (These b c) -> These b (These a c)
+refTheseOuterSwap = eitherToThese . theseOuterSwapOut . go . theseToEitherNested'
   where
     go (Left a) = Right (Left (Left a))
     go (Right (Left (Left b))) = Left b
@@ -187,7 +187,7 @@ derivedTheseUnitrOk =
   let space = [This n | n <- [0, 1, 2]] :: [These Int Void]
    in all (\x -> refTheseUnitr x == unitr x) space
 
--- | Hand-written 'Action These' braid agrees with the derived reference —
+-- | Hand-written 'Symmetric These' braid agrees with the derived reference —
 -- including the product swap in the 'These' case, which a round-trip
 -- check cannot see.
 derivedTheseBraidOk :: Bool
@@ -239,12 +239,12 @@ derivedTheseAssocPrimeOk =
       space = concat [shapes a b c | a <- [False, True], b <- [()], c <- ['x', 'y']]
    in all (\x -> refTheseAssoc' x == assoc' x) space
 
--- | Hand-written 'Slide These' agrees with the derived reference — the
--- deepest pin of slide-These anywhere: a wrong-side swap on any of the
+-- | Hand-written 'OuterSwap These' agrees with the derived reference — the
+-- deepest pin of outerSwap-These anywhere: a wrong-side swap on any of the
 -- seven shapes is caught, including swaps that keep the involution law
 -- (the involution witnesses cannot see those).
-derivedTheseSlideOk :: Bool
-derivedTheseSlideOk =
+derivedTheseOuterSwapOk :: Bool
+derivedTheseOuterSwapOk =
   let shapes a b c =
         [ This a,
           That (This b),
@@ -256,7 +256,7 @@ derivedTheseSlideOk =
         ] ::
           [These Bool (These () Char)]
       space = concat [shapes a b c | a <- [False, True], b <- [()], c <- ['x', 'y']]
-   in all (\x -> refTheseSlide x == slide x) space
+   in all (\x -> refTheseOuterSwap x == outerSwap x) space
 
 theseTopic :: Verbosity -> IO [Bool]
 theseTopic verbosity = do
@@ -269,5 +269,5 @@ theseTopic verbosity = do
       checkV verbosity "derived These strength agrees with hand-written" derivedTheseStrengthOk,
       checkV verbosity "derived These assoc agrees with hand-written" derivedTheseAssocOk,
       checkV verbosity "derived These assoc' agrees with hand-written" derivedTheseAssocPrimeOk,
-      checkV verbosity "derived These slide agrees with hand-written" derivedTheseSlideOk
+      checkV verbosity "derived These outerSwap agrees with hand-written" derivedTheseOuterSwapOk
     ]

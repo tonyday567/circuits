@@ -27,16 +27,16 @@ import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
 import Circuit.Category (Category (..))
 import Circuit.Net (Net)
 import Circuit.Syntax (run)
-import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Tensor (SemiTensor (..), Symmetric (..), Tensor, Unital (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Data.Bifunctor
 import Prelude hiding (id, (.))
 
 -- $setup
 -- >>> import Circuit.Category (Category (..))
 -- >>> import Circuit.Bimonoid (Copy (..), Discard (..), Merge (..), Zero (..))
--- >>> import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
--- >>> import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unital (..))
+-- >>> import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
+-- >>> import Circuit.Tensor (Symmetric (..), SemiTensor (..), Tensor, Unital (..))
 -- >>> import Prelude hiding (id, (.))
 
 -- | A linear map from output cotangents to input cotangents, read as
@@ -81,7 +81,7 @@ instance SemiTensor (,) Pullback where
 -- 'SemiTensor'.
 instance Tensor (,) Pullback
 
-instance Action (,) Pullback where
+instance Symmetric (,) Pullback where
   braid = Pullback (\(b, a) -> (a, b))
   {-# INLINE braid #-}
 
@@ -106,13 +106,13 @@ instance Strength (,) Pullback where
 -- the pullback topic of @circuits-axioma@ ("Axioma.Pullback").
 --
 -- >>> let body = Pullback (\(dx', dc) -> (2.0 * dc, dx')) :: Pullback (Double, Double) (Double, Double)
--- >>> runPullback (yank body) 1.0
+-- >>> runPullback (trace body) 1.0
 -- 2.0
-instance Yank (,) Pullback where
-  yank (Pullback f) = Pullback $ \dc ->
+instance Trace (,) Pullback where
+  trace (Pullback f) = Pullback $ \dc ->
     let ~(dx, db) = f (dx, dc)
      in db
-  {-# INLINE yank #-}
+  {-# INLINE trace #-}
 
 -- | Pullback-instance of the comonoid structure.
 --
@@ -162,7 +162,7 @@ instance (Zero (->) a) => Zero Pullback a where
 --
 -- The load-bearing claim is the chain rule under feedback: the cotangent
 -- of a composite is the composite of the cotangents — including through a
--- 'Yank' feedback loop, whose affine channel equation the lazy knot solves
+-- 'Trace' feedback loop, whose affine channel equation the lazy knot solves
 -- when the channel self-coupling is zero and diverges on strict carriers
 -- when it is not.  In the divergent case the feedback gradient is read in
 -- closed form (@b ⋅ star a ⋅ c@) and composed downstream like any other
@@ -177,5 +177,5 @@ instance Assoc (,) Pullback where
   assoc = Pullback (\((s, s'), x) -> (s, (s', x)))
   assoc' = Pullback (\(s, (s', x)) -> ((s, s'), x))
 
-instance Slide (,) Pullback where
-  slide = Pullback (\(s, (s', x)) -> (s', (s, x)))
+instance OuterSwap (,) Pullback where
+  outerSwap = Pullback (\(s, (s', x)) -> (s', (s, x)))

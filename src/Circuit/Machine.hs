@@ -20,7 +20,7 @@
 -- 'TBody', 'SBody', 'LBody', 'PBody' — are the partial decompositions:
 -- each names a live-leg pattern, and each fuse lands it back in a
 -- 'Step'. Coiteration — 'Unfold', 'Nu', the partial grammars — lives in
--- "Circuit.Traced", beside 'yank'.
+-- "Circuit.Traced", beside 'trace'.
 module Circuit.Machine
   ( -- * the tick
     Step (..),
@@ -93,9 +93,9 @@ import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
 import Circuit.Step (Step (..))
 import Circuit.Syntax (evalInto)
-import Circuit.Tensor (Action (..), Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Tensor, TheseElim (..), Unit, Unital (..), unConst)
-import Circuit.Trace (Knot (..), Trace)
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Unfold (..), Yank (..), (:.) (..))
+import Circuit.Tensor (Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Symmetric (..), Tensor, TheseElim (..), Unit, Unital (..), unConst)
+import Circuit.Trace (FreeTrace, Knot (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.These (These (..), these)
 import Prelude hiding (id, init, (.))
@@ -104,7 +104,7 @@ import Prelude hiding (id, init, (.))
 -- >>> import Circuit.Machine
 -- >>> import Circuit.Poly (applyLens)
 -- >>> import Circuit.Tensor (Const (..), unConst)
--- >>> import Circuit.Trace (Knot (..), Trace)
+-- >>> import Circuit.Trace (Knot (..), FreeTrace)
 -- >>> import qualified Circuit.Syntax as S
 -- >>> import Data.These (These (..), these)
 
@@ -126,7 +126,7 @@ data MealyT t arr i o = forall ch. MealyT (Mealy t ch arr i o)
 instance forall t arr. (Tensor t arr, Strength t arr) => Category (MealyT t arr) where
   id = MealyT (Cell (unitl' @t) id)
   MealyT (Cell seed2 (Step g)) . MealyT (Cell seed1 (Step f)) =
-    MealyT (Cell (unitl' @t .> tensor seed1 seed2) (Step (assoc .> slide .> strength f .> slide .> strength g .> assoc')))
+    MealyT (Cell (unitl' @t .> tensor seed1 seed2) (Step (assoc .> outerSwap .> strength f .> outerSwap .> strength g .> assoc')))
 
 -- | The factored machine: 'init' seeds the channel from the first
 -- input, 'commit' writes the channel from the grammared tick, and
@@ -239,7 +239,7 @@ data LBody t ch ch' arr i o = LBody
 
 -- | The profunctor-shaped bundle: a pre-compose leg, the nuclear hom
 -- 'pmap' — the catalogue's only grammar-free, interface-free leg — and
--- a post-compose leg. The non-uniqueness (slide an automorphism across
+-- a post-compose leg. The non-uniqueness (outerSwap an automorphism across
 -- the pmap|post boundary) is the coend of the profunctor
 -- representation theorem; the residual pair @(ch, ch')@ is what a
 -- forall would seal.
@@ -377,17 +377,17 @@ instance Applicative (MooreT (,) (->) a) where
   {-# INLINEABLE (<*>) #-}
 
 -- These instances make @MooreT (,) (->)@ a traced monoidal category
--- under the cartesian tensor — the yank ties a lazy self-referential
+-- under the cartesian tensor — the trace ties a lazy self-referential
 -- knot and is productive only when the body is non-strict in the
--- feedback channel. Strict accumulators diverge under the @(,)@ yank;
+-- feedback channel. Strict accumulators diverge under the @(,)@ trace;
 -- use 'register' for those.
 
 instance Assoc (,) (MooreT (,) (->)) where
   assoc = moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
   assoc' = moore id (\_ x -> x) (\(a, ~(b, c)) -> ((a, b), c))
 
-instance Slide (,) (MooreT (,) (->)) where
-  slide = moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
+instance OuterSwap (,) (MooreT (,) (->)) where
+  outerSwap = moore id (\_ x -> x) (\(a, ~(b, c)) -> (b, (a, c)))
 
 instance Strength (,) (MooreT (,) (->)) where
   strength (MooreT (Body i k o)) =
@@ -396,8 +396,8 @@ instance Strength (,) (MooreT (,) (->)) where
       (\(~(_, s)) (~(a', b)) -> (a', k (s, b)))
       (\(~(a, s)) -> (a, unConst (o s)))
 
-instance Yank (,) (MooreT (,) (->)) where
-  yank (MooreT (Body i k o)) =
+instance Trace (,) (MooreT (,) (->)) where
+  trace (MooreT (Body i k o)) =
     moore
       (\b -> let s0 = i (a0, b); a0 = fst (unConst (o s0)) in s0)
       ( \s b ->
@@ -426,7 +426,7 @@ instance SemiTensor (,) (MooreT (,) (->)) where
 -- 'SemiTensor'.
 instance Tensor (,) (MooreT (,) (->))
 
-instance Action (,) (MooreT (,) (->)) where
+instance Symmetric (,) (MooreT (,) (->)) where
   braid = moore id (const id) sw
     where
       sw (a, b) = (b, a)
@@ -443,7 +443,7 @@ delay :: s -> MooreT (,) (->) s s
 delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
 
 -- | Feed a strict machine its own previous output as a second channel —
--- the strict-body alternative to the lazy 'yank' knot.
+-- the strict-body alternative to the lazy 'trace' knot.
 register :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
 register s0 (MooreT (Body i k o)) =
   moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (unConst (o s))))) (fst . unConst . o)
@@ -555,7 +555,7 @@ lensAsLBody m = LBody (\(s, i) -> snd (applyLens m s) i) (fst . applyLens m)
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
 closedToGenerator (Body _ k p) = unitr' .> k .> p
 
--- * Machine / Trace bridges
+-- * Machine / FreeTrace bridges
 
 -- | A sealed Mealy machine is a 'Knot' plus a seed leg. Dropping the seed
 -- gives the knot body; the channel type is the machine's hidden channel.
@@ -578,10 +578,10 @@ mooreToKnot (MooreT (Body _ k o)) = Knot (\(s, i) -> (k (s, i), unConst (o (k (s
 
 -- | Fold free traced syntax into 'MooreT (,) (->)': a base arrow becomes
 -- a Moore machine whose state is the input, overwritten each tick;
--- composition and yank use the existing 'MooreT' traced-category
+-- composition and trace use the existing 'MooreT' traced-category
 -- structure.
 --
--- >>> scan (traceToMoore (S.Lift (+ 1) :: Trace (,) (->) Int Int)) [1, 2, 3]
+-- >>> scan (traceToMoore (S.Lift (+ 1) :: FreeTrace (,) (->) Int Int)) [1, 2, 3]
 -- [2,3,4]
-traceToMoore :: Trace (,) (->) a b -> MooreT (,) (->) a b
+traceToMoore :: FreeTrace (,) (->) a b -> MooreT (,) (->) a b
 traceToMoore = evalInto (\f -> MooreT (Body id snd (\s -> Const (f s))))

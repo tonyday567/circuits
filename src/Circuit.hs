@@ -29,13 +29,13 @@
 -- simultaneously, which ties a lazy knot:
 --
 -- >>> let powers (ns, ()) = (1 : map (*2) ns, take 5 ns)
--- >>> yank powers () :: [Integer]
+-- >>> trace powers () :: [Integer]
 -- [1,2,4,8,16]
 --
 -- Over `Either` the loop ends when the body answers `Right`:
 --
 -- >>> let step n = if n < 5 then Left (n + 1) else Right n
--- >>> yank (either step step) (0 :: Int)
+-- >>> trace (either step step) (0 :: Int)
 -- 5
 --
 -- === Syntax: free constructions
@@ -65,10 +65,10 @@
 -- >>> run (widen m :: Net (,) (->) Int Int) 5
 -- 11
 --
--- @Trace@ is the inspectable free-syntax form; @Hyper@ is the final
+-- @FreeTrace@ is the inspectable free-syntax form; @Hyper@ is the final
 -- encoding. Convert with `encode`, observe with `observe`:
 --
--- >>> observe (encode (Lift (+1) :: Trace (,) (->) Int Int)) 41
+-- >>> observe (encode (Lift (+1) :: FreeTrace (,) (->) Int Int)) 41
 -- 42
 --
 -- === Machines: stateful observations
@@ -219,7 +219,7 @@ import Circuit.Step hiding (run)
 import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor
-import Circuit.Trace hiding (Step)
+import Circuit.Trace
 import Circuit.Traced
 import Prelude hiding (id, (.))
 
