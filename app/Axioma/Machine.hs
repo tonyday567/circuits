@@ -13,7 +13,7 @@ where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
 import Circuit.Category (K (..), id, (.))
-import Circuit.Machine (Body (Body), Cell (..), EitherBody (..), FoldBody (..), LensBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), OpticBody (..), ProfunctorBody (..), Step (..), TheseBody (..), bodyAsLens, fold, fuseEitherBody, fuseFoldBody, fuseLensBody, fuseOpticBody, fuseProfunctorBody, fuseTheseBody, lensAsLensBody, lensAsOptic, lensBodyAsLens, lensBodyToOptic, mealyToKnot, mooreToKnot, opticAsLens, opticToLensBody, scan, scanT, traceToMoore, unfuseEitherBody, unfuseTheseBody)
+import Circuit.Machine (Body (Body), Cell (..), EitherBody (..), FoldBody (..), LensBody (..), MealyT (..), MergeNat (..), Moore, MooreT (..), OpticBody (..), ProfunctorBody (..), Q (..), SomeQ (..), Step (..), TheseBody (..), YBody, ZBody, bodyAsLens, fold, fuseEitherBody, fuseFoldBody, fuseLensBody, fuseOpticBody, fuseProfunctorBody, fuseQ, fuseTheseBody, lensAsLensBody, lensAsOptic, lensBodyAsLens, lensBodyToOptic, mealyToKnot, mooreToKnot, opticAsLens, opticToLensBody, opticToQ, scan, scanT, sealQ, traceToMoore, unfuseEitherBody, unfuseTheseBody)
 import Circuit.Poly (Lens, applyLens, lens)
 import Circuit.Syntax qualified as S
 import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
@@ -291,6 +291,51 @@ theseSpecOk =
       That i -> i
       These r i -> length r + i
     Step g = fuseOpticBody (OpticBody foc reb :: OpticBody These Int Int (->) Int Bool)
+
+-- The raw object. Y and Z arrive with this session — there is no
+-- pre-existing Y or Z fuse in the library — so the references are
+-- spelt directly rather than compared through an existing fuse.
+
+-- | 'fuseQ' on Y-as-Q against the spelt spec: the junction map crosses
+-- the swapped junction into the absorb slot; the channel boundary stays.
+ySpecOk :: Bool
+ySpecOk =
+  and [f (c, i) == let (m, o) = em c in (ab (mid m, i), o) | c <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    em c = (c + 1, c * 2)
+    ab = uncurry (+)
+    mid = (* 10)
+    Step f = fuseQ mid (Q em ab :: YBody (,) (,) Int Int Int Int (->) Int Int)
+
+-- | The commuting square: seal both junction slots, then fuse as an
+-- optic, is the fuse with the identity junction map — Q's operations
+-- commute with the existing bodies. The third leg round-trips the
+-- bridges: an optic viewed as Q ('opticToQ') and re-sealed fuses the
+-- same.
+sealCommuteOk :: Bool
+sealCommuteOk =
+  and [f1 (c, i) == f2 (c, i) && f1 (c, i) == f3 (c, i) | c <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    q = Q (\c -> (c + 1, c * 2)) (uncurry (+)) :: Q (,) (,) Int Int Int Int (->) Int Int
+    f1 = case fuseOpticBody (sealQ q) of Step f -> f
+    f2 = case fuseQ id q of Step f -> f
+    f3 = case opticToQ (sealQ q) of
+      SomeQ q' -> case fuseOpticBody (sealQ q') of Step f -> f
+
+-- | 'fuseQ' on Z-as-Q against the spelt spec: the channel junction is
+-- the one removed — the map-side emit junction is crossed by the map
+-- into the absorb slot, and the map boundary stays.
+zSpecOk :: Bool
+zSpecOk =
+  and [f (m, i) == let (ch', o) = em m in (ab (mid ch', i), o) | m <- points, i <- points]
+  where
+    points = [-1, 0, 5] :: [Int]
+    em m = (m + 1, m * 2)
+    ab = uncurry (+)
+    mid = (* 10)
+    Step f = fuseQ mid (Q em ab :: ZBody (,) (,) Int Int Int Int (->) Int Int)
 
 -- | The canonical residual fuses like the getter/putter spelling:
 -- 'fuseOpticBody' after 'lensAsOptic' agrees with 'fuseLensBody' after
@@ -663,6 +708,9 @@ machineTopic verbosity = do
       checkV verbosity "OpticBody fused tick at three distinct carrier types (Int, String, Bool)" opticTypedOk,
       checkV verbosity "prism bodies at Either against the case-by-case reference (two prisms, exhaustive)" prismSpecOk,
       checkV verbosity "These body against the case-by-case reference (all seven branches)" theseSpecOk,
+      checkV verbosity "fuseQ on Y-as-Q matches the spelt spec (no pre-existing Y fuse)" ySpecOk,
+      checkV verbosity "sealQ then fuseOpticBody commutes with fuseQ id (bridge round trip)" sealCommuteOk,
+      checkV verbosity "fuseQ on Z-as-Q matches the spelt spec (channel junction removed)" zSpecOk,
       checkV verbosity "fuseOpticBody . lensAsOptic agrees with fuseLensBody . lensAsLensBody" lensAsOpticOk,
       checkV verbosity "opticAsLens after lensAsOptic returns the lens (witnessed through applyLens)" opticAsLensOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),

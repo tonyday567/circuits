@@ -61,6 +61,16 @@ module Circuit.Machine
     unfuseEitherBody,
     unfuseTheseBody,
 
+    -- * the raw object
+    Q (..),
+    YBody,
+    ZBody,
+    BodyQ,
+    SomeQ (..),
+    fuseQ,
+    sealQ,
+    opticToQ,
+
     -- * the natural merge
     MergeNat (..),
 
@@ -357,6 +367,104 @@ unfuseEitherBody (Step f) = EitherBody (f . Left) (f . Right) id
 -- True
 unfuseTheseBody :: Step These t' ch ch' (->) i o -> TheseBody t' ch ch' (->) i o
 unfuseTheseBody (Step f) = TheseBody (f . This) (f . That) (f . uncurry These)
+
+-- * the raw object
+
+-- | The raw two-leg object: one leg emits from a scalar into a tensored
+-- junction, one leg absorbs from a tensored junction back into a
+-- scalar. The code and its oracles are checked; the reading below is a
+-- working taxonomy, not settled design.
+--
+-- Reading the catalogue through this shape turns on two distinctions.
+-- WHICH junction: 'fuseQ' and 'sealQ' act on the middle junction,
+-- inside a tick; 'trace' and the runners act on the boundary channel,
+-- across ticks, as a fixpoint. REMOVED vs HIDDEN: composition, trace,
+-- and the runners compute the channel away — it is no longer carried;
+-- existentials hide it — still computed, just untyped ('MooreT',
+-- 'MealyT', 'Knot' hide the boundary; 'OpticBody' hides the residual).
+-- That gives a grid, @{middle, boundary} × {computed away, hidden}@:
+-- 'fuseQ' at middle/computed, 'OpticBody' at middle/hidden, 'trace'
+-- and the runners at boundary/computed, 'MooreT'/'MealyT'/'Knot' at
+-- boundary/hidden. 'Knot' is the instructive cell: it hides the
+-- boundary first, and running it calls 'trace' to remove it. Two
+-- further ways a channel can go sit outside the grid: 'Discard' drops
+-- it at the end ('foldProcess' extracts the final state, then throws
+-- it away; 'Discard' is the general form), and 'MergeNat' collapses two
+-- channels into one ('MooreT''s identity spends it). Six ways, across
+-- two junctions and two senses of "gone".
+--
+-- Firmness, honestly graded: 'sealQ' is the coend and is firm;
+-- 'trace'/'Knot' are firm; the runners are mostly firm — what a runner
+-- does with the channel en route is runner semantics; 'fuseQ' is the
+-- squint — it composes the two legs at the middle junction, and the
+-- resulting 'Step' still has the boundary at its edges, so a fuse
+-- removes a middle junction, not the channel.
+--
+-- The potential list: 'YBody', 'ZBody', 'BodyQ', and 'OpticBody' are
+-- specialisations; 'Poles' trivialises both junctions, which needs the
+-- 'Const' grammar; 'LensBody' is a different shape — parallel legs off
+-- the tick-start source, not two serial junctions; 'FoldBody',
+-- 'TheseBody', and 'EitherBody' are a different shape — three legs;
+-- 'ProfunctorBody' is three legs over mixed tensors; 'Cell' is a seed
+-- plus an already-fused tick, and 'MooreT' is a sealed machine —
+-- neither is a two-leg decomposition.
+--
+-- Seeds are not part of this shape; the current inventory is
+-- 'Cell.seed', 'Body.init', and 'Poles.init' — a typed seed table is
+-- the follow-up. Trace and run are not functions on this shape yet:
+-- they act on the boundary channel as a fixpoint, and the existing
+-- 'Trace' instances live on the traced lane.
+data Q t t' a a' b b' arr i o = Q
+  { emitLeg :: arr a (t b o),
+    absorbLeg :: arr (t' b' i) a'
+  }
+
+-- | Y: the channel is the boundary, the map junction internal. The fuse
+-- removes the junction, keeping the channel.
+type YBody t t' ch ch' m m' arr i o = Q t t' ch ch' m m' arr i o
+
+-- | Z: the map is the boundary, the channel junction internal. The
+-- tensors swap with the legs: the emit junction is the @t'@ junction,
+-- the absorb junction the @t@ one.
+type ZBody t t' ch ch' m m' arr i o = Q t' t m' m ch' ch arr i o
+
+-- | 'Body' as Q: both scalars are the post-commit channel @ch'@ — the
+-- emit junction is @ch'@, what 'Body.emit' decorates with the output,
+-- and the absorb junction is the tick-start channel @ch@; the seed
+-- ('Body.init') sits outside the shape. 'Body''s own fuse composes the
+-- legs at the middle junction and keeps the junction at the edges of
+-- the target @t' ch' o@ — emit reads the freshly committed channel.
+-- That is the composition cell of the grid, not 'fuseQ'-shaped by
+-- design; 'Body' IS a specialisation.
+type BodyQ t t' ch ch' arr i o = Q t' t ch' ch' ch' ch arr i o
+
+-- | 'Q' with both junction slots sealed to one existential type —
+-- 'sealQ' lands here from a named junction, 'opticToQ' from an
+-- 'OpticBody'.
+data SomeQ t a a' arr i o = forall b. SomeQ (Q t t a a' b b arr i o)
+
+-- | Fuse a 'Q' into one tick at any symmetric tensor: focus the emit
+-- junction, swap the output past the input, cross the junction map into
+-- the absorb slot. The boundary scalars stay — which junction the map
+-- removes decides the discipline. One tensor on both legs; a
+-- mixed-tensor fuse needs an interchange law the library does not yet
+-- supply.
+--
+-- >>> let q = Q (\c -> (c, c * 2)) (uncurry (+)) :: Q (,) (,) Int Int Int Int (->) Int Int
+-- >>> case fuseQ (* 10) q of Step f -> f (3, 4 :: Int)
+-- (34,6)
+fuseQ :: (Symmetric t arr, OuterSwap t arr) => arr b b' -> Q t t a a' b b' arr i o -> Step t t a a' arr i o
+fuseQ mid (Q e ab) = Step (tensor e id .> innerSwap .> tensor (tensor mid id .> ab) id)
+
+-- | Seal both junction slots to one existential: the coend step from
+-- 'Q' to 'OpticBody'.
+sealQ :: Q t t a a' b b arr i o -> OpticBody t a a' arr i o
+sealQ (Q e ab) = OpticBody e ab
+
+-- | 'OpticBody' as 'Q': the residual is the junction. The junction is
+-- sealed existentially in the return; 'sealQ' inverts it.
+opticToQ :: OpticBody t a a' arr i o -> SomeQ t a a' arr i o
+opticToQ (OpticBody e ab) = SomeQ (Q e ab)
 
 -- | The natural merge of the tensor's diagonal: one arrow for every
 -- payload, and the law is naturality itself —
