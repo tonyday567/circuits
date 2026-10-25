@@ -140,10 +140,10 @@ offDiagLensBodyOk =
 -- from 'focus' into 'rebuild'.
 opticSpecOk :: Bool
 opticSpecOk =
-  and [f (c, i) == let (o, r) = foc c in (reb (r, i), o) | c <- points, i <- points]
+  and [f (c, i) == let (r, o) = foc c in (reb (r, i), o) | c <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
-    foc c = (c * 2, c + 1)
+    foc c = (c + 1, c * 2)
     reb = uncurry (+)
     Step f = fuseOpticBody (OpticBody foc reb :: OpticBody (,) Int Int (->) Int Int)
 
@@ -200,7 +200,7 @@ opticCoendOk =
   and [f1 (s, i) == f2 (s, i) | s <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
-    ob = OpticBody (\c -> (c * 2, c + 1)) (uncurry (+)) :: OpticBody (,) Int Int (->) Int Int
+    ob = OpticBody (\c -> (c + 1, c * 2)) (uncurry (+)) :: OpticBody (,) Int Int (->) Int Int
     Step f1 = fuseOpticBody (lensBodyToOptic (opticToLensBody ob))
     Step f2 = fuseOpticBody ob
 
@@ -213,7 +213,7 @@ opticCoendTypedOk =
   and [f1 (c, i) == f2 (c, i) | c <- points, i <- points]
   where
     points = [-1, 0, 5] :: [Int]
-    ob = OpticBody (\c -> (c * 2, (c, even c))) (\((r, _), i) -> r + i) :: OpticBody (,) Int Int (->) Int Int
+    ob = OpticBody (\c -> ((c, even c), c * 2)) (\((r, _), i) -> r + i) :: OpticBody (,) Int Int (->) Int Int
     Step f1 = fuseOpticBody (lensBodyToOptic (opticToLensBody ob))
     Step f2 = fuseOpticBody ob
 
@@ -226,8 +226,71 @@ opticTypedOk =
   where
     points = [-1, 0, 5] :: [Int]
     strs = ["", "x"] :: [String]
-    ob = OpticBody (\c -> (even c, c * 2)) (\(r, i) -> show r ++ i) :: OpticBody (,) Int String (->) String Bool
+    ob = OpticBody (\c -> (c * 2, even c)) (\(r, i) -> show r ++ i) :: OpticBody (,) Int String (->) String Bool
     Step f = fuseOpticBody ob
+
+-- The prism reference: a fused prism body at 'Either', spelt case by
+-- case. A hit emits the output; a miss passes the residual through to
+-- the rebuild; an input alone rebuilds the channel.
+prismTick :: (ch -> Either r o) -> (Either r i -> ch') -> Either ch i -> Either ch' o
+prismTick f b = \case
+  Left c -> case f c of
+    Left r -> Left (b (Left r))
+    Right o -> Right o
+  Right i -> Left (b (Right i))
+
+-- | Prism bodies at 'Either' against the reference, exhaustively. One
+-- prism's residual is a different type from the channel (String vs
+-- Int), so a crossed wire is a type error, not a value accident.
+prismSpecOk :: Bool
+prismSpecOk =
+  and
+    [ g x == prismTick foc1 reb1 x && h x == prismTick foc2 reb2 x
+    | x <- [Left c | c <- points] ++ [Right i | i <- points]
+    ]
+  where
+    points = [-1, 0, 5] :: [Int]
+    foc1 c = if c > 0 then Right (c * 10) else Left c
+    reb1 = either id negate
+    foc2 c = if even c then Right (c > 0) else Left (show c)
+    reb2 = either id show
+    Step g = fuseOpticBody (OpticBody foc1 reb1 :: OpticBody Either Int Int (->) Int Int)
+    Step h = fuseOpticBody (OpticBody foc2 reb2 :: OpticBody Either Int String (->) Int Bool)
+
+-- The These reference, derived case by case from 'innerSwap' at
+-- 'These': a 'This' residual rebuilds alone; a 'That' output emits; a
+-- 'These' focus does both.
+theseTick :: (ch -> These r o) -> (These r i -> ch') -> These ch i -> These ch' o
+theseTick f b = \case
+  This c -> case f c of
+    This r -> This (b (This r))
+    That o -> That o
+    These r o -> These (b (This r)) o
+  That i -> This (b (That i))
+  These c i -> case f c of
+    This r -> This (b (These r i))
+    That o -> These (b (That i)) o
+    These r o -> These (b (These r i)) o
+
+-- | A These body against the reference, exhaustively over every
+-- presence pattern. The focus splits by sign — zero rebuilds alone,
+-- positive emits alone, negative does both — so all seven branches of
+-- 'innerSwap' at These are exercised.
+theseSpecOk :: Bool
+theseSpecOk =
+  and [g x == theseTick foc reb x | x <- inputs]
+  where
+    points = [-1, 0, 5] :: [Int]
+    inputs = [This c | c <- points] ++ [That i | i <- points] ++ [These c i | c <- points, i <- points]
+    foc c = case c of
+      0 -> This "zero"
+      _ | c > 0 -> That True
+      _ -> These (show c) False
+    reb = \case
+      This r -> length r
+      That i -> i
+      These r i -> length r + i
+    Step g = fuseOpticBody (OpticBody foc reb :: OpticBody These Int Int (->) Int Bool)
 
 -- | The canonical residual fuses like the getter/putter spelling:
 -- 'fuseOpticBody' after 'lensAsOptic' agrees with 'fuseLensBody' after
@@ -598,6 +661,8 @@ machineTopic verbosity = do
       checkV verbosity "OpticBody coend quotient: the residual changes, the fused tick doesn't" opticCoendOk,
       checkV verbosity "OpticBody coend quotient across a residual of a different type (Int, Bool)" opticCoendTypedOk,
       checkV verbosity "OpticBody fused tick at three distinct carrier types (Int, String, Bool)" opticTypedOk,
+      checkV verbosity "prism bodies at Either against the case-by-case reference (two prisms, exhaustive)" prismSpecOk,
+      checkV verbosity "These body against the case-by-case reference (all seven branches)" theseSpecOk,
       checkV verbosity "fuseOpticBody . lensAsOptic agrees with fuseLensBody . lensAsLensBody" lensAsOpticOk,
       checkV verbosity "opticAsLens after lensAsOptic returns the lens (witnessed through applyLens)" opticAsLensOk,
       checkV verbosity "body GetPut (register)" (all (getPut regW) points),

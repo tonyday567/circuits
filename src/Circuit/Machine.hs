@@ -100,7 +100,7 @@ import Circuit.Category (BiK (..), Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
 import Circuit.Step (Step (..))
 import Circuit.Syntax (evalInto)
-import Circuit.Tensor (Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Symmetric (..), Tensor, TheseElim (..), Unit, Unital (..), unConst)
+import Circuit.Tensor (Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Symmetric (..), Tensor, TheseElim (..), Unit, Unital (..), innerSwap, unConst)
 import Circuit.Trace (FreeTrace, Knot (..))
 import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
@@ -246,19 +246,17 @@ data LensBody t ch ch' arr i o = LensBody
     view :: arr ch o
   }
 
--- | The residual decomposition of a lens tick: 'focus' splits the
--- tick-start channel into the output and a residual; 'rebuild' consumes
--- the residual and the tick input into the new channel. The residual is
--- existential — the coend of the optic representation — so two bodies
--- that differ by sliding an arrow across the residual are the same tick.
--- The fuse pays no copy; any copy is owed inside 'focus', when the
--- output and the residual share part of the channel. The getter/putter
--- 'LensBody' is the case @r ~ ch@. The @t@ parameter keeps the
--- catalogue's kind, but the fuse exists only at @(,)@: at 'Either' the
--- function distributing @t (o, r) i -> (o, t r i)@ has no @o@ on the
--- 'Right' side, so it doesn't exist.
+-- | The residual decomposition of a tick: 'focus' splits the tick-start
+-- channel into a residual and the output; 'rebuild' consumes the residual
+-- and the tick input into the new channel. The residual is existential —
+-- the coend of the optic representation — so bodies that differ by sliding
+-- an arrow across the residual are the same tick. Residual-first, so the
+-- fuse is one 'innerSwap' at any symmetric tensor: lenses at @(,)@,
+-- prisms at 'Either', and a 'These' corner. The fuse owes no copy; any
+-- copy is owed inside 'focus', when the residual and the output share
+-- part of the channel.
 data OpticBody t ch ch' arr i o
-  = forall r. OpticBody (arr ch (o, r)) (arr (t r i) ch')
+  = forall r. OpticBody (arr ch (t r o)) (arr (t r i) ch')
 
 -- | The profunctor-shaped bundle: a pre-compose leg, the nuclear hom
 -- 'pmap' — the catalogue's only grammar-free, interface-free leg — and
@@ -311,21 +309,20 @@ fuseEitherBody (EitherBody ch i c) = Step (c .> elim ch i)
 -- >>> let lb = LensBody (\(c, i) -> c + i) (* 2) :: LensBody (,) Int Int (->) Int Int
 -- >>> case fuseLensBody lb of Step f -> f (3, 4 :: Int)
 -- (7,6)
-fuseLensBody :: (Symmetric (,) arr, Copy arr ch) => LensBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
+fuseLensBody :: (Symmetric (,) arr, OuterSwap (,) arr, Copy arr ch) => LensBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
 fuseLensBody = fuseOpticBody . lensBodyToOptic
 
--- | Fuse an 'OpticBody' into one tick, along the pipeline
--- @(ch, i) -> ((o, r), i) -> (o, (r, i)) -> (o, ch') -> (ch', o)@:
--- 'focus', reassociate, 'rebuild', then braid. No 'Copy', no 'Discard';
--- the residual is consumed exactly once. Requires 'Symmetric' on the
--- base arrow: 'Tensor', 'SemiTensor' and 'Assoc' arrive as its
--- superclasses. Directly comparable with 'fuseLensBody''s example above.
+-- | Fuse an 'OpticBody' into one tick at any symmetric tensor: focus,
+-- swap the output past the input, rebuild.
 --
--- >>> let ob = OpticBody (\c -> (c * 2, c)) (\(c, i) -> c + i) :: OpticBody (,) Int Int (->) Int Int
+-- >>> let ob = OpticBody (\c -> (c, c * 2)) (\(c, i) -> c + i) :: OpticBody (,) Int Int (->) Int Int
 -- >>> case fuseOpticBody ob of Step f -> f (3, 4 :: Int)
 -- (7,6)
-fuseOpticBody :: (Symmetric (,) arr) => OpticBody (,) ch ch' arr i o -> Step (,) (,) ch ch' arr i o
-fuseOpticBody (OpticBody f b) = Step (tensor f id .> assoc .> tensor id b .> braid)
+-- >>> let pr = OpticBody (\c -> if c > 0 then Right (c * 10) else Left c) (either id negate) :: OpticBody Either Int Int (->) Int Int
+-- >>> case fuseOpticBody pr of Step f -> [f (Left 3), f (Left (-2)), f (Right 5)]
+-- [Right 30,Left (-2),Left (-5)]
+fuseOpticBody :: (Symmetric t arr, OuterSwap t arr) => OpticBody t ch ch' arr i o -> Step t t ch ch' arr i o
+fuseOpticBody (OpticBody f b) = Step (tensor f id .> innerSwap .> tensor b id)
 
 -- | Fuse a 'ProfunctorBody' into one tick at the 'Const' target: pre, pmap,
 -- post, then the 'Const' injection. Requires 'ConstInject' on the base
@@ -588,25 +585,25 @@ lensAsLensBody m = LensBody (\(s, i) -> snd (applyLens m s) i) (fst . applyLens 
 -- | Getter/putter into residual form: the residual is the whole channel,
 -- and the copy is of the channel alone.
 lensBodyToOptic :: (Tensor (,) arr, Copy arr ch) => LensBody (,) ch ch' arr i o -> OpticBody (,) ch ch' arr i o
-lensBodyToOptic (LensBody s v) = OpticBody (copy .> tensor v id) s
+lensBodyToOptic (LensBody s v) = OpticBody (copy .> tensor id v) s
 
 -- | Residual form back to getter/putter: runs 'focus' on both legs.
 -- At @(->)@ only; arr-general would need 'Discard' on @o@ and on the
 -- residual.
 opticToLensBody :: OpticBody (,) ch ch' (->) i o -> LensBody (,) ch ch' (->) i o
-opticToLensBody (OpticBody f b) = LensBody (\(c, i) -> b (snd (f c), i)) (fst . f)
+opticToLensBody (OpticBody f b) = LensBody (\(c, i) -> b (fst (f c), i)) (snd . f)
 
 -- | The canonical residual: @r ~ i -> ch'@ — the paper's forward
 -- direction, the hom from the tick input to the new channel.
 lensAsOptic :: Lens ch ch' o i -> OpticBody (,) ch ch' (->) i o
-lensAsOptic m = OpticBody (applyLens m) (\(k, i) -> k i)
+lensAsOptic m = OpticBody (\c -> let (o, k) = applyLens m c in (k, o)) (\(k, i) -> k i)
 
 -- | Residual form back to a 'Lens': the getter is the output half of
 -- 'focus', the putter feeds the residual half and the tick input to
 -- 'rebuild'. This runs 'focus' twice — once for the getter, once per
 -- put; a store-form constructor in "Circuit.Poly" would call it once.
 opticAsLens :: OpticBody (,) ch ch' (->) i o -> Lens ch ch' o i
-opticAsLens (OpticBody f b) = lens (fst . f) (\c i -> b (snd (f c), i))
+opticAsLens (OpticBody f b) = lens (snd . f) (\c i -> b (fst (f c), i))
 
 -- | The closed branch as a generator coalgebra: input closed at the
 -- tensor's unit, the tick's two legs chained into one arrow on the
