@@ -53,6 +53,7 @@ library
     Circuit.Linear
     Circuit.Machine
     Circuit.Net
+    Circuit.Petri
     Circuit.Poly
     Circuit.Pullback
     Circuit.Shared
@@ -79,6 +80,7 @@ executable circuits-axioma
     Axioma.Container
     Axioma.Effect
     Axioma.Machine
+    Axioma.Petri
     Axioma.Poles
     Axioma.Pullback
     Axioma.SemiTensor

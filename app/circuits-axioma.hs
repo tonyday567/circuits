@@ -5,6 +5,7 @@ import Axioma.Common (Verbosity (..))
 import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
 import Axioma.Machine (machineTopic)
+import Axioma.Petri (petriTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Pullback (pullbackTopic)
 import Axioma.SemiTensor (semiTensorTopic)
@@ -22,6 +23,7 @@ data Topic
   | Container
   | Machine
   | Effect
+  | Petri
   | Poles
   | Pullback
   | Shared
@@ -37,6 +39,7 @@ topicName BiK = "bik"
 topicName Container = "container"
 topicName Machine = "machine"
 topicName Effect = "effect"
+topicName Petri = "petri"
 topicName Poles = "poles"
 topicName Pullback = "pullback"
 topicName Shared = "shared"
@@ -51,6 +54,7 @@ topicDesc BiK = "BiK oracles: biaction category laws, the strength spend, and th
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and FreeTrace (,) (K IO) oracles"
+topicDesc Petri = "Finite Petri-net enabling, firing, reachability, and mutual exclusion"
 topicDesc Poles = "Poles oracles: write/read legs, closing, and leg-mapping"
 topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent nets"
 topicDesc Shared = "Shared-medium scheduling, centrality, and Channel These oracles"
@@ -111,6 +115,7 @@ runTopic BiK = biKTopic
 runTopic Container = containerTopic
 runTopic Machine = machineTopic
 runTopic Effect = effectTopic
+runTopic Petri = petriTopic
 runTopic Poles = polesTopic
 runTopic Pullback = pullbackTopic
 runTopic Shared = sharedTopic
@@ -121,7 +126,7 @@ runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [BiK, Container, Effect, Machine, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
+allTopics = [BiK, Container, Effect, Machine, Petri, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"
