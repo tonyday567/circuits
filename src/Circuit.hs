@@ -112,6 +112,96 @@
 -- >>> case mac of Body _ k o -> unConst (o (k (0, monoIn 1)))
 -- (1,())
 --
+-- === Representations and conversion loss
+--
+-- Start with the seed. In "Circuit.Machine", @Cell.seed@ has type
+-- @arr (Unit t) ch@: a 'Cell' pairs a unit-sourced seed with a fused 'Step'.
+-- @Body.init@ has type @arr i ch@: a 'Body' seeds its channel from the first
+-- input, then 'commit' writes and 'emit' reads the fresh channel. These are
+-- different seed disciplines, not two names for a generic stateful step.
+-- 'Step' itself carries neither a seed nor a runner.
+--
+-- Three kinds of loss then stay distinct:
+--
+-- * 'MealyT', 'MooreT', and 'Knot' /hide/ a channel existentially;
+--   'OpticBody' does the same to its residual. The value and its runtime role
+--   remain, but its type is no longer nameable at the sealed interface.
+-- * 'melt' makes wiring /opaque/: structural rows become base arrows wrapped
+--   in 'Lift'. Their interpretation remains, but the rows cannot be inspected
+--   as rows in the result.
+-- * @run@ and @bind@ on 'Knot' /compute feedback away/ with 'trace'. This
+--   closes the hidden channel; it does not iterate a machine over an input
+--   tape. The runners in "Circuit.Machine" supply different semantics.
+--
+-- The representations in "Circuit.Net", "Circuit.Trace", "Circuit.Hyper",
+-- "Circuit.Step", and "Circuit.Machine" make different trade-offs:
+--
+-- * 'Net' keeps symmetric-monoidal and bimonoid wiring inspectable: parallel,
+--   swap, copy, discard, merge, and zero rows are syntax. It has no feedback
+--   constructor.
+-- * 'FreeTrace' keeps 'Lift', sequential composition, and 'SigTrace' as an
+--   inspectable free-syntax tree. It is not the one-loop normal form.
+-- * 'Knot' is either 'Arr' or one 'Knot' over a base-arrow body, with an
+--   existential feedback channel. Use it for the one-knot normal form; its
+--   elimination calls 'trace' and supplies neither a tape nor a seed.
+-- * 'Hyper' and 'HyperA' are final continuation encodings. They support
+--   composition and observation through the dual rather than inspection of
+--   the original syntax or a named feedback channel.
+-- * 'Step' is one fused tick @arr (t ch i) (t' ch' o)@, with visible channel
+--   types. Use it when the tick is the whole artifact.
+-- * 'Cell' and 'MealyT' are the fused machine spelling: a unit-sourced seed
+--   plus a 'Step', with the channel optionally sealed. 'Body', 'Moore', and
+--   'MooreT' are the factored, post-commit spelling; 'Moore' seals the target
+--   grammar to 'Const', while 'MooreT' seals the channel. 'MooreT' alone does
+--   not choose a runner.
+--
+-- The existing conversions preserve and discard different information:
+--
+-- * 'widen' in "Circuit.Net" embeds @SMC w arr a b@ as @Net w arr a b@. It
+--   preserves every SMC constructor, base arrow, tensor, and interface, and
+--   discards nothing.
+-- * 'melt' in "Circuit.Net" maps @Net w arr a b@ to @FreeTrace w arr a b@. It
+--   preserves the interface, tensor, base arrow, sequential syntax, and
+--   denotation; the owning module states @run \@Net = eval . melt@. It
+--   discards inspectable 'SigPar', 'SigSwap', 'SigCopy', 'SigDiscard',
+--   'SigMerge', and 'SigZero' rows, including access to their wiring and
+--   generator dictionaries, by interpreting them as opaque 'Lift' arrows.
+-- * 'encode' and 'encodeK' in "Circuit.Hyper" preserve composition, trace,
+--   interface, and observation. The owning module documents
+--   @observe . encode = eval@. They discard the 'Lift', 'SigCompose', and
+--   'SigTrace' syntax tree: the result is final continuation structure, not
+--   inspectable initial syntax.
+-- * 'observe' and 'observeK' in "Circuit.Hyper" preserve external function or
+--   Kleisli behaviour. They discard the continuation representation and its
+--   intensional account of feedback.
+-- * 'fuse' in "Circuit.Machine" composes @emit . commit@ to produce a 'Step'.
+--   It preserves the exact fused one-tick arrow, channel types, and
+--   post-commit output discipline. It discards @Body.init@ and the separate
+--   commit and emit leg boundaries.
+-- * 'mealyToKnot' in "Circuit.Machine" preserves the fused tick arrow,
+--   tensor, interface, and hidden channel. It discards @Cell.seed@, so a
+--   later 'trace' does not reproduce a seeded scan over an input tape.
+-- * 'mooreToKnot' in "Circuit.Machine" preserves the pure tick's
+--   commit/post-commit-emit behaviour and hidden channel, exposing the fresh
+--   channel beside a bare output. It discards @Body.init@, the 'Const'
+--   wrapper, and the separate body legs; it preserves no tape or first-input
+--   seeding.
+-- * 'traceToMoore' in "Circuit.Machine" folds base arrows into machines whose
+--   state is the current input, and folds syntax composition and trace through
+--   the category and traced operations of 'MooreT'. It discards the inspectable
+--   syntax tree and publicly named channel, and chooses the target seed/state
+--   discipline. A later runner still supplies any tape.
+-- * @run@ and @bind@ on 'Knot' return an 'Arr' body or map a 'Knot' body and
+--   apply 'trace'. They preserve the denotation in the receiving traced
+--   arrow, discard the one-knot normal form, and compute the explicit
+--   hidden-channel boundary away.
+--
+-- Two boundaries prevent over-reading this map. "Circuit.Trace" has no named
+-- @FreeTrace -> Knot@ conversion, and "Circuit.Machine" states no law equating
+-- @scan (traceToMoore f)@ with @eval f@. The denotation laws claimed here are
+-- the ones stated by the owning modules: @run \@Net = eval . melt@ and
+-- @observe . encode = eval@.
+--
 -- === Streams: the neutral interface
 --
 -- "Circuit.Stream" is the neutral stream interface: `Uncons` destructs a

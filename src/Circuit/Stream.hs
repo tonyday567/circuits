@@ -23,6 +23,10 @@ where
 
 import Data.These (These (..))
 
+-- $setup
+-- >>> import Circuit.Stream (uncons)
+-- >>> import Data.These (These (..))
+
 instance Uncons [a] a where
   uncons [] = That []
   uncons [x] = This x
@@ -42,6 +46,13 @@ instance Snoc [a] a where
 -- @uncons [x] = This x@ announces the final element at extraction. The
 -- 'nil' value is the stream-specific empty used to continue after a 'This'
 -- result.
+--
+-- >>> uncons ([] :: [Int]) :: These Int [Int]
+-- That []
+-- >>> uncons ([1] :: [Int]) :: These Int [Int]
+-- This 1
+-- >>> uncons ([1,2,3] :: [Int]) :: These Int [Int]
+-- These 1 [2,3]
 class Uncons f s where
   uncons :: f -> These s f
   nil :: f

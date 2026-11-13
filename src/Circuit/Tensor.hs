@@ -10,7 +10,6 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- | Tensor action and braiding for traced categories.
 --
@@ -19,13 +18,6 @@
 --
 -- The goal is to keep the core 'FreeTrace' syntax and 'Circuit.Syntax.eval' fold
 -- independent of these structural details.
---
--- Note: the monomorphic 'reassocL' and 'reassocR' helpers below move the
--- tree toward left- and right-nesting respectively — the same directions as
--- 'Circuit.Traced.assoc'' and 'Circuit.Traced.assoc' (prime order, not
--- alphabetical order).  The @reassoc@ names deliberately do not claim the
--- bare 'assoc'/'assoc'' namespace, which belongs to the 'Circuit.Traced.Assoc'
--- class imported throughout this module.
 --
 -- 'SemiTensor' / 'Tensor' / 'Symmetric' are kind-polymorphic, forming the
 -- ladder from parallel composition through unitors to braiding; 'Const'
@@ -104,31 +96,13 @@ data Bias = LeftFirst | RightFirst
 
 -- * Cartesian structure ((,))
 
--- | Toward left-nesting: @(a, (b, c)) -> ((a, b), c)@ — the direction of
--- 'Circuit.Traced.assoc''.
+-- | Toward left-nesting: @(a, (b, c)) -> ((a, b), c)@.
 reassocL :: (a, (b, c)) -> ((a, b), c)
 reassocL ~(a, ~(b, c)) = ((a, b), c)
 
--- | Toward right-nesting: @((a, b), c) -> (a, (b, c))@ — the direction of
--- 'Circuit.Traced.assoc'.
+-- | Toward right-nesting: @((a, b), c) -> (a, (b, c))@.
 reassocR :: ((a, b), c) -> (a, (b, c))
 reassocR ~(~(a, b), c) = (a, (b, c))
-
--- Introduce a channel wire alongside a payload.
-seed :: s -> a -> (s, a)
-seed s a = (s, a)
-
--- Move a value from the payload into the channel wire.
---
--- absorb f = first (uncurry f) . reassocL
-absorb :: (t -> s -> s') -> (s, (t, b)) -> (s', b)
-absorb f (s, (t, b)) = (f t s, b)
-
--- Move a value from the channel wire into the payload.
---
--- release f = reassocR . first f
-release :: (s -> (s', t)) -> (s, b) -> (s', (t, b))
-release f (s, b) = let (s', t) = f s in (s', (t, b))
 
 -- * Cocartesian structure (Either)
 

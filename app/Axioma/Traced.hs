@@ -12,11 +12,13 @@ module Axioma.Traced
 where
 
 import Axioma.Common (Verbosity (..), checkV)
+import Circuit.Bimonoid (SigMerge (..))
 import Circuit.Category (Op (..), id, runK, runOp, (.), (.>))
-import Circuit.Syntax (Syntax (..), eval)
+import Circuit.Net (Net)
+import Circuit.Syntax (Layer (..), Syntax (..), eval, (:+:) (..))
 import Circuit.Tensor (SemiTensor (..), Symmetric (..), Tensor, innerSwap, superpose)
-import Circuit.Trace (FreeTrace)
-import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
+import Circuit.Trace (FreeTrace, Iteration, Knot (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.Functor.Identity (Identity (..))
@@ -466,6 +468,28 @@ slidingOk :: Bool
 slidingOk =
   all (\n -> trace slidingLhsClosed n == trace slidingRhsClosed n) [0 .. 3]
 
+-- | One terminating tail loop through 'Unfold', 'Knot', and Net's traced
+-- codiagonal. Zero covers immediate exit; five requires feedback. An early
+-- exit or an under-iterating step in any one spelling breaks agreement with
+-- the other two and with the expected answer.
+--
+-- The Net leg runs the @SigMerge@ join and the 'Circuit.Trace.SigTrace' node
+-- through @eval@. It agrees because @mergeT \@Either@ is tag dispatch, so both
+-- of its legs carry the same function: this leg pins the join-and-trace
+-- plumbing, and the join's wiring is indistinguishable at 'Either'.
+tailLoopAgreementOk :: Bool
+tailLoopAgreementOk =
+  let down :: Int -> Either Int Int
+      down n = if n <= 0 then Right n else Left (n - 1)
+      knot :: Iteration Int Int
+      knot = Knot (either down down)
+      netBody :: Net Either (->) (Either Int Int) (Either Int Int)
+      netBody = Lift down . Oper (R (R (R (R (R (L SigMerge))))))
+      netLoop :: FreeTrace Either (->) Int Int
+      netLoop = trace (Lift (run netBody))
+      answers n = (unfold down n, run knot n, eval netLoop n)
+   in all (\n -> answers n == (0, 0, 0)) [0 .. 5]
+
 tracedTopic :: Verbosity -> IO [Bool]
 tracedTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Traced oracles: base structural laws and their composite spends"
@@ -498,5 +522,6 @@ tracedTopic verbosity = do
       checkV verbosity "Either strength coherence (strength f == tensor id f)" eitherStrengthCoherenceOk,
       checkV verbosity "These strength coherence (strength f == tensor id f)" theseStrengthCoherenceOk,
       checkV verbosity "Either uniformity: feedback respects non-injective two-cell" uniformityOk,
-      checkV verbosity "Either sliding (dinaturality) for isomorphism" slidingOk
+      checkV verbosity "Either sliding (dinaturality) for isomorphism" slidingOk,
+      checkV verbosity "Unfold, Knot, and Net traced codiagonal agree on one tail loop" tailLoopAgreementOk
     ]

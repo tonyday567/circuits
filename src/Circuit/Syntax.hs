@@ -166,30 +166,6 @@ instance Algebra SigCompose arr arr' where
     arr' a c
   alg _ rec (SigCompose @_ @_ @_ @_ @_ g f) = rec g . rec f
 
--- Common syntax combinations
-
--- | Free category.
-type AlgCat arr = Syntax SigCompose arr
-
--- Instances for the free category
-
-instance (Category arr) => Category (AlgCat arr) where
-  id = Lift id
-  f . g = Oper (SigCompose f g)
-
-instance (Category arr, Assoc t arr) => Assoc t (AlgCat arr) where
-  assoc = Lift assoc
-  assoc' = Lift assoc'
-
-instance (Category arr, OuterSwap t arr) => OuterSwap t (AlgCat arr) where
-  outerSwap = Lift outerSwap
-
-instance (Category arr, Strength t arr) => Strength t (AlgCat arr) where
-  strength f = Lift (strength (eval f))
-
-instance (Category arr, Trace t arr) => Trace t (AlgCat arr) where
-  trace body = Lift (trace (eval body))
-
 -- * Free-layer / free-forgetful adjunction tower
 
 -- | The kind of Haskell categories: type-to-type hom-sets.

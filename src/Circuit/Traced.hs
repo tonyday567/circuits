@@ -20,15 +20,18 @@
 -- strength, and feedback-fixing trace that underlie the syntax in
 -- "Circuit.Trace".
 --
+-- The @K m@ associator, outer-swap, and sum-strength instances inherit
+-- @Monad m@ from @Category (K m)@ through the class ladder; their bodies
+-- spend only @pure@ or '<$>'. Cartesian strength and trace use the monad
+-- proper and document that locally.
+--
 -- Beside the ladder sits 'Unfold': coiteration over a grammar, the run's
 -- output shape fixed by the grammar's 'Nu'. Its 'Either' corner is the
 -- trace itself — the codiagonal correspondence — and its partial grammars
 -- (@Maybe :. (,)@, @Maybe :. Either@) serve the tape-driven runners in
 -- "Circuit.Machine".
 --
--- 'assoc' and 'assoc'' here reassociate /rightward/ and /leftward/
--- respectively. The monomorphic helpers in "Circuit.Tensor" have the same
--- names but the opposite directions. Also, 'outerSwap' here is the outer
+-- 'outerSwap' here is the outer
 -- swap @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
 -- lives in Circuit.Tensor as braid. Where both structures exist,
 -- @outerSwap = assoc' .> tensor braid id .> assoc@.
@@ -71,6 +74,10 @@ import Prelude hiding (id, (.))
 -- Provides the two directions of reassociation required by a monoidal
 -- structure. This is the first layer that traced categories inherit as a
 -- superclass.
+--
+-- Direction note: 'assoc' and 'Circuit.Tensor.reassocR' nest right;
+-- 'assoc'' and 'Circuit.Tensor.reassocL' nest left. The @reassoc@ names
+-- describe the resulting tree, not the prime convention.
 --
 -- The previous quantified superclass that stated closure of an object
 -- constraint under the tensor has been removed along with the @Ob@
@@ -453,19 +460,11 @@ instance Trace These (->) where
 -- * K m — monoidal structure
 
 -- | Cartesian associator for @K m@ with @(,)@.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc (,) (K m) where
   assoc = K $ \ ~(~(a, b), c) -> pure (a, (b, c))
   assoc' = K $ \ ~(a, ~(b, c)) -> pure ((a, b), c)
 
 -- | Cocartesian associator for @K m@ with 'Either'.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc Either (K m) where
   assoc = K $ \case
     Left (Left a) -> pure (Left a)
@@ -477,10 +476,6 @@ instance (Monad m) => Assoc Either (K m) where
     Right (Right c) -> pure (Right c)
 
 -- | Inclusive associator for @K m@ with 'These'.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => Assoc These (K m) where
   assoc =
     K $
@@ -504,18 +499,10 @@ instance (Monad m) => Assoc These (K m) where
         These a (These b c) -> These (These a b) c
 
 -- | Cartesian outer swap for @K m@ with @(,)@.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => OuterSwap (,) (K m) where
   outerSwap = K $ \ ~(a, ~(b, c)) -> pure (b, (a, c))
 
 -- | Cocartesian outer swap for @K m@ with 'Either'.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => OuterSwap Either (K m) where
   outerSwap = K $ \case
     Left a -> pure (Right (Left a))
@@ -523,10 +510,6 @@ instance (Monad m) => OuterSwap Either (K m) where
     Right (Right c) -> pure (Right (Right c))
 
 -- | Inclusive outer swap for @K m@ with 'These'.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@.
 instance (Monad m) => OuterSwap These (K m) where
   outerSwap =
     K $
@@ -578,10 +561,6 @@ instance (MonadFix m) => Trace (,) (K m) where
 -- * K m Either — iteration for any Monad
 
 -- | Either tensorial strength for @K m@, for any @Monad m@.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@ and '<$>'.
 instance (Monad m) => Strength Either (K m) where
   strength (K f) =
     K $ \case
@@ -589,10 +568,6 @@ instance (Monad m) => Strength Either (K m) where
       Right b -> Right <$> f b
 
 -- | Inclusive tensorial strength for @K m@ with 'These'.
---
--- The @Monad m@ head is inherited, not spent: @Category (K m)@ —
--- required by the ladder's @Category arr@ superclass — needs @(>>=)@
--- for composition. This body spends only @pure@ and '<$>'.
 instance (Monad m) => Strength These (K m) where
   strength (K f) =
     K $ \case

@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Axioma.BiK (biKTopic)
+import Axioma.BimonoidNet (bimonoidNetTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
@@ -20,6 +21,7 @@ import Prelude hiding (id, (.))
 data Topic
   = All
   | BiK
+  | BimonoidNet
   | Container
   | Machine
   | Effect
@@ -36,6 +38,7 @@ data Topic
 topicName :: Topic -> String
 topicName All = "all"
 topicName BiK = "bik"
+topicName BimonoidNet = "bimonoidnet"
 topicName Container = "container"
 topicName Machine = "machine"
 topicName Effect = "effect"
@@ -51,6 +54,7 @@ topicName Traced = "traced"
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
 topicDesc BiK = "BiK oracles: biaction category laws, the strength spend, and the Either bridge"
+topicDesc BimonoidNet = "Bimonoid net oracles: fan-in shape cannot change a bimonoid net's result"
 topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and FreeTrace (,) (K IO) oracles"
@@ -112,6 +116,7 @@ opts =
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
 runTopic BiK = biKTopic
+runTopic BimonoidNet = bimonoidNetTopic
 runTopic Container = containerTopic
 runTopic Machine = machineTopic
 runTopic Effect = effectTopic
@@ -126,7 +131,7 @@ runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [BiK, Container, Effect, Machine, Petri, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
+allTopics = [BiK, BimonoidNet, Container, Effect, Machine, Petri, Poles, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"

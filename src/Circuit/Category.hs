@@ -35,7 +35,6 @@ module Circuit.Category
     BiK (..),
     Op (..),
     FunctionLike (..),
-    Pointed (..),
   )
 where
 
@@ -179,32 +178,3 @@ instance FunctionLike (->) where
 -- monad.
 instance (Monad m) => FunctionLike (K m) where
   function f = K (pure . f)
-
--- | A pointed object: an object with a distinguished element.
---
--- This class has no laws by construction — it merely names a chosen
--- element.  It is the structural requirement for the coproduct-unit poles
--- of 'Body Either': on a payload input the companion must produce a carrier
--- value, and there is no ambient state to use.  'Monoid' is over-strong for
--- this purpose, since only the identity element is needed.
---
--- This is the EM side of pointing — an algebra of the @Maybe@ monad,
--- structure on the object. The runner-facing presentation of the same
--- pointing is the 'Circuit.Machine.Cell' seed leg in "Circuit.Machine".
-class Pointed a where
-  point :: a
-
--- | The singleton type is canonically pointed.
-instance Pointed () where
-  point = ()
-  {-# INLINE point #-}
-
--- | 'Maybe' is canonically pointed at 'Nothing'.
-instance Pointed (Maybe a) where
-  point = Nothing
-  {-# INLINE point #-}
-
--- | Lists are canonically pointed at the empty list.
-instance Pointed [a] where
-  point = []
-  {-# INLINE point #-}

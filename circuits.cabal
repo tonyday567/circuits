@@ -76,6 +76,7 @@ executable circuits-axioma
   hs-source-dirs: app
   other-modules:
     Axioma.BiK
+    Axioma.BimonoidNet
     Axioma.Common
     Axioma.Container
     Axioma.Effect

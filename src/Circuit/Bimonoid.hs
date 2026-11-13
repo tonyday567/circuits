@@ -93,12 +93,6 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Category (Category (..), (.>))
 -- >>> import Prelude hiding (id, (.))
 
--- $setup
--- >>> import Circuit.Bimonoid
--- >>> import Circuit.Tensor (Symmetric (..), Tensor (..))
--- >>> import Circuit.Category (Category (..), (.>))
--- >>> import Prelude hiding (id, (.))
-
 -- * Merge / Zero: monoid structure on channel objects
 
 -- | Combine two values of the channel type.

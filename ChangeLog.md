@@ -16,7 +16,8 @@ axioms) — and the entries below describe the tree as it stands.
   (existential) split of a lens tick — `focus` from the tick-start
   channel to the output and a residual, `rebuild` from the residual and
   the tick input to the new channel. `fuseOpticBody` needs only
-  `Symmetric (,) arr`; the fuse pays no copy and no discard. The bridges
+  `Symmetric t arr` and `OuterSwap t arr`; the fuse pays no copy and no
+  discard. The bridges
   `lensBodyToOptic` / `opticToLensBody` (the `LensBody` case `r ~ ch`)
   and `lensAsOptic` / `opticAsLens` (the canonical residual
   `r ~ i -> ch'`) land it beside the existing getter/putter and lens
@@ -59,6 +60,8 @@ axioms) — and the entries below describe the tree as it stands.
 - The `Circuit` umbrella exports the categorical `dagger` (Poly's hidden
   there), exports `Point`, and no longer hides `run` — `Circuit.Syntax.run`
   stands alone as the fold.
+- The unused `Circuit.Category.Pointed` class and
+  `Circuit.Machine.processOf` helper are removed from the public API.
 
 *Machine core*
 

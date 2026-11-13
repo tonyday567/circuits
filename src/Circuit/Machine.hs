@@ -79,7 +79,6 @@ module Circuit.Machine
     before,
     delay,
     feedback,
-    processOf,
 
     -- * runners
     scanT,
@@ -122,6 +121,7 @@ import Prelude hiding (id, init, (.))
 -- >>> import Circuit.Poly (applyLens)
 -- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Circuit.Trace (Knot (..), FreeTrace)
+-- >>> import Circuit.Traced (trace)
 -- >>> import qualified Circuit.Syntax as S
 -- >>> import Data.These (These (..), these)
 
@@ -590,12 +590,6 @@ feedback :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
 feedback s0 (MooreT (Body i k o)) =
   moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (unConst (o s))))) (fst . unConst . o)
 
--- | Replace a machine's seed leg: the new 'init' injects the input
--- through the given arrow into 'commit'. The body's own init is
--- discarded.
-processOf :: (Category arr) => arr a (t s a) -> Moore t s arr a b -> Moore t s arr a b
-processOf e (Body _ k o) = Body (e .> k) k o
-
 -- | Input-list elimination: each step injects the input through the
 -- tensor's own left unit — memoryless at Either, That-biased at These.
 scanT :: (Tensor t (->)) => MooreT t (->) i o -> [i] -> [o]
@@ -627,6 +621,21 @@ scanProcess (Body j k e) as = unfold gen (Nothing, as)
        in Nest (Just ((Just s', rest), unConst (e s')))
 
 -- | The sealed 'scanProcess': the channel hidden behind 'MooreT'.
+--
+-- Each output is one post-commit tick: the first tick uses 'init', later
+-- ticks use 'commit'.
+--
+-- >>> let sumM = moore id (\s i -> s + i) id
+-- >>> scan sumM [1,2,3]
+-- [1,3,6]
+--
+-- Trace closes the body's post-commit feedback channel on each tick. Here
+-- the feedback is the powers-of-two stream, observed three elements at a
+-- time:
+--
+-- >>> let powers = trace (moore (const []) (\_ (a, ()) -> 1 : map (* 2) a) (\s -> (s, take 3 s)))
+-- >>> scan powers [(), (), ()]
+-- [[],[1,2,4],[1,2,4]]
 scan :: MooreT (,) (->) a b -> [a] -> [b]
 scan (MooreT m) = scanProcess m
 

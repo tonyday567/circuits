@@ -56,6 +56,10 @@ Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule;
                       the free syntax is SharedTrace.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
+Circuit.Container   — Fibred container view: positions with typed direction
+                      fibres, skeletons, pin routing, and the netlist bridge.
+Circuit.Span        — Finite spans with an existential Eq apex, pullback
+                      composition, body bridges, and metric optics.
 Circuit.Step       — The machine tick: Step, one arrow from the grammared
                       source to the grammared target, shared by the machine
                       lane and the traced lane; its haddock carries the

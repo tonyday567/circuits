@@ -178,12 +178,13 @@ rung one enrichment of the last:
 `Free` is the free category; `SMC` the free symmetric monoidal category; `Net`
 the free symmetric monoidal category with a bimonoid, where every wire is a
 constructor you can inspect. `FreeTrace` sits to the side of this chain rather
-than on it: it is the free traced monoidal category *in normal form*. Its laws
-are performed by its instances, so every value collapses to at most one `trace`
-over a lifted base arrow. `Net` and `FreeTrace` are the two poles of the
-library — wiring you can read backwards (`daggerNet` reads it backwards
+than on it: it is the free traced monoidal category as inspectable syntax.
+`Knot` is the one-knot normal form: every `Knot` value is a base arrow or
+one feedback knot over a base-arrow body. `Net` and `Knot` are the two poles
+of the library — wiring you can read backwards (`daggerNet` reads it backwards
 literally), and wiring that has been melted into a single loop. `melt` goes
-from `Net` to `FreeTrace`; feedback lives in `FreeTrace`, not in `Net`.
+from `Net` to `FreeTrace`; feedback lives in `FreeTrace` and `Knot`, not in
+`Net`.
 
 **Between the ladders** there is a family of folds. Each free construction can
 be evaluated into any target category that satisfies the right laws; the GADT's
@@ -202,7 +203,7 @@ functors.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms.
 
-The machine core crystallised around `Body t ch arr a b`. Everything stateful
+The machine core crystallised around `Body t t' ch ch' arr i o`. Everything stateful
 — `Moore`/`MooreT`, `Poles` — is a specialisation or projection of it.
 
 In many of the free objects we tag common computation patterns: function
