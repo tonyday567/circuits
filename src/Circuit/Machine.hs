@@ -31,7 +31,6 @@ module Circuit.Machine
     moore,
     before,
     delay,
-    feedback,
     scanT,
     scan,
     fold,
@@ -168,8 +167,8 @@ instance Applicative (MooreT (,) (->) a) where
 -- These instances make @MooreT (,) (->)@ a traced monoidal category
 -- under the cartesian tensor — the trace ties a lazy self-referential
 -- knot and is productive only when the body is non-strict in the
--- feedback channel. Strict accumulators diverge under the @(,)@ trace;
--- use 'feedback' for those.
+-- feedback channel. Strict accumulators diverge: the knot has no seed
+-- and demands the channel before the body can produce it.
 
 instance Assoc (,) (MooreT (,) (->)) where
   assoc = moore id (\_ x -> x) (\(~((a, b), c)) -> (a, (b, c)))
@@ -230,12 +229,6 @@ before (MooreT (Body i k o)) f =
 -- | One tick of delay: the channel holds the previous input.
 delay :: s -> MooreT (,) (->) s s
 delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
-
--- | Feed a strict machine its own previous output as a second channel —
--- the strict-body alternative to the lazy 'trace' knot.
-feedback :: s -> MooreT (,) (->) (a, s) (b, s) -> MooreT (,) (->) a b
-feedback s0 (MooreT (Body i k o)) =
-  moore (\a -> i (a, s0)) (\s a -> k (s, (a, snd (unConst (o s))))) (fst . unConst . o)
 
 -- | Input-list elimination: each step injects the input through the
 -- tensor's own left unit — memoryless at Either, That-biased at These.

@@ -161,8 +161,7 @@ exactly when no input supplies one. `Body` keeps it explicit as the
 `Trace (,) (MooreT (,) (->))` instance discharges it through closure:
 `trace` ties the state channel in a lazy knot, and the absence of a seed
 is visible in the type. The discharges are not interchangeable: the lazy knot diverges on
-strict accumulators — which is why `delay` and `feedback` exist as
-explicit wiring.
+strict accumulators — which is why `delay` exists as explicit wiring.
 
 ```haskell
 scan (moore (+ 0) (\s i -> s + i) id) [1, 2, 3]  -- explicit: the seed as data

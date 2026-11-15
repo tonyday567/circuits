@@ -68,7 +68,7 @@ Circuit.Step       — The machine tick: Step, one arrow from the grammared
 Circuit.Machine     — Machines over a channel: Body (init/commit/emit, the
                       input-seeded lifecycle), Moore/MooreT (the Const-target
                       corner and its proven Category), Poles (the memoryless
-                      corner) with pipe, the Moore pattern with delay/feedback,
+                      corner) with pipe, the Moore pattern with delay,
                       the scan/fold eliminators at the partial grammars
                       (scanProcess/foldProcess/scanT), MergeNat, and fuse — the
                       Body-to-Step tick. Re-exports Step from Circuit.Step.

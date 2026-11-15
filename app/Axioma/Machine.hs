@@ -276,7 +276,7 @@ machineTopic verbosity = do
         scanT ((,) <$> cntM <*> colM) xs == [(0, [1]), (1, [2, 1]), (2, [3, 2, 1]), (3, [4, 3, 2, 1])],
       checkV verbosity "mooreT (,) trace: lazy knot productive on a non-strict body" $
         scanT (trace powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
-      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges (use feedback)" $ do
+      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges" $ do
         result <- timeout 1000000 $ case scanT (trace strictBody) [1 :: Int] of
           (o : _) -> evaluate o
           [] -> pure 0

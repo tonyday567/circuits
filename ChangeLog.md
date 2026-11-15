@@ -49,7 +49,8 @@ axioms) — and the entries below describe the tree as it stands.
   `daggerSMC`. `Poly.dagger` is a separate, qualified operation.
 - Machines: `Step.run` → `Step.step` (qualified access and pattern matching;
   the zoo's `Cell`/`FoldBody` step fields keep their names); `register` →
-  `feedback`; `Poles.compose` → `pipe`; the alternative body bundles are
+  `feedback` (since removed — see *Machine core*); `Poles.compose` → `pipe`;
+  the alternative body bundles are
   `FoldBody`, `TheseBody`, `EitherBody`, `LensBody`, `ProfunctorBody` with
   their fuse/unfuse and lens-bridge names spelled out, and they ship as
   examples in `circuits-examples` `Example.BodyZoo`.
@@ -71,8 +72,13 @@ axioms) — and the entries below describe the tree as it stands.
   `Moore`/`MooreP`/`MooreT` (the Const-target corner, its polynomial
   interface, and the channel sealed behind the body), and `Poles`
   (init/commit/emit ends). Runners `scan`, `fold`, `scanProcess`,
-  `foldProcess`, and `scanT` live here, beside `delay` and `feedback`;
+  `foldProcess`, and `scanT` live here, beside `delay`;
   `fuse` lands a body back at the tick.
+- `feedback` leaves the public API. The strict-body alternative to the
+  lazy `(,)` knot — the previous output component fed back as the next
+  tick's second input, seeded — is wiring a client composes from `delay`
+  and `moore` over its own body legs; it is not a primitive of the core.
+  `trace` remains the fixed-point knot, `delay` the explicit seed.
 - Bodies, Moore machines, and poles are factorisations of the one
   `Step`/`Body` shape over a channel, under tensors `t t'`, in a base
   arrow `arr`; the zoo's `Cell` is the same factorisation with the seed at
