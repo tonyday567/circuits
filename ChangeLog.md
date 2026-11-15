@@ -48,10 +48,11 @@ axioms) — and the entries below describe the tree as it stands.
   dagger family `transpose`/`mirrorNet`/`mirrorSMC` → `dagger`/`daggerNet`/
   `daggerSMC`. `Poly.dagger` is a separate, qualified operation.
 - Machines: `Step.run` → `Step.step` (qualified access and pattern matching;
-  the `Cell`/`FoldBody` step fields keep their names); `register` →
-  `feedback`; `Poles.compose` → `pipe`; the body bundles are `FoldBody`,
-  `TheseBody`, `EitherBody`, `LensBody`, `ProfunctorBody` with their
-  fuse/unfuse and lens-bridge names spelled out.
+  the zoo's `Cell`/`FoldBody` step fields keep their names); `register` →
+  `feedback`; `Poles.compose` → `pipe`; the alternative body bundles are
+  `FoldBody`, `TheseBody`, `EitherBody`, `LensBody`, `ProfunctorBody` with
+  their fuse/unfuse and lens-bridge names spelled out, and they ship as
+  examples in `circuits-examples` `Example.BodyZoo`.
 - Polynomial/shared/linear: `Poly.Global` → `Constant` (`Point` remains the
   global-element constructor); `AlgShared` → `SharedTrace`;
   `BangWeaken.discardE` → `weaken`; `Linear.distL`/`distR` →
@@ -66,12 +67,16 @@ axioms) — and the entries below describe the tree as it stands.
 *Machine core*
 
 - `Circuit.Machine` hosts the factored machine: `Body` (init/commit/emit),
-  `Step` (the one-tick arrow), `Moore`/`MooreT` (the channel sealed behind
-  the body), and `Poles` (init/commit/emit ends). Runners `scan`, `fold`,
-  `delay`, `feedback`, and `mealyToKnot` live here.
-- Cells, bodies, Moore machines, and poles are all factorisations of the
-  one `Step`/`Body` shape over a channel, under tensors `t t'`, in a base
-  arrow `arr`.
+  `Step` (the one-tick arrow, re-exported from `Circuit.Step`),
+  `Moore`/`MooreP`/`MooreT` (the Const-target corner, its polynomial
+  interface, and the channel sealed behind the body), and `Poles`
+  (init/commit/emit ends). Runners `scan`, `fold`, `scanProcess`,
+  `foldProcess`, and `scanT` live here, beside `delay` and `feedback`;
+  `fuse` lands a body back at the tick.
+- Bodies, Moore machines, and poles are factorisations of the one
+  `Step`/`Body` shape over a channel, under tensors `t t'`, in a base
+  arrow `arr`; the zoo's `Cell` is the same factorisation with the seed at
+  the tensor's unit.
 
 *Free traced syntax*
 

@@ -150,14 +150,14 @@ nothing about syntax; they are the contracts that folds have to meet.
 the morphism `arr (t ch i) (t' ch' o)`, in its own module `Circuit.Step`.
 A step threads an ambient channel `ch` alongside a payload, under a
 tensor `t`. It is the shared shape both lanes are built on: the machines
-of `Circuit.Machine` are factorised from it (cells, bodies, Moore
+of `Circuit.Machine` are factorised from it (bodies, Moore
 machines, poles), and the loop bodies of `Circuit.Trace`'s free syntax are
 traced from it.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
 exactly when no input supplies one. `Body` keeps it explicit as the
 `init` leg — the seed as data, with `moore` spelling the common case at
-`(->)`; `Cell` carries it as the `seed` leg at the tensor's unit. The
+`(->)`; the zoo's `Cell` carries it as the `seed` leg at the tensor's unit. The
 `Trace (,) (MooreT (,) (->))` instance discharges it through closure:
 `trace` ties the state channel in a lazy knot, and the absence of a seed
 is visible in the type. The discharges are not interchangeable: the lazy knot diverges on

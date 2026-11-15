@@ -114,18 +114,15 @@
 --
 -- === Representations and conversion loss
 --
--- Start with the seed. In "Circuit.Machine", @Cell.seed@ has type
--- @arr (Unit t) ch@: a 'Cell' pairs a unit-sourced seed with a fused 'Step'.
--- @Body.init@ has type @arr i ch@: a 'Body' seeds its channel from the first
--- input, then 'commit' writes and 'emit' reads the fresh channel. These are
--- different seed disciplines, not two names for a generic stateful step.
--- 'Step' itself carries neither a seed nor a runner.
+-- Start with the seed. @Body.init@ has type @arr i ch@: a 'Body' seeds its
+-- channel from the first input, then 'commit' writes and 'emit' reads the
+-- fresh channel. 'Step' itself carries neither a seed nor a runner.
 --
--- Three kinds of loss then stay distinct:
+-- Two kinds of loss then stay distinct:
 --
--- * 'MealyT', 'MooreT', and 'Knot' /hide/ a channel existentially;
---   'OpticBody' does the same to its residual. The value and its runtime role
---   remain, but its type is no longer nameable at the sealed interface.
+-- * 'MooreT' and 'Knot' /hide/ a channel existentially. The value and its
+--   runtime role remain, but its type is no longer nameable at the sealed
+--   interface.
 -- * 'melt' makes wiring /opaque/: structural rows become base arrows wrapped
 --   in 'Lift'. Their interpretation remains, but the rows cannot be inspected
 --   as rows in the result.
@@ -149,11 +146,9 @@
 --   the original syntax or a named feedback channel.
 -- * 'Step' is one fused tick @arr (t ch i) (t' ch' o)@, with visible channel
 --   types. Use it when the tick is the whole artifact.
--- * 'Cell' and 'MealyT' are the fused machine spelling: a unit-sourced seed
---   plus a 'Step', with the channel optionally sealed. 'Body', 'Moore', and
---   'MooreT' are the factored, post-commit spelling; 'Moore' seals the target
---   grammar to 'Const', while 'MooreT' seals the channel. 'MooreT' alone does
---   not choose a runner.
+-- * 'MooreT' seals the channel existentially. 'Body', 'Moore', and 'Step'
+--   keep their different leg and tick boundaries visible. 'MooreT' alone
+--   does not choose a runner.
 --
 -- The existing conversions preserve and discard different information:
 --
@@ -178,29 +173,17 @@
 --   It preserves the exact fused one-tick arrow, channel types, and
 --   post-commit output discipline. It discards @Body.init@ and the separate
 --   commit and emit leg boundaries.
--- * 'mealyToKnot' in "Circuit.Machine" preserves the fused tick arrow,
---   tensor, interface, and hidden channel. It discards @Cell.seed@, so a
---   later 'trace' does not reproduce a seeded scan over an input tape.
--- * 'mooreToKnot' in "Circuit.Machine" preserves the pure tick's
---   commit/post-commit-emit behaviour and hidden channel, exposing the fresh
---   channel beside a bare output. It discards @Body.init@, the 'Const'
---   wrapper, and the separate body legs; it preserves no tape or first-input
---   seeding.
--- * 'traceToMoore' in "Circuit.Machine" folds base arrows into machines whose
---   state is the current input, and folds syntax composition and trace through
---   the category and traced operations of 'MooreT'. It discards the inspectable
---   syntax tree and publicly named channel, and chooses the target seed/state
---   discipline. A later runner still supplies any tape.
 -- * @run@ and @bind@ on 'Knot' return an 'Arr' body or map a 'Knot' body and
 --   apply 'trace'. They preserve the denotation in the receiving traced
 --   arrow, discard the one-knot normal form, and compute the explicit
 --   hidden-channel boundary away.
 --
 -- Two boundaries prevent over-reading this map. "Circuit.Trace" has no named
--- @FreeTrace -> Knot@ conversion, and "Circuit.Machine" states no law equating
--- @scan (traceToMoore f)@ with @eval f@. The denotation laws claimed here are
--- the ones stated by the owning modules: @run \@Net = eval . melt@ and
--- @observe . encode = eval@.
+-- @FreeTrace -> Knot@ conversion, and the machine runners are not identified
+-- with free-syntax denotation. The denotation laws claimed here are the ones
+-- stated by the owning modules: @run \@Net = eval . melt@ and
+-- @observe . encode = eval@. Alternative Body, optic, and cross-lane
+-- conversions are demonstrated in the @circuits-examples@ Body zoo.
 --
 -- === Streams: the neutral interface
 --
@@ -230,12 +213,10 @@
 -- >>> case s of Step f -> f ((), ())
 -- ((),42)
 --
--- A body's commit/emit legs are a lens ('bodyAsLens'), and a lens plus
--- a seeding is a body ('lensAsBody'); the round trip is the identity on
--- runs:
+-- The counter as a 'MooreT' remains input-seeded under 'before'; the Body zoo
+-- demonstrates the optic and ecosystem conversions outside this core API:
 --
--- >>> let acc = Body (+ 0) (\(s, i) -> s + i) (Const . (* 2)) :: Moore (,) Int (->) Int Int
--- >>> scan (MooreT (lensAsBody (+ 0) (bodyAsLens acc))) [1,2,3]
+-- >>> scan (before g (* 2)) [1,2,3]
 -- [2,6,12]
 --
 -- Pullback nets compose as cotangent chains — the circuits-diff name for

@@ -8,11 +8,11 @@
 -- payload. It is runnerless and unsealed — nothing about a 'Step' says
 -- how it will be run — and the two lanes package it differently:
 --
--- * "Circuit.Machine" — 'Circuit.Machine.Cell' pairs a 'Step' with a
---   seed leg ('Circuit.Machine.MealyT' seals the channel);
---   'Circuit.Machine.Body' factors the tick into commit and emit
---   ('Circuit.Machine.MooreT' seals it), and 'Circuit.Machine.fuse'
---   lands a body back here.
+-- * "Circuit.Machine" — 'Circuit.Machine.Body' factors the tick into
+--   commit and emit ('Circuit.Machine.MooreT' seals the channel), and
+--   'Circuit.Machine.fuse' lands a body back here. The fused packaging,
+--   a seed leg paired with a 'Step' at the tensor's unit, is @Cell@ in
+--   @circuits-examples@ @Example.BodyZoo@.
 -- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
 --   existentially, and its one run is 'Circuit.Traced.trace'.
 --
@@ -23,8 +23,8 @@
 -- 'Circuit.Traced.Unfold' family) iterate the tick over a tape or from a
 -- closed seed. So which steps fit which runs:
 --
--- * Every step is a 'Circuit.Machine.Cell' step — the fused packaging
---   asks nothing.
+-- * Every step is a fused-tick step — pairing it with a seed asks
+--   nothing of the tick.
 -- * A step fuses from a 'Circuit.Machine.Body' iff it is
 --   Moore-disciplined: the output reads the fresh channel only, so the
 --   step factors as @f x = (k x, e (k x))@. The shift register

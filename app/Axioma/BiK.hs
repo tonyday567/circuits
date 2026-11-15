@@ -5,7 +5,6 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Category (BiK (..), Dist (..), K (..), id, (.))
-import Circuit.Machine (Body (..), bodyBiK)
 import Circuit.Traced (Strength (..))
 import Control.Monad (when)
 import Prelude hiding (id, (.))
@@ -85,21 +84,6 @@ spendListOk =
     space :: [(Int, [Int])]
     space = [(s, ma) | s <- [0, 2], ma <- [[], [4], [4, 9 :: Int]]]
 
-jermaineEitherOk :: Bool
-jermaineEitherOk =
-  runBiK (stageTwo . stageOne) (5, 0) == Left 6
-  where
-    -- init is dead weight here: the BiK arrow sees only commit and emit.
-    stageOne =
-      bodyBiK
-        ( Body
-            id
-            (\(s, _) -> s + 1)
-            (\s -> Left s) ::
-            Body (,) Either Int Int (->) Int Int
-        )
-    stageTwo = bodyBiK (Body id (\(s, _) -> s * 2) (\s -> Right (s + 100)))
-
 biKTopic :: Verbosity -> IO [Bool]
 biKTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "BiK oracles"
@@ -111,6 +95,5 @@ biKTopic verbosity = do
       checkV verbosity "associativity: two branches per stage, every stage reading s, over lists" associativityOk,
       checkV verbosity "associativity mutation: the order-reversing dist goes red on this witness" associativityMutationRed,
       checkV verbosity "spend: dist == strength (K id) at Maybe, over Nothing and two Justs" spendMaybeOk,
-      checkV verbosity "spend: dist == strength (K id) at lists, over the empty list and two nonempties" spendListOk,
-      checkV verbosity "jermaine row at Either: stage one's Left short-circuits the composite; a fall-through reaches stage two and fails this clause" jermaineEitherOk
+      checkV verbosity "spend: dist == strength (K id) at lists, over the empty list and two nonempties" spendListOk
     ]

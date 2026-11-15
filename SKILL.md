@@ -65,17 +65,16 @@ Circuit.Step       — The machine tick: Step, one arrow from the grammared
                       lane and the traced lane; its haddock carries the
                       runner-fit conditions (Moore-discipline, productivity)
                       and a worked example run both ways.
-Circuit.Machine     — Machines over a channel: Cell (seed+step; Mealy on
-                      the diagonal), Body (init/commit/emit), Moore/MooreT
-                      (the Const-target corner and its proven Category),
-                      MooreP/MealyP (polynomial interfaces), Poles (the
-                      memoryless corner) with pipe, the bundles (FoldBody,
-                      TheseBody, EitherBody, LensBody, ProfunctorBody) and
-                      their fuses, the Moore pattern with delay/feedback,
-                      scan/fold eliminators (unfolds at the partial
-                      grammars), MergeNat, and the lens dictionary
-                      (bodyAsLens/lensAsBody). Re-exports Step from
-                      Circuit.Step.
+Circuit.Machine     — Machines over a channel: Body (init/commit/emit, the
+                      input-seeded lifecycle), Moore/MooreT (the Const-target
+                      corner and its proven Category), Poles (the memoryless
+                      corner) with pipe, the Moore pattern with delay/feedback,
+                      the scan/fold eliminators at the partial grammars
+                      (scanProcess/foldProcess/scanT), MergeNat, and fuse — the
+                      Body-to-Step tick. Re-exports Step from Circuit.Step.
+                      Alternative leg bundles, the fuse* family, Q, and the
+                      optic and cross-lane conversions are examples: they live
+                      in circuits-examples Example.BodyZoo.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
