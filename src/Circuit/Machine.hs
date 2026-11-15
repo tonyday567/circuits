@@ -17,6 +17,8 @@
 module Circuit.Machine
   ( Step (..),
     Body (..),
+    Cell (..),
+    Mealy,
     Moore,
     MooreP,
     MooreT (..),
@@ -42,7 +44,7 @@ where
 import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Poly, Pos)
 import Circuit.Step (Step (..))
-import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
+import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unit, Unital (..), unConst)
 import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.These (These (..), these)
@@ -52,6 +54,15 @@ import Prelude hiding (id, init, (.))
 -- >>> import Circuit.Machine
 -- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Circuit.Traced (trace)
+
+-- | The fused machine: a given seed leg at the tensor's unit, and one
+-- iterating 'Step'. 'Mealy' is the diagonal.
+data Cell t t' ch ch' arr i o = Cell
+  { seed :: arr (Unit t) ch,
+    step :: Step t t' ch ch' arr i o
+  }
+
+type Mealy t ch arr i o = Cell t t ch ch arr i o
 
 data Body t t' ch ch' arr i o = Body
   { init :: arr i ch,
