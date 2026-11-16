@@ -220,9 +220,9 @@ inboxSubs = fst . unInbox
 --
 -- An audience element is just a name: there is no null, discard or broadcast
 -- sentinel in the predicate, so an empty audience delivers nowhere. The legacy
--- convention in which a single empty recipient means "nobody" lives in the wire
--- codec, which decodes that audience as an empty one before it reaches a post;
--- it is not part of this predicate.
+-- convention in which a single empty recipient means "nobody" lives in
+-- `Circuit.Parser.Framing`, the wire codec, which decodes that audience as an
+-- empty one before it reaches a post; it is not part of this predicate.
 deliversTo :: (Eq n) => Post n a -> [n] -> Bool
 deliversTo p subs =
   case channel p of
