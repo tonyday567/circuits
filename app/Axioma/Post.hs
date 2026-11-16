@@ -28,15 +28,17 @@ postTopic verbosity =
   sequence
     [ checkV
         verbosity
-        "roots have no parents and channels are explicit"
+        "only the root constructors are parentless; replies and syntheses cite exact ids"
         ( let channelRoot = mkChannelPost "alice" "room" ["bob"] () :: Post String ()
+              reply = replyTo "bob" 3 channelRoot ()
+              merged = synthesis "sum" [] [2, 0, 2] ()
            in isNothing (channel p0)
                 && channel channelRoot == Just "room"
                 && to channelRoot == ["bob"]
                 && null (thread p0)
                 && null (thread channelRoot)
-                && not (null (thread r1))
-                && not (null (thread (synthesis "sum" [] [0] ())))
+                && thread reply == [3]
+                && thread merged == [0, 2]
         ),
       checkV
         verbosity
@@ -147,19 +149,20 @@ postTopic verbosity =
                 && not (deliversTo p [4])
                 && not (deliversTo discarded [1, 2])
         ),
-      -- The null-recipient case is the decoder's: a wire row with a single empty
-      -- recipient is normalised to an empty audience before it reaches a post.
-      -- Core membership is therefore stated in both directions here, so that
-      -- re-introducing a null name in the predicate fails this witness.
+      -- The empty-recipient convention is the wire codec's: a decoded audience
+      -- holding a single empty name becomes [] before it reaches a post. What
+      -- circuits guarantees is that an empty audience delivers nowhere, and
+      -- that a named audience delivers by membership alone.
       checkV
         verbosity
-        "core delivery is pure membership; the null-recipient case belongs to the decoder"
-        ( let framedEmpty = mkPost "a" [""] () :: Post String ()
+        "an empty audience delivers nowhere, whatever the subscriptions are"
+        ( let discarded = mkPost "a" [] () :: Post String ()
               named = mkPost "a" ["a"] () :: Post String ()
-           in not (deliversTo framedEmpty ["a"])
-                && deliversTo framedEmpty [""]
+           in not (any (deliversTo discarded) [[], [""], ["a"], ["a", "b"], ["b"]])
                 && deliversTo named ["a"]
+                && deliversTo named ["b", "a"]
                 && not (deliversTo named ["b"])
+                && not (deliversTo named [""])
         ),
       checkV
         verbosity
