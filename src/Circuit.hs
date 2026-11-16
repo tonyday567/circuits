@@ -187,9 +187,10 @@
 --
 -- === Streams: the neutral interface
 --
--- "Circuit.Stream" is the neutral stream interface: `Uncons` destructs a
--- stream of tokens, `Cons` and `Snoc` construct one. It knows nothing
--- about state — only about streams.
+-- "Circuit.Stream" is the neutral stream interface: `Uncons` destructs
+-- a stream of tokens, `Cons` and `Snoc` construct one. It knows nothing
+-- about state — only about streams. "Circuit.Post" adds addressed posts,
+-- causal ancestry, and stream-generic logs and inboxes.
 --
 -- === Helpers
 --
@@ -265,8 +266,9 @@ module Circuit
     module Circuit.Step,
     module Circuit.Machine,
 
-    -- * Streams
+    -- * Streams and posts
     module Circuit.Stream,
+    module Circuit.Post,
 
     -- * Helpers
     module Circuit.Poly,
@@ -285,6 +287,7 @@ import Circuit.Linear
 import Circuit.Machine
 import Circuit.Net
 import Circuit.Poly hiding (dagger)
+import Circuit.Post
 import Circuit.Pullback
 import Circuit.Shared
 import Circuit.Span
