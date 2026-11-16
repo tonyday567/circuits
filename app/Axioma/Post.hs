@@ -29,9 +29,14 @@ postTopic verbosity =
     [ checkV
         verbosity
         "roots have no parents and channels are explicit"
-        ( thread p0 == []
-            && isNothing (channel p0)
-            && channel (mkChannelPost "alice" "room" ["bob"] ()) == Just "room"
+        ( let channelRoot = mkChannelPost "alice" "room" ["bob"] () :: Post String ()
+           in isNothing (channel p0)
+                && channel channelRoot == Just "room"
+                && to channelRoot == ["bob"]
+                && null (thread p0)
+                && null (thread channelRoot)
+                && not (null (thread r1))
+                && not (null (thread (synthesis "sum" [] [0] ())))
         ),
       checkV
         verbosity
@@ -69,12 +74,25 @@ postTopic verbosity =
         ),
       checkV
         verbosity
-        "devastator triangular ids resolve by id and not by list position"
+        "cone resolves senders by id, and coneByIndex resolves by position"
+        ( let seed = mkPost "a" [] (1 :: Int) :: Post String Int
+              second = mkPost "b" [] (2 :: Int)
+              sparse = Map.fromList [(10, seed), (11, second)]
+              byId = (mkPost "c" [] 0) {thread = [11]}
+              byPosition = (mkPost "c" [] 0) {thread = [1]}
+           in cone sparse byId == ["b", "c"]
+                && null (cone sparse byPosition)
+                && coneByIndex [seed, second] byPosition == ["b", "c"]
+                && null (coneByIndex [seed, second] byId)
+        ),
+      checkV
+        verbosity
+        "devastator's triangular ids resolve by id and not by list position"
         ( let seed = mkPost "c0" [] (0 :: Int) :: Post String Int
               tick1 = (mkPost "c0" [] 1) {thread = [0]}
-              tick2 = (mkPost "c0" [] 2) {thread = [2]}
-              triangular = Map.fromList [(0, seed), (2, tick1), (5, tick2)]
-              next = (mkPost "c0" [] 3) {thread = [5]}
+              tick2 = (mkPost "c0" [] 2) {thread = [1]}
+              triangular = Map.fromList [(0, seed), (1, tick1), (3, tick2)]
+              next = (mkPost "c0" [] 3) {thread = [3]}
            in branches triangular next == [["c0", "c0", "c0", "c0"]]
                 && null (branchesByIndex [seed, tick1, tick2] next)
         ),
@@ -129,12 +147,17 @@ postTopic verbosity =
                 && not (deliversTo p [4])
                 && not (deliversTo discarded [1, 2])
         ),
+      -- The null-recipient case is the decoder's: a wire row with a single empty
+      -- recipient is normalised to an empty audience before it reaches a post.
+      -- Core membership is therefore stated in both directions here, so that
+      -- re-introducing a null name in the predicate fails this witness.
       checkV
         verbosity
-        "a framed empty recipient delivers nowhere and a named recipient delivers"
+        "core delivery is pure membership; the null-recipient case belongs to the decoder"
         ( let framedEmpty = mkPost "a" [""] () :: Post String ()
               named = mkPost "a" ["a"] () :: Post String ()
            in not (deliversTo framedEmpty ["a"])
+                && deliversTo framedEmpty [""]
                 && deliversTo named ["a"]
                 && not (deliversTo named ["b"])
         ),

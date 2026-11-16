@@ -216,8 +216,12 @@ inboxSubs :: Inbox n f -> [n]
 inboxSubs = fst . unInbox
 
 -- | Channel posts deliver by channel membership. Unchannelled posts deliver
--- when the audience intersects the subscriptions. An empty audience delivers
--- nowhere.
+-- when the audience intersects the subscriptions.
+--
+-- An audience element is just a name: there is no null, discard or broadcast
+-- sentinel in the predicate. An empty audience therefore delivers nowhere, and
+-- a decoded empty recipient is normalised to an empty audience at the wire
+-- boundary, before it ever reaches a post.
 deliversTo :: (Eq n) => Post n a -> [n] -> Bool
 deliversTo p subs =
   case channel p of
