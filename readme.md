@@ -146,13 +146,13 @@ concrete `(,)` and `Either` machinery).
 Each rung is one more law a target category can satisfy. These classes say
 nothing about syntax; they are the contracts that folds have to meet.
 
-**A common shape.** Under all the syntax lives `Step t t' ch ch' arr i o`,
-the morphism `arr (t ch i) (t' ch' o)`, in its own module `Circuit.Step`.
-A step threads an ambient channel `ch` alongside a payload, under a
-tensor `t`. It is the shared shape both lanes are built on: the machines
-of `Circuit.Machine` are factorised from it (bodies, Moore
-machines, poles), and the loop bodies of `Circuit.Trace`'s free syntax are
-traced from it.
+**A common shape.** Under all the syntax lives the neutral two-lane
+morphism `arr (t x y) (t' x' y')`, packaged as
+`Step t t' ch ch' arr i o` in `Circuit.Step`. Either result may depend on
+either source; channel, input, and output are readings supplied by a body
+or runner. It is the shared shape both lanes are built on: the machines of
+`Circuit.Machine` are factorised from it (bodies, Moore machines, poles),
+and the loop bodies of `Circuit.Trace`'s free syntax are traced from it.
 
 **Pointing, two ways.** A stateful run needs an initial channel value
 exactly when no input supplies one. `Body` keeps it explicit as the

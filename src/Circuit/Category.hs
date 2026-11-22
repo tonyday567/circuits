@@ -29,6 +29,9 @@ module Circuit.Category
     (<.),
     (|>),
     K (..),
+    StateX,
+    StoreX,
+    CoX (..),
     Comonad (..),
     CoK (..),
     Dist (..),
@@ -117,6 +120,43 @@ instance Comonad Identity where
 instance Comonad ((,) s) where
   extract = snd
   duplicate (s, a) = (s, (s, a))
+
+-- | Indexed State at the pair/function corner, with the next state first.
+--
+-- 'StateX' is an analytical view rather than a machine wrapper: the names of
+-- its indices do not by themselves assign state semantics to a two-lane
+-- morphism. At the diagonal @ch ~ ch'@, it is ordinary State. Off the
+-- diagonal, return is diagonal and bind threads the changing indices.
+type StateX ch ch' o = ch -> (ch', o)
+
+-- | Indexed Store at the pair/function corner.
+--
+-- At the diagonal @ch ~ ch'@, this is the costate comonad. Off the diagonal,
+-- extraction is diagonal and duplication threads a shared middle index:
+--
+-- @
+-- (ch, f) ↦ (ch, \ch' -> (ch', f))
+-- @
+--
+-- The same Store shape occurs in lens encodings with different parameter
+-- roles; those roles come from the surrounding body and its named legs.
+type StoreX ch ch' o = (ch, ch' -> o)
+
+-- | The continuation construction over an output functor @w@.
+--
+-- At the Store corner, the type is isomorphic to indexed State:
+--
+-- @
+-- CoX (StoreX ch ch') o
+--   = forall k. (ch, ch' -> o -> k) -> k
+--   ≅ StateX ch ch' o
+-- @
+--
+-- When @w@ is a comonad, @CoX w@ is a monad. At off-diagonal Store, the
+-- corresponding reading uses the indexed State and Store structures.
+newtype CoX w o = CoX
+  { runCoX :: forall k. w (o -> k) -> k
+  }
 
 -- | Co-Kleisli arrows of a comonad, named locally.
 --

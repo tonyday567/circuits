@@ -1,30 +1,43 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The machine tick: one step of a machine, and the shared currency of
--- the machine lane and the traced lane.
+-- | A neutral two-lane morphism, with semantics supplied by its packagings
+-- and runners.
 --
--- A 'Step' is an arrow from the grammared source @t ch i@ to the
--- grammared target @t' ch' o@: the channel in, the channel out, around a
--- payload. It is runnerless and unsealed — nothing about a 'Step' says
--- how it will be run — and the two lanes package it differently:
+-- Start with:
 --
--- * "Circuit.Machine" — 'Circuit.Machine.Body' factors the tick into
+-- @
+-- arr (t x y) (t' x' y')
+-- @
+--
+-- At the pair/function corner this is one morphism @(x, y) -> (x', y')@,
+-- not independent arrows @x -> x'@ and @y -> y'@. Either result may depend
+-- on either source. Currying and braiding give two State readings,
+-- @y -> StateX x x' y'@ and @x -> StateX y y' x'@. The bare arrow chooses
+-- neither; 'StateX' is a view, not Step's intrinsic semantics.
+--
+-- The library parameters @ch ch'@ and @i o@ preserve the channel and
+-- interface conventions used by machine composition. They do not remove
+-- the underlying symmetry. A body or runner decides which lane is seeded,
+-- threaded, observed, hidden, or eliminated.
+--
+-- The two lanes package the same morphism differently:
+--
+-- * "Circuit.Machine" — 'Circuit.Machine.Body' factors a transition into
 --   commit and emit ('Circuit.Machine.MooreT' seals the channel), and
---   'Circuit.Machine.fuse' lands a body back here. The fused packaging,
---   a seed leg paired with a 'Step' at the tensor's unit, is @Cell@ in
---   @circuits-examples@ @Example.BodyZoo@.
+--   'Circuit.Machine.fuse' lands the transition fragment back here. The
+--   seed-paired packaging is @Cell@ in @circuits-examples@
+--   @Example.BodyZoo@.
 -- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
 --   existentially, and its one run is 'Circuit.Traced.trace'.
 --
--- The tick means the same thing in every packaging; the runners are what
--- differ. 'Circuit.Traced.trace' ties the channel as a fixpoint — lazily
--- at @(,)@, by closed iteration at 'Either' — while the machine runners
+-- 'Circuit.Traced.trace' ties the channel as a fixpoint — lazily at @(,)@,
+-- by closed iteration at 'Either' — while the machine runners
 -- ('Circuit.Machine.scan', 'Circuit.Machine.fold', and the
--- 'Circuit.Traced.Unfold' family) iterate the tick over a tape or from a
--- closed seed. So which steps fit which runs:
+-- 'Circuit.Traced.Unfold' family) iterate over a tape or from a closed
+-- seed. The runner is the semantics. Which steps fit which runs:
 --
--- * Every step is a fused-tick step — pairing it with a seed asks
---   nothing of the tick.
+-- * Every step can be paired with a seed; that asks nothing of the
+--   underlying morphism.
 -- * A step fuses from a 'Circuit.Machine.Body' iff it is
 --   Moore-disciplined: the output reads the fresh channel only, so the
 --   step factors as @f x = (k x, e (k x))@. The shift register
@@ -66,7 +79,7 @@ module Circuit.Step
   )
 where
 
-import Circuit.Category (Category (..))
+import Circuit.Category (Category (..), StateX)
 import Prelude hiding (id, (.))
 
 -- $setup
@@ -74,10 +87,10 @@ import Prelude hiding (id, (.))
 -- >>> import Circuit.Tensor (Const (..))
 -- >>> import Circuit.Traced (trace)
 
--- | One tick of a machine: the arrow from the grammared source
--- @t ch i@ to the grammared target @t' ch' o@. Composition needs the
--- diagonal — the channel and grammar the tick writes must be the ones
--- the next tick reads.
+-- | Package one two-lane morphism. The channel and interface names follow
+-- the library convention; the underlying arrow remains runnerless and
+-- unsealed. Category composition uses the diagonal channel and tensor, so
+-- consecutive Steps compose through the same interface @arr i o@.
 newtype Step t t' ch ch' arr i o = Step {step :: arr (t ch i) (t' ch' o)}
 
 instance (Category arr) => Category (Step t t ch ch arr) where

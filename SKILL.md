@@ -26,7 +26,8 @@ Recommended reading order for the source (core concepts first):
 
 ```
 Circuit.Category    — Local 'Category' class, 'K' Kleisli and 'CoK'
-                      co-Kleisli newtypes, local 'Comonad' class, and
+                      co-Kleisli newtypes, local 'Comonad' class, the
+                      StateX/StoreX/CoX analytical views, and
                       composition/application helpers (.>), (|>), (<.).
 Circuit.Traced     — Structural class ladder: Assoc, OuterSwap, Strength,
                       Trace. Instances for (->) and K m; (,), Either, These
@@ -60,11 +61,11 @@ Circuit.Container   — Fibred container view: positions with typed direction
                       fibres, skeletons, pin routing, and the netlist bridge.
 Circuit.Span        — Finite spans with an existential Eq apex, pullback
                       composition, body bridges, and metric optics.
-Circuit.Step       — The machine tick: Step, one arrow from the grammared
-                      source to the grammared target, shared by the machine
-                      lane and the traced lane; its haddock carries the
-                      runner-fit conditions (Moore-discipline, productivity)
-                      and a worked example run both ways.
+Circuit.Step       — The neutral two-lane Step morphism, shared by the
+                      machine and traced lanes; its haddock starts with the
+                      symmetric State readings, then carries the runner-fit
+                      conditions (Moore-discipline, productivity) and a
+                      worked example run both ways.
 Circuit.Machine     — Machines over a channel: Body (init/commit/emit, the
                       input-seeded lifecycle), Moore/MooreT (the Const-target
                       corner and its proven Category), Poles (the memoryless
