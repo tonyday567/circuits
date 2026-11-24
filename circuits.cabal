@@ -47,6 +47,7 @@ library
     Circuit
     Circuit.Axioma.Test
     Circuit.Bimonoid
+    Circuit.Body
     Circuit.Category
     Circuit.Container
     Circuit.Hyper

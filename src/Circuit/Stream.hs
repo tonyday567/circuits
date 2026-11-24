@@ -29,7 +29,6 @@ import Data.These (These (..))
 
 instance Uncons [a] a where
   uncons [] = That []
-  uncons [x] = This x
   uncons (x : xs) = These x xs
   nil = []
 
@@ -43,14 +42,16 @@ instance Snoc [a] a where
 
 -- | Stream coalgebra with explicit boundary.
 --
--- @uncons [x] = This x@ announces the final element at extraction. The
--- 'nil' value is the stream-specific empty used to continue after a 'This'
--- result.
+-- @This x@ announces the final element when the representation knows that
+-- boundary. Lazy lists instead use @These x xs@ for every nonempty input,
+-- leaving exhaustion to the next step rather than demanding the tail early.
+-- The 'nil' value is the stream-specific empty used to continue after a
+-- 'This' result.
 --
 -- >>> uncons ([] :: [Int]) :: These Int [Int]
 -- That []
 -- >>> uncons ([1] :: [Int]) :: These Int [Int]
--- This 1
+-- These 1 []
 -- >>> uncons ([1,2,3] :: [Int]) :: These Int [Int]
 -- These 1 [2,3]
 class Uncons f s where

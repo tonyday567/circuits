@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | A neutral two-lane morphism, with semantics supplied by its packagings
@@ -22,11 +23,10 @@
 --
 -- The two lanes package the same morphism differently:
 --
--- * "Circuit.Machine" — 'Circuit.Machine.Body' factors a transition into
---   commit and emit ('Circuit.Machine.MooreT' seals the channel), and
---   'Circuit.Machine.fuse' lands the transition fragment back here. The
---   seed-paired packaging is @Cell@ in @circuits-examples@
---   @Example.BodyZoo@.
+-- * "Circuit.Body" — 'Circuit.Body.Body' factors a transition into commit
+--   and emit ('Circuit.Machine.MooreT' seals the channel), and
+--   'Circuit.Body.fuse' lands the transition fragment back here. 'Cell'
+--   pairs the same unfactored transition with a unit seed.
 -- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
 --   existentially, and its one run is 'Circuit.Traced.trace'.
 --
@@ -38,7 +38,7 @@
 --
 -- * Every step can be paired with a seed; that asks nothing of the
 --   underlying morphism.
--- * A step fuses from a 'Circuit.Machine.Body' iff it is
+-- * A step fuses from a 'Circuit.Body.Body' iff it is
 --   Moore-disciplined: the output reads the fresh channel only, so the
 --   step factors as @f x = (k x, e (k x))@. The shift register
 --   @\\(s, i) -> (i, s)@ fails here — its output reads the stale
@@ -62,7 +62,7 @@
 -- As a 'Circuit.Machine.MooreT' over a tape, run by
 -- 'Circuit.Machine.scan':
 --
--- >>> let m = MooreT (Body (\i -> [i]) (\(ns, i) -> i : ns) (\ns -> Const (take 3 ns)))
+-- >>> let m = MooreT (Moore (\i -> [i]) (\(ns, i) -> i : ns) (take 3))
 -- >>> scan m [1,2,3,4]
 -- [[1],[2,1],[3,2,1],[4,3,2]]
 --
@@ -76,15 +76,16 @@
 -- Same step, two runs, different answers: the runner is the semantics.
 module Circuit.Step
   ( Step (..),
+    Cell (..),
   )
 where
 
 import Circuit.Category (Category (..), StateX)
+import Circuit.Tensor (Unit)
 import Prelude hiding (id, (.))
 
 -- $setup
--- >>> import Circuit.Machine (Body (..), MooreT (..), scan)
--- >>> import Circuit.Tensor (Const (..))
+-- >>> import Circuit.Machine (Moore (..), MooreT (..), scan)
 -- >>> import Circuit.Traced (trace)
 
 -- | Package one two-lane morphism. The channel and interface names follow
@@ -92,6 +93,13 @@ import Prelude hiding (id, (.))
 -- unsealed. Category composition uses the diagonal channel and tensor, so
 -- consecutive Steps compose through the same interface @arr i o@.
 newtype Step t t' ch ch' arr i o = Step {step :: arr (t ch i) (t' ch' o)}
+
+-- | A unit-sourced seed and an unfactored two-lane transition. The seed is
+-- outside the transition; 'Circuit.Machine.Mealy' is the diagonal reading.
+data Cell t t' ch ch' arr i o = Cell
+  { seed :: arr (Unit t) ch,
+    step :: Step t t' ch ch' arr i o
+  }
 
 instance (Category arr) => Category (Step t t ch ch arr) where
   id :: forall a. Step t t ch ch arr a a

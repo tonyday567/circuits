@@ -202,8 +202,9 @@ functors.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms.
 
-The machine core crystallised around `Body t t' ch ch' arr i o`. Everything stateful
-— `Moore`/`MooreT`, `Poles` — is a specialisation or projection of it.
+The factorisations live in `Circuit.Body`: serial `Body`, parallel `LensBody`,
+residual `OpticBody`, and their neighbours. `Circuit.Machine` holds the
+traditional `Moore`/`Mealy` readings, sealed channels, and tape runners.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a

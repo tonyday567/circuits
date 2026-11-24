@@ -28,8 +28,8 @@
 -- Beside the ladder sits 'Unfold': coiteration over a grammar, the run's
 -- output shape fixed by the grammar's 'Nu'. Its 'Either' corner is the
 -- trace itself — the codiagonal correspondence — and its partial grammars
--- (@Maybe :. (,)@, @Maybe :. Either@) serve the tape-driven runners in
--- "Circuit.Machine".
+-- (@Maybe :. (,)@, @Maybe :. Either@) include the tape-driven
+-- 'Circuit.Machine.foldProcess' runner.
 --
 -- 'outerSwap' here is the outer
 -- swap @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
@@ -713,9 +713,8 @@ newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
 -- one answer, at 'These' a non-empty stream; at the partial grammars a
 -- finite list (@Maybe :. (,)@) or a maybe-one (@Maybe :. Either@). The
 -- class asks for 'Category' only — no tensor laws — so partial
--- grammars are legal, and the tape-driven runners
--- ('Circuit.Machine.scanProcess', 'Circuit.Machine.foldProcess') live
--- in the partial fragment.
+-- grammars are legal, and 'Circuit.Machine.foldProcess' lives in the
+-- partial fragment.
 --
 -- The 'Either' corner is the codiagonal correspondence: iteration is a
 -- loop whose entry and feedback wires are joined — @unfold g = trace
@@ -753,8 +752,7 @@ instance Unfold These (->) where
         These ch' b -> b <| go ch'
 
 -- | The uncons grammar: the step may halt, and emits once per taken
--- step — 'Data.List.unfoldr' as an 'Unfold' instance, and the
--- 'Circuit.Machine.scanProcess' loop.
+-- step — 'Data.List.unfoldr' as an 'Unfold' instance.
 --
 -- >>> let gen n = Nest (if n <= (0 :: Int) then Nothing else Just (n - 1, n * 10))
 -- >>> unfold gen 3

@@ -12,9 +12,10 @@ module Axioma.Machine
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
+import Circuit.Body (Body (Body))
 import Circuit.Category (id, (.))
-import Circuit.Machine (Body (Body), MergeNat (..), Moore, MooreT (..), fold, scan, scanT)
-import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
+import Circuit.Machine (MergeNat (..), Moore (..), MooreT (..), fold, scan, scanT)
+import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
@@ -94,19 +95,19 @@ completion = runDone doneBody [3, 5, 7] == [Left 4, Right 5]
 -- That-injection never exercises the These clause.
 
 sumG :: MooreT (,) (->) Int Int
-sumG = MooreT (Body id (uncurry (+)) Const)
+sumG = MooreT (Moore id (uncurry (+)) id)
 
 prodG :: MooreT (,) (->) Int Int
-prodG = MooreT (Body (* 10) (uncurry (*)) Const)
+prodG = MooreT (Moore (* 10) (uncurry (*)) id)
 
 countG :: MooreT (,) (->) Int Int
-countG = MooreT (Body (const 100) (\(c, _) -> c + 1) Const)
+countG = MooreT (Moore (const 100) (\(c, _) -> c + 1) id)
 
 eitherG :: MooreT Either (->) Int Int
-eitherG = MooreT (Body id (either id (+ 1)) (Const . (* 2)))
+eitherG = MooreT (Moore id (either id (+ 1)) (* 2))
 
 theseG :: MooreT These (->) Int Int
-theseG = MooreT (Body id (these id (+ 1) (\c i -> c + i)) Const)
+theseG = MooreT (Moore id (these id (+ 1) (\c i -> c + i)) id)
 
 xs :: [Int]
 xs = [1, 2, 3, 4]
@@ -133,23 +134,23 @@ xs = [1, 2, 3, 4]
 -- channel type differs from the output type, so a swapped-leg fmap cannot
 -- type here — the functor witnesses run where a leg swap cannot.
 meanM :: MooreT (,) (->) Int Int
-meanM = MooreT (Body (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (Const . (\(n, s) -> s `div` n)))
+meanM = MooreT (Moore (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n))
 
 -- | Tick counter: channel Int, the view the tick count.
 cntM :: MooreT (,) (->) Int Int
-cntM = MooreT (Body (const 0) (\(s, _) -> s + 1) Const)
+cntM = MooreT (Moore (const 0) (\(s, _) -> s + 1) id)
 
 -- | Newest-first collector: channel [Int], distinct from cntM's channel, so
 -- crossed (ch1, ch2) wiring in the applicative and tensor products is a
 -- type error rather than a silent swap; a crossed observation still shows
 -- in the run.
 colM :: MooreT (,) (->) Int [Int]
-colM = MooreT (Body (: []) (\(s, a) -> a : s) Const)
+colM = MooreT (Moore (: []) (\(s, a) -> a : s) id)
 
 -- | View-bump machine for the strength witness: the channel is the last
 -- input, the view adds 100.
 bumpM :: MooreT (,) (->) Int Int
-bumpM = MooreT (Body id snd (Const . (+ 100)))
+bumpM = MooreT (Moore id snd (+ 100))
 
 -- | Left-nested product of the counter and collector for the associator
 -- round trip.
@@ -168,44 +169,44 @@ sideXs = [(1, (10, 100)), (2, (20, 200)), (3, (30, 300)), (4, (40, 400))]
 -- the machine counterpart of the cartesian @(->)@ 'trace' powers example.
 -- Guards the Trace productivity clause: a strict knot tie diverges here.
 powersBody :: MooreT (,) (->) ([Integer], ()) ([Integer], [Integer])
-powersBody = MooreT (Body (\(ns, ()) -> 1 : map (* 2) ns) (\(s, (_, ())) -> s) (Const . (\s -> (s, take 5 s))))
+powersBody = MooreT (Moore (\(ns, ()) -> 1 : map (* 2) ns) (\(s, (_, ())) -> s) (\s -> (s, take 5 s)))
 
 -- | Strict accumulator body for the divergence witness: init and step are
 -- strict in the feedback channel, so the lazy knot is circular and the run
 -- never terminates. Guards the Trace non-strictness clause, modelled on the
 -- Pullback trace-divergence oracle.
 strictBody :: MooreT (,) (->) (Int, Int) (Int, Int)
-strictBody = MooreT (Body (uncurry (+)) (\(s, (fb, x)) -> s + fb + x) (Const . (\s -> (s, s))))
+strictBody = MooreT (Moore (uncurry (+)) (\(s, (fb, x)) -> s + fb + x) (\s -> (s, s)))
 
 -- Input-list elimination at the inclusive tensor, full injection: every
 -- step feeds These c i, where scanT's That-injection is memoryless on the
 -- carrier. Modelled on scanT, pattern-matching These directly.
 scanBoth :: MooreT These (->) i o -> [i] -> [o]
-scanBoth (MooreT (Body j k e)) = \case
+scanBoth (MooreT (Moore i c e)) = \case
   [] -> []
-  (i : is) -> let c = j i in unConst (e c) : go c is
+  (input : rest) -> let channel = i input in e channel : go channel rest
   where
     go _ [] = []
-    go c (i : is) = let c' = k (These c i) in unConst (e c') : go c' is
+    go channel (input : rest) = let channel' = c (These channel input) in e channel' : go channel' rest
 
 scanTheseRun :: Moore (,) s (->) a b -> [a] -> [b]
-scanTheseRun (Body c k o) = \case
+scanTheseRun (Moore i c e) = \case
   [] -> []
   (a : as) -> toList (unfold gen (Nothing, a, as))
   where
     gen (ms, a, rest) =
       let s' = case ms of
-            Nothing -> c a
-            Just s -> k (s, a)
+            Nothing -> i a
+            Just s -> c (s, a)
        in case rest of
-            [] -> That (unConst (o s'))
-            (a' : rest') -> These (Just s', a', rest') (unConst (o s'))
+            [] -> That (e s')
+            (a' : rest') -> These (Just s', a', rest') (e s')
 
 sumRun :: Moore (,) Int (->) Int Int
-sumRun = Body id (uncurry (+)) Const
+sumRun = Moore id (uncurry (+)) id
 
 meanRun :: Moore (,) (Int, Int) (->) Int Int
-meanRun = Body (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (Const . (\(n, s) -> s `div` n))
+meanRun = Moore (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n)
 
 -- mergeNat naturality: mergeNat . tensor f f == f . mergeNat at f = (+ 1).
 natPair :: Bool

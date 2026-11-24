@@ -61,21 +61,20 @@ Circuit.Container   — Fibred container view: positions with typed direction
                       fibres, skeletons, pin routing, and the netlist bridge.
 Circuit.Span        — Finite spans with an existential Eq apex, pullback
                       composition, body bridges, and metric optics.
-Circuit.Step       — The neutral two-lane Step morphism, shared by the
-                      machine and traced lanes; its haddock starts with the
-                      symmetric State readings, then carries the runner-fit
-                      conditions (Moore-discipline, productivity) and a
-                      worked example run both ways.
-Circuit.Machine     — Machines over a channel: Body (init/commit/emit, the
-                      input-seeded lifecycle), Moore/MooreT (the Const-target
-                      corner and its proven Category), Poles (the memoryless
-                      corner) with pipe, the Moore pattern with delay,
-                      the scan/fold eliminators at the partial grammars
-                      (scanProcess/foldProcess/scanT), MergeNat, and fuse — the
-                      Body-to-Step tick. Re-exports Step from Circuit.Step.
-                      Alternative leg bundles, the fuse* family, Q, and the
-                      optic and cross-lane conversions are examples: they live
-                      in circuits-examples Example.BodyZoo.
+Circuit.Step       — The neutral two-lane Step morphism and Cell, the
+                      unit-seeded unfactored transition. Its haddock starts
+                      with the symmetric State readings, then carries the
+                      runner-fit conditions (Moore-discipline, productivity)
+                      and a worked example run both ways.
+Circuit.Body       — Body factorisations and their independently usable legs:
+                      Body, LensBody, OpticBody, ProfunctorBody, FoldBody,
+                      EitherBody, TheseBody, and memoryless Poles. Fusion,
+                      source unfusion, and lens/BiK conversions live here.
+Circuit.Machine     — Traditional Moore and Mealy machines: Moore/MooreT,
+                      Mealy/MealyT, their Poly interfaces, MergeNat, moore,
+                      delay, runM over Uncons/Cons streams, its list scan
+                      specialisations, and partial-grammar foldProcess. Q and
+                      the cross-lane trace bridges remain in circuits-examples.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
 Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import

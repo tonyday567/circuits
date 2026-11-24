@@ -75,41 +75,38 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.Machine" is the machine layer. A 'Body' is a stateful device
--- with three legs over a channel: 'init' seeds the channel from the
--- first input, 'commit' folds each tick's input into the channel, and
--- 'emit' reads the freshly written channel out. 'Moore' is the corner
--- with the output grammar sealed to 'Const'; 'MooreT' hides the channel
+-- "Circuit.Body" holds general factorisations. "Circuit.Machine" holds
+-- the traditional Moore and Mealy readings: 'Moore' has input-seeded
+-- 'init', 'commit', and post-commit 'emit' legs, 'MooreT' hides the channel
 -- existentially, and 'scan' runs a sealed machine down an input list.
 --
--- The counter as a body — commit adds the input to the channel, emit
--- reads it; init absorbs the first input with the seed, so every
+-- The counter as a Moore machine — commit adds the input to the channel,
+-- emit reads it; init absorbs the first input with the seed, so every
 -- observation is post-step:
 --
--- >>> let counter = Body (+ 0) (\(n, i) -> n + i) Const :: Moore (,) Int (->) Int Int
+-- >>> let counter = Moore (+ 0) (\(n, i) -> n + i) id :: Moore (,) Int (->) Int Int
 -- >>> scan (MooreT counter) [1,1,1]
 -- [1,2,3]
 --
--- A one-shot post-step observation is one 'commit' followed by 'emit',
--- the 'Const' wrapper peeled by 'unConst':
+-- A one-shot post-step observation is one 'commit' followed by 'emit':
 --
--- >>> case counter of Body _ k o -> unConst (o (k (0, 1)))
+-- >>> case counter of Moore _ c e -> e (c (0, 1))
 -- 1
 --
 -- 'MooreT' is the 'Category' the library proved, with 'MergeNat'
 -- pricing the tensor's constructor grammar and 'scanT' running an
 -- input list through a machine at any tensor:
 --
--- >>> let g = MooreT (Body id (uncurry (+)) Const) :: MooreT (,) (->) Int Int
+-- >>> let g = MooreT (Moore id (uncurry (+)) id) :: MooreT (,) (->) Int Int
 -- >>> scanT g [1,2,3]
 -- [1,3,6]
 --
--- A body can be hung on a polynomial interface — 'MooreP' types the
--- interface by a polynomial, here the monomial @Mono Int Int@,
+-- A Moore machine can be hung on a polynomial interface — 'MooreP' types
+-- the interface by a polynomial, here the monomial @Mono Int Int@,
 -- directions in, positions out:
 --
--- >>> let mac = Body ((+ 0) . monoDir) (\(n, d) -> n + monoDir d) (Const . (\n -> (n, ()))) :: MooreP (,) Int (->) (Mono Int Int)
--- >>> case mac of Body _ k o -> unConst (o (k (0, monoIn 1)))
+-- >>> let mac = Moore ((+ 0) . monoDir) (\(n, d) -> n + monoDir d) (\n -> (n, ())) :: MooreP (,) Int (->) (Mono Int Int)
+-- >>> case mac of Moore _ c e -> e (c (0, monoIn 1))
 -- (1,())
 --
 -- === Representations and conversion loss
@@ -169,7 +166,7 @@
 -- * 'observe' and 'observeK' in "Circuit.Hyper" preserve external function or
 --   Kleisli behaviour. They discard the continuation representation and its
 --   intensional account of feedback.
--- * 'fuse' in "Circuit.Machine" composes @emit . commit@ to produce a 'Step'.
+-- * 'fuse' in "Circuit.Body" composes @emit . commit@ to produce a 'Step'.
 --   It preserves the exact fused one-tick arrow, channel types, and
 --   post-commit output discipline. It discards @Body.init@ and the separate
 --   commit and emit leg boundaries.
@@ -182,8 +179,8 @@
 -- @FreeTrace -> Knot@ conversion, and the machine runners are not identified
 -- with free-syntax denotation. The denotation laws claimed here are the ones
 -- stated by the owning modules: @run \@Net = eval . melt@ and
--- @observe . encode = eval@. Alternative Body, optic, and cross-lane
--- conversions are demonstrated in the @circuits-examples@ Body zoo.
+-- @observe . encode = eval@. Q and the cross-lane trace conversions are
+-- demonstrated in the @circuits-examples@ Body zoo.
 --
 -- === Streams: the neutral interface
 --
@@ -200,9 +197,9 @@
 -- "Circuit.Linear" is linear-logic connectives over a base category.
 -- "Circuit.Shared" fuses two bodies on one shared channel.
 -- "Circuit.Pullback" is linear cotangent maps, the base arrow for
--- reverse-mode gradients. From "Circuit.Machine", 'Poles' is the
--- memoryless corner — 'init' and 'commit' the write legs over a
--- channel, 'emit' reading it back.
+-- reverse-mode gradients. From "Circuit.Body", 'Poles' is the memoryless
+-- corner — 'init' and 'commit' the write legs over a channel, 'emit'
+-- reading it back.
 --
 -- A 'Poles' triple over the unit carrier closes with 'close' to a plain
 -- morphism, and a closed morphism lifts straight into a step:
@@ -264,6 +261,7 @@ module Circuit
 
     -- * Machines
     module Circuit.Step,
+    module Circuit.Body,
     module Circuit.Machine,
 
     -- * Streams and posts
@@ -280,6 +278,7 @@ module Circuit
 where
 
 import Circuit.Bimonoid
+import Circuit.Body
 import Circuit.Category
 import Circuit.Container
 import Circuit.Hyper

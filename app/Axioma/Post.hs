@@ -195,6 +195,11 @@ postTopic verbosity =
                   p == first
                     && case unconsInbox @String @Int rest of
                       This q -> q == second
+                      These q rest' ->
+                        q == second
+                          && case unconsInbox @String @Int rest' of
+                            That _ -> True
+                            _ -> False
                       _ -> False
                 _ -> False
         ),

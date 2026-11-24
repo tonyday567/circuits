@@ -13,8 +13,9 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Bimonoid (SigMerge (..))
+import Circuit.Body (Body (..))
 import Circuit.Category (Op (..), id, runK, runOp, (.), (.>))
-import Circuit.Machine (Body (..), Moore, MooreT (..), foldProcess, scanProcess, scanT)
+import Circuit.Machine (Moore (..), MooreT (..), foldProcess, scanProcess, scanT)
 import Circuit.Net (Net)
 import Circuit.Syntax (Layer (..), Syntax (..), eval, (:+:) (..))
 import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, innerSwap, superpose, unConst)
@@ -499,17 +500,17 @@ tailLoopAgreementOk =
 -- 'swapStep' only exchanges the circuit and 'Data.List.unfoldr' pair slots.
 tapeLoopAgreementOk :: Bool
 tapeLoopAgreementOk =
-  let sumBody = Body id (uncurry (+)) Const :: Moore (,) Int (->) Int Int
-      direct (Body j k e) = \case
+  let sumBody = Moore id (uncurry (+)) id :: Moore (,) Int (->) Int Int
+      direct (Moore i c e) = \case
         [] -> []
         (a : as) ->
-          let s = j a
-           in unConst (e s) : go s as
+          let s = i a
+           in e s : go s as
         where
           go _ [] = []
           go s (a : as) =
-            let s' = k (s, a)
-             in unConst (e s') : go s' as
+            let s' = c (s, a)
+             in e s' : go s' as
       emptyAndFinite =
         scanProcess sumBody [] == []
           && direct sumBody [] == []

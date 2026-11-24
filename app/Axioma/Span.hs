@@ -5,7 +5,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Machine (Step (..), moore, scan)
+import Circuit.Machine (moore, scan)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,
@@ -15,6 +15,7 @@ import Circuit.Span
     presentS,
     spanFromBody,
   )
+import Circuit.Step (Step (..))
 import Control.Category (id)
 import Control.Monad (when)
 import Prelude hiding (id, (.))
