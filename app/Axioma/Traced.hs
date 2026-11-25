@@ -13,7 +13,6 @@ where
 
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Bimonoid (SigMerge (..))
-import Circuit.Body (Body (..))
 import Circuit.Category (Op (..), id, runK, runOp, (.), (.>))
 import Circuit.Machine (Moore (..), MooreT (..), foldProcess, scanProcess, scanT)
 import Circuit.Net (Net)

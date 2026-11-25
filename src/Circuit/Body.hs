@@ -2,17 +2,17 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Factorisations of a two-lane 'Step' into independently usable legs.
+-- | Independent commit and emit legs, and factorisations of a two-lane 'Step'.
 --
--- Each body chooses a different cut. 'Body' keeps serial commit/emit;
--- 'LensBody' keeps parallel view/set; 'OpticBody' exposes an existential
--- residual; 'ProfunctorBody' keeps serial pre/navigation/post legs;
--- 'FoldBody' has a unit seed and bare extract; 'EitherBody' and 'TheseBody'
--- split by source presence; 'Poles' is the memoryless corner. Fusion closes
--- a chosen route through these legs. Initialisation and seeding remain
--- outside the transition unless a body supplies them explicitly.
+-- 'Channel' names the channel before and after each interface without choosing
+-- a schedule. 'Body' identifies its post-input, pre-output, and post-output
+-- positions. 'InitCell' packages a one-shot initial channel with a recurrent
+-- body; its runner lives in "Circuit.Machine". The other factorisations keep
+-- their specialised parallel, residual, source-split, and seeded legs.
 module Circuit.Body
-  ( Body (..),
+  ( Channel (..),
+    Body,
+    InitCell (..),
     Poles (..),
     FoldBody (..),
     TheseBody (..),
@@ -58,20 +58,35 @@ import Prelude hiding (id, init, (.))
 
 -- $setup
 -- >>> import Circuit.Body
+-- >>> import Circuit.Poly (applyLens)
+-- >>> import Circuit.Step (Step (..))
 -- >>> import Circuit.Tensor (Const (..), unConst)
 -- >>> import Data.These (These (..), these)
 
--- | First-input initialisation, commit, and post-commit emission.
-data Body t t' ch ch' arr i o = Body
-  { init :: arr i ch,
-    commit :: arr (t ch i) ch',
-    emit :: arr ch' (t' ch' o)
+-- | A commit leg and an emit leg with independent channel positions.
+-- Composition is available only when an explicit link connects @posti@ to
+-- @preo@; neither leg is an obligatory schedule for the other.
+data Channel t t' prei posti preo posto arr i o = Channel
+  { commit :: arr (t prei i) posti,
+    emit :: arr preo (t' posto o)
   }
 
--- | Compose commit and emit into one transition. 'init' is not part of the
--- transition and remains with the body and its runner.
-fuse :: (Category arr) => Body t t' ch ch' arr i o -> Step t t' ch ch' arr i o
-fuse (Body _ k p) = Step (p . k)
+-- | The diagonal commit/emit channel used for one open transition.
+type Body t t' old new arr i o = Channel t t' old new new new arr i o
+
+-- | A one-shot initial channel followed by a recurrent diagonal body. The
+-- initial commit consumes the first input through 'Const'; both channels
+-- share the same channel boundary and output tensor. A runner chooses whether
+-- and how to observe each emission.
+data InitCell t t' ch arr i o = InitCell
+  { initial :: Channel Const t' ch ch ch ch arr i o,
+    body :: Body t t' ch ch arr i o
+  }
+
+-- | Compose a body's commit and emit into one open transition. This fusion
+-- chooses @posti ~ preo@ and does not give arbitrary 'Step's a factorisation.
+fuse :: (Category arr) => Body t t' old new arr i o -> Step t t' old new arr i o
+fuse (Channel k p) = Step (p . k)
 
 -- | The memoryless body at the @(Const, Const)@ corner. 'init' and 'commit'
 -- share a type but not a job; no previous channel enters the operation.
@@ -211,17 +226,17 @@ unfuseEitherBody (Step f) = EitherBody (f . Left) (f . Right) id
 unfuseTheseBody :: Step These t' ch ch' (->) i o -> TheseBody t' ch ch' (->) i o
 unfuseTheseBody (Step f) = TheseBody (f . This) (f . That) (f . uncurry These)
 
--- | A body's commit/emit legs as one 'BiK' arrow. 'init' is outside it.
+-- | A body's commit/emit legs as one 'BiK' arrow.
 bodyBiK :: Body (,) t' s s (->) i o -> BiK ((,) s) (t' s) i o
-bodyBiK (Body _ k p) = BiK (p . k)
+bodyBiK (Channel k p) = BiK (p . k)
 
 -- | A diagonal body's commit/emit legs as a lens.
 bodyAsLens :: Body (,) Const ch ch (->) i o -> Lens ch ch o i
-bodyAsLens (Body _ k e) = lens (unConst . e) (curry k)
+bodyAsLens (Channel k e) = lens (unConst . e) (curry k)
 
--- | Supply input initialisation to a lens-derived body.
-lensAsBody :: (i -> ch) -> Lens ch ch o i -> Body (,) Const ch ch (->) i o
-lensAsBody j m = Body j (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyLens m)
+-- | A lens as a diagonal commit/emit body.
+lensAsBody :: Lens ch ch o i -> Body (,) Const ch ch (->) i o
+lensAsBody m = Channel (\(s, i) -> snd (applyLens m s) i) (Const . fst . applyLens m)
 
 -- | The parallel-legs body as a lens.
 --
@@ -253,4 +268,4 @@ opticAsLens (OpticBody f b) = lens (snd . f) (\c i -> b (fst (f c), i))
 
 -- | Close the input at the tensor's unit and chain commit into emit.
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
-closedToGenerator (Body _ k p) = unitr' .> k .> p
+closedToGenerator (Channel k p) = unitr' .> k .> p

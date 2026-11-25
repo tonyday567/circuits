@@ -12,13 +12,15 @@ module Axioma.Machine
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
-import Circuit.Body (Body (Body))
-import Circuit.Category (id, (.))
-import Circuit.Machine (MergeNat (..), Moore (..), MooreT (..), fold, scan, scanT)
-import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..))
+import Circuit.Body (Body, Channel (..), InitCell (..), fuse)
+import Circuit.Category (K (..), id, runK, (.), (.>))
+import Circuit.Machine (MergeNat (..), Moore (..), MooreT (..), fold, runInitCell, scan, scanT)
+import Circuit.Step (Step (..))
+import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
 import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..))
 import Control.Exception (evaluate)
 import Control.Monad (when)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.List.NonEmpty (toList)
 import Data.Maybe (isNothing)
 import Data.These (These (..), these)
@@ -32,14 +34,14 @@ import Prelude hiding (id, (.))
 -- step-2 commit reading step 1's emitted package — is a type error at
 -- 'commit', not a silent carry.
 memBody :: Body Const (,) Int Int (->) String Int
-memBody = Body length (\(Const s) -> length s) (\ch -> (ch + 1, ch * 10))
+memBody = Channel (\(Const s) -> length s) (\ch -> (ch + 1, ch * 10))
 
 -- | The two-step run, spelt out: each step commits its channel from its
 -- own input alone; step 1's emitted package is bound and deliberately
 -- dead. That dead binding is the memorylessness claim — a threading
 -- runner would route it into step 2's commit.
 twoStep :: Body Const (,) ch ch' (->) i o -> i -> i -> (o, o)
-twoStep (Body _ x g) i1 i2 =
+twoStep (Channel x g) i1 i2 =
   let (_c1', o1) = g (x (Const i1))
       (_c2', o2) = g (x (Const i2))
    in (o1, o2)
@@ -57,7 +59,7 @@ threading =
     && snd (twoStep memBody "ab" "cdef") == fresh2
   where
     fresh2 = case memBody of
-      Body _ x g -> snd (g (x (Const "cdef")))
+      Channel x g -> snd (g (x (Const "cdef")))
 
 -- | A named 'Body' at the @(Const, Either)@ corner: 'commit' writes the
 -- channel from the input alone; 'emit' evolves ('Left', the updated
@@ -65,14 +67,14 @@ threading =
 -- not — the exit constructor a bare 'Moore' emit (@arr ch o@, no
 -- constructors) cannot say.
 doneBody :: Body Const Either Int Int (->) Int Int
-doneBody = Body id (\(Const i) -> i) (\ch -> if ch < 4 then Left (ch + 1) else Right ch)
+doneBody = Channel (\(Const i) -> i) (\ch -> if ch < 4 then Left (ch + 1) else Right ch)
 
 -- | The 'Either' run: commit, emit, repeat. 'Left' logs the evolved
 -- channel — never carried forward, per the @Const@ corner's
 -- memorylessness — and the run continues; 'Right' terminates it, and
 -- the remaining inputs are never committed.
 runDone :: Body Const Either ch ch (->) i o -> [i] -> [Either ch o]
-runDone (Body _ x g) = go
+runDone (Channel x g) = go
   where
     go [] = []
     go (i : is) =
@@ -87,6 +89,75 @@ runDone (Body _ x g) = go
 -- or reads the evolved channel back; either would break the anchor.
 completion :: Bool
 completion = runDone doneBody [3, 5, 7] == [Left 4, Right 5]
+
+fusion :: Bool
+fusion = case fuse memBody of
+  Step f -> f (Const "abcd") == (5, 40)
+
+slideCommit, slideEmit :: Body (,) Const Int Int (->) Int Int
+slideCommit = Channel (uncurry (+) .> (* 10)) (Const . (+ 1))
+slideEmit = Channel (uncurry (+)) ((* 10) .> (Const . (+ 1)))
+
+linkSliding :: Bool
+linkSliding = case (fuse slideCommit, fuse slideEmit) of
+  (Step f, Step g) -> unConst (f (3, 4)) == 71 && unConst (f (3, 4)) == unConst (g (3, 4))
+
+emitFirst :: Channel Either Either Int Int Int Int (->) Int Int
+emitFirst = Channel (either negate (+ 1)) (\i -> if even i then Left (i `div` 2) else Right (i * 10))
+
+emitBeforeCommit :: Bool
+emitBeforeCommit = case emitFirst of
+  Channel c e -> (e .> c) 4 == -2 && (e .> c) 3 == 31
+
+repeatedEmission :: IO Bool
+repeatedEmission = do
+  commits <- newIORef (0 :: Int)
+  let channel =
+        Channel
+          (K (\(c, i) -> modifyIORef' commits (+ 1) >> pure (c + i)))
+          (K (\c -> pure (Const (c * 10)))) ::
+          Body (,) Const Int Int (K IO) Int Int
+  case channel of
+    Channel _ e -> do
+      first <- runK e 3
+      second <- runK e 4
+      commitCount <- readIORef commits
+      pure (first == Const 30 && second == Const 40 && commitCount == 0)
+
+countingCell :: IORef Int -> IORef Int -> IORef Int -> InitCell (,) (,) Int (K IO) Int Int
+countingCell initialisations initialEmissions recurrentEmissions =
+  InitCell
+    ( Channel
+        (K (\(Const input) -> modifyIORef' initialisations (+ 1) >> pure (input + 100)))
+        (K (\channel -> modifyIORef' initialEmissions (+ 1) >> pure (channel + 1000, channel * 10)))
+    )
+    ( Channel
+        (K (\(channel, input) -> pure (channel + input)))
+        (K (\channel -> modifyIORef' recurrentEmissions (+ 1) >> pure (channel + 2000, channel * 100)))
+    )
+
+initialisationSchedule :: IO Bool
+initialisationSchedule = do
+  initialisations <- newIORef 0
+  initialEmissions <- newIORef 0
+  recurrentEmissions <- newIORef 0
+  let cell = countingCell initialisations initialEmissions recurrentEmissions
+      expected = [(1101, 1010), (2103, 10300), (2106, 10600)]
+      readCounts = (,,) <$> readIORef initialisations <*> readIORef initialEmissions <*> readIORef recurrentEmissions
+  first <- runInitCell cell [1, 2, 3]
+  firstCounts <- readCounts
+  empty <- runInitCell cell []
+  emptyCounts <- readCounts
+  second <- runInitCell cell [1, 2, 3]
+  secondCounts <- readCounts
+  pure
+    ( first == expected
+        && firstCounts == (1, 1, 2)
+        && empty == []
+        && emptyCounts == firstCounts
+        && second == expected
+        && secondCounts == (2, 2, 4)
+    )
 
 -- Falsifiers (verify.md discipline): a stale-carrier composite feed breaks
 -- the unit scans; a non-projection fold (e.g. a These-sum fold) breaks
@@ -240,9 +311,14 @@ machineTopic :: Verbosity -> IO [Bool]
 machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
   sequence
-    [ checkV verbosity "const-corner body at (,) is memoryless: step 2 is the fresh commit/emit; threading breaks the anchors" threading,
+    [ checkV verbosity "body fusion composes commit then emit" fusion,
+      checkV verbosity "a link slides between commit and emit without changing fusion" linkSliding,
+      checkIOV verbosity "emit repeats without running commit" repeatedEmission,
+      checkV verbosity "a general channel permits emit before commit where its interfaces align" emitBeforeCommit,
+      checkIOV verbosity "InitCell initialises once per nonempty execution and uses its initial emit for the first observation" initialisationSchedule,
+      checkV verbosity "const-corner body at (,) is memoryless: step 2 is the fresh commit/emit; threading breaks the anchors" threading,
       checkV verbosity "const-corner body at Either: an emit returning Right terminates the run" completion,
-      checkV verbosity "mooreT (,) scan anchor" (scanT sumG xs == [1, 3, 6, 10]),
+      checkV verbosity "mooreT (,) sum/scan and empty-tape anchors" (scanT sumG xs == [1, 3, 6, 10] && scanT sumG [] == [] && isNothing (fold sumG [])),
       checkV verbosity "mooreT Either scan anchor" (scanT eitherG xs == [2, 6, 8, 10]),
       checkV verbosity "mooreT These scan anchor (That-injection)" (scanT theseG xs == [1, 3, 4, 5]),
       checkV verbosity "mooreT These scanBoth anchor (full injection)" (scanBoth theseG xs == [1, 3, 6, 10]),

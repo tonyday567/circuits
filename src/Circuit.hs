@@ -75,10 +75,12 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.Body" holds general factorisations. "Circuit.Machine" holds
--- the traditional Moore and Mealy readings: 'Moore' has input-seeded
--- 'init', 'commit', and post-commit 'emit' legs, 'MooreT' hides the channel
--- existentially, and 'scan' runs a sealed machine down an input list.
+-- "Circuit.Body" holds independent commit and emit legs: 'Channel' names all
+-- four channel positions, 'Body' is its diagonal open-transition corner, and
+-- 'InitCell' packages a one-shot initial channel with a recurrent body.
+-- "Circuit.Machine" holds their runners and the traditional Moore and Mealy
+-- readings: 'Moore' retains its input-seeded lifecycle, 'MooreT' hides the
+-- channel existentially, and 'scan' runs a sealed machine down an input list.
 --
 -- The counter as a Moore machine — commit adds the input to the channel,
 -- emit reads it; init absorbs the first input with the seed, so every
@@ -111,9 +113,13 @@
 --
 -- === Representations and conversion loss
 --
--- Start with the seed. @Body.init@ has type @arr i ch@: a 'Body' seeds its
--- channel from the first input, then 'commit' writes and 'emit' reads the
--- fresh channel. 'Step' itself carries neither a seed nor a runner.
+-- Start with the channel boundary. A 'Channel' has independent 'commit' and
+-- 'emit' legs; it does not impose an order between them. A 'Body' identifies
+-- the post-input and pre-output positions, so 'fuse' can compose those legs.
+-- An 'InitCell' adds a separate initial channel, whose commit consumes the
+-- first input and whose emit supplies the first observation under
+-- 'runInitCell'. Later inputs drive the recurrent body. 'Step' itself carries
+-- neither initialisation nor a runner.
 --
 -- Two kinds of loss then stay distinct:
 --
@@ -168,8 +174,8 @@
 --   intensional account of feedback.
 -- * 'fuse' in "Circuit.Body" composes @emit . commit@ to produce a 'Step'.
 --   It preserves the exact fused one-tick arrow, channel types, and
---   post-commit output discipline. It discards @Body.init@ and the separate
---   commit and emit leg boundaries.
+--   post-commit output discipline. It discards the separate commit and emit
+--   leg boundaries; initialisation belongs to 'InitCell', not to this fusion.
 -- * @run@ and @bind@ on 'Knot' return an 'Arr' body or map a 'Knot' body and
 --   apply 'trace'. They preserve the denotation in the receiving traced
 --   arrow, discard the one-knot normal form, and compute the explicit

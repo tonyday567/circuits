@@ -3,10 +3,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Traditional Moore and Mealy machines. 'MooreT' and 'MealyT' seal the
--- channel; their 'Poly' aliases fix the interface by positions and
--- directions. The runners consume an input tape and emit only after
--- initialisation or a commit.
+-- | Traditional Moore and Mealy machines, plus runners for 'InitCell'.
+-- 'MooreT' and 'MealyT' seal the channel; their 'Poly' aliases fix the
+-- interface by positions and directions. A runner supplies the schedule:
+-- 'runInitCell' drives its initial channel on the first input only, while the
+-- traditional Moore runners retain their established lifecycle.
 module Circuit.Machine
   ( Mealy,
     MealyT (..),
@@ -18,6 +19,7 @@ module Circuit.Machine
     moore,
     before,
     delay,
+    runInitCell,
     runM,
     scanT,
     scan,
@@ -27,11 +29,12 @@ module Circuit.Machine
   )
 where
 
-import Circuit.Category (Category (..), (.>))
+import Circuit.Body (Channel (..), InitCell (..))
+import Circuit.Category (Category (..), K (..), (.>))
 import Circuit.Poly (Dir, Poly, Pos)
 import Circuit.Step (Cell (..), Step (..))
 import Circuit.Stream (Cons (..), Uncons (..))
-import Circuit.Tensor (SemiTensor (..), Symmetric (..), Tensor, Unital (..))
+import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..))
 import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..), (:.) (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.These (These (..), these)
@@ -181,6 +184,26 @@ before (MooreT (Moore i c e)) f =
 -- | One tick of delay: the channel holds the previous input.
 delay :: s -> MooreT (,) (->) s s
 delay s0 = moore (\a -> (s0, a)) (\(_, prev) a -> (prev, a)) fst
+
+-- | Run an initial channel exactly once on the first input, then run the
+-- recurrent body on every later input. The first observation uses the initial
+-- channel's emit leg; later observations use the body's emit leg. The initial
+-- post-input channel is the body's pre-input channel by type equality. Empty
+-- input drives neither channel. Every output retains its emit leg's channel
+-- package, and the runner carries only the commit-produced channel forward.
+runInitCell :: forall t t' ch m i o. (Monad m, Tensor t (K m)) => InitCell t t' ch (K m) i o -> [i] -> m [t' ch o]
+runInitCell (InitCell (Channel initialCommit initialEmit) (Channel recurCommit recurEmit)) = \case
+  [] -> pure []
+  input : rest -> do
+    channel <- runK initialCommit (Const input)
+    emitted <- runK initialEmit channel
+    (emitted :) <$> go channel rest
+  where
+    go _ [] = pure []
+    go channel (input : rest) = do
+      channel' <- runK (unitl' .> tensor (K (const (pure channel))) id .> recurCommit) input
+      emitted <- runK recurEmit channel'
+      (emitted :) <$> go channel' rest
 
 -- | Stream elimination: the first input uses 'init', later inputs use
 -- 'commit', and every observation follows that transition. Each commit

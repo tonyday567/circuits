@@ -23,10 +23,11 @@
 --
 -- The two lanes package the same morphism differently:
 --
--- * "Circuit.Body" — 'Circuit.Body.Body' factors a transition into commit
---   and emit ('Circuit.Machine.MooreT' seals the channel), and
---   'Circuit.Body.fuse' lands the transition fragment back here. 'Cell'
---   pairs the same unfactored transition with a unit seed.
+-- * "Circuit.Body" — 'Circuit.Body.Channel' keeps commit and emit independent;
+--   'Circuit.Body.Body' identifies their boundary so 'Circuit.Body.fuse' can
+--   land one open transition back here. 'Circuit.Body.InitCell' separately
+--   packages one-shot initialisation and a recurrent body. 'Cell' pairs an
+--   unfactored transition with a unit seed.
 -- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
 --   existentially, and its one run is 'Circuit.Traced.trace'.
 --
