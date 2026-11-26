@@ -81,6 +81,87 @@ import Prelude hiding (id, init, (.))
 -- >>> import Circuit.Traced (trace)
 -- >>> import Data.These (These (..), these)
 
+-- * motivation
+--
+-- To start somewhere, consider the state monad:
+--
+-- > newtype StateM s o = StateM { run :: s -> (s,o) }
+--
+-- Starting with a state variable, the function updates the variable and computes a result (that is not state).
+--
+-- Now consider a related type where state changes type as part of the computation: the indexed state monad.
+--
+-- > newtype StateI s s' o = StateI { run :: s -> (s',o) }
+--
+-- and then let's add in supplying an input.
+--
+-- > i -> StateI s s' o
+-- > i -> s -> (s',o)
+-- > (s,i) -> (s',o)
+--
+-- and we arrive at what looks like a significant juncture in Haskell data types, which we call step:
+--
+-- > Step s s' i o ~ (s,i) -> (s',o)
+--
+-- This shape underlies both:
+--
+-- - the traced monoidal category provided in this library: @loop@ for arrows, @unfirst@ for profunctors, where @unfirst f a = b where (b, d) = f (a, d)@, and @unleft@ is the 'Either' version;
+-- - a Mealy machine in the state machine literature.
+--
+-- A state is privilege; a channel is a commonality.
+--
+-- State is obviously cliche in programming, defined commonly as "extra context" needed by a computation and often shared with other computations. And yet Step @(s,i) -> (s',o)@ is symmetrical about what is state and what is input and output — it is just as valid to regard @i@ and @o@ as the state and @s@ and @s'@ as the arrow.
+--
+-- This is a major reason why we move from using @s@ and @s'@ to, instead, imagining and representing an arrow @i -> o@ that exists tupled to a __channel__ @ch -> ch'@.
+--
+-- Tensor tension.
+--
+-- @(,)@ is not the only way to mix the @ch -> ch'@ and @i -> o@ arrows. At
+--
+-- > Either ch i -> Either ch' o
+--
+-- the two lanes are alternatives rather than companions: each step sees a channel or an input, never both at once. 'These' interpolates, admitting each alone or both together; 'Const' deletes a lane entirely, the memoryless corner. Source and target may also mix differently, which is why 'Step' carries both @t@ and @t'@.
+--
+-- The final abstraction is to move from the universe of Haskell functions to abstract arrows or morphisms, giving us our actual Step abstraction:
+--
+-- > Step t t' ch ch' arr i o ~ (t ch i) `arr` (t' ch' o)
+--
+-- @Step t t' ch ch'@ can then be seen as structure that can be analysed and considered over the top of an arbitrary @arr i o@, simply as tensored channels sharing computation paths.
+--
+-- Comonadic side-quest.
+--
+-- Let's now consider a comonadic presentation of state.
+--
+-- > newtype StoreM s o = StoreM { pos :: s, peek :: s -> o }
+--
+-- @StateM@ and @StoreM@ are related via 'Circuit.Category.CoX' continuation-passing:
+--
+-- > CoX (StoreM s) o ≅ StateM s o
+--
+-- Again, we can express a change in state type via an indexed comonad:
+--
+-- > newtype StoreI s s' o = StoreI { pos :: s', peek :: s -> o }
+--
+-- The index order is a genuine choice, and @StoreI@ makes it differently to 'Circuit.Category.StoreX' (position first). @StoreI@ holds the position at the second index and takes the supplied position at the first, so that it shares @StateI@'s before-and-after reading: in both, an @s@ is consumed (by @run@, by @peek@) and an @s'@ is produced or held (in the result, in @pos@). The price is that continuation-passing crosses the indices:
+--
+-- > CoX (StoreI s' s) o ≅ StateI s s' o
+--
+-- whereas the position-first order keeps them aligned: @CoX (StoreX ch ch') o ≅ StateX ch ch' o@. Uniform index meaning or uncrossed duality — not both, because @CoX@ is contravariant and flips whatever variance it meets. At the diagonal the choice is invisible, which is why unindexed Store never reveals it.
+--
+-- Considering a simple lens type:
+--
+-- > (ch -> o, (ch, i) -> ch')
+--
+-- currying the setter lands in a @StoreI@ coalgebra:
+--
+-- > ch -> (o, i -> ch') = ch -> StoreI i o ch'
+--
+-- Lenses are the coalgebras of the store comonad, and the indexed reading keeps the library's input-before-output convention to boot. The same product/exponential adjunction that makes @StateI@ a monad makes @StoreI@ a comonad: a step is a @StateI@ with an input uncurried in, and a lens is a @StoreI@ coalgebra with the setter uncurried out. Both are curried views of the one two-lane morphism, which is why this module can slide between 'Step', 'Channel', 'LensBody' and 'OpticBody' presentations without changing the underlying arrow.
+
+
+
+
+
 -- | A neutral two-lane morphism, with semantics supplied by its packagings
 -- and runners.
 --
