@@ -3,8 +3,8 @@
 --
 -- The positive witnesses run: 'tensor' functoriality at 'Const' on named,
 -- payload-carrying values with distinct payload types — a leg swap is a
--- type error here, as in the MooreT witnesses; the 'Assoc' round trip on
--- a heterogeneously nested payload; and a 'Circuit.Body.Poles'
+-- type error here; the 'Assoc' round trip on
+-- a heterogeneously nested payload; and a 'Circuit.Channel.Poles'
 -- triple built into a 'Const' machine, where the write leg is the
 -- absorb and the run commits from the input alone.
 --
@@ -23,8 +23,8 @@ module Axioma.SemiTensor
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Body (Poles (..), close)
 import Circuit.Category (id, (.))
+import Circuit.Channel (Poles (..), close)
 import Circuit.Tensor (Const (..), Distributive (..), SemiTensor (..))
 import Circuit.Traced (Assoc (..))
 import Control.Monad (when)

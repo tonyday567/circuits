@@ -5,7 +5,8 @@ module Axioma.Poles
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
-import Circuit.Body
+import Circuit.Category (K (..), runK)
+import Circuit.Channel
   ( Poles (..),
     close,
     iomap,
@@ -13,7 +14,6 @@ import Circuit.Body
     polesK,
     unclose,
   )
-import Circuit.Category (K (..), runK)
 import Control.Monad (when)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Prelude hiding (init, (.))

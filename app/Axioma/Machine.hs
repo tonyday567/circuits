@@ -1,31 +1,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- The law witnesses below deliberately spell the laws literally. The
--- alternative Body/optic/Q and cross-lane witnesses live in the
--- circuits-examples Body zoo; this module retains the core machine lifecycle,
--- MergeNat, and MooreT structure.
-
--- | Core machine oracles.
+-- | Core Channel and canonical Moore-runner oracles.
 module Axioma.Machine
   ( machineTopic,
   )
 where
 
 import Axioma.Common (Verbosity (..), checkIOV, checkV)
-import Circuit.Body (Body, Channel (..), InitCell (..), fuse)
-import Circuit.Category (K (..), id, runK, (.), (.>))
-import Circuit.Machine (MergeNat (..), Moore (..), MooreT (..), fold, runInitCell, scan, scanT)
-import Circuit.Step (Step (..))
-import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, Unital (..), unConst)
-import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..))
+import Circuit.Category (K (..), runK, (.>))
+import Circuit.Channel (Body, Channel (..), Moore, Step (..), foldM, fuse, scanM)
+import Circuit.Tensor (Const (..), unConst)
 import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Data.List.NonEmpty (toList)
-import Data.Maybe (isNothing)
-import Data.These (These (..), these)
 import System.Timeout (timeout)
-import Prelude hiding (id, (.))
 
 -- | A named 'Body' at the @(Const, (,))@ corner: 'commit' writes the
 -- channel from the input alone (its length) — the @Const@ tick source
@@ -64,8 +52,7 @@ threading =
 -- | A named 'Body' at the @(Const, Either)@ corner: 'commit' writes the
 -- channel from the input alone; 'emit' evolves ('Left', the updated
 -- channel) while the input is small and completes ('Right') once it is
--- not — the exit constructor a bare 'Moore' emit (@arr ch o@, no
--- constructors) cannot say.
+-- not — the exit constructor a bare 'Moore' emit cannot say.
 doneBody :: Body Const Either Int Int (->) Int Int
 doneBody = Channel (\(Const i) -> i) (\ch -> if ch < 4 then Left (ch + 1) else Right ch)
 
@@ -124,252 +111,116 @@ repeatedEmission = do
       commitCount <- readIORef commits
       pure (first == Const 30 && second == Const 40 && commitCount == 0)
 
-countingCell :: IORef Int -> IORef Int -> IORef Int -> InitCell (,) (,) Int (K IO) Int Int
-countingCell initialisations initialEmissions recurrentEmissions =
-  InitCell
-    ( Channel
-        (K (\(Const input) -> modifyIORef' initialisations (+ 1) >> pure (input + 100)))
-        (K (\channel -> modifyIORef' initialEmissions (+ 1) >> pure (channel + 1000, channel * 10)))
+sumMachine :: Moore (,) Int (->) Int Int
+sumMachine = Channel (uncurry (+)) ((),)
+
+sumScanM :: Bool
+sumScanM = scanM 0 sumMachine [1, 2, 3] == [0, 1, 3, 6]
+
+countingMachine :: Moore (,) (Int, Int) (->) Int (Int, Int)
+countingMachine =
+  Channel
+    (\((count, total), input) -> (count + 1, total + input))
+    (\channel -> ((), channel))
+
+seededCommitScan :: Bool
+seededCommitScan =
+  scanM (0, 0) countingMachine [1, 2, 3]
+    == [(0, 0), (1, 1), (2, 3), (3, 6)]
+
+carryMachine :: Moore (,) Int (->) Int Int
+carryMachine = Channel (uncurry (+)) (\channel -> ((), channel * 10))
+
+carryScanM :: Bool
+carryScanM = scanM 0 carryMachine [1, 2, 3] == [0, 10, 30, 60]
+
+carryFoldM :: Bool
+carryFoldM = foldM 0 carryMachine [1, 2, 3] == 60
+
+emptyMachine :: Moore (,) Int (->) Int Int
+emptyMachine = Channel (error "scanM ran commit on empty input") ((),)
+
+emptyScanM :: Bool
+emptyScanM = scanM 0 emptyMachine [] == [0]
+
+emptyFoldMachine :: Moore (,) Int (->) Int Int
+emptyFoldMachine = Channel (error "foldM ran commit on empty input") ((),)
+
+emptyFoldM :: Bool
+emptyFoldM = foldM 0 emptyFoldMachine [] == 0
+
+identityMachine :: Moore (,) s (->) s s
+identityMachine = Channel snd ((),)
+
+runIdentityMachine :: s -> [s] -> [s]
+runIdentityMachine seed = scanM seed identityMachine
+{-# NOINLINE runIdentityMachine #-}
+
+identityScanM :: IO Bool
+identityScanM = do
+  result <- timeout 1000000 $ evaluate (take 5 (runIdentityMachine 0 ([1 ..] :: [Int])) == [0, 1, 2, 3, 4])
+  pure (result == Just True)
+
+delayMachine :: Moore (,) (s, s) (->) s s
+delayMachine = Channel (\((_, previous), input) -> (previous, input)) (\channel -> ((), fst channel))
+
+directDelayScan :: Bool
+directDelayScan = scanM (1 :: Int, 1) delayMachine [0, 1, 2] == [1, 1, 0, 1]
+
+composeMachine ::
+  Moore (,) s2 (->) b c ->
+  Moore (,) s1 (->) a b ->
+  Moore (,) (s1, s2) (->) a c
+composeMachine (Channel commit2 emit2) (Channel commit1 emit1) =
+  Channel
+    ( \((channel1, channel2), input) ->
+        let channel1' = commit1 (channel1, input)
+            middle = snd (emit1 channel1')
+            channel2' = commit2 (channel2, middle)
+         in (channel1', channel2')
     )
-    ( Channel
-        (K (\(channel, input) -> pure (channel + input)))
-        (K (\channel -> modifyIORef' recurrentEmissions (+ 1) >> pure (channel + 2000, channel * 100)))
-    )
+    (emit2 . snd)
 
-initialisationSchedule :: IO Bool
-initialisationSchedule = do
-  initialisations <- newIORef 0
-  initialEmissions <- newIORef 0
-  recurrentEmissions <- newIORef 0
-  let cell = countingCell initialisations initialEmissions recurrentEmissions
-      expected = [(1101, 1010), (2103, 10300), (2106, 10600)]
-      readCounts = (,,) <$> readIORef initialisations <*> readIORef initialEmissions <*> readIORef recurrentEmissions
-  first <- runInitCell cell [1, 2, 3]
-  firstCounts <- readCounts
-  empty <- runInitCell cell []
-  emptyCounts <- readCounts
-  second <- runInitCell cell [1, 2, 3]
-  secondCounts <- readCounts
-  pure
-    ( first == expected
-        && firstCounts == (1, 1, 2)
-        && empty == []
-        && emptyCounts == firstCounts
-        && second == expected
-        && secondCounts == (2, 2, 4)
-    )
+composedDelayScan :: Bool
+composedDelayScan =
+  let outputs :: [Int]
+      outputs = scanM ((2, 2), (1, 1)) (composeMachine delayMachine delayMachine) [0, 1, 2]
+   in outputs == [1, 1, 2, 0]
 
--- Falsifiers (verify.md discipline): a stale-carrier composite feed breaks
--- the unit scans; a non-projection fold (e.g. a These-sum fold) breaks
--- naturality; naturality alone admits both projection folds, so the These
--- input-bias is pinned by the scanBoth unit witnesses — scanT's
--- That-injection never exercises the These clause.
-
-sumG :: MooreT (,) (->) Int Int
-sumG = MooreT (Moore id (uncurry (+)) id)
-
-prodG :: MooreT (,) (->) Int Int
-prodG = MooreT (Moore (* 10) (uncurry (*)) id)
-
-countG :: MooreT (,) (->) Int Int
-countG = MooreT (Moore (const 100) (\(c, _) -> c + 1) id)
-
-eitherG :: MooreT Either (->) Int Int
-eitherG = MooreT (Moore id (either id (+ 1)) (* 2))
-
-theseG :: MooreT These (->) Int Int
-theseG = MooreT (Moore id (these id (+ 1) (\c i -> c + i)) id)
-
-xs :: [Int]
-xs = [1, 2, 3, 4]
-
--- Ported-instance witnesses for MooreT (,) (->). Each witness is named
--- for the counterexample it catches:
---   * the functor runs catch an fmap wired to the commit leg — meanM's
---     channel (Int, Int) is not its output type Int, so a leg swap is
---     ill-typed, and an fmap that drops the observation fails the
---     [1,1,2,2] anchor;
---   * the applicative product runs catch crossed (ch1, ch2) wiring — the
---     counter and collector channels differ, so a crossed commit is a type
---     error and a crossed observation swaps the pair;
---   * the trace runs catch a strict knot tie (the strictBody divergence)
---     and a dropped feedback (powersBody would return a wrong stream);
---   * the unital, tensor, and braid runs catch swapped unitors and
---     swapped product wires;
---   * the assoc and outerSwap round trips catch a state-threading slip past
---     the reassociated or slid product;
---   * the strength run catches a swapped fst/snd wire in the strengthened
---     machine.
-
--- | Running mean: channel (count, sum), the view the integer mean. The
--- channel type differs from the output type, so a swapped-leg fmap cannot
--- type here — the functor witnesses run where a leg swap cannot.
-meanM :: MooreT (,) (->) Int Int
-meanM = MooreT (Moore (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n))
-
--- | Tick counter: channel Int, the view the tick count.
-cntM :: MooreT (,) (->) Int Int
-cntM = MooreT (Moore (const 0) (\(s, _) -> s + 1) id)
-
--- | Newest-first collector: channel [Int], distinct from cntM's channel, so
--- crossed (ch1, ch2) wiring in the applicative and tensor products is a
--- type error rather than a silent swap; a crossed observation still shows
--- in the run.
-colM :: MooreT (,) (->) Int [Int]
-colM = MooreT (Moore (: []) (\(s, a) -> a : s) id)
-
--- | View-bump machine for the strength witness: the channel is the last
--- input, the view adds 100.
-bumpM :: MooreT (,) (->) Int Int
-bumpM = MooreT (Moore id snd (+ 100))
-
--- | Left-nested product of the counter and collector for the associator
--- round trip.
-nestedM :: MooreT (,) (->) ((Int, Int), Int) ((Int, [Int]), Int)
-nestedM = tensor (tensor cntM colM) cntM
-
--- | Right-nested product for the outerSwap round trip and the associator RHS.
-sideM :: MooreT (,) (->) (Int, (Int, Int)) (Int, ([Int], Int))
-sideM = tensor cntM (tensor colM cntM)
-
-sideXs :: [(Int, (Int, Int))]
-sideXs = [(1, (10, 100)), (2, (20, 200)), (3, (30, 300)), (4, (40, 400))]
-
--- | Powers-of-two body for the lazy-knot productivity witness: the initial
--- channel is @1 : map (* 2) ns@ with the feedback @ns@ tied by the trace —
--- the machine counterpart of the cartesian @(->)@ 'trace' powers example.
--- Guards the Trace productivity clause: a strict knot tie diverges here.
-powersBody :: MooreT (,) (->) ([Integer], ()) ([Integer], [Integer])
-powersBody = MooreT (Moore (\(ns, ()) -> 1 : map (* 2) ns) (\(s, (_, ())) -> s) (\s -> (s, take 5 s)))
-
--- | Strict accumulator body for the divergence witness: init and step are
--- strict in the feedback channel, so the lazy knot is circular and the run
--- never terminates. Guards the Trace non-strictness clause, modelled on the
--- Pullback trace-divergence oracle.
-strictBody :: MooreT (,) (->) (Int, Int) (Int, Int)
-strictBody = MooreT (Moore (uncurry (+)) (\(s, (fb, x)) -> s + fb + x) (\s -> (s, s)))
-
--- Input-list elimination at the inclusive tensor, full injection: every
--- step feeds These c i, where scanT's That-injection is memoryless on the
--- carrier. Modelled on scanT, pattern-matching These directly.
-scanBoth :: MooreT These (->) i o -> [i] -> [o]
-scanBoth (MooreT (Moore i c e)) = \case
-  [] -> []
-  (input : rest) -> let channel = i input in e channel : go channel rest
+lazyFoldRun :: Bool
+lazyFoldRun = foldM (error "foldM forced the seed") lazyMachine [0, 1] == "done"
   where
-    go _ [] = []
-    go channel (input : rest) = let channel' = c (These channel input) in e channel' : go channel' rest
+    lazyMachine =
+      Channel
+        (\(_, _) -> ())
+        (const ((), "done")) ::
+        Moore (,) () (->) Int String
 
-scanTheseRun :: Moore (,) s (->) a b -> [a] -> [b]
-scanTheseRun (Moore i c e) = \case
-  [] -> []
-  (a : as) -> toList (unfold gen (Nothing, a, as))
-  where
-    gen (ms, a, rest) =
-      let s' = case ms of
-            Nothing -> i a
-            Just s -> c (s, a)
-       in case rest of
-            [] -> That (e s')
-            (a' : rest') -> These (Just s', a', rest') (e s')
-
-sumRun :: Moore (,) Int (->) Int Int
-sumRun = Moore id (uncurry (+)) id
-
-meanRun :: Moore (,) (Int, Int) (->) Int Int
-meanRun = Moore (\a -> (1, a)) (\((n, s), a) -> (n + 1, s + a)) (\(n, s) -> s `div` n)
-
--- mergeNat naturality: mergeNat . tensor f f == f . mergeNat at f = (+ 1).
-natPair :: Bool
-natPair =
+scanFoldAgreement :: Bool
+scanFoldAgreement =
   all
-    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
-    [(0, 5), (3, 7)]
-  where
-    f :: Int -> Int
-    f = (+ 1)
-
-natEither :: Bool
-natEither =
-  all
-    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
-    [Left 0, Right 5]
-  where
-    f :: Int -> Int
-    f = (+ 1)
-
-natThese :: Bool
-natThese =
-  all
-    (\x -> mergeNat (tensor f f x) == f (mergeNat x))
-    [This 0, That 5, These 0 5]
-  where
-    f :: Int -> Int
-    f = (+ 1)
+    (\inputs -> foldM 0 sumMachine inputs == last (scanM 0 sumMachine inputs))
+    [[], [7], [1, 2, 3, 4]]
 
 machineTopic :: Verbosity -> IO [Bool]
 machineTopic verbosity = do
   when (verbosity == Axioms) $ putStrLn "Machine oracles"
   sequence
     [ checkV verbosity "body fusion composes commit then emit" fusion,
+      checkV verbosity "scanM emits the initial zero and every subsequent sum" sumScanM,
+      checkV verbosity "scanM observes the initial channel then performs one commit per input" seededCommitScan,
+      checkV verbosity "scanM empty input emits the seed without commit" emptyScanM,
+      checkIOV verbosity "scanM identity emits the seed and an infinite-input prefix" identityScanM,
+      checkV verbosity "scanM carries commit-produced channels rather than observations" carryScanM,
+      checkV verbosity "foldM observes the final commit-produced channel" carryFoldM,
+      checkV verbosity "foldM empty input emits the seed without commit" emptyFoldM,
+      checkV verbosity "foldM agrees with the final scanM observation" scanFoldAgreement,
+      checkV verbosity "foldM does not force a seed its commits ignore" lazyFoldRun,
+      checkV verbosity "scanM restores a direct delay channel" directDelayScan,
+      checkV verbosity "scanM restores delay1 1 . delay1 2 as [1,1,2,0]" composedDelayScan,
       checkV verbosity "a link slides between commit and emit without changing fusion" linkSliding,
       checkIOV verbosity "emit repeats without running commit" repeatedEmission,
       checkV verbosity "a general channel permits emit before commit where its interfaces align" emitBeforeCommit,
-      checkIOV verbosity "InitCell initialises once per nonempty execution and uses its initial emit for the first observation" initialisationSchedule,
       checkV verbosity "const-corner body at (,) is memoryless: step 2 is the fresh commit/emit; threading breaks the anchors" threading,
-      checkV verbosity "const-corner body at Either: an emit returning Right terminates the run" completion,
-      checkV verbosity "mooreT (,) sum/scan and empty-tape anchors" (scanT sumG xs == [1, 3, 6, 10] && scanT sumG [] == [] && isNothing (fold sumG [])),
-      checkV verbosity "mooreT Either scan anchor" (scanT eitherG xs == [2, 6, 8, 10]),
-      checkV verbosity "mooreT These scan anchor (That-injection)" (scanT theseG xs == [1, 3, 4, 5]),
-      checkV verbosity "mooreT These scanBoth anchor (full injection)" (scanBoth theseG xs == [1, 3, 6, 10]),
-      checkV verbosity "the These unfold agrees with scan and fold (an early That truncates the run to its first output)" $
-        let run = scanTheseRun sumRun xs
-         in scanTheseRun sumRun [] == []
-              && run == scan (MooreT sumRun) xs
-              && scanTheseRun meanRun xs == scan (MooreT meanRun) xs
-              && fold (MooreT sumRun) xs == Just (last run),
-      checkIOV verbosity "scan is spine-lazy: a prefix delivers on an infinite tape" $ do
-        result <- timeout 1000000 $ evaluate (take 3 (scan (MooreT sumRun) [1 ..]) == [1, 3, 6])
-        pure (result == Just True),
-      checkV verbosity "mergeNat naturality at (,)" natPair,
-      checkV verbosity "mergeNat naturality at Either" natEither,
-      checkV verbosity "mergeNat naturality at These" natThese,
-      checkV verbosity "mooreT unit L at (,): scanT (id . m) == scanT m" (scanT (id . sumG) xs == scanT sumG xs),
-      checkV verbosity "mooreT unit R at (,): scanT (m . id) == scanT m" (scanT (sumG . id) xs == scanT sumG xs),
-      checkV verbosity "mooreT unit L at Either" (scanT (id . eitherG) xs == scanT eitherG xs),
-      checkV verbosity "mooreT unit R at Either" (scanT (eitherG . id) xs == scanT eitherG xs),
-      checkV verbosity "mooreT unit L at These" (scanT (id . theseG) xs == scanT theseG xs),
-      checkV verbosity "mooreT unit R at These" (scanT (theseG . id) xs == scanT theseG xs),
-      checkV verbosity "mooreT unit L at These, full injection" (scanBoth (id . theseG) xs == scanBoth theseG xs),
-      checkV verbosity "mooreT unit R at These, full injection" (scanBoth (theseG . id) xs == scanBoth theseG xs),
-      checkV verbosity "mooreT associativity on a three-machine chain" (scanT ((countG . prodG) . sumG) xs == scanT (countG . (prodG . sumG)) xs),
-      checkV verbosity "mooreT (,) functor identity: fmap id runs as the machine" $
-        scanT (fmap id meanM) xs == [1, 1, 2, 2],
-      checkV verbosity "mooreT (,) functor composition: fmap (f . g) runs as fmap f . fmap g" $
-        scanT (fmap ((+ 1) . (* 2)) meanM) xs == scanT (fmap (+ 1) (fmap (* 2) meanM)) xs,
-      checkV verbosity "mooreT (,) applicative identity: pure id <*> m runs as m" $
-        scanT (pure id <*> sumG) xs == [1, 3, 6, 10],
-      checkV verbosity "mooreT (,) applicative product: distinct channels stay on their own legs" $
-        scanT ((,) <$> cntM <*> colM) xs == [(0, [1]), (1, [2, 1]), (2, [3, 2, 1]), (3, [4, 3, 2, 1])],
-      checkV verbosity "mooreT (,) trace: lazy knot productive on a non-strict body" $
-        scanT (trace powersBody) [(), (), ()] == [[1, 2, 4, 8, 16], [1, 2, 4, 8, 16], [1, 2, 4, 8, 16]],
-      checkIOV verbosity "mooreT (,) trace: strict accumulator diverges" $ do
-        result <- timeout 1000000 $ case scanT (trace strictBody) [1 :: Int] of
-          (o : _) -> evaluate o
-          [] -> pure 0
-        pure (isNothing result),
-      checkV verbosity "mooreT (,) unital: tensor unit wires pass a machine through" $
-        scanT (unitl @(,) . tensor (id :: MooreT (,) (->) () ()) sumG . unitl' @(,)) xs == [1, 3, 6, 10]
-          && scanT (unitr @(,) . tensor sumG (id :: MooreT (,) (->) () ()) . unitr' @(,)) xs == [1, 3, 6, 10],
-      checkV verbosity "mooreT (,) tensor: product machine keeps the wires disjoint" $
-        scanT (tensor cntM colM) (zip [1 .. 4] [10, 20, 30, 40])
-          == [(0, [10]), (1, [20, 10]), (2, [30, 20, 10]), (3, [40, 30, 20, 10])],
-      checkV verbosity "mooreT (,) braid: braid swaps the two product wires" $
-        scanT (braid . tensor cntM colM) (zip [1 .. 2] [10, 20]) == [([10], 0), ([20, 10], 1)],
-      checkV verbosity "mooreT (,) assoc: reassociating wires commutes with tensor nesting" $
-        scanT (assoc . nestedM . assoc') sideXs == scanT sideM sideXs,
-      checkV verbosity "mooreT (,) outerSwap: sliding a wire past a product commutes with tensor nesting" $
-        scanT (outerSwap . sideM . outerSwap) sideXs == scanT (tensor colM (tensor cntM cntM)) sideXs,
-      checkV verbosity "mooreT (,) strength: strength lifts a machine to the second wire" $
-        scanT (strength bumpM) ([(1, 5), (2, 7), (3, 9)] :: [(Int, Int)]) == [(1, 105), (2, 107), (3, 109)]
+      checkV verbosity "const-corner body at Either: an emit returning Right terminates the run" completion
     ]

@@ -6,7 +6,7 @@
 --
 -- A 'Post' is polymorphic in both its address type @n@ and its body @a@.
 -- 'Circuit.Shared.Stamped' supplies occurrence receipts without becoming part
--- of the post itself. 'Circuit.Stream' supplies the construction and read
+-- of the post itself. 'Circuit.Channel' supplies the construction and read
 -- interfaces used by logs and inboxes.
 module Circuit.Post
   ( -- * Posts
@@ -42,7 +42,7 @@ module Circuit.Post
   )
 where
 
-import Circuit.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
+import Circuit.Channel (Cons (..), Snoc (..), These (..), Uncons (..))
 import Data.List (nub, sort)
 import Data.Map (Map)
 import Data.Map qualified as Map

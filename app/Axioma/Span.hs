@@ -5,7 +5,7 @@ module Axioma.Span
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Machine (moore, scan)
+import Circuit.Channel (Channel (..), Moore, Step (..), scanM)
 import Circuit.Span
   ( Span (..),
     bodyFromSpan,
@@ -15,7 +15,6 @@ import Circuit.Span
     presentS,
     spanFromBody,
   )
-import Circuit.Step (Step (..))
 import Control.Category (id)
 import Control.Monad (when)
 import Prelude hiding (id, (.))
@@ -99,8 +98,9 @@ spanTopic verbosity = do
         let sp0 = Span [W1, W2, W3] id spR
             inputs = [W1, W2, W3]
             Step f = bodyFromSpan sp0
-            mac = moore (\a -> f (inputs, a)) (\(s, _) a' -> f (s, a')) snd
-         in scan mac inputs == map spR [W1, W2, W3],
+            mac :: Moore (,) ([Wire], Sig) (->) Wire Sig
+            mac = Channel (\((s, _), a') -> f (s, a')) (\channel -> ((), snd channel))
+         in scanM (inputs, Lo) mac inputs == Lo : map spR [W1, W2, W3],
       checkV verbosity "span composition agrees with the step cascade on pairs" $
         let p :: Span Pin Bit
             p = Span [W1, W2, W3] spL (\case W1 -> O; W2 -> O; W3 -> I)

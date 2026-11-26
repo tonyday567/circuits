@@ -10,6 +10,20 @@ put the public vocabulary on canonical domain terms — operations are named
 for what they do, laws keep their names (`yanking`, `sliding`, the trace
 axioms) — and the entries below describe the tree as it stands.
 
+*Channel consolidation*
+
+- `Circuit.Channel` now owns channels, open transitions, body factorisations,
+  recurrent Moore machines, polynomial Moore interfaces, canonical tape
+  runners, and neutral stream interfaces. The previous separate machine,
+  body, step, and stream modules have been removed from the public module
+  list.
+- `Moore` is recurrent and carries only commit and emit. Initialisation is
+  supplied by an upstream channel or by the runner: `scanM` observes the
+  supplied channel and every post-commit channel, while `foldM` returns the
+  final observation. Empty scans return the singleton initial observation.
+  Sealed process wrappers and their alternate scan/fold schedules are no
+  longer part of the core API.
+
 *OpticBody — the residual decomposition*
 
 - `Circuit.Machine` gains the `OpticBody` bundle: the residual

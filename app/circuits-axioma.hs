@@ -3,10 +3,8 @@ module Main (main) where
 import Axioma.BiK (biKTopic)
 import Axioma.BimonoidNet (bimonoidNetTopic)
 import Axioma.Common (Verbosity (..))
-import Axioma.Container (containerTopic)
 import Axioma.Effect (effectTopic)
 import Axioma.Machine (machineTopic)
-import Axioma.Petri (petriTopic)
 import Axioma.Poles (polesTopic)
 import Axioma.Post (postTopic)
 import Axioma.Pullback (pullbackTopic)
@@ -23,10 +21,8 @@ data Topic
   = All
   | BiK
   | BimonoidNet
-  | Container
   | Machine
   | Effect
-  | Petri
   | Poles
   | Post
   | Pullback
@@ -41,10 +37,8 @@ topicName :: Topic -> String
 topicName All = "all"
 topicName BiK = "bik"
 topicName BimonoidNet = "bimonoidnet"
-topicName Container = "container"
 topicName Machine = "machine"
 topicName Effect = "effect"
-topicName Petri = "petri"
 topicName Poles = "poles"
 topicName Post = "post"
 topicName Pullback = "pullback"
@@ -58,10 +52,8 @@ topicDesc :: Topic -> String
 topicDesc All = "run all topics"
 topicDesc BiK = "BiK oracles: biaction category laws, the strength spend, and the Either bridge"
 topicDesc BimonoidNet = "Bimonoid net oracles: fan-in shape cannot change a bimonoid net's result"
-topicDesc Container = "Container oracles: fibred view, skeleton positions, flat/fibre bridges"
 topicDesc Machine = "Machine oracles"
 topicDesc Effect = "Effectful K IO and FreeTrace (,) (K IO) oracles"
-topicDesc Petri = "Finite Petri-net enabling, firing, reachability, and mutual exclusion"
 topicDesc Poles = "Poles oracles: write/read legs, closing, and leg-mapping"
 topicDesc Post = "Postal oracles: ancestry, delivery, logs, inboxes, and receipts"
 topicDesc Pullback = "Pullback oracles: chain rule under feedback for cotangent nets"
@@ -121,10 +113,8 @@ opts =
 runTopic :: Topic -> Verbosity -> IO [Bool]
 runTopic BiK = biKTopic
 runTopic BimonoidNet = bimonoidNetTopic
-runTopic Container = containerTopic
 runTopic Machine = machineTopic
 runTopic Effect = effectTopic
-runTopic Petri = petriTopic
 runTopic Poles = polesTopic
 runTopic Post = postTopic
 runTopic Pullback = pullbackTopic
@@ -136,7 +126,7 @@ runTopic Traced = tracedTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [BiK, BimonoidNet, Container, Effect, Machine, Petri, Poles, Post, Pullback, Shared, SemiTensor, Span, These, Traced]
+allTopics = [BiK, BimonoidNet, Effect, Machine, Poles, Post, Pullback, Shared, SemiTensor, Span, These, Traced]
 
 greenCircle :: String
 greenCircle = "🟢"

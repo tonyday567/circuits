@@ -234,24 +234,21 @@ instance (Trace t arr, Symmetric w arr) => Trace t (SMC w arr) where
 
 -- ** Iteration as a loop with joined wires
 
--- The codiagonal theorem (stated in "Circuit.Traced"'s
--- 'Circuit.Traced.Unfold'): @unfold g = trace (g . mergeT)@ — an iteration
--- is a loop whose entry and feedback wires are joined. The composite
--- needs no new syntax: the 'SigMerge' node 'Net' already has supplies the
--- join, and the 'Circuit.Trace.SigTrace' node supplies the loop. The body
--- melts Net to a function through the 'Circuit.Bimonoid.MergeT' Either
--- dictionary, lifts into 'FreeTrace', and folds through 'Trace' Either —
--- agreeing with 'Circuit.Traced.unfold' at a point:
+-- The codiagonal joins an iteration's entry and feedback wires:
+-- @trace (either g g) = trace (g . mergeT)@. The composite needs no new
+-- syntax: the 'SigMerge' node 'Net' already supplies the join, and the
+-- 'Circuit.Trace.SigTrace' node supplies the loop. The body melts Net to a
+-- function through the 'Circuit.Bimonoid.MergeT' Either dictionary, lifts
+-- into 'FreeTrace', and folds through 'Trace' Either:
 --
 -- >>> import Circuit.Bimonoid (SigMerge (..))
--- >>> import Circuit.Traced (unfold)
 -- >>> import Circuit.Syntax (Syntax (..))
 -- >>> import Circuit.Traced (trace)
 -- >>> let down n = if n <= (0 :: Int) then Right n else Left (n - 1)
 -- >>> let body = Lift down . Oper (R (R (R (R (R (L SigMerge)))))) :: Net Either (->) (Either Int Int) (Either Int Int)
 -- >>> run (trace (Lift (run body)) :: FreeTrace Either (->) Int Int) 5
 -- 0
--- >>> unfold down 5
+-- >>> trace (either down down) 5
 -- 0
 
 -- * Net

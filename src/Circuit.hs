@@ -46,7 +46,7 @@
 -- folds (@run@, @eval@, @bind@) and injections (@unit@, `Lift`).
 -- "Circuit.Trace" adds feedback to the free syntax, making it traced.
 -- "Circuit.Net" packages the free symmetric monoidal category with a
--- bimonoid over a primitive set. 'Step' — from "Circuit.Step" — is
+-- bimonoid over a primitive set. 'Step' — from "Circuit.Channel" — is
 -- the knot-body arrow @arr (t ch a) (t' ch' b)@, the stateful tick the
 -- machine and traced lanes share. "Circuit.Hyper" is the final,
 -- coinductive encoding.
@@ -75,40 +75,36 @@
 --
 -- === Machines: stateful observations
 --
--- "Circuit.Body" holds independent commit and emit legs: 'Channel' names all
+-- "Circuit.Channel" holds independent commit and emit legs: 'Channel' names all
 -- four channel positions, 'Body' is its diagonal open-transition corner, and
--- 'InitCell' packages a one-shot initial channel with a recurrent body.
--- "Circuit.Machine" holds their runners and the traditional Moore and Mealy
--- readings: 'Moore' retains its input-seeded lifecycle, 'MooreT' hides the
--- channel existentially, and 'scan' runs a sealed machine down an input list.
+-- 'Moore' is the recurrent unit-post-emit-channel corner. "Circuit.Channel"
+-- keeps that channel visible and supplies the canonical seeded 'scanM' and
+-- 'foldM' runners at the pure pair corner.
 --
--- The counter as a Moore machine — commit adds the input to the channel,
--- emit reads it; init absorbs the first input with the seed, so every
--- observation is post-step:
+-- The counter as a Moore machine — commit adds the input to the channel and
+-- emit reads it. The supplied seed is observed before input; every later
+-- observation follows an ordinary commit:
 --
--- >>> let counter = Moore (+ 0) (\(n, i) -> n + i) id :: Moore (,) Int (->) Int Int
--- >>> scan (MooreT counter) [1,1,1]
--- [1,2,3]
+-- >>> let counter = Channel (\(n, i) -> n + i) (\n -> ((), n)) :: Moore (,) Int (->) Int Int
+-- >>> scanM 0 counter [1,1,1]
+-- [0,1,2,3]
 --
 -- A one-shot post-step observation is one 'commit' followed by 'emit':
 --
--- >>> case counter of Moore _ c e -> e (c (0, 1))
+-- >>> case counter of Channel c e -> snd (e (c (0, 1)))
 -- 1
 --
--- 'MooreT' is the 'Category' the library proved, with 'MergeNat'
--- pricing the tensor's constructor grammar and 'scanT' running an
--- input list through a machine at any tensor:
+-- A fold observes only the final fresh channel:
 --
--- >>> let g = MooreT (Moore id (uncurry (+)) id) :: MooreT (,) (->) Int Int
--- >>> scanT g [1,2,3]
--- [1,3,6]
+-- >>> foldM 0 counter [1,1,1]
+-- 3
 --
 -- A Moore machine can be hung on a polynomial interface — 'MooreP' types
 -- the interface by a polynomial, here the monomial @Mono Int Int@,
 -- directions in, positions out:
 --
--- >>> let mac = Moore ((+ 0) . monoDir) (\(n, d) -> n + monoDir d) (\n -> (n, ())) :: MooreP (,) Int (->) (Mono Int Int)
--- >>> case mac of Moore _ c e -> e (c (0, monoIn 1))
+-- >>> let mac = Channel (\(n, d) -> n + monoDir d) (\n -> ((), (n, ()))) :: MooreP (,) Int (->) (Mono Int Int)
+-- >>> case mac of Channel c e -> snd (e (c (0, monoIn 1)))
 -- (1,())
 --
 -- === Representations and conversion loss
@@ -116,25 +112,23 @@
 -- Start with the channel boundary. A 'Channel' has independent 'commit' and
 -- 'emit' legs; it does not impose an order between them. A 'Body' identifies
 -- the post-input and pre-output positions, so 'fuse' can compose those legs.
--- An 'InitCell' adds a separate initial channel, whose commit consumes the
--- first input and whose emit supplies the first observation under
--- 'runInitCell'. Later inputs drive the recurrent body. 'Step' itself carries
--- neither initialisation nor a runner.
+-- Initial computation belongs upstream of the recurrent body; a seeded runner
+-- supplies an explicit channel to the first ordinary commit. 'Step' itself
+-- carries neither initialisation nor a runner.
 --
 -- Two kinds of loss then stay distinct:
 --
--- * 'MooreT' and 'Knot' /hide/ a channel existentially. The value and its
---   runtime role remain, but its type is no longer nameable at the sealed
---   interface.
+-- * 'Knot' /hides/ a channel existentially. The value and its runtime role
+--   remain, but its type is no longer nameable at the sealed interface.
 -- * 'melt' makes wiring /opaque/: structural rows become base arrows wrapped
 --   in 'Lift'. Their interpretation remains, but the rows cannot be inspected
 --   as rows in the result.
 -- * @run@ and @bind@ on 'Knot' /compute feedback away/ with 'trace'. This
 --   closes the hidden channel; it does not iterate a machine over an input
---   tape. The runners in "Circuit.Machine" supply different semantics.
+--   tape. The runners in "Circuit.Channel" supply different semantics.
 --
 -- The representations in "Circuit.Net", "Circuit.Trace", "Circuit.Hyper",
--- "Circuit.Step", and "Circuit.Machine" make different trade-offs:
+-- "Circuit.Channel", and "Circuit.Channel" make different trade-offs:
 --
 -- * 'Net' keeps symmetric-monoidal and bimonoid wiring inspectable: parallel,
 --   swap, copy, discard, merge, and zero rows are syntax. It has no feedback
@@ -148,10 +142,8 @@
 --   composition and observation through the dual rather than inspection of
 --   the original syntax or a named feedback channel.
 -- * 'Step' is one fused tick @arr (t ch i) (t' ch' o)@, with visible channel
---   types. Use it when the tick is the whole artifact.
--- * 'MooreT' seals the channel existentially. 'Body', 'Moore', and 'Step'
---   keep their different leg and tick boundaries visible. 'MooreT' alone
---   does not choose a runner.
+--   types. Use it when the tick is the whole artifact. 'Body' and 'Moore'
+--   keep their leg boundaries visible instead.
 --
 -- The existing conversions preserve and discard different information:
 --
@@ -172,10 +164,10 @@
 -- * 'observe' and 'observeK' in "Circuit.Hyper" preserve external function or
 --   Kleisli behaviour. They discard the continuation representation and its
 --   intensional account of feedback.
--- * 'fuse' in "Circuit.Body" composes @emit . commit@ to produce a 'Step'.
+-- * 'fuse' in "Circuit.Channel" composes @emit . commit@ to produce a 'Step'.
 --   It preserves the exact fused one-tick arrow, channel types, and
 --   post-commit output discipline. It discards the separate commit and emit
---   leg boundaries; initialisation belongs to 'InitCell', not to this fusion.
+--   leg boundaries; initialisation remains outside this fusion.
 -- * @run@ and @bind@ on 'Knot' return an 'Arr' body or map a 'Knot' body and
 --   apply 'trace'. They preserve the denotation in the receiving traced
 --   arrow, discard the one-knot normal form, and compute the explicit
@@ -190,7 +182,7 @@
 --
 -- === Streams: the neutral interface
 --
--- "Circuit.Stream" is the neutral stream interface: `Uncons` destructs
+-- "Circuit.Channel" is the neutral stream interface: `Uncons` destructs
 -- a stream of tokens, `Cons` and `Snoc` construct one. It knows nothing
 -- about state — only about streams. "Circuit.Post" adds addressed posts,
 -- causal ancestry, and stream-generic logs and inboxes.
@@ -198,12 +190,10 @@
 -- === Helpers
 --
 -- "Circuit.Poly" is the category @Poly@ of polynomials.
--- "Circuit.Container" is the container view —
--- @Eval p x@ as a position with the pins of that position assigned.
 -- "Circuit.Linear" is linear-logic connectives over a base category.
 -- "Circuit.Shared" fuses two bodies on one shared channel.
 -- "Circuit.Pullback" is linear cotangent maps, the base arrow for
--- reverse-mode gradients. From "Circuit.Body", 'Poles' is the memoryless
+-- reverse-mode gradients. From "Circuit.Channel", 'Poles' is the memoryless
 -- corner — 'init' and 'commit' the write legs over a channel, 'emit'
 -- reading it back.
 --
@@ -217,23 +207,11 @@
 -- >>> case s of Step f -> f ((), ())
 -- ((),42)
 --
--- The counter as a 'MooreT' remains input-seeded under 'before'; the Body zoo
--- demonstrates the optic and ecosystem conversions outside this core API:
---
--- >>> scan (before g (* 2)) [1,2,3]
--- [2,6,12]
---
 -- Pullback nets compose as cotangent chains — the circuits-diff name for
 -- this is reverse mode:
 --
 -- >>> evalPullback (Lift (Pullback (* 2)) .> Lift (Pullback (* 3)) :: Net (,) Pullback Int Int) 1
 -- 6
---
--- At the container grade the monomial's fibre is flat: the direction at a
--- boundary branch equals the direction itself, witnessed on the nose:
---
--- >>> case monoFibreFlat of Refl -> "fibre is flat"
--- "fibre is flat"
 --
 -- == Usage
 --
@@ -265,18 +243,14 @@ module Circuit
     module Circuit.Hyper,
     module Circuit.Span,
 
-    -- * Machines
-    module Circuit.Step,
-    module Circuit.Body,
-    module Circuit.Machine,
+    -- * Machines and streams
+    module Circuit.Channel,
 
-    -- * Streams and posts
-    module Circuit.Stream,
+    -- * Posts
     module Circuit.Post,
 
     -- * Helpers
     module Circuit.Poly,
-    module Circuit.Container,
     module Circuit.Linear,
     module Circuit.Shared,
     module Circuit.Pullback,
@@ -284,20 +258,16 @@ module Circuit
 where
 
 import Circuit.Bimonoid
-import Circuit.Body
 import Circuit.Category
-import Circuit.Container
+import Circuit.Channel
 import Circuit.Hyper
 import Circuit.Linear
-import Circuit.Machine
 import Circuit.Net
 import Circuit.Poly hiding (dagger)
 import Circuit.Post
 import Circuit.Pullback
 import Circuit.Shared
 import Circuit.Span
-import Circuit.Step
-import Circuit.Stream
 import Circuit.Syntax
 import Circuit.Tensor
 import Circuit.Trace
@@ -308,4 +278,3 @@ import Prelude hiding (id, (.))
 -- >>> :set -XDataKinds -XLambdaCase
 -- >>> import Prelude hiding (id, (.))
 -- >>> import Circuit
--- >>> import Data.Type.Equality ((:~:) (Refl))

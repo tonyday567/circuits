@@ -5,9 +5,9 @@ module Axioma.Post
 where
 
 import Axioma.Common (Verbosity, checkV)
+import Circuit.Channel (These (..))
 import Circuit.Post
 import Circuit.Shared (Stamped (..))
-import Circuit.Stream (These (..))
 import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 

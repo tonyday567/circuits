@@ -1,18 +1,29 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Independent commit and emit legs, and factorisations of a two-lane 'Step'.
+-- | Channels, transitions, Moore runners, and neutral token streams.
 --
--- 'Channel' names the channel before and after each interface without choosing
--- a schedule. 'Body' identifies its post-input, pre-output, and post-output
--- positions. 'InitCell' packages a one-shot initial channel with a recurrent
--- body; its runner lives in "Circuit.Machine". The other factorisations keep
--- their specialised parallel, residual, source-split, and seeded legs.
-module Circuit.Body
-  ( Channel (..),
+-- 'Channel' keeps commit and emit legs independent. 'Body' identifies their
+-- open-transition boundary, 'Moore' is the recurrent bare-output corner, and
+-- 'Step' is one fused transition. The canonical seeded 'scanM' and 'foldM'
+-- observe initial and final channels without imposing that schedule on every
+-- Channel. 'Uncons', 'Cons', and 'Snoc' are the neutral stream interfaces.
+module Circuit.Channel
+  ( -- * Channels and transitions
+    Channel (..),
     Body,
-    InitCell (..),
+    Moore,
+    MooreP,
+    Step (..),
+    fuse,
+
+    -- * Canonical Moore runners
+    scanM,
+    foldM,
+
+    -- * Body factorisations
     Poles (..),
     FoldBody (..),
     TheseBody (..),
@@ -20,7 +31,8 @@ module Circuit.Body
     LensBody (..),
     OpticBody (..),
     ProfunctorBody (..),
-    fuse,
+
+    -- * Body assemblies and conversions
     close,
     unclose,
     polesK,
@@ -44,24 +56,116 @@ module Circuit.Body
     lensAsOptic,
     opticAsLens,
     closedToGenerator,
+
+    -- * Streams
+    These (..),
+    Uncons (..),
+    Cons (..),
+    Snoc (..),
   )
 where
 
 import Circuit.Bimonoid (Copy (..))
-import Circuit.Category (BiK (..), Category (..), K (..), (.>))
-import Circuit.Poly (Lens, applyLens, lens)
-import Circuit.Step (Step (..))
-import Circuit.Tensor (Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Symmetric (..), Tensor, TheseElim (..), Unit, Unital (..), innerSwap, unConst)
+import Circuit.Category (BiK (..), Category (..), K (..), StateX, (.>))
+import Circuit.Poly (Dir, Lens, Poly, Pos, applyLens, lens)
+import Circuit.Tensor (Cocartesian (..), Const (..), ConstInject (..), SemiTensor (..), Symmetric (..), Tensor, TheseElim (..), Unit, Unital (..), innerSwap, unConst, unitl)
 import Circuit.Traced (OuterSwap (..))
+import Data.List (foldl', scanl)
 import Data.These (These (..), these)
 import Prelude hiding (id, init, (.))
 
 -- $setup
--- >>> import Circuit.Body
+-- >>> import Circuit.Channel
 -- >>> import Circuit.Poly (applyLens)
--- >>> import Circuit.Step (Step (..))
 -- >>> import Circuit.Tensor (Const (..), unConst)
+-- >>> import Circuit.Traced (trace)
 -- >>> import Data.These (These (..), these)
+
+-- | A neutral two-lane morphism, with semantics supplied by its packagings
+-- and runners.
+--
+-- Start with:
+--
+-- @
+-- arr (t x y) (t' x' y')
+-- @
+--
+-- At the pair/function corner this is one morphism @(x, y) -> (x', y')@,
+-- not independent arrows @x -> x'@ and @y -> y'@. Either result may depend
+-- on either source. Currying and braiding give two State readings,
+-- @y -> StateX x x' y'@ and @x -> StateX y y' x'@. The bare arrow chooses
+-- neither; 'StateX' is a view, not Step's intrinsic semantics.
+--
+-- The library parameters @ch ch'@ and @i o@ preserve the channel and
+-- interface conventions used by machine composition. They do not remove
+-- the underlying symmetry. A body or runner decides which lane is seeded,
+-- threaded, observed, hidden, or eliminated.
+--
+-- The two lanes package the same morphism differently:
+--
+-- * "Circuit.Channel" — 'Circuit.Channel.Channel' keeps commit and emit independent;
+--   'Circuit.Channel.Body' identifies their boundary so 'Circuit.Channel.fuse' can
+--   land one open transition back here.
+-- * "Circuit.Trace" — 'Circuit.Trace.Knot' hides the channel
+--   existentially, and its one run is 'Circuit.Traced.trace'.
+--
+-- 'Circuit.Traced.trace' ties the channel as a fixpoint — lazily at @(,)@,
+-- by closed iteration at 'Either' — while 'Circuit.Channel.scanM' and
+-- 'Circuit.Channel.foldM' iterate over a tape from a supplied channel.
+-- The runner is the semantics. Which steps fit which runs:
+--
+-- * Every step can be paired with a seed; that asks nothing of the
+--   underlying morphism.
+-- * A step fuses from a 'Circuit.Channel.Body' iff it is
+--   Moore-disciplined: the output reads the fresh channel only, so the
+--   step factors as @f x = (k x, e (k x))@. The shift register
+--   @\\(s, i) -> (i, s)@ fails here — its output reads the stale
+--   channel.
+-- * A step traces at @(,)@ iff it is productive: the fresh channel's
+--   constructor is produced before the stale channel is demanded. The
+--   accumulator @\\(n, i) -> (n + i, n + i)@ fails here — the knot is
+--   circular. At 'Either' the trace iterates strictly and productivity is
+--   free.
+--
+-- == A worked example
+--
+-- The recent-window step is both Moore-disciplined (the window reads the
+-- fresh channel) and productive (the channel's constructor is immediate):
+--
+-- >>> :{
+-- let win :: ([Int], Int) -> ([Int], [Int])
+--     win (ns, i) = (i : ns, take 3 (i : ns))
+-- :}
+--
+-- As a visible-channel Moore machine over a tape, run by 'scanM':
+--
+-- >>> let m = Channel (\(ns, i) -> i : ns) (\ns -> ((), take 3 ns)) :: Moore (,) [Int] (->) Int [Int]
+-- >>> scanM [] m [1,2,3,4]
+-- [[],[1],[2,1],[3,2,1],[4,3,2]]
+--
+-- As a knot, run by 'Circuit.Traced.trace' (the 'Circuit.Trace.Knot'
+-- packaging folds to exactly this): the channel ties to a constant
+-- stream and the window is constant — no tape exists in a knot:
+--
+-- >>> trace win 7
+-- [7,7,7]
+--
+-- Same step, two runs, different answers: the runner is the semantics.
+
+-- | Package one two-lane morphism. The channel and interface names follow
+-- the library convention; the underlying arrow remains runnerless and
+-- unsealed. Category composition uses the diagonal channel and tensor, so
+-- consecutive Steps compose through the same interface @arr i o@.
+newtype Step t t' ch ch' arr i o = Step {step :: arr (t ch i) (t' ch' o)}
+
+instance (Category arr) => Category (Step t t ch ch arr) where
+  id :: forall a. Step t t ch ch arr a a
+  id = Step id
+  {-# INLINE id #-}
+
+  (.) :: forall a b c. Step t t ch ch arr b c -> Step t t ch ch arr a b -> Step t t ch ch arr a c
+  Step g . Step f = Step (g . f)
+  {-# INLINE (.) #-}
 
 -- | A commit leg and an emit leg with independent channel positions.
 -- Composition is available only when an explicit link connects @posti@ to
@@ -74,14 +178,10 @@ data Channel t t' prei posti preo posto arr i o = Channel
 -- | The diagonal commit/emit channel used for one open transition.
 type Body t t' old new arr i o = Channel t t' old new new new arr i o
 
--- | A one-shot initial channel followed by a recurrent diagonal body. The
--- initial commit consumes the first input through 'Const'; both channels
--- share the same channel boundary and output tensor. A runner chooses whether
--- and how to observe each emission.
-data InitCell t t' ch arr i o = InitCell
-  { initial :: Channel Const t' ch ch ch ch arr i o,
-    body :: Body t t' ch ch arr i o
-  }
+-- | A recurrent Moore machine. Commit produces the channel observed by emit;
+-- emit returns no continuing channel. Initialisation belongs to the runner or
+-- an upstream channel, not to this recurrent value.
+type Moore t ch arr i o = Channel t (,) ch ch ch () arr i o
 
 -- | Compose a body's commit and emit into one open transition. This fusion
 -- chooses @posti ~ preo@ and does not give arbitrary 'Step's a factorisation.
@@ -269,3 +369,86 @@ opticAsLens (OpticBody f b) = lens (snd . f) (\c i -> b (fst (f c), i))
 -- | Close the input at the tensor's unit and chain commit into emit.
 closedToGenerator :: (Tensor t arr) => Body t t ch ch arr (Unit t) b -> arr ch (t ch b)
 closedToGenerator (Channel k p) = unitr' .> k .> p
+
+-- | A Moore machine on a polynomial interface.
+type MooreP t ch arr (p :: Poly) = Moore t ch arr (Dir p) (Pos p)
+
+-- | Observe the supplied channel before consuming input, then run every input
+-- through ordinary commit and observe the fresh channel. Only commit-produced
+-- channels feed later inputs. Empty input performs no commit and returns the
+-- singleton initial observation; outputs remain incremental on infinite input.
+--
+-- >>> let sumM = Channel (uncurry (+)) ((),) :: Moore (,) Int (->) Int Int
+-- >>> scanM 0 sumM [1,2,3,4]
+-- [0,1,3,6,10]
+-- >>> scanM 0 sumM []
+-- [0]
+scanM :: ch -> Moore (,) ch (->) i o -> [i] -> [o]
+scanM ch0 (Channel c e) =
+  fmap (e .> unitl) . scanl (curry c) ch0
+
+-- | Fold inputs through ordinary commit from the supplied channel and observe
+-- the final channel. Empty input performs no commit and emits the supplied
+-- channel. The strict left fold forces each intermediate channel to weak-head
+-- normal form.
+--
+-- >>> let sumM = Channel (uncurry (+)) ((),) :: Moore (,) Int (->) Int Int
+-- >>> foldM 0 sumM [1,2,3,4]
+-- 10
+-- >>> foldM 0 sumM []
+-- 0
+foldM :: ch -> Moore (,) ch (->) i o -> [i] -> o
+foldM ch0 (Channel c e) =
+  unitl . e . foldl' (curry c) ch0
+
+instance Uncons [a] a where
+  uncons [] = That []
+  uncons (x : xs) = These x xs
+  nil = []
+
+instance Cons [a] a where
+  cons = (:)
+  consNil = []
+
+instance Snoc [a] a where
+  snoc xs x = xs ++ [x]
+  snocNil = []
+
+-- | Stream coalgebra with explicit boundary.
+--
+-- @This x@ announces the final element when the representation knows that
+-- boundary. Lazy lists instead use @These x xs@ for every nonempty input,
+-- leaving exhaustion to the next step rather than demanding the tail early.
+-- The 'nil' value is the stream-specific empty used to continue after a
+-- 'This' result.
+--
+-- >>> uncons ([] :: [Int]) :: These Int [Int]
+-- That []
+-- >>> uncons ([1] :: [Int]) :: These Int [Int]
+-- These 1 []
+-- >>> uncons ([1,2,3] :: [Int]) :: These Int [Int]
+-- These 1 [2,3]
+class Uncons f s where
+  uncons :: f -> These s f
+  nil :: f
+
+-- | Stream algebra: construct a stream by prepending one token on the left.
+--
+-- This is the construction dual of 'Uncons'.  Together they let code move
+-- back and forth between tokens and streams using the same coalgebra.
+class Cons f s where
+  -- | Prepend one token to the left of a stream.
+  cons :: s -> f -> f
+
+  -- | The empty stream.
+  consNil :: f
+
+-- | Stream algebra: construct a stream by appending one token on the right.
+--
+-- This is the right-handed dual of 'Uncons'.
+class Snoc f s where
+  -- | Append one token to the right of a stream.
+  snoc :: f -> s -> f
+
+  -- | The empty stream.
+  snocNil :: f

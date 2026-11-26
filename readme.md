@@ -81,8 +81,8 @@ graph LR
   Hyper["Circuit.Hyper"]
   Dagger["Dagger (Circuit.Bimonoid)"]
   Poly["Circuit.Poly"]
-  Machine["Circuit.Machine"]
-  Step["Circuit.Step"]
+  ChannelModule["Circuit.Channel"]
+  Step["Step"]
   Shared["Circuit.Shared"]
   Bimonoid["Circuit.Bimonoid"]
   Linear["Circuit.Linear"]
@@ -93,13 +93,13 @@ graph LR
   Net --> FreeTrace
   FreeTrace --> Hyper
   Dagger --> Net
-  Machine --> Poly
-  Machine --> Bimonoid
-  Machine --> Trace
+  ChannelModule --> Poly
+  ChannelModule --> Bimonoid
+  ChannelModule --> Trace
   Shared --> FreeTrace
   Bimonoid --> Net
   Linear --> Shared
-  Machine --> Step
+  ChannelModule --> Step
   FreeTrace --> Step
 
   linkStyle 0,1,2 stroke:#4B7FBD,stroke-width:2px
@@ -126,7 +126,7 @@ graph LR
   style Hyper fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Dagger fill:#E07A9E,stroke:#E07A9E,color:#1b1e23
   style Poly fill:#4B96B0,stroke:#4B96B0,color:#1b1e23
-  style Machine fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
+  style ChannelModule fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
   style Step fill:#4B9680,stroke:#4B9680,color:#1b1e23
   style Shared fill:#D98A3A,stroke:#D98A3A,color:#1b1e23
   style Bimonoid fill:#6B4C8A,stroke:#6B4C8A,color:#c8ccd4
@@ -148,23 +148,22 @@ nothing about syntax; they are the contracts that folds have to meet.
 
 **A common shape.** Under all the syntax lives the neutral two-lane
 morphism `arr (t x y) (t' x' y')`, packaged as
-`Step t t' ch ch' arr i o` in `Circuit.Step`. Either result may depend on
+`Step t t' ch ch' arr i o` in `Circuit.Channel`. Either result may depend on
 either source; channel, input, and output are readings supplied by a body
-or runner. It is the shared shape both lanes are built on: the machines of
-`Circuit.Machine` are factorised from it (bodies, Moore machines, poles),
-and the loop bodies of `Circuit.Trace`'s free syntax are traced from it.
+or runner. It is the shared shape both lanes are built on: the channels and
+Moore machines of `Circuit.Channel` are factorised from it, and the loop
+bodies of `Circuit.Trace`'s free syntax are traced from it.
 
-**Pointing, two ways.** A stateful run needs an initial channel value
-exactly when no input supplies one. `Body` keeps it explicit as the
-`init` leg — the seed as data, with `moore` spelling the common case at
-`(->)`; the zoo's `Cell` carries it as the `seed` leg at the tensor's unit. The
-`Trace (,) (MooreT (,) (->))` instance discharges it through closure:
-`trace` ties the state channel in a lazy knot, and the absence of a seed
-is visible in the type. The discharges are not interchangeable: the lazy knot diverges on
-strict accumulators — which is why `delay` exists as explicit wiring.
+**Explicit pointing.** A stateful run needs an initial channel value supplied
+by its runner or an upstream channel. `Moore` carries only recurrent commit
+and emit legs; `scanM` and `foldM` take the initial channel explicitly. A
+`Step` can likewise be paired with a seed without changing the transition.
+`Trace` instead ties the channel in a knot. These discharges are not
+interchangeable: a lazy knot diverges on strict accumulators, while a tape
+runner observes its supplied initial channel before the first commit.
 
 ```haskell
-scan (moore (+ 0) (\s i -> s + i) id) [1, 2, 3]  -- explicit: the seed as data
+scanM 0 (Channel (uncurry (+)) ((),)) [1, 2, 3]  -- [0,1,3,6]
 ```
 
 **A deck of languages.** The GADTs form a chain of free constructions, each
@@ -202,9 +201,10 @@ functors.
 - `p` — the polynomial interface in `Circuit.Poly`; `Mono i o` is a Moore
   machine / lens, general `p` adds sums, products, dependent lenses and prisms.
 
-The factorisations live in `Circuit.Body`: serial `Body`, parallel `LensBody`,
-residual `OpticBody`, and their neighbours. `Circuit.Machine` holds the
-traditional `Moore`/`Mealy` readings, sealed channels, and tape runners.
+The factorisations live in `Circuit.Channel`: serial `Body`, parallel
+`LensBody`, residual `OpticBody`, recurrent `Moore`/`MooreP`, and their
+neighbours. The same module provides the seeded `scanM`/`foldM` runners and
+neutral stream interfaces.
 
 In many of the free objects we tag common computation patterns: function
 application, composition, tracing, and type tensoring. This bootstraps a

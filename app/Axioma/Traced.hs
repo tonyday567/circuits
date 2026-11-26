@@ -14,16 +14,15 @@ where
 import Axioma.Common (Verbosity (..), checkV)
 import Circuit.Bimonoid (SigMerge (..))
 import Circuit.Category (Op (..), id, runK, runOp, (.), (.>))
-import Circuit.Machine (Moore (..), MooreT (..), foldProcess, scanProcess, scanT)
+import Circuit.Channel (Channel (..), Moore, foldM, scanM)
 import Circuit.Net (Net)
 import Circuit.Syntax (Layer (..), Syntax (..), eval, (:+:) (..))
 import Circuit.Tensor (Const (..), SemiTensor (..), Symmetric (..), Tensor, innerSwap, superpose, unConst)
 import Circuit.Trace (FreeTrace, Iteration, Knot (..))
-import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..), Unfold (..), (:.) (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.Functor.Identity (Identity (..))
-import Data.List (unfoldr)
 import Data.Maybe (isNothing)
 import Data.These (These (..))
 import Data.Void (Void, absurd)
@@ -471,7 +470,7 @@ slidingOk :: Bool
 slidingOk =
   all (\n -> trace slidingLhsClosed n == trace slidingRhsClosed n) [0 .. 3]
 
--- | One terminating tail loop through 'Unfold', 'Knot', and Net's traced
+-- | One terminating tail loop through 'Trace', 'Knot', and Net's traced
 -- codiagonal. Zero covers immediate exit; five requires feedback. An early
 -- exit or an under-iterating step in any one spelling breaks agreement with
 -- the other two and with the expected answer.
@@ -490,56 +489,42 @@ tailLoopAgreementOk =
       netBody = Lift down . Oper (R (R (R (R (R (L SigMerge))))))
       netLoop :: FreeTrace Either (->) Int Int
       netLoop = trace (Lift (run netBody))
-      answers n = (unfold down n, run knot n, eval netLoop n)
+      answers n = (trace (either down down) n, run knot n, eval netLoop n)
    in all (\n -> answers n == (0, 0, 0)) [0 .. 5]
 
--- | Tape runners agree on post-commit Moore output, finite prefix demand,
--- partial-stream production, and finite scan/fold elimination. The direct
--- reference writes the seed and commit discipline without using 'Unfold';
--- 'swapStep' only exchanges the circuit and 'Data.List.unfoldr' pair slots.
+-- | Tape runners agree on initial and post-commit Moore output, finite prefix
+-- demand, and finite scan/fold elimination. The direct reference independently
+-- writes the seeded scanl discipline.
 tapeLoopAgreementOk :: Bool
 tapeLoopAgreementOk =
-  let sumBody = Moore id (uncurry (+)) id :: Moore (,) Int (->) Int Int
-      direct (Moore i c e) = \case
-        [] -> []
-        (a : as) ->
-          let s = i a
-           in e s : go s as
+  let sumMachine = Channel (uncurry (+)) ((),) :: Moore (,) Int (->) Int Int
+      direct seed (Channel c e) inputs =
+        snd (e seed) : go seed inputs
         where
           go _ [] = []
           go s (a : as) =
             let s' = c (s, a)
-             in e s' : go s' as
+             in snd (e s') : go s' as
       emptyAndFinite =
-        scanProcess sumBody [] == []
-          && direct sumBody [] == []
-          && scanT (MooreT sumBody) [] == []
-          && scanProcess sumBody [1, 2, 3, 4] == [1, 3, 6, 10]
-          && direct sumBody [1, 2, 3, 4] == [1, 3, 6, 10]
-          && scanT (MooreT sumBody) [1, 2, 3, 4] == [1, 3, 6, 10]
-      postCommit =
-        scanProcess sumBody [7] == [7]
-          && scanProcess sumBody [1, 2, 3] == [1, 3, 6]
+        scanM 0 sumMachine [] == [0]
+          && direct 0 sumMachine [] == [0]
+          && scanM 0 sumMachine [1, 2, 3, 4] == [0, 1, 3, 6, 10]
+          && direct 0 sumMachine [1, 2, 3, 4] == [0, 1, 3, 6, 10]
+      initialAndPostCommit =
+        scanM 0 sumMachine [7] == [0, 7]
+          && scanM 0 sumMachine [1, 2, 3] == [0, 1, 3, 6]
       demand =
-        take 3 (scanProcess sumBody (1 : 2 : 3 : error "tape over-demand")) == [1, 3, 6]
-          && take 3 (direct sumBody (1 : 2 : 3 : error "tape over-demand")) == [1, 3, 6]
-      swapStep (Nest Nothing) = Nothing
-      swapStep (Nest (Just (ch', b))) = Just (b, ch')
-      finiteStep, forever :: Int -> (Maybe :. (,)) Int Int
-      finiteStep n = Nest (if n <= 0 then Nothing else Just (n - 1, n * 10))
-      forever n = Nest (Just (n + 1, n * 10))
-      partialStreams =
-        unfold finiteStep 3 == [30, 20, 10]
-          && unfold finiteStep 3 == unfoldr (swapStep . finiteStep) 3
-          && take 4 (unfold forever 0) == [0, 10, 20, 30]
-          && take 4 (unfold forever 0) == take 4 (unfoldr (swapStep . forever) 0)
+        take 1 (scanM 0 sumMachine (error "tape over-demand")) == [0]
+          && take 1 (direct 0 sumMachine (error "tape over-demand")) == [0]
+          && take 4 (scanM 0 sumMachine (1 : 2 : 3 : error "tape over-demand")) == [0, 1, 3, 6]
+          && take 4 (direct 0 sumMachine (1 : 2 : 3 : error "tape over-demand")) == [0, 1, 3, 6]
       finiteFolds =
-        isNothing (foldProcess sumBody [])
-          && foldProcess sumBody [1, 2, 3, 4] == Just 10
+        foldM 0 sumMachine [] == 0
+          && foldM 0 sumMachine [1, 2, 3, 4] == 10
           && all
-            (\as -> foldProcess sumBody as == Just (last (scanProcess sumBody as)))
-            [[7], [1, 2, 3, 4]]
-   in emptyAndFinite && postCommit && demand && partialStreams && finiteFolds
+            (\as -> foldM 0 sumMachine as == last (scanM 0 sumMachine as))
+            [[], [7], [1, 2, 3, 4]]
+   in emptyAndFinite && initialAndPostCommit && demand && finiteFolds
 
 tracedTopic :: Verbosity -> IO [Bool]
 tracedTopic verbosity = do
@@ -574,6 +559,6 @@ tracedTopic verbosity = do
       checkV verbosity "These strength coherence (strength f == tensor id f)" theseStrengthCoherenceOk,
       checkV verbosity "Either uniformity: feedback respects non-injective two-cell" uniformityOk,
       checkV verbosity "Either sliding (dinaturality) for isomorphism" slidingOk,
-      checkV verbosity "Unfold, Knot, and Net traced codiagonal agree on one tail loop" tailLoopAgreementOk,
-      checkV verbosity "Tape scans, partial unfolds, and finite folds agree on post-commit output" tapeLoopAgreementOk
+      checkV verbosity "Trace, Knot, and Net traced codiagonal agree on one tail loop" tailLoopAgreementOk,
+      checkV verbosity "Tape scans and finite folds agree on initial and post-commit output" tapeLoopAgreementOk
     ]

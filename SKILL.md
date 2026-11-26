@@ -57,26 +57,15 @@ Circuit.Linear      — Linear-logic connectives: multiplicative disjunction
 Circuit.Shared      — Shared-medium fusion (operational ⅋) and Schedule;
                       the free syntax is SharedTrace.
 Circuit.Poly        — Polynomial functor category, lenses/prisms, netlist view.
-Circuit.Container   — Fibred container view: positions with typed direction
-                      fibres, skeletons, pin routing, and the netlist bridge.
 Circuit.Span        — Finite spans with an existential Eq apex, pullback
                       composition, body bridges, and metric optics.
-Circuit.Step       — The neutral two-lane Step morphism and Cell, the
-                      unit-seeded unfactored transition. Its haddock starts
-                      with the symmetric State readings, then carries the
-                      runner-fit conditions (Moore-discipline, productivity)
-                      and a worked example run both ways.
-Circuit.Body       — Body factorisations and their independently usable legs:
-                      Body, LensBody, OpticBody, ProfunctorBody, FoldBody,
-                      EitherBody, TheseBody, and memoryless Poles. Fusion,
-                      source unfusion, and lens/BiK conversions live here.
-Circuit.Machine     — Traditional Moore and Mealy machines: Moore/MooreT,
-                      Mealy/MealyT, their Poly interfaces, MergeNat, moore,
-                      delay, runM over Uncons/Cons streams, its list scan
-                      specialisations, and partial-grammar foldProcess. Q and
-                      the cross-lane trace bridges remain in circuits-examples.
+Circuit.Channel    — Channels and transitions: Channel, Body, Moore/MooreP,
+                      Step and fuse; canonical seeded scanM/foldM runners;
+                      Poles, LensBody, OpticBody, ProfunctorBody, FoldBody,
+                      EitherBody, TheseBody and their conversions; neutral
+                      Uncons/Cons/Snoc stream interfaces. Q and cross-lane
+                      trace bridges remain in circuits-examples.
 Circuit.Pullback    — Linear cotangent maps for reverse-mode gradients.
-Circuit.Stream      — Stream algebra/coalgebra helpers.
 Circuit             — Umbrella re-export. This is the recommended import
                       (`import Circuit`) for almost all use.
 ```
@@ -90,12 +79,8 @@ cd ~/haskell/circuits && cabal build all
 # Axioma oracles
 cabal run circuits-axioma -- all
 
-# Doctests. cabal-docspec is currently a broken install on this machine;
-# the substitute is doctest under cabal exec (needs a successful build
-# first — it tests the last build):
-cabal exec doctest -- -XLambdaCase -XDataKinds -XTypeApplications \
-  -XScopedTypeVariables -XTypeOperators -XGADTs -XTypeFamilies \
-  $(ls src/Circuit/*.hs src/Circuit.hs)
+# Doctests (requires a successful build first)
+cabal-docspec
 
 # Single module doctests
 cabal exec doctest -- src/Circuit/Hyper.hs
@@ -181,12 +166,12 @@ you're returning. The convention is fixed by the class, not configurable.
 
 ### pointing: two discharges
 
-A stateful run needs an initial carrier value exactly where no input
-supplies one. `Body` discharges pointing through the input (`init :: arr i
-ch`); `Cell` keeps the seed explicit as the `seed` leg (`arr (Unit t) ch`).
-Do not collapse the pair: input discharge agrees with an explicit seed only
-when the body never reads its initial state, which is why `delay` and
-`feedback` exist as explicit wiring.
+A stateful run needs an initial carrier value exactly where no input supplies
+one. `Moore` contains only recurrent commit and emit legs: `scanM` and `foldM`
+take the initial channel explicitly, while effectful machines may keep an
+acquisition arrow beside the channel. A `Step` can likewise be paired with a
+seed. `Trace` supplies the alternative discharge by tying the channel in a
+knot; it does not turn a tape runner's seed into syntax.
 
 ### wrong tensor
 

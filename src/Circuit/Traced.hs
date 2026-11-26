@@ -6,7 +6,6 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -25,12 +24,6 @@
 -- spend only @pure@ or '<$>'. Cartesian strength and trace use the monad
 -- proper and document that locally.
 --
--- Beside the ladder sits 'Unfold': coiteration over a grammar, the run's
--- output shape fixed by the grammar's 'Nu'. Its 'Either' corner is the
--- trace itself — the codiagonal correspondence — and its partial grammars
--- (@Maybe :. (,)@, @Maybe :. Either@) include the tape-driven
--- 'Circuit.Machine.foldProcess' runner.
---
 -- 'outerSwap' here is the outer
 -- swap @t a (t b c) -> t b (t a c)@; the symmetric braiding @t a b -> t b a@
 -- lives in Circuit.Tensor as braid. Where both structures exist,
@@ -43,15 +36,12 @@ module Circuit.Traced
     OuterSwap (..),
     Strength (..),
     Trace (..),
-    Unfold (..),
-    (:.) (..),
   )
 where
 
 import Circuit.Category (Category (..), K (..), Op (..))
 import Control.Monad.Fix (MonadFix, mfix)
 import Data.Kind (Type)
-import Data.List.NonEmpty (NonEmpty (..), (<|))
 import Data.These (These (..))
 import GHC.Exts (PromptTag#, control0#, newPromptTag#, prompt#)
 import GHC.IO (IO (..))
@@ -60,7 +50,7 @@ import Prelude hiding (id, (.))
 -- $setup
 -- >>> :set -XLambdaCase
 -- >>> import Circuit.Category ((.>))
--- >>> import Circuit.Traced (Trace (..), Unfold (..), (:.) (..))
+-- >>> import Circuit.Traced (Trace (..))
 -- >>> import Circuit.Tensor (unitl, unitl')
 -- >>> import Circuit.Category (K (..), runK)
 -- >>> import Circuit.Category (Op (..))
@@ -698,87 +688,3 @@ instance {-# OVERLAPPING #-} Trace Either (K IO) where
 instance (Trace t arr) => Trace t (Op arr) where
   trace :: forall a b c. Op arr (t a b) (t a c) -> Op arr b c
   trace (Op f) = Op (trace f)
-
--- * Unfold — coiteration over a grammar
-
--- | Grammar composition: an outer functor around an inner grammar — the
--- partial fragment's spelling. @Maybe :. (,)@ is the uncons grammar
--- (the step may halt, one output per taken step); @Maybe :. Either@ is
--- the maybe-one grammar (halt silent, continue, or halt with the
--- answer).
-newtype (f :. g) ch b = Nest {unNest :: f (g ch b)}
-
--- | Coiteration: 'unfold' runs a coalgebra to the grammar's output
--- shape — 'Nu' is what a run delivers. At @(,)@ a stream, at 'Either'
--- one answer, at 'These' a non-empty stream; at the partial grammars a
--- finite list (@Maybe :. (,)@) or a maybe-one (@Maybe :. Either@). The
--- class asks for 'Category' only — no tensor laws — so partial
--- grammars are legal, and 'Circuit.Machine.foldProcess' lives in the
--- partial fragment.
---
--- The 'Either' corner is the codiagonal correspondence: iteration is a
--- loop whose entry and feedback wires are joined — @unfold g = trace
--- (either g g)@, and 'Circuit.Bimonoid.mergeT' is that join at 'Either'
--- (the agreement is witnessed at a point in "Circuit.Net").
-class
-  (Category arr) =>
-  Unfold (t :: Type -> Type -> Type) (arr :: Type -> Type -> Type)
-  where
-  type Nu t arr b
-
-  unfold :: arr ch (t ch b) -> arr ch (Nu t arr b)
-
--- | The stream grammar: every step emits; no halt.
-instance Unfold (,) (->) where
-  type Nu (,) (->) b = [b]
-  unfold g = go
-    where
-      go ch = case g ch of (ch', b) -> b : go ch'
-
--- | The terminal grammar: 'Left' continues, 'Right' answers — the
--- codiagonal correspondence is the definition.
-instance Unfold Either (->) where
-  type Nu Either (->) b = b
-  unfold g = trace (either g g)
-
--- | The non-empty grammar: 'That' answers, 'These' emits and continues.
-instance Unfold These (->) where
-  type Nu These (->) b = NonEmpty b
-  unfold g = go
-    where
-      go ch = case g ch of
-        This ch' -> go ch'
-        That b -> b :| []
-        These ch' b -> b <| go ch'
-
--- | The uncons grammar: the step may halt, and emits once per taken
--- step — 'Data.List.unfoldr' as an 'Unfold' instance.
---
--- >>> let gen n = Nest (if n <= (0 :: Int) then Nothing else Just (n - 1, n * 10))
--- >>> unfold gen 3
--- [30,20,10]
-instance Unfold (Maybe :. (,)) (->) where
-  type Nu (Maybe :. (,)) (->) b = [b]
-  unfold g = go
-    where
-      go ch = case g ch of
-        Nest Nothing -> []
-        Nest (Just (ch', b)) -> b : go ch'
-
--- | The maybe-one grammar: halt silent, continue, or halt with the
--- answer — the 'Circuit.Machine.foldProcess' loop.
---
--- >>> let gen n = Nest (if n <= (0 :: Int) then Just (Right (n + 100)) else Just (Left (n - 1)))
--- >>> unfold gen 3
--- Just 100
--- >>> let stop n = Nest (if n <= (0 :: Int) then Nothing else Just (Left (n - 1)))
--- >>> unfold stop 3 :: Maybe Int
--- Nothing
-instance Unfold (Maybe :. Either) (->) where
-  type Nu (Maybe :. Either) (->) b = Maybe b
-  unfold g = go
-    where
-      go ch = case g ch of
-        Nest Nothing -> Nothing
-        Nest (Just (Left ch')) -> go ch'
-        Nest (Just (Right b)) -> Just b

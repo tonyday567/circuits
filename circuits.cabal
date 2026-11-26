@@ -47,21 +47,16 @@ library
     Circuit
     Circuit.Axioma.Test
     Circuit.Bimonoid
-    Circuit.Body
     Circuit.Category
-    Circuit.Container
+    Circuit.Channel
     Circuit.Hyper
     Circuit.Linear
-    Circuit.Machine
     Circuit.Net
-    Circuit.Petri
     Circuit.Poly
     Circuit.Post
     Circuit.Pullback
     Circuit.Shared
     Circuit.Span
-    Circuit.Step
-    Circuit.Stream
     Circuit.Syntax
     Circuit.Tensor
     Circuit.Trace
@@ -81,10 +76,8 @@ executable circuits-axioma
     Axioma.BiK
     Axioma.BimonoidNet
     Axioma.Common
-    Axioma.Container
     Axioma.Effect
     Axioma.Machine
-    Axioma.Petri
     Axioma.Poles
     Axioma.Post
     Axioma.Pullback
